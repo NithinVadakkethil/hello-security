@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  CLIENT_ADMIN
+  MANAGER
+  SUPERVISOR
+  SECURITY
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+}
+
+enum IdentificationMethod {
+  QR
+  RFID
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  CREATE
+  UPDATE
+  DELETE
+  DOWNLOAD
+}
+
+model Client {
+  id String @id @default(cuid())
+
+  companyName String
+
+  email String @unique
+
+  phone String?
+
+  address String?
+
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+
+  identificationMethod IdentificationMethod @default(QR)
+
+  maxEmployees Int @default(50)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  users User[]
+
+  employees Employee[]
+
+  refreshTokens RefreshToken[]
+
+  auditLogs AuditLog[]
+}
+
+model User {
+  id         String   @id @default(cuid())
+
+  clientId   String?
+
+  employeeId String? @unique
+
+  client      Client?   @relation(fields: [clientId], references: [id])
+  employee    Employee? @relation(fields: [employeeId], references: [id])
+
+  email       String @unique
+  password    String
+  role        UserRole
+
+  isActive    Boolean @default(true)
+  lastLogin   DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+}
+
+model Employee {
+  id String @id @default(cuid())
+
+  clientId String
+
+  client Client @relation(fields: [clientId], references: [id])
+
+  employeeNumber String
+
+  firstName String
+
+  lastName String
+
+  phone String?
+
+  photo String?
+
+  identificationMethod IdentificationMethod @default(QR)
+
+  qrCode String?
+
+  rfidTag String?
+
+  status EmployeeStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  user User?
+
+  @@unique([clientId, employeeNumber])
+}
+
+model RefreshToken {
+  id String @id @default(cuid())
+
+  clientId String?
+
+  userId String
+
+  client Client? @relation(fields: [clientId], references: [id])
+
+  user User @relation(fields: [userId], references: [id])
+
+  tokenHash String
+
+  expiresAt DateTime
+
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  clientId String?
+
+  userId String
+
+  client Client? @relation(fields: [clientId], references: [id])
+
+  user User @relation(fields: [userId], references: [id])
+
+  action AuditAction
+
+  entity String
+
+  entityId String?
+
+  ipAddress String?
+
+  userAgent String?
+
+  createdAt DateTime @default(now())
+}
