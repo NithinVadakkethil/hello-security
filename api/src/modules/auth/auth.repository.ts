@@ -34,6 +34,29 @@ export class AuthRepository {
     });
   }
 
+  async findRefreshTokensByUser(userId: string) {
+    return prisma.refreshToken.findMany({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+    });
+  }
+
+  async findUserById(userId: string) {
+    return prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+      include: {
+        client: true,
+      },
+    });
+  }
+
   async revokeAllRefreshTokens(userId: string) {
     return prisma.refreshToken.updateMany({
       where: {

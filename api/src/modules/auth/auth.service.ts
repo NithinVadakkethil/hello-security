@@ -2,7 +2,11 @@ import { addDays } from 'date-fns';
 import { authRepository } from './auth.repository';
 
 import { comparePassword, hashPassword } from '../../common/auth/bcrypt';
-import { signAccessToken, signRefreshToken } from '../../common/auth/jwt';
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from '../../common/auth/jwt';
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
@@ -73,6 +77,43 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+  async refresh(refreshToken: string): Promise<LoginResponse> {
+    const payload = verifyRefreshToken(refreshToken);
+
+    const user = await authRepository.findUserById(payload.sub);
+
+    if (!user) {
+      throw new AppError(
+        HttpStatus.UNAUTHORIZED,
+        ErrorCodes.UNAUTHORIZED,
+        'Invalid refresh token.',
+      );
+    }
+
+    const tokens = await authRepository.findRefreshTokensByUser(user.id);
+
+    let matched = false;
+
+    for (const token of tokens) {
+      const valid = await comparePassword(refreshToken, token.tokenHash);
+
+      if (valid) {
+        matched = true;
+        break;
+      }
+    }
+
+    if (!matched) {
+      throw new AppError(
+        HttpStatus.UNAUTHORIZED,
+        ErrorCodes.UNAUTHORIZED,
+        'Refresh token revoked.',
+      );
+    }
+
+    // We'll continue from here in the next step.
+    throw new Error('Not implemented yet.');
   }
 }
 
