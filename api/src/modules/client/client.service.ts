@@ -5,9 +5,13 @@ import { UserRole } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 
 import { hashPassword } from '../../common/auth/bcrypt';
+import { ENTITY } from '../../common/constants/entities';
+import { PREFIX } from '../../common/constants/prefixes';
+import { counterService } from '../../common/counter/counter.service';
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
+import { generateCode } from '../../common/utils/code-generator';
 
 import { clientRepository } from './client.repository';
 import { CreateClientDto, UpdateClientDto } from './client.types';
@@ -27,10 +31,16 @@ export class ClientService {
     const temporaryPassword = randomBytes(6).toString('hex');
 
     const hashedPassword = await hashPassword(temporaryPassword);
+    const sequence = await counterService.next(ENTITY.CLIENT);
+
+    const clientCode = generateCode(PREFIX.CLIENT, sequence);
 
     const result = await prisma.$transaction(async (tx) => {
       const client = await tx.client.create({
-        data,
+        data: {
+          ...data,
+          clientCode,
+        },
       });
 
       const admin = await tx.user.create({

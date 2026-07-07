@@ -1,0 +1,9 @@
+export const ENTITY = {
+  CLIENT: 'CLIENT',
+  EMPLOYEE: 'EMPLOYEE',
+  SITE: 'SITE',
+  GATE: 'GATE',
+  SHIFT: 'SHIFT',
+  PATROL: 'PATROL',
+  INCIDENT: 'INCIDENT',
+} as const;

@@ -45,6 +45,8 @@ enum AuditAction {
 model Client {
   id String @id @default(cuid())
 
+  clientCode String @unique
+
   companyName String
 
   email String @unique
@@ -68,6 +70,8 @@ model Client {
   users User[]
 
   employees Employee[]
+
+  sites Site[]
 
   refreshTokens RefreshToken[]
 
@@ -111,9 +115,15 @@ model Employee {
 
   lastName String
 
+  email String?
+
   phone String?
 
   photo String?
+
+  designation String?
+
+  joiningDate DateTime?
 
   identificationMethod IdentificationMethod @default(QR)
 
@@ -130,6 +140,74 @@ model Employee {
   user User?
 
   @@unique([clientId, employeeNumber])
+}
+
+model Site {
+  id String @id @default(cuid())
+
+  clientId String
+
+  client Client @relation(fields: [clientId], references: [id])
+
+  siteCode String @unique
+
+  name String
+
+  gates Gate[]
+
+  address String?
+
+  latitude Float?
+
+  longitude Float?
+
+  radius Int @default(100)
+
+  contactPerson String?
+
+  contactPhone String?
+
+  description String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, name])
+}
+
+model Gate {
+  id String @id @default(cuid())
+
+  siteId String
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  gateCode String @unique
+
+  name String
+
+  description String?
+
+  latitude Float?
+
+  longitude Float?
+
+  sequence Int
+
+  qrCode String?
+
+  nfcTag String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([siteId, name])
 }
 
 model RefreshToken {
@@ -174,4 +252,16 @@ model AuditLog {
   userAgent String?
 
   createdAt DateTime @default(now())
+}
+
+model Counter {
+  id String @id @default(cuid())
+
+  entity String @unique
+
+  value Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
 }

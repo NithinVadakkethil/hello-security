@@ -6,6 +6,9 @@
   "scripts": {
     "postinstall": "prisma generate"
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "devDependencies": {
     "@eslint/js": "^9.8.0",
     "@nx/esbuild": "23.0.1",

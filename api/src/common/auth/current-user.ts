@@ -1,4 +1,9 @@
 import { UserRole } from '@prisma/client';
+import { Request } from 'express';
+
+import { AppError } from '../errors/AppError';
+import { ErrorCodes } from '../errors/ErrorCodes';
+import { HttpStatus } from '../errors/HttpStatus';
 
 export interface CurrentUser {
   id: string;
@@ -15,4 +20,14 @@ declare global {
   }
 }
 
-export {};
+export function currentUser(req: Request) {
+  if (!req.user) {
+    throw new AppError(
+      HttpStatus.UNAUTHORIZED,
+      ErrorCodes.UNAUTHORIZED,
+      'Unauthorized',
+    );
+  }
+
+  return req.user;
+}
