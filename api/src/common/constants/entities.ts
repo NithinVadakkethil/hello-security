@@ -6,4 +6,6 @@ export const ENTITY = {
   SHIFT: 'SHIFT',
   PATROL: 'PATROL',
   INCIDENT: 'INCIDENT',
+  ASSIGNMENT: 'ASN',
+  PATROL_SESSION: 'PATROL_SESSION',
 } as const;

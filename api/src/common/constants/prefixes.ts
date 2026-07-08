@@ -6,4 +6,6 @@ export const PREFIX = {
   SHIFT: 'SHIFT',
   PATROL: 'PATROL',
   INCIDENT: 'INC',
+  ASSIGNMENT: 'ASN',
+  PATROL_SESSION: 'PATROL-SESSION',
 } as const;

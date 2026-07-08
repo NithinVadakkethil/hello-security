@@ -42,6 +42,15 @@ enum AuditAction {
   DOWNLOAD
 }
 
+enum PatrolStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+
 model Client {
   id String @id @default(cuid())
 
@@ -71,7 +80,15 @@ model Client {
 
   employees Employee[]
 
+  assignments GuardAssignment[]
+
+  patrolSessions PatrolSession[]
+
   sites Site[]
+
+  shifts Shift[]
+
+  patrolRoutes PatrolRoute[]
 
   refreshTokens RefreshToken[]
 
@@ -108,6 +125,8 @@ model Employee {
   clientId String
 
   client Client @relation(fields: [clientId], references: [id])
+
+  assignments GuardAssignment[]
 
   employeeNumber String
 
@@ -155,6 +174,10 @@ model Site {
 
   gates Gate[]
 
+  patrolRoutes PatrolRoute[]
+
+  assignments GuardAssignment[]
+
   address String?
 
   latitude Float?
@@ -201,6 +224,8 @@ model Gate {
 
   nfcTag String?
 
+  checkpoints PatrolCheckpoint[]
+
   isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -208,6 +233,148 @@ model Gate {
   updatedAt DateTime @updatedAt
 
   @@unique([siteId, name])
+}
+
+model Shift {
+  id String @id @default(cuid())
+
+  clientId String
+
+  client Client @relation(fields: [clientId], references: [id])
+
+  assignments GuardAssignment[]
+
+  shiftCode String @unique
+
+  name String
+
+  startTime String
+
+  endTime String
+
+  description String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, name])
+}
+
+model GuardAssignment {
+  id String @id @default(cuid())
+
+  clientId String
+  client Client @relation(fields: [clientId], references: [id])
+
+  employeeId String
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  siteId String
+  site Site @relation(fields: [siteId], references: [id])
+
+  shiftId String
+  shift Shift @relation(fields: [shiftId], references: [id])
+
+  patrolRouteId String
+  patrolRoute PatrolRoute @relation(fields: [patrolRouteId], references: [id])
+
+  patrolSessions PatrolSession[]
+
+  effectiveFrom DateTime
+
+  effectiveTo DateTime?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([siteId])
+  @@index([shiftId])
+  @@index([patrolRouteId])
+}
+
+model PatrolRoute {
+  id String @id @default(cuid())
+
+  clientId String
+  client Client @relation(fields: [clientId], references: [id])
+
+  siteId String
+  site Site @relation(fields: [siteId], references: [id])
+
+  routeCode String @unique
+
+  name String
+
+  description String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  checkpoints PatrolCheckpoint[]
+
+  assignments GuardAssignment[]
+
+  @@unique([siteId, name])
+}
+
+model PatrolCheckpoint {
+  id String @id @default(cuid())
+
+  patrolRouteId String
+  patrolRoute PatrolRoute @relation(fields: [patrolRouteId], references: [id])
+
+  gateId String
+  gate Gate @relation(fields: [gateId], references: [id])
+
+  sequence Int
+
+  expectedDuration Int?
+
+  createdAt DateTime @default(now())
+
+  @@unique([patrolRouteId, sequence])
+
+  @@unique([patrolRouteId, gateId])
+}
+
+model PatrolSession {
+  id String @id @default(cuid())
+
+  clientId String
+  client Client @relation(fields: [clientId], references: [id])
+
+  assignmentId String
+  assignment GuardAssignment @relation(fields: [assignmentId], references: [id])
+
+  patrolCode String
+
+  status PatrolStatus @default(IN_PROGRESS)
+
+  startedAt DateTime
+
+  endedAt DateTime?
+
+  pauseCount Int @default(0)
+
+  totalDuration Int?
+
+  remarks String?
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, patrolCode])
 }
 
 model RefreshToken {
