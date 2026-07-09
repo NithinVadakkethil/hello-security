@@ -46,6 +46,7 @@ export class AuthService {
     const payload = {
       sub: user.id,
       tenantId: user.clientId,
+      employeeId: user.employeeId,
       email: user.email,
       role: user.role,
     };
@@ -73,6 +74,7 @@ export class AuthService {
       user: {
         id: user.id,
         tenantId: user.clientId,
+        employeeId: user.employeeId,
         email: user.email,
         role: user.role,
       },

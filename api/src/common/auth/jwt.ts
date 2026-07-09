@@ -8,6 +8,7 @@ import { appConfig } from '../../config/app.config';
 export interface JwtPayload {
   sub: string;
   tenantId: string | null;
+  employeeId: string | null;
   email: string;
   role: UserRole;
 }

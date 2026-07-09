@@ -16,15 +16,33 @@ export class AssignmentRepository {
         employee: true,
         site: true,
         shift: true,
+        patrolRoute: true,
       },
     });
   }
 
-  findActiveAssignment(employeeId: string) {
+  findEmployeeActiveAssignment(employeeId: string) {
     return prisma.guardAssignment.findFirst({
       where: {
         employeeId,
         isActive: true,
+      },
+      include: {
+        employee: true,
+        site: true,
+        shift: true,
+        patrolRoute: {
+          include: {
+            routeGates: {
+              include: {
+                gate: true,
+              },
+              orderBy: {
+                sequence: 'asc',
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -70,6 +88,7 @@ export class AssignmentRepository {
         employee: true,
         site: true,
         shift: true,
+        patrolRoute: true,
       },
       orderBy: {
         createdAt: 'desc',

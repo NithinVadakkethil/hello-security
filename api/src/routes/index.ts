@@ -3,10 +3,13 @@ import { Router } from 'express';
 import assignmentRoutes from '../modules/assignment/assignment.routes';
 import authRoutes from '../modules/auth/auth.routes';
 import clientRoutes from '../modules/client/client.routes';
+import dashboardRoutes from '../modules/dashboard/dashboard.routes';
 import employeeRoutes from '../modules/employee/employee.routes';
 import gateRoutes from '../modules/gate/gate.routes';
+import patrolCheckpointRoutes from '../modules/patrol-checkpoint/patrol-checkpoint.routes';
+import patrolRouteGateRoutes from '../modules/patrol-route-gate/patrol-route-gate.routes';
 import patrolRouteRoutes from '../modules/patrol-route/patrol-route.routes';
-
+import patrolSessionRoutes from '../modules/patrol-session/patrol-session.routes';
 import siteRoutes from '../modules/site/site.routes';
 
 import healthRoute from './health.route';
@@ -21,7 +24,11 @@ router.use('/clients', clientRoutes);
 router.use('/employees', employeeRoutes);
 router.use('/sites', siteRoutes);
 router.use('/gates', gateRoutes);
-router.use('/assignments', assignmentRoutes);
 router.use('/patrol-routes', patrolRouteRoutes);
+router.use('/patrol-route-gates', patrolRouteGateRoutes);
+router.use('/patrol-sessions', patrolSessionRoutes);
+router.use('/assignments', assignmentRoutes);
+router.use('/patrol-checkpoints', patrolCheckpointRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 export default router;

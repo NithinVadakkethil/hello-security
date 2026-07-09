@@ -50,7 +50,6 @@ enum PatrolStatus {
   CANCELLED
 }
 
-
 model Client {
   id String @id @default(cuid())
 
@@ -96,24 +95,24 @@ model Client {
 }
 
 model User {
-  id         String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  clientId   String?
+  clientId String?
 
   employeeId String? @unique
 
-  client      Client?   @relation(fields: [clientId], references: [id])
-  employee    Employee? @relation(fields: [employeeId], references: [id])
+  client   Client?   @relation(fields: [clientId], references: [id])
+  employee Employee? @relation(fields: [employeeId], references: [id])
 
-  email       String @unique
-  password    String
-  role        UserRole
+  email    String   @unique
+  password String
+  role     UserRole
 
-  isActive    Boolean @default(true)
-  lastLogin   DateTime?
+  isActive  Boolean   @default(true)
+  lastLogin DateTime?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
@@ -208,6 +207,10 @@ model Gate {
 
   site Site @relation(fields: [siteId], references: [id])
 
+  patrolCheckpoints PatrolCheckpoint[]
+
+  routeGates PatrolRouteGate[]
+
   gateCode String @unique
 
   name String
@@ -223,8 +226,6 @@ model Gate {
   qrCode String?
 
   nfcTag String?
-
-  checkpoints PatrolCheckpoint[]
 
   isActive Boolean @default(true)
 
@@ -267,19 +268,19 @@ model GuardAssignment {
   id String @id @default(cuid())
 
   clientId String
-  client Client @relation(fields: [clientId], references: [id])
+  client   Client @relation(fields: [clientId], references: [id])
 
   employeeId String
-  employee Employee @relation(fields: [employeeId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id])
 
   siteId String
-  site Site @relation(fields: [siteId], references: [id])
+  site   Site   @relation(fields: [siteId], references: [id])
 
   shiftId String
-  shift Shift @relation(fields: [shiftId], references: [id])
+  shift   Shift  @relation(fields: [shiftId], references: [id])
 
   patrolRouteId String
-  patrolRoute PatrolRoute @relation(fields: [patrolRouteId], references: [id])
+  patrolRoute   PatrolRoute @relation(fields: [patrolRouteId], references: [id])
 
   patrolSessions PatrolSession[]
 
@@ -303,10 +304,10 @@ model PatrolRoute {
   id String @id @default(cuid())
 
   clientId String
-  client Client @relation(fields: [clientId], references: [id])
+  client   Client @relation(fields: [clientId], references: [id])
 
   siteId String
-  site Site @relation(fields: [siteId], references: [id])
+  site   Site   @relation(fields: [siteId], references: [id])
 
   routeCode String @unique
 
@@ -320,14 +321,14 @@ model PatrolRoute {
 
   updatedAt DateTime @updatedAt
 
-  checkpoints PatrolCheckpoint[]
-
   assignments GuardAssignment[]
+
+  routeGates PatrolRouteGate[]
 
   @@unique([siteId, name])
 }
 
-model PatrolCheckpoint {
+model PatrolRouteGate {
   id String @id @default(cuid())
 
   patrolRouteId String
@@ -338,23 +339,47 @@ model PatrolCheckpoint {
 
   sequence Int
 
-  expectedDuration Int?
+  createdAt DateTime @default(now())
+
+  @@unique([patrolRouteId, gateId])
+  @@unique([patrolRouteId, sequence])
+
+  @@index([patrolRouteId])
+  @@index([gateId])
+}
+
+model PatrolCheckpoint {
+  id String @id @default(cuid())
+
+  patrolSessionId String
+  patrolSession   PatrolSession @relation(fields: [patrolSessionId], references: [id])
+
+  gateId String
+  gate   Gate   @relation(fields: [gateId], references: [id])
+
+  latitude  Float?
+  longitude Float?
+
+  remarks String?
+
+  scannedAt DateTime @default(now())
 
   createdAt DateTime @default(now())
 
-  @@unique([patrolRouteId, sequence])
-
-  @@unique([patrolRouteId, gateId])
+  @@index([patrolSessionId])
+  @@index([gateId])
 }
 
 model PatrolSession {
   id String @id @default(cuid())
 
   clientId String
-  client Client @relation(fields: [clientId], references: [id])
+  client   Client @relation(fields: [clientId], references: [id])
 
   assignmentId String
-  assignment GuardAssignment @relation(fields: [assignmentId], references: [id])
+  assignment   GuardAssignment @relation(fields: [assignmentId], references: [id])
+
+  checkpoints PatrolCheckpoint[]
 
   patrolCode String
 

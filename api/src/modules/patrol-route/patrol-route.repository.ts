@@ -5,7 +5,7 @@ export class PatrolRouteRepository {
     return prisma.patrolRoute.create({
       data,
       include: {
-        checkpoints: {
+        routeGates: {
           include: {
             gate: true,
           },
@@ -24,7 +24,7 @@ export class PatrolRouteRepository {
       },
       include: {
         site: true,
-        checkpoints: {
+        routeGates: {
           include: {
             gate: true,
           },
@@ -45,6 +45,15 @@ export class PatrolRouteRepository {
     });
   }
 
+  findGate(routeId: string, gateId: string) {
+    return prisma.patrolRouteGate.findFirst({
+      where: {
+        patrolRouteId: routeId,
+        gateId,
+      },
+    });
+  }
+
   list(clientId: string, isActive?: boolean) {
     return prisma.patrolRoute.findMany({
       where: {
@@ -53,7 +62,7 @@ export class PatrolRouteRepository {
       },
       include: {
         site: true,
-        checkpoints: {
+        routeGates: {
           include: {
             gate: true,
           },

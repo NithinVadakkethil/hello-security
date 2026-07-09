@@ -18,7 +18,18 @@ export class PatrolSessionRepository {
             employee: true,
             site: true,
             shift: true,
-            patrolRoute: true,
+            patrolRoute: {
+              include: {
+                routeGates: {
+                  include: {
+                    gate: true,
+                  },
+                  orderBy: {
+                    sequence: 'asc',
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -30,6 +41,80 @@ export class PatrolSessionRepository {
       where: {
         assignmentId,
         status: PatrolStatus.IN_PROGRESS,
+      },
+    });
+  }
+
+  findActiveByEmployee(employeeId: string) {
+    return prisma.patrolSession.findFirst({
+      where: {
+        status: PatrolStatus.IN_PROGRESS,
+        assignment: {
+          employeeId,
+        },
+      },
+      include: {
+        assignment: {
+          include: {
+            patrolRoute: {
+              include: {
+                routeGates: {
+                  include: {
+                    gate: true,
+                  },
+                  orderBy: {
+                    sequence: 'asc',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  findByPatrolCode(patrolCode: string) {
+    return prisma.patrolSession.findFirst({
+      where: {
+        patrolCode,
+      },
+    });
+  }
+
+  findFullById(id: string) {
+    return prisma.patrolSession.findUnique({
+      where: {
+        id,
+      },
+      include: {
+        assignment: {
+          include: {
+            employee: true,
+            site: true,
+            shift: true,
+            patrolRoute: {
+              include: {
+                routeGates: {
+                  include: {
+                    gate: true,
+                  },
+                  orderBy: {
+                    sequence: 'asc',
+                  },
+                },
+              },
+            },
+          },
+        },
+        checkpoints: {
+          include: {
+            gate: true,
+          },
+          orderBy: {
+            scannedAt: 'asc',
+          },
+        },
       },
     });
   }
@@ -52,7 +137,13 @@ export class PatrolSessionRepository {
             employee: true,
             site: true,
             shift: true,
-            patrolRoute: true,
+            patrolRoute: {
+              select: {
+                id: true,
+                name: true,
+                routeCode: true,
+              },
+            },
           },
         },
       },

@@ -3,6 +3,7 @@ import { UserRole } from '@prisma/client';
 export interface AuthUser {
   id: string;
   tenantId: string | null;
+  employeeId: string | null;
   email: string;
   role: UserRole;
 }

@@ -8,6 +8,7 @@ import { HttpStatus } from '../errors/HttpStatus';
 export interface CurrentUser {
   id: string;
   tenantId: string | null;
+  employeeId: string | null;
   email: string;
   role: UserRole;
 }

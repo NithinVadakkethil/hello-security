@@ -36,6 +36,7 @@ export function authenticate(
     req.user = {
       id: payload.sub,
       tenantId: payload.tenantId,
+      employeeId: payload.employeeId,
       email: payload.email,
       role: payload.role,
     };

@@ -24,6 +24,15 @@ export class GateRepository {
     });
   }
 
+  findByCode(gateCode: string) {
+    return prisma.gate.findFirst({
+      where: {
+        gateCode,
+        isActive: true,
+      },
+    });
+  }
+
   update(id: string, data: any) {
     return prisma.gate.update({
       where: {
