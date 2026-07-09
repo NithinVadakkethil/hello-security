@@ -18,6 +18,38 @@ export class ClientRepository {
   findById(id: string) {
     return prisma.client.findUnique({
       where: { id },
+      include: {
+        users: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            isActive: true,
+            lastLogin: true,
+          },
+        },
+        _count: {
+          select: {
+            employees: true,
+            sites: true,
+            shifts: true,
+            patrolRoutes: true,
+          },
+        },
+        auditLogs: {
+          take: 5,
+          orderBy: {
+            createdAt: 'desc',
+          },
+          include: {
+            user: {
+              select: {
+                email: true,
+              },
+            },
+          },
+        },
+      },
     });
   }
 

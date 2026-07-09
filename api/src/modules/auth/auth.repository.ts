@@ -68,6 +68,13 @@ export class AuthRepository {
       },
     });
   }
+
+  async updateUser(userId: string, data: any) {
+    return prisma.user.update({
+      where: { id: userId },
+      data,
+    });
+  }
 }
 
 export const authRepository = new AuthRepository();

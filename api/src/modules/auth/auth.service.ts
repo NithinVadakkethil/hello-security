@@ -114,8 +114,118 @@ export class AuthService {
       );
     }
 
-    // We'll continue from here in the next step.
-    throw new Error('Not implemented yet.');
+    const userPayload = {
+      sub: user.id,
+      tenantId: user.clientId,
+      employeeId: user.employeeId,
+      email: user.email,
+      role: user.role,
+    };
+
+    const newAccessToken = signAccessToken(userPayload);
+    const newRefreshToken = signRefreshToken(userPayload);
+    const hashedRefreshToken = await hashPassword(newRefreshToken);
+
+    await authRepository.revokeAllRefreshTokens(user.id);
+
+    await authRepository.createRefreshToken({
+      clientId: user.clientId,
+      userId: user.id,
+      tokenHash: hashedRefreshToken,
+      expiresAt: addDays(new Date(), 7),
+    });
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      user: {
+        id: user.id,
+        tenantId: user.clientId,
+        employeeId: user.employeeId,
+        email: user.email,
+        role: user.role,
+      },
+    };
+  }
+
+  async getProfile(userId: string) {
+    const user = await authRepository.findUserById(userId);
+    if (!user) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'User not found.',
+      );
+    }
+    const { password, ...safeUser } = user;
+    return safeUser;
+  }
+
+  async updateProfile(userId: string, data: { email: string }) {
+    const user = await authRepository.findUserById(userId);
+    if (!user) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'User not found.',
+      );
+    }
+
+    if (data.email !== user.email) {
+      const existing = await authRepository.findUserByEmail(data.email);
+      if (existing) {
+        throw new AppError(
+          HttpStatus.CONFLICT,
+          ErrorCodes.VALIDATION_ERROR,
+          'A user with this email already exists.',
+        );
+      }
+    }
+
+    const updated = await authRepository.updateUser(userId, {
+      email: data.email,
+    });
+
+    const { password, ...safeUser } = updated;
+    return safeUser;
+  }
+
+  async changePassword(
+    userId: string,
+    data: { currentPassword?: string; newPassword?: string },
+  ) {
+    if (!data.currentPassword || !data.newPassword) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Current and new password are required.',
+      );
+    }
+
+    const user = await authRepository.findUserById(userId);
+    if (!user) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'User not found.',
+      );
+    }
+
+    const isMatch = await comparePassword(data.currentPassword, user.password);
+    if (!isMatch) {
+      throw new AppError(
+        HttpStatus.UNAUTHORIZED,
+        ErrorCodes.UNAUTHORIZED,
+        'Invalid current password.',
+      );
+    }
+
+    const hashed = await hashPassword(data.newPassword);
+    await authRepository.updateUser(userId, {
+      password: hashed,
+    });
+
+    return { success: true };
   }
 }
 

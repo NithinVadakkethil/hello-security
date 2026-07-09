@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const createClientSchema = z.object({
   companyName: z.string().min(2).max(100),
 
-  email: z.email(),
+  email: z.string().email(),
 
   phone: z.string().optional(),
 
@@ -12,6 +12,10 @@ export const createClientSchema = z.object({
   identificationMethod: z.enum(['QR', 'RFID']).default('QR'),
 
   maxEmployees: z.number().int().positive(),
+
+  isActive: z.boolean().optional(),
+
+  subscriptionStatus: z.enum(['TRIAL', 'ACTIVE', 'EXPIRED', 'SUSPENDED']).optional(),
 });
 
 export const updateClientSchema = createClientSchema.partial();

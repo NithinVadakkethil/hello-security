@@ -18,6 +18,57 @@ export class AuthController {
       next(error);
     }
   }
+
+  async refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await authService.refresh(req.body.refreshToken);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async me(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = req.user as any;
+      const result = await authService.getProfile(user.id);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = req.user as any;
+      const result = await authService.updateProfile(user.id, req.body);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async changePassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = req.user as any;
+      const result = await authService.changePassword(user.id, req.body);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const authController = new AuthController();

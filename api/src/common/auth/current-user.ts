@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-namespace */
 import { UserRole } from '@prisma/client';
 import { Request } from 'express';
 

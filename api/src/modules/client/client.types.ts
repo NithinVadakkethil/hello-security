@@ -7,9 +7,11 @@ export interface CreateClientDto {
   address?: string;
   identificationMethod: IdentificationMethod;
   maxEmployees: number;
+  isActive?: boolean;
+  subscriptionStatus?: SubscriptionStatus;
 }
 
-export interface UpdateClientDto extends Partial<CreateClientDto> {}
+export type UpdateClientDto = Partial<CreateClientDto>;
 
 export interface ClientListQuery {
   page?: number;

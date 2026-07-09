@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import assignmentRoutes from '../modules/assignment/assignment.routes';
+import auditLogRoutes from '../modules/audit-log/audit-log.routes';
 import authRoutes from '../modules/auth/auth.routes';
 import clientRoutes from '../modules/client/client.routes';
 import dashboardRoutes from '../modules/dashboard/dashboard.routes';
@@ -11,6 +12,7 @@ import patrolRouteGateRoutes from '../modules/patrol-route-gate/patrol-route-gat
 import patrolRouteRoutes from '../modules/patrol-route/patrol-route.routes';
 import patrolSessionRoutes from '../modules/patrol-session/patrol-session.routes';
 import siteRoutes from '../modules/site/site.routes';
+import userRoutes from '../modules/user/user.routes';
 
 import healthRoute from './health.route';
 import protectedRoute from './protected.route';
@@ -30,5 +32,7 @@ router.use('/patrol-sessions', patrolSessionRoutes);
 router.use('/assignments', assignmentRoutes);
 router.use('/patrol-checkpoints', patrolCheckpointRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/users', userRoutes);
+router.use('/audit-logs', auditLogRoutes);
 
 export default router;
