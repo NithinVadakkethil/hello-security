@@ -112,7 +112,7 @@ export class AssignmentService {
     }
 
     // Employee can have only one active assignment
-    const existing = await assignmentRepository.findActiveAssignment(
+    const existing = await assignmentRepository.findEmployeeActiveAssignment(
       dto.employeeId,
     );
 

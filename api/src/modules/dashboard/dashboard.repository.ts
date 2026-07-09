@@ -1,7 +1,7 @@
 import { prisma } from '../../database/prisma';
 
 export class DashboardRepository {
-  async getCounts(clientId: string) {
+  async getCounts(clientId?: string) {
     const [
       employees,
       sites,
@@ -13,51 +13,53 @@ export class DashboardRepository {
     ] = await Promise.all([
       prisma.employee.count({
         where: {
-          clientId,
+          ...(clientId && { clientId }),
           status: 'ACTIVE',
         },
       }),
 
       prisma.site.count({
         where: {
-          clientId,
+          ...(clientId && { clientId }),
           isActive: true,
         },
       }),
 
       prisma.gate.count({
         where: {
-          site: {
-            clientId,
-          },
+          ...(clientId && {
+            site: {
+              clientId,
+            },
+          }),
           isActive: true,
         },
       }),
 
       prisma.shift.count({
         where: {
-          clientId,
+          ...(clientId && { clientId }),
           isActive: true,
         },
       }),
 
       prisma.patrolRoute.count({
         where: {
-          clientId,
+          ...(clientId && { clientId }),
           isActive: true,
         },
       }),
 
       prisma.guardAssignment.count({
         where: {
-          clientId,
+          ...(clientId && { clientId }),
           isActive: true,
         },
       }),
 
       prisma.patrolSession.count({
         where: {
-          clientId,
+          ...(clientId && { clientId }),
           status: 'IN_PROGRESS',
         },
       }),

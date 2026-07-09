@@ -339,13 +339,12 @@ model PatrolRouteGate {
 
   sequence Int
 
+  expectedDuration Int? // minutes to next checkpoint
+
   createdAt DateTime @default(now())
 
   @@unique([patrolRouteId, gateId])
   @@unique([patrolRouteId, sequence])
-
-  @@index([patrolRouteId])
-  @@index([gateId])
 }
 
 model PatrolCheckpoint {

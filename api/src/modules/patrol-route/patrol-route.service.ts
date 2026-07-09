@@ -120,7 +120,7 @@ export class PatrolRouteService {
         },
       });
 
-      await tx.patrolCheckpoint.createMany({
+      await tx.patrolRouteGate.createMany({
         data: dto.checkpoints.map((cp) => ({
           patrolRouteId: route.id,
           gateId: cp.gateId,
@@ -135,7 +135,7 @@ export class PatrolRouteService {
         },
         include: {
           site: true,
-          checkpoints: {
+          routeGates: {
             include: {
               gate: true,
             },
