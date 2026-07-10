@@ -22,7 +22,7 @@ export const apiClient = axios.create({
 
 // A separate un-intercepted axios instance specifically for auth refresh / login calls
 // to avoid infinite interceptor loops
-const authClient = axios.create({
+export const authClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',

@@ -157,6 +157,69 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+        <style jsx>{`
+          .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 24px;
+            margin-top: 32px;
+          }
+          .welcome-banner {
+            padding: 32px;
+            background: linear-gradient(135deg, var(--primary) 0%, #06b6d4 100%);
+            border-radius: var(--radius-lg);
+            color: #ffffff;
+            box-shadow: 0 10px 30px var(--primary-glow);
+          }
+          .welcome-banner h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+            letter-spacing: -0.02em;
+          }
+          .welcome-banner p {
+            font-size: 0.95rem;
+            opacity: 0.9;
+          }
+          .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 24px;
+          }
+          .stat-icon-wrapper {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+          }
+          .stat-icon-wrapper.blue { background: #3b82f6; }
+          .stat-icon-wrapper.green { background: #10b981; }
+          .stat-icon-wrapper.cyan { background: #06b6d4; }
+          .stat-icon-wrapper.orange { background: #f59e0b; }
+          .stat-icon-wrapper.red { background: #ef4444; }
+          .stat-icon-wrapper.purple { background: #8b5cf6; }
+          .stat-icon-wrapper.gold { background: #eab308; }
+          
+          .stat-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+          .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+          }
+          .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+          }
+        `}</style>
       </div>
     );
   }

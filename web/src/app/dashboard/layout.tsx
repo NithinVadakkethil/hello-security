@@ -16,6 +16,7 @@ import {
   Settings,
   FileText,
   User,
+  Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -58,10 +59,15 @@ export default function DashboardLayout({
       ]
     : [
         { href: '/dashboard', label: 'Dashboard', icon: Activity },
-        { href: '/dashboard/assignments', label: 'Guard Assignments', icon: Shield },
-        { href: '/dashboard/patrol-routes', label: 'Patrol Routes', icon: Route },
-        { href: '/dashboard/shifts', label: 'Shifts', icon: Calendar },
         { href: '/dashboard/sites', label: 'Sites & Gates', icon: MapPin },
+        { href: '/dashboard/shifts', label: 'Shifts', icon: Calendar },
+        { href: '/dashboard/employees', label: 'Employees', icon: Users },
+        { href: '/dashboard/users', label: 'Users', icon: Shield },
+        { href: '/dashboard/patrol-routes', label: 'Patrol Routes', icon: Route },
+        { href: '/dashboard/assignments', label: 'Guard Assignments', icon: FileText },
+        { href: '/dashboard/patrol-sessions', label: 'Active Patrols', icon: Activity },
+        { href: '/dashboard/patrol-history', label: 'Patrol History', icon: Clock },
+        { href: '/dashboard/reports', label: 'Reports & Analytics', icon: FileText },
         { href: '/dashboard/profile', label: 'My Profile', icon: User },
         { href: '/dashboard/settings', label: 'Settings', icon: Settings },
       ];

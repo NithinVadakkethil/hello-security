@@ -2,10 +2,6 @@ import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 
-import { ENTITY } from '../../common/constants/entities';
-import { PREFIX } from '../../common/constants/prefixes';
-import { counterService } from '../../common/counter/counter.service';
-import { generateCode } from '../../common/utils/code-generator';
 
 import { employeeRepository } from '../employee/employee.repository';
 import { patrolRouteRepository } from '../patrol-route/patrol-route.repository';
@@ -124,14 +120,8 @@ export class AssignmentService {
       );
     }
 
-    // Assignment Code
-    const sequence = await counterService.next(ENTITY.ASSIGNMENT);
-
-    const assignmentCode = generateCode(PREFIX.ASSIGNMENT, sequence);
-
     return assignmentRepository.create({
       clientId,
-      assignmentCode,
       employeeId: dto.employeeId,
       siteId: dto.siteId,
       shiftId: dto.shiftId,

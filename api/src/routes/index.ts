@@ -11,6 +11,7 @@ import patrolCheckpointRoutes from '../modules/patrol-checkpoint/patrol-checkpoi
 import patrolRouteGateRoutes from '../modules/patrol-route-gate/patrol-route-gate.routes';
 import patrolRouteRoutes from '../modules/patrol-route/patrol-route.routes';
 import patrolSessionRoutes from '../modules/patrol-session/patrol-session.routes';
+import shiftRoutes from '../modules/shift/shift.routes';
 import siteRoutes from '../modules/site/site.routes';
 import userRoutes from '../modules/user/user.routes';
 
@@ -29,6 +30,7 @@ router.use('/gates', gateRoutes);
 router.use('/patrol-routes', patrolRouteRoutes);
 router.use('/patrol-route-gates', patrolRouteGateRoutes);
 router.use('/patrol-sessions', patrolSessionRoutes);
+router.use('/shifts', shiftRoutes);
 router.use('/assignments', assignmentRoutes);
 router.use('/patrol-checkpoints', patrolCheckpointRoutes);
 router.use('/dashboard', dashboardRoutes);
