@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-
+import { ZodError } from 'zod';
 import { AppError } from '../errors/AppError';
 import { ErrorCodes } from '../errors/ErrorCodes';
 import { HttpStatus } from '../errors/HttpStatus';
@@ -17,6 +17,20 @@ export function errorHandler(
       error: {
         code: err.code,
         message: err.message,
+      },
+    });
+  }
+
+  if (err instanceof ZodError) {
+    return res.status(HttpStatus.BAD_REQUEST).json({
+      success: false,
+      error: {
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: 'Validation failed',
+        details: err.issues.map((e) => ({
+          path: e.path.join('.'),
+          message: e.message,
+        })),
       },
     });
   }

@@ -3,13 +3,11 @@ import { View, Text, StyleSheet, Animated, TextInput, TouchableOpacity, Alert, S
 import { useTheme } from '../../../app/hooks/useTheme';
 import { usePatrolStore } from '../../patrol/store/patrol-store';
 import { useActiveAssignment } from '../../assignment/hooks/useAssignment';
-import { storage } from '../../../app/utils/mmkv-storage';
 import { Card } from '../../dashboard/components/WidgetCard';
 import { Button } from '../../../components/Button';
 import { useNavigation } from '@react-navigation/native';
-import { Zap, ZapOff, RefreshCw } from 'lucide-react-native';
-
-const PERMISSION_KEY = 'camera_permission_granted';
+import { Zap, ZapOff } from 'lucide-react-native';
+import { Camera, useCameraDevice, useCameraPermission, useCodeScanner } from 'react-native-vision-camera';
 
 export function ScannerScreen() {
   const { colors } = useTheme();
@@ -17,13 +15,21 @@ export function ScannerScreen() {
   const { data: assignment } = useActiveAssignment();
   const { scannedGateIds } = usePatrolStore();
 
-  const [hasPermission, setHasPermission] = useState(storage.getBoolean(PERMISSION_KEY) || false);
+  const { hasPermission, requestPermission } = useCameraPermission();
   const [manualCode, setManualCode] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [flashEnabled, setFlashEnabled] = useState(false);
+  const [isProcessingCode, setIsProcessingCode] = useState(false);
 
   const laserTranslateY = useRef(new Animated.Value(0)).current;
+  const device = useCameraDevice('back');
+
+  useEffect(() => {
+    if (!hasPermission) {
+      requestPermission();
+    }
+  }, [hasPermission]);
 
   useEffect(() => {
     if (hasPermission) {
@@ -48,17 +54,26 @@ export function ScannerScreen() {
     }
   }, [hasPermission, laserTranslateY]);
 
-  const handleGrantPermission = () => {
-    storage.set(PERMISSION_KEY, true);
-    setHasPermission(true);
+  const handleGrantPermission = async () => {
+    const granted = await requestPermission();
+    if (!granted) {
+      Alert.alert('Permission Required', 'Hello Security requires Camera permission to scan physical QRs.');
+    }
   };
 
   const handleProcessScan = async (code: string) => {
+    // Avoid double trigger scans in same tick
+    if (isProcessingCode) return;
+    setIsProcessingCode(true);
+
     setErrorMessage(null);
     setSuccessMessage(null);
 
     const cleanCode = code.trim();
-    if (!cleanCode) return;
+    if (!cleanCode) {
+      setIsProcessingCode(false);
+      return;
+    }
 
     const routeGates = assignment?.patrolRoute?.routeGates || [];
     
@@ -69,6 +84,7 @@ export function ScannerScreen() {
 
     if (!nextGate) {
       setErrorMessage("All checkpoints on this route have already been completed.");
+      setIsProcessingCode(false);
       return;
     }
 
@@ -93,6 +109,7 @@ export function ScannerScreen() {
       } else {
         setErrorMessage(`Invalid QR Code: Scanned code is not registered on this patrol route.`);
       }
+      setIsProcessingCode(false);
       return;
     }
 
@@ -109,11 +126,24 @@ export function ScannerScreen() {
       // Auto close after successful scan
       setTimeout(() => {
         navigation.goBack();
+        setIsProcessingCode(false);
       }, 1500);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to unlock checkpoint.');
+      setIsProcessingCode(false);
     }
   };
+
+  // Configure Code Scanner Hook for Camera View (Vision Camera v4)
+  const codeScanner = useCodeScanner({
+    codeTypes: ['qr'],
+    onCodeScanned: (codes) => {
+      const scannedValue = codes[0]?.value;
+      if (scannedValue) {
+        handleProcessScan(scannedValue);
+      }
+    },
+  });
 
   if (!hasPermission) {
     return (
@@ -149,6 +179,20 @@ export function ScannerScreen() {
 
       <View style={styles.viewfinderContainer}>
         <View style={[styles.reticle, flashEnabled && styles.reticleFlash]}>
+          {device ? (
+            <Camera
+              style={StyleSheet.absoluteFill}
+              device={device}
+              isActive={true}
+              codeScanner={codeScanner}
+              torch={flashEnabled ? 'on' : 'off'}
+            />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ color: '#8e8e9a', fontSize: 11 }}>Camera Feed Unavailable</Text>
+            </View>
+          )}
+
           <View style={[styles.corner, styles.topLeft, { borderColor: colors.primary }]} />
           <View style={[styles.corner, styles.topRight, { borderColor: colors.primary }]} />
           <View style={[styles.corner, styles.bottomLeft, { borderColor: colors.primary }]} />
