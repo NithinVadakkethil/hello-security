@@ -8,6 +8,10 @@ export class IncidentRepository {
     severity: string;
     description: string;
     images?: string[];
+    patrolSessionId?: string | null;
+    gateId?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
   }) {
     return prisma.incident.create({
       data: {
@@ -17,6 +21,10 @@ export class IncidentRepository {
         severity: data.severity,
         description: data.description,
         images: data.images || [],
+        patrolSessionId: data.patrolSessionId,
+        gateId: data.gateId,
+        latitude: data.latitude,
+        longitude: data.longitude,
       },
     });
   }

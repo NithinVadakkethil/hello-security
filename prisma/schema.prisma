@@ -462,17 +462,21 @@ model Counter {
 }
 
 model Incident {
-  id        String   @id @default(cuid())
-  clientId  String
-  client    Client   @relation(fields: [clientId], references: [id])
-  employeeId String
-  employee  Employee @relation(fields: [employeeId], references: [id])
-  type      String
-  severity  String
-  description String
-  images    String[] @default([])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id])
+  employeeId     String
+  employee       Employee @relation(fields: [employeeId], references: [id])
+  type           String
+  severity       String
+  description    String
+  images         String[] @default([])
+  patrolSessionId String?
+  gateId         String?
+  latitude       Float?
+  longitude      Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([clientId])
   @@index([employeeId])

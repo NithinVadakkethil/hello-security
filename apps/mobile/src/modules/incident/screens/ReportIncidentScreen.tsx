@@ -8,7 +8,10 @@ import { useCreateIncident } from '../hooks/useIncident';
 import { useOfflineStore } from '../../../app/store/offline-store';
 import { Card } from '../../dashboard/components/WidgetCard';
 import { Button } from '../../../components/Button';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { usePatrolStore } from '../../patrol/store/patrol-store';
+import { useActiveAssignment } from '../../assignment/hooks/useAssignment';
+import { AlertCircle } from 'lucide-react-native';
 
 const INCIDENT_TYPES = ['FIRE', 'THEFT', 'HAZARD', 'INTRUSION', 'OTHER'] as const;
 const SEVERITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
@@ -51,9 +54,21 @@ const MOCK_PHOTOS = [
 
 export function ReportIncidentScreen() {
   const { colors } = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const routeParams = route.params || {};
+
   const isOnline = useOfflineStore((state) => state.isConnected);
   const { mutateAsync: reportIncident, isPending } = useCreateIncident();
+  const { activeSession, unlockedGateId } = usePatrolStore();
+  const { data: assignment } = useActiveAssignment();
+
+  // Checkpoint restrictions
+  const gateId = routeParams.gateId || unlockedGateId;
+  const patrolSessionId = routeParams.patrolSessionId || activeSession?.id;
+
+  const routeGates = assignment?.patrolRoute?.routeGates || [];
+  const targetGate = routeGates.find((rg: any) => rg.gateId === gateId)?.gate;
 
   const [images, setImages] = useState<string[]>([]);
   const [showPickerMenu, setShowPickerMenu] = useState(false);
@@ -86,7 +101,7 @@ export function ReportIncidentScreen() {
 
     setTimeout(() => {
       // Generate a mock base64 compressed camera photo
-      const mockImage = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAOklEQVR42mNkYPj/fwEDAxgjMcAIKvv/n4EpCFLAisAowE0g2ECcZKAwZkBVAWnDKwCrAxEAcw2kCSiEWAAMuQ17d3+V6QAAAABJRU5ErkJggg==`;
+      const mockImage = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAPklEQVR42mNk6GCoZyAAMxIURmDJ/p8ZcArCFLAisAowE0g2ECcZKAwZkBVAWnDKwCrAxEAcw2kCSiEWBhQCAP3iDT629Z7CAAAAAElFTkSuQmCC`;
       setImages((prev) => [...prev, mockImage]);
       setIsCompressing(false);
       setShowCameraModal(false);
@@ -118,6 +133,10 @@ export function ReportIncidentScreen() {
       await reportIncident({
         ...data,
         images,
+        gateId: gateId || undefined,
+        patrolSessionId: patrolSessionId || undefined,
+        latitude: assignment?.site?.latitude || undefined,
+        longitude: assignment?.site?.longitude || undefined,
       });
 
       const message = isOnline 
@@ -132,6 +151,23 @@ export function ReportIncidentScreen() {
     }
   };
 
+  if (!gateId || !patrolSessionId) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', padding: 24 }]}>
+        <View style={{ alignItems: 'center', marginBottom: 20 }}>
+          <AlertCircle size={48} color={colors.danger} />
+        </View>
+        <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text, textAlign: 'center', marginBottom: 12 }}>
+          Incident Reporting Locked
+        </Text>
+        <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
+          Under Hello Security protocol, you cannot report incidents manually. You must first scan a checkpoint QR code during a patrol route sweep to unlock reporting.
+        </Text>
+        <Button title="Go to Patrol Screen" onPress={() => navigation.navigate('Patrol')} />
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
       
@@ -142,6 +178,18 @@ export function ReportIncidentScreen() {
       )}
 
       <Text style={[styles.title, { color: colors.text }]}>Report Incident</Text>
+
+      <Card style={{ padding: 14, marginBottom: 20, borderColor: colors.primary, borderWidth: 1 }}>
+        <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          Reporting Incident For Checkpoint:
+        </Text>
+        <Text style={{ fontSize: 16, color: colors.text, fontWeight: '800', marginTop: 4 }}>
+          {targetGate?.name || 'Active Unlocked Gate'}
+        </Text>
+        <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
+          Gate ID Code: {targetGate?.gateCode || gateId}
+        </Text>
+      </Card>
 
       <Text style={[styles.label, { color: colors.text }]}>Incident Type</Text>
       <Controller

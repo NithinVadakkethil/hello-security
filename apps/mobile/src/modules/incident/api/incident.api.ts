@@ -5,6 +5,10 @@ export interface IncidentInput {
   severity: string;
   description: string;
   images?: string[];
+  patrolSessionId?: string;
+  gateId?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export const incidentApi = {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { usePatrol } from '../hooks/usePatrol';
 import { usePatrolStore } from '../store/patrol-store';
@@ -8,17 +8,19 @@ import { useActiveAssignment } from '../../assignment/hooks/useAssignment';
 import { Card } from '../../dashboard/components/WidgetCard';
 import { Button } from '../../../components/Button';
 import { useNavigation } from '@react-navigation/native';
+import { Play, Pause, CheckCircle2, ShieldAlert, Lock, Unlock, HelpCircle, Hourglass, BarChart2 } from 'lucide-react-native';
 
 export function PatrolScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation<any>();
   const isOnline = useOfflineStore((state) => state.isConnected);
   const queueLength = useOfflineStore((state) => state.queue.length);
-  const { data: assignment } = useActiveAssignment();
+  const { data: assignment, refetch: refetchAssignment, isLoading: isLoadingAssignment } = useActiveAssignment();
 
   const {
     activeSession,
     scannedGateIds,
+    unlockedGateId,
     elapsedSeconds,
     loadActiveSession,
     tick,
@@ -37,9 +39,9 @@ export function PatrolScreen() {
     isScanning,
   } = usePatrol();
 
-  const [scanningGateId, setScanningGateId] = useState<string | null>(null);
   const [remarks, setRemarks] = useState('');
-  const [showScanForm, setShowScanForm] = useState(false);
+  const [gateStatus, setGateStatus] = useState<'GOOD' | 'DAMAGED' | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     loadActiveSession();
@@ -51,6 +53,13 @@ export function PatrolScreen() {
     }, 1000);
     return () => clearInterval(interval);
   }, [tick]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetchAssignment();
+    await loadActiveSession();
+    setIsRefreshing(false);
+  };
 
   const handleStart = async () => {
     try {
@@ -84,7 +93,6 @@ export function PatrolScreen() {
   const handleComplete = async () => {
     if (!activeSession) return;
     
-    // Check if there are remaining gates
     const totalGates = assignment?.patrolRoute?.routeGates?.length || 0;
     const remaining = totalGates - scannedGateIds.length;
     
@@ -107,36 +115,54 @@ export function PatrolScreen() {
         ]
       );
     } else {
-      confirmAndComplete();
+      Alert.alert(
+        'Complete Patrol',
+        'Are you sure you want to finalize this patrol sweep?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Complete', onPress: confirmAndComplete },
+        ]
+      );
     }
   };
 
-  const openScanForm = (gateId: string) => {
-    setScanningGateId(gateId);
-    setRemarks('');
-    setShowScanForm(true);
-  };
-
-  const handleScanSubmit = async () => {
-    if (!scanningGateId) return;
-    try {
-      // Send current coordinates schematically or mock them if offline
-      const lat = assignment?.site?.latitude || 34.0522;
-      const lng = assignment?.site?.longitude || -118.2437;
-
-      await scanCheckpoint({
-        gateId: scanningGateId,
-        remarks: remarks.trim() || undefined,
-        latitude: lat,
-        longitude: lng,
-      });
-
-      setShowScanForm(false);
-      setScanningGateId(null);
-      Alert.alert('Gate Scanned', 'Checkpoint registered successfully.');
-    } catch (err: any) {
-      Alert.alert('Scan Failed', err.message || 'Failed to register gate.');
+  const handleCheckpointSubmit = async (gateId: string) => {
+    if (!gateStatus) {
+      Alert.alert('Missing Status', 'Please report the status of the gate (Good / Damaged) before checkpoint completion.');
+      return;
     }
+
+    Alert.alert(
+      'Verify Checkpoint',
+      'Are you sure you want to submit and lock this checkpoint? You cannot revisit it.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm & Log',
+          onPress: async () => {
+            try {
+              const lat = assignment?.site?.latitude || undefined;
+              const lng = assignment?.site?.longitude || undefined;
+              const statusPrefix = `Status: ${gateStatus === 'GOOD' ? 'Good' : 'Damaged/Issue'}.`;
+              const fullRemarks = remarks.trim() ? `${statusPrefix} ${remarks.trim()}` : statusPrefix;
+
+              await scanCheckpoint({
+                gateId,
+                remarks: fullRemarks,
+                latitude: lat,
+                longitude: lng,
+              });
+
+              setRemarks('');
+              setGateStatus(null);
+              Alert.alert('Checkpoint Registered', 'Data securely transmitted and checkpoint locked.');
+            } catch (err: any) {
+              Alert.alert('Verification Failed', err.message || 'Failed to complete checkpoint.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const formatDuration = (totalSeconds: number) => {
@@ -155,10 +181,21 @@ export function PatrolScreen() {
   const scannedCount = scannedGateIds.length;
   const remainingCount = totalGates - scannedCount;
 
+  // Estimation of 3 minutes per remaining gate
+  const estRemainingTime = remainingCount > 0 ? `${remainingCount * 3} mins` : 'Completed';
+
+  // Find the next assigned gate in sequence
+  const nextAssignedGate = routeGates.find((rg: any) => !scannedGateIds.includes(rg.gateId));
+
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
-      
-      {/* Offline Alert Bar */}
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={
+        <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+      }
+    >
+      {/* Offline Status Alert */}
       {!isOnline && (
         <View style={[styles.offlineBanner, { backgroundColor: colors.danger }]}>
           <Text style={styles.offlineText}>OFFLINE MODE — Saving actions locally</Text>
@@ -176,18 +213,25 @@ export function PatrolScreen() {
       {/* NO ACTIVE SESSION */}
       {!activeSession && (
         <View style={styles.startContainer}>
-          {assignment ? (
+          {isLoadingAssignment ? (
+            <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 40 }} />
+          ) : assignment ? (
             <Card style={styles.assignmentCard}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Today's Target Route</Text>
-              <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
-                Site: {assignment.site?.name}
-              </Text>
-              <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
-                Route: {assignment.patrolRoute?.name} ({totalGates} Gates)
-              </Text>
-              <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
-                Shift: {assignment.shift?.startTime} - {assignment.shift?.endTime}
-              </Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Assigned Route Sweep</Text>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              
+              <View style={styles.metaRow}>
+                <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Site Location</Text>
+                <Text style={[styles.metaVal, { color: colors.text }]}>{assignment.site?.name}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Patrol Route</Text>
+                <Text style={[styles.metaVal, { color: colors.text }]}>{assignment.patrolRoute?.name} ({totalGates} Gates)</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Active Shift</Text>
+                <Text style={[styles.metaVal, { color: colors.text }]}>{assignment.shift?.startTime} - {assignment.shift?.endTime}</Text>
+              </View>
 
               <Button
                 title="Initiate Shift Patrol"
@@ -206,14 +250,15 @@ export function PatrolScreen() {
         </View>
       )}
 
-      {/* ACTIVE OR PAUSED SESSION */}
+      {/* ACTIVE SESSION */}
       {activeSession && (
         <View style={styles.activeContainer}>
-          {/* Status Header */}
+          
+          {/* Progress Tracker Widget */}
           <Card style={styles.statusCard}>
             <View style={styles.statusRow}>
               <View>
-                <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>Active Patrol Timer</Text>
+                <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>Patrol Timer</Text>
                 <Text style={[styles.timer, { color: colors.text }]}>{formatDuration(elapsedSeconds)}</Text>
               </View>
               <View style={[styles.badge, { backgroundColor: activeSession.status === 'IN_PROGRESS' ? colors.success + '20' : colors.warning + '20' }]}>
@@ -223,15 +268,22 @@ export function PatrolScreen() {
               </View>
             </View>
 
-            {/* Progress Bar */}
-            <View style={styles.progressHeader}>
-              <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-                Checkpoints Scanned: {scannedCount} / {totalGates}
-              </Text>
-              <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-                {remainingCount} Remaining
-              </Text>
+            {/* Progress indicators */}
+            <View style={styles.statsSummaryRow}>
+              <View style={styles.statSummaryCol}>
+                <BarChart2 size={16} color={colors.primary} />
+                <Text style={[styles.statSummaryText, { color: colors.textSecondary }]}>
+                  {scannedCount} / {totalGates} Scanned
+                </Text>
+              </View>
+              <View style={styles.statSummaryCol}>
+                <Hourglass size={16} color={colors.warning} />
+                <Text style={[styles.statSummaryText, { color: colors.textSecondary }]}>
+                  Est: {estRemainingTime}
+                </Text>
+              </View>
             </View>
+
             <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
               <View
                 style={[
@@ -245,84 +297,140 @@ export function PatrolScreen() {
             </View>
           </Card>
 
-          <Button
-            title="Scan Checkpoint (QR Camera)"
-            onPress={() => navigation.navigate('Scanner')}
-            disabled={activeSession.status !== 'IN_PROGRESS'}
-            style={{ marginBottom: 20 }}
-          />
-
-          {/* Scan Gate Remarks Overlay */}
-          {showScanForm && (
-            <Card style={[styles.remarksCard, { borderColor: colors.primary }]}>
-              <Text style={[styles.remarksTitle, { color: colors.text }]}>Add Remarks (Optional)</Text>
-              <TextInput
-                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-                placeholder="Log check-point remarks (hazard observation, clear status, etc.)"
-                placeholderTextColor={colors.textSecondary}
-                value={remarks}
-                onChangeText={setRemarks}
-                multiline
-                numberOfLines={3}
-              />
-              <View style={styles.remarksButtons}>
-                <TouchableOpacity
-                  style={[styles.cancelButton, { borderColor: colors.border }]}
-                  onPress={() => setShowScanForm(false)}
-                >
-                  <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.confirmButton, { backgroundColor: colors.primary }]}
-                  onPress={handleScanSubmit}
-                  disabled={isScanning}
-                >
-                  {isScanning ? (
-                    <ActivityIndicator color="#ffffff" size="small" />
-                  ) : (
-                    <Text style={styles.confirmButtonText}>Scan Gate</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </Card>
-          )}
-
-          {/* Gate Checklist */}
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Gates Route Checklist</Text>
+          {/* Sequential Checklist */}
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Checkpoint Sequence</Text>
+          
           {routeGates.map((rg: any) => {
-            const isScanned = scannedGateIds.includes(rg.gateId);
+            const isCompleted = scannedGateIds.includes(rg.gateId);
+            const isNext = nextAssignedGate?.gateId === rg.gateId;
+            const isUnlocked = unlockedGateId === rg.gateId;
+
+            let cardStatusColor = colors.border;
+            if (isCompleted) cardStatusColor = colors.success;
+            else if (isNext && isUnlocked) cardStatusColor = colors.primary;
 
             return (
-              <Card key={rg.id} style={styles.gateCard}>
-                <View style={styles.gateRow}>
-                  <View style={[styles.sequenceBadge, { backgroundColor: isScanned ? colors.success : colors.border }]}>
-                    <Text style={styles.sequenceText}>{rg.sequence}</Text>
+              <Card
+                key={rg.id}
+                style={[
+                  styles.checkpointCard,
+                  { borderColor: cardStatusColor, borderWidth: isCompleted || (isNext && isUnlocked) ? 1.5 : 1 }
+                ]}
+              >
+                <View style={styles.gateHeader}>
+                  <View style={[styles.seqBadge, { backgroundColor: isCompleted ? colors.success : isNext ? colors.primary : colors.border }]}>
+                    <Text style={styles.seqText}>{rg.sequence}</Text>
                   </View>
-                  <View style={styles.gateDetails}>
+                  <View style={styles.gateInfo}>
                     <Text style={[styles.gateName, { color: colors.text }]}>{rg.gate?.name}</Text>
-                    <Text style={[styles.gateCode, { color: colors.textSecondary }]}>Code: {rg.gate?.gateCode}</Text>
+                    <Text style={[styles.gateSub, { color: colors.textSecondary }]}>Gate ID: {rg.gate?.gateCode}</Text>
                   </View>
-                  {isScanned ? (
-                    <Text style={[styles.scannedBadgeText, { color: colors.success }]}>✓ Scanned</Text>
-                  ) : (
+                  <View style={styles.statusCol}>
+                    {isCompleted ? (
+                      <View style={styles.inlineBadge}>
+                        <CheckCircle2 size={16} color={colors.success} />
+                        <Text style={[styles.badgeTextVal, { color: colors.success }]}>Locked</Text>
+                      </View>
+                    ) : isNext && isUnlocked ? (
+                      <View style={styles.inlineBadge}>
+                        <Unlock size={16} color={colors.primary} />
+                        <Text style={[styles.badgeTextVal, { color: colors.primary }]}>Unlocked</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.inlineBadge}>
+                        <Lock size={16} color={colors.textSecondary} />
+                        <Text style={[styles.badgeTextVal, { color: colors.textSecondary }]}>Locked</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* UNLOCKED ACTIVE ACTIONS */}
+                {isNext && isUnlocked && (
+                  <View style={styles.unlockedPanel}>
+                    <View style={styles.innerDivider} />
+                    
+                    <Text style={[styles.panelLabel, { color: colors.text }]}>1. Gate Status (Required)</Text>
+                    <View style={styles.statusButtonsRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.statusSelector,
+                          {
+                            borderColor: gateStatus === 'GOOD' ? colors.success : colors.border,
+                            backgroundColor: gateStatus === 'GOOD' ? colors.success + '15' : colors.surface,
+                          }
+                        ]}
+                        onPress={() => setGateStatus('GOOD')}
+                      >
+                        <CheckCircle2 size={16} color={gateStatus === 'GOOD' ? colors.success : colors.textSecondary} />
+                        <Text style={[styles.statusSelectorText, { color: colors.text }]}>Status: Good</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.statusSelector,
+                          {
+                            borderColor: gateStatus === 'DAMAGED' ? colors.danger : colors.border,
+                            backgroundColor: gateStatus === 'DAMAGED' ? colors.danger + '15' : colors.surface,
+                          }
+                        ]}
+                        onPress={() => setGateStatus('DAMAGED')}
+                      >
+                        <ShieldAlert size={16} color={gateStatus === 'DAMAGED' ? colors.danger : colors.textSecondary} />
+                        <Text style={[styles.statusSelectorText, { color: colors.text }]}>Report Damage</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={[styles.panelLabel, { color: colors.text, marginTop: 12 }]}>2. Report Incident (Optional)</Text>
                     <TouchableOpacity
-                      style={[styles.scanButton, { backgroundColor: colors.primary }]}
-                      onPress={() => openScanForm(rg.gateId)}
+                      style={[styles.actionBtn, { borderColor: colors.danger, backgroundColor: colors.danger + '05' }]}
+                      onPress={() => navigation.navigate('Reports', { gateId: rg.gateId, patrolSessionId: activeSession.id })}
+                    >
+                      <ShieldAlert size={16} color={colors.danger} />
+                      <Text style={[styles.actionBtnText, { color: colors.danger }]}>Trigger Incident Form</Text>
+                    </TouchableOpacity>
+
+                    <Text style={[styles.panelLabel, { color: colors.text, marginTop: 12 }]}>3. Sweep Notes</Text>
+                    <TextInput
+                      style={[styles.remarksInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                      placeholder="Add any verification notes or observations..."
+                      placeholderTextColor={colors.textSecondary}
+                      value={remarks}
+                      onChangeText={setRemarks}
+                      multiline
+                    />
+
+                    <Button
+                      title="Submit & Lock Checkpoint"
+                      onPress={() => handleCheckpointSubmit(rg.gateId)}
+                      loading={isScanning}
+                      style={{ marginTop: 16 }}
+                    />
+                  </View>
+                )}
+
+                {/* PENDING ACTIVE TRIGGER BUTTON */}
+                {isNext && !isUnlocked && (
+                  <View style={styles.lockedPanel}>
+                    <View style={styles.innerDivider} />
+                    <TouchableOpacity
+                      style={[styles.scanTriggerButton, { backgroundColor: colors.primary }]}
+                      onPress={() => navigation.navigate('Scanner')}
                       disabled={activeSession.status !== 'IN_PROGRESS'}
                     >
-                      <Text style={styles.scanButtonText}>Scan</Text>
+                      <Unlock size={16} color="#ffffff" style={{ marginRight: 6 }} />
+                      <Text style={styles.scanTriggerText}>Scan QR Code to Unlock</Text>
                     </TouchableOpacity>
-                  )}
-                </View>
+                  </View>
+                )}
               </Card>
             );
           })}
 
-          {/* Control Actions */}
+          {/* Active Patrol Action Controls */}
           <View style={styles.controlRow}>
             {activeSession.status === 'IN_PROGRESS' ? (
               <Button
-                title="Pause Patrol"
+                title="Pause Timer"
                 variant="outline"
                 onPress={handlePause}
                 loading={isPausing}
@@ -330,14 +438,14 @@ export function PatrolScreen() {
               />
             ) : (
               <Button
-                title="Resume Patrol"
+                title="Resume Timer"
                 onPress={handleResume}
                 loading={isResuming}
                 style={styles.controlButton}
               />
             )}
             <Button
-              title="Complete Patrol"
+              title="Finish Sweep"
               variant="danger"
               onPress={handleComplete}
               loading={isCompleting}
@@ -346,7 +454,6 @@ export function PatrolScreen() {
           </View>
         </View>
       )}
-
     </ScrollView>
   );
 }
@@ -357,63 +464,78 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingBottom: 40,
   },
   offlineBanner: {
     padding: 8,
     borderRadius: 6,
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   offlineText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   syncBanner: {
     padding: 8,
     borderRadius: 6,
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   syncText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    marginBottom: 20,
+    marginBottom: 18,
   },
   startContainer: {
-    marginTop: 20,
+    flex: 1,
+    justifyContent: 'center',
   },
   assignmentCard: {
     padding: 20,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  cardDesc: {
+  divider: {
+    height: 1,
+    marginVertical: 12,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  metaLabel: {
     fontSize: 13,
-    marginTop: 4,
+    fontWeight: '600',
+  },
+  metaVal: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   startButton: {
-    marginTop: 20,
+    marginTop: 18,
   },
   emptyCard: {
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   emptyText: {
     fontSize: 13,
     textAlign: 'center',
+    lineHeight: 18,
   },
   activeContainer: {
-    marginTop: 10,
+    flex: 1,
   },
   statusCard: {
     padding: 16,
@@ -423,140 +545,166 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
   },
   statusLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     textTransform: 'uppercase',
   },
   timer: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
-    marginTop: 4,
+    marginTop: 2,
   },
   badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   badgeText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '700',
   },
-  progressHeader: {
+  statsSummaryRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
+    marginTop: 16,
+    marginBottom: 12,
+    gap: 16,
   },
-  progressText: {
+  statSummaryCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statSummaryText: {
     fontSize: 12,
     fontWeight: '600',
   },
   progressBarBg: {
-    height: 8,
-    borderRadius: 4,
-    width: '100%',
+    height: 6,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    borderRadius: 4,
-  },
-  remarksCard: {
-    borderWidth: 1.5,
-    padding: 16,
-    marginBottom: 20,
-  },
-  remarksTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 13,
-    textAlignVertical: 'top',
-    height: 70,
-  },
-  remarksButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 12,
-  },
-  cancelButton: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 10,
-  },
-  cancelButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  confirmButton: {
-    borderRadius: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minWidth: 90,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmButtonText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '600',
+    borderRadius: 3,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  gateCard: {
-    padding: 12,
-    marginBottom: 10,
+  checkpointCard: {
+    padding: 14,
+    marginBottom: 12,
   },
-  gateRow: {
+  gateHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  sequenceBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  seqBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
   },
-  sequenceText: {
+  seqText: {
     color: '#ffffff',
     fontSize: 11,
     fontWeight: '800',
   },
-  gateDetails: {
+  gateInfo: {
     flex: 1,
+    marginLeft: 12,
   },
   gateName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
-  gateCode: {
+  gateSub: {
     fontSize: 11,
     marginTop: 2,
   },
-  scannedBadgeText: {
+  statusCol: {
+    alignItems: 'flex-end',
+  },
+  inlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  badgeTextVal: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  innerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    marginVertical: 12,
+  },
+  unlockedPanel: {
+    marginTop: 4,
+  },
+  panelLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  statusButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8,
+  },
+  statusSelector: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 38,
+    borderWidth: 1,
+    borderRadius: 6,
+  },
+  statusSelectorText: {
     fontSize: 12,
     fontWeight: '700',
   },
-  scanButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 38,
+    borderWidth: 1,
     borderRadius: 6,
   },
-  scanButtonText: {
+  actionBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  remarksInput: {
+    height: 60,
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 12,
+    textAlignVertical: 'top',
+  },
+  lockedPanel: {
+    marginTop: 4,
+  },
+  scanTriggerButton: {
+    flexDirection: 'row',
+    height: 40,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanTriggerText: {
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
@@ -564,10 +712,10 @@ const styles = StyleSheet.create({
   controlRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
-    marginBottom: 30,
+    gap: 12,
+    marginTop: 24,
   },
   controlButton: {
-    flex: 0.48,
+    flex: 1,
   },
 });

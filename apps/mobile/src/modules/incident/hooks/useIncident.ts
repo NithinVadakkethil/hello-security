@@ -18,6 +18,10 @@ export function useCreateIncident() {
       formData.append('type', data.type);
       formData.append('severity', data.severity);
       formData.append('description', data.description);
+      if (data.patrolSessionId) formData.append('patrolSessionId', data.patrolSessionId);
+      if (data.gateId) formData.append('gateId', data.gateId);
+      if (data.latitude !== undefined && data.latitude !== null) formData.append('latitude', String(data.latitude));
+      if (data.longitude !== undefined && data.longitude !== null) formData.append('longitude', String(data.longitude));
 
       if (data.images && data.images.length > 0) {
         data.images.forEach((img, index) => {
