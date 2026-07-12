@@ -83,6 +83,7 @@ export class EmployeeService {
               employeeId: createdEmployee.id,
               email: dto.email,
               password: hashedPassword,
+              rawPassword: temporaryPassword,
               role: dto.role,
             },
           });

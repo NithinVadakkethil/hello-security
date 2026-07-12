@@ -29,6 +29,7 @@ interface ClientDetail {
     role: string;
     isActive: boolean;
     lastLogin?: string | null;
+    rawPassword?: string | null;
   }[];
   _count: {
     employees: number;
@@ -211,18 +212,26 @@ export default function ClientDetailsPage() {
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No admin accounts provisioned.</p>
               ) : (
                 client.users?.map((usr) => (
-                  <div key={usr.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
-                    <div>
-                      <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>{usr.email}</p>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                        Last login: {usr.lastLogin ? new Date(usr.lastLogin).toLocaleString() : 'Never'}
-                      </p>
+                  <div key={usr.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>{usr.email}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                          Last login: {usr.lastLogin ? new Date(usr.lastLogin).toLocaleString() : 'Never'}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', padding: '2px 6px', background: 'var(--border-color)', borderRadius: '4px', fontWeight: 500 }}>
+                          {usr.role.replace('_', ' ')}
+                        </span>
+                        <StatusChip status={usr.isActive} />
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', padding: '2px 6px', background: 'var(--border-color)', borderRadius: '4px', fontWeight: 500 }}>
-                        {usr.role.replace('_', ' ')}
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Password:</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, fontFamily: 'monospace', color: 'var(--text)', background: 'rgba(0,0,0,0.2)', padding: '2px 6px', borderRadius: '4px' }}>
+                        {usr.rawPassword || 'Hidden/Encrypted'}
                       </span>
-                      <StatusChip status={usr.isActive} />
                     </div>
                   </div>
                 ))

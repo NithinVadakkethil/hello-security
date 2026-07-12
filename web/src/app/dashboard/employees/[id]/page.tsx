@@ -31,6 +31,7 @@ interface Employee {
     role: string;
     isActive: boolean;
     lastLogin?: string | null;
+    rawPassword?: string | null;
   } | null;
 }
 
@@ -214,6 +215,20 @@ export default function EmployeeDetailPage() {
               <div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>USER STATUS</p>
                 <StatusChip status={employee.user.isActive} />
+              </div>
+
+              <div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>PORTAL USERNAME / EMAIL</p>
+                <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0, wordBreak: 'break-all' }}>
+                  {employee.user.email}
+                </p>
+              </div>
+
+              <div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>PORTAL PASSWORD</p>
+                <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0, fontFamily: 'monospace', color: 'var(--text)', background: 'var(--bg-tertiary)', padding: '6px 10px', borderRadius: '4px', display: 'inline-block' }}>
+                  {employee.user.rawPassword || 'Hidden/Encrypted'}
+                </p>
               </div>
 
               <div>

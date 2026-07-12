@@ -48,6 +48,7 @@ export class ClientService {
           clientId: client.id,
           email: data.email,
           password: hashedPassword,
+          rawPassword: temporaryPassword,
           role: UserRole.CLIENT_ADMIN,
         },
       });

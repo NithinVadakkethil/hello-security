@@ -26,6 +26,7 @@ export class ClientRepository {
             role: true,
             isActive: true,
             lastLogin: true,
+            rawPassword: true,
           },
         },
         _count: {

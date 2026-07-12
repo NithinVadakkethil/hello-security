@@ -108,6 +108,7 @@ model User {
 
   email    String   @unique
   password String
+  rawPassword String?
   role     UserRole
 
   isActive  Boolean   @default(true)
