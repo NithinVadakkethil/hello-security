@@ -1,6 +1,7 @@
 import { apiClient } from '../api/api-client';
 import { useOfflineStore, OfflineMutation } from '../store/offline-store';
 import { QueryClient } from '@tanstack/react-query';
+import { usePatrolStore } from '../../modules/patrol/store/patrol-store';
 
 const MAX_RETRIES = 3;
 
@@ -67,6 +68,17 @@ export class OfflineSyncEngine {
         // If it was a patrol start session, capture the real session ID
         if (item.url.endsWith('/patrol-sessions/start') && response?.data?.id) {
           realSessionId = response.data.id;
+          
+          // Update the active patrol session in Zustand store and SQLite DB to use the real database ID
+          const { activeSession, startSession } = usePatrolStore.getState();
+          if (activeSession && activeSession.id === 'temp-active-session' && realSessionId) {
+            const updatedSession = {
+              ...activeSession,
+              id: realSessionId,
+            };
+            await startSession(updatedSession);
+            console.log(`[OfflineSyncEngine] Updated local activeSession ID to real ID: ${realSessionId}`);
+          }
         }
 
         await dequeue(item.id);
