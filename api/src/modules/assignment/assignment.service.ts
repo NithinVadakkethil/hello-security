@@ -174,6 +174,25 @@ export class AssignmentService {
       message: 'Assignment deactivated successfully.',
     };
   }
+
+  async getActive(employeeId: string) {
+    if (!employeeId) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Employee ID is required.',
+      );
+    }
+    const assignment = await assignmentRepository.findEmployeeActiveAssignment(employeeId);
+    if (!assignment) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'No active assignment found for this employee.',
+      );
+    }
+    return assignment;
+  }
 }
 
 export const assignmentService = new AssignmentService();

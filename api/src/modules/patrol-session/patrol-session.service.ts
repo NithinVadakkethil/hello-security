@@ -158,6 +158,10 @@ export class PatrolSessionService {
       remarks,
     });
   }
+
+  async findById(id: string) {
+    return patrolSessionRepository.findFullById(id);
+  }
 }
 
 export const patrolSessionService = new PatrolSessionService();

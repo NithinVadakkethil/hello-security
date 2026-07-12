@@ -25,7 +25,7 @@ router.get(
 router.get(
   '/history',
   authenticate,
-  authorize(UserRole.SECURITY),
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR),
   patrolSessionController.history.bind(patrolSessionController),
 );
 
@@ -48,6 +48,20 @@ router.patch(
   authenticate,
   authorize(UserRole.SECURITY),
   patrolSessionController.complete.bind(patrolSessionController),
+);
+
+router.get(
+  '/',
+  authenticate,
+  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.SECURITY),
+  patrolSessionController.list.bind(patrolSessionController),
+);
+
+router.get(
+  '/:id',
+  authenticate,
+  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.SECURITY),
+  patrolSessionController.getById.bind(patrolSessionController),
 );
 
 export default router;

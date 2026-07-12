@@ -92,6 +92,8 @@ model Client {
   refreshTokens RefreshToken[]
 
   auditLogs AuditLog[]
+
+  incidents Incident[]
 }
 
 model User {
@@ -156,6 +158,8 @@ model Employee {
   updatedAt DateTime @updatedAt
 
   user User?
+
+  incidents Incident[]
 
   @@unique([clientId, employeeNumber])
 }
@@ -455,4 +459,21 @@ model Counter {
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
+}
+
+model Incident {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id])
+  employeeId String
+  employee  Employee @relation(fields: [employeeId], references: [id])
+  type      String
+  severity  String
+  description String
+  images    String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([employeeId])
 }

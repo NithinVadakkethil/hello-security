@@ -4,6 +4,7 @@ import compression from 'compression';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
+import path from 'path';
 
 import { httpLogger } from '../common/logger/httpLogger';
 import { errorHandler } from '../common/middleware/errorHandler';
@@ -19,6 +20,7 @@ export function createApp(): express.Express {
   app.use(compression());
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
   app.use(httpLogger);
 
   // API Routes

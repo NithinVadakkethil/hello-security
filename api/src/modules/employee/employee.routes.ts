@@ -18,14 +18,14 @@ router.post(
 router.get(
   '/',
   authenticate,
-  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
+  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN, UserRole.SUPERVISOR),
   employeeController.list.bind(employeeController),
 );
 
 router.get(
   '/:id',
   authenticate,
-  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
+  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN, UserRole.SUPERVISOR),
   employeeController.get.bind(employeeController),
 );
 

@@ -98,6 +98,40 @@ export class PatrolSessionController {
       return next(error);
     }
   }
+
+  async list(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const result = await patrolSessionService.history(user.tenantId!);
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await patrolSessionService.findById(req.params.id as string);
+
+      if (!result) {
+        return res.status(HttpStatus.NOT_FOUND).json({
+          success: false,
+          message: 'Patrol session not found.',
+        });
+      }
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export const patrolSessionController = new PatrolSessionController();

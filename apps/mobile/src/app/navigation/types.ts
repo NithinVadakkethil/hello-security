@@ -7,6 +7,13 @@ export type AppTabParamList = {
   Shifts: undefined;
   Patrol: undefined;
   Reports: undefined;
+  AssignmentDetails: { assignment: any };
+  ShiftDetails: { shift: any };
+  PatrolRoute: { route: any };
+  AssignedGates: { route: any };
+  MapPreview: { site: any; route: any };
+  Scanner: undefined;
+  ReportIncident: undefined;
 };
 
 export type RootStackParamList = {

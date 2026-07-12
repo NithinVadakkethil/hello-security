@@ -23,6 +23,13 @@ router.get(
 );
 
 router.get(
+  '/active',
+  authenticate,
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR),
+  assignmentController.getActive.bind(assignmentController),
+);
+
+router.get(
   '/:id',
   authenticate,
   authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
