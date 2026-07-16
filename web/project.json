@@ -1,0 +1,25 @@
+{
+  "name": "web",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "command": "NODE_ENV=production next build --webpack",
+      "options": {
+        "cwd": "web"
+      }
+    },
+    "dev": {
+      "command": "next dev -p 3001",
+      "options": {
+        "cwd": "web"
+      }
+    },
+    "start": {
+      "command": "next start -p 3001",
+      "options": {
+        "cwd": "web"
+      }
+    }
+  }
+}
