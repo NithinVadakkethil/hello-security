@@ -1,28 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
-import { Shield, ArrowLeft, Check, Copy } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { ArrowLeft, Check, Copy, Shield } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import toast from 'react-hot-toast';
+import { z } from 'zod';
 
-import { apiClient } from '../../../lib/axios';
 import { FormInput, Select } from '../../../components/ui/FormControls';
 import Modal from '../../../components/ui/Modal';
+import { apiClient } from '../../../lib/axios';
 
 const schema = z.object({
   firstName: z.string().min(2, 'First name is required (min 2 characters)'),
   lastName: z.string().min(1, 'Last name is required'),
-  email: z.string().email('Please enter a valid email address').optional().or(z.literal('')),
+  email: z
+    .string()
+    .email('Please enter a valid email address')
+    .optional()
+    .or(z.literal('')),
   phone: z.string().optional(),
   designation: z.string().optional(),
   joiningDate: z.string().optional(),
   identificationMethod: z.enum(['QR', 'RFID']),
-  role: z.enum(['SUPER_ADMIN', 'CLIENT_ADMIN', 'MANAGER', 'SUPERVISOR', 'SECURITY']),
+  role: z.enum([
+    'SUPER_ADMIN',
+    'CLIENT_ADMIN',
+    'MANAGER',
+    'SUPERVISOR',
+    'SECURITY',
+  ]),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -94,7 +104,14 @@ export default function NewEmployeePage() {
       <div style={{ marginBottom: '24px' }}>
         <Link
           href="/dashboard/employees"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', color: 'var(--text-secondary)', fontWeight: 500 }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            textDecoration: 'none',
+            color: 'var(--text-secondary)',
+            fontWeight: 500,
+          }}
         >
           <ArrowLeft size={16} />
           <span>Back to Employee List</span>
@@ -102,13 +119,31 @@ export default function NewEmployeePage() {
       </div>
 
       <div className="glass-card" style={{ padding: '32px' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h3
+          style={{
+            fontSize: '1.25rem',
+            fontWeight: 600,
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
           <Shield size={20} className="text-primary" />
           <span>Enroll New Employee / Guard</span>
         </h3>
 
-        <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px',
+            }}
+          >
             <FormInput
               label="First Name"
               placeholder="e.g. Michael"
@@ -132,7 +167,13 @@ export default function NewEmployeePage() {
             {...register('email')}
           />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px',
+            }}
+          >
             <FormInput
               label="Phone Number"
               placeholder="e.g. +1 (555) 012-3456"
@@ -148,7 +189,13 @@ export default function NewEmployeePage() {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px',
+            }}
+          >
             <FormInput
               label="Joining Date"
               type="date"
@@ -172,8 +219,8 @@ export default function NewEmployeePage() {
             options={[
               { value: 'SECURITY', label: 'Security Guard' },
               { value: 'SUPERVISOR', label: 'Supervisor' },
-              { value: 'MANAGER', label: 'Client Manager' },
-              { value: 'CLIENT_ADMIN', label: 'Client Administrator' },
+              { value: 'MANAGER', label: 'Manager' },
+              // { value: 'CLIENT_ADMIN', label: 'Client Administrator' },
             ]}
             error={errors.role?.message}
             {...register('role')}
@@ -185,16 +232,36 @@ export default function NewEmployeePage() {
             style={{ width: '100%', marginTop: '16px' }}
             disabled={createEmployeeMutation.isPending}
           >
-            {createEmployeeMutation.isPending ? 'Enrolling staff...' : 'Enroll Employee'}
+            {createEmployeeMutation.isPending
+              ? 'Enrolling staff...'
+              : 'Enroll Employee'}
           </button>
         </form>
       </div>
 
       {/* Credentials display modal */}
-      <Modal isOpen={tempPassword !== null} onClose={handleCloseCreds} title="Credentials Generated">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'center' }}>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.6 }}>
-            The employee user account is created. Here is the temporary login password:
+      <Modal
+        isOpen={tempPassword !== null}
+        onClose={handleCloseCreds}
+        title="Credentials Generated"
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+            textAlign: 'center',
+          }}
+        >
+          <p
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: '0.95rem',
+              lineHeight: 1.6,
+            }}
+          >
+            The employee user account is created. Here is the temporary login
+            password:
           </p>
 
           <div
@@ -208,7 +275,15 @@ export default function NewEmployeePage() {
               border: '1px solid var(--border-color)',
             }}
           >
-            <span style={{ fontSize: '1.2rem', fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.05em', color: 'var(--primary)' }}>
+            <span
+              style={{
+                fontSize: '1.2rem',
+                fontFamily: 'monospace',
+                fontWeight: 700,
+                letterSpacing: '0.05em',
+                color: 'var(--primary)',
+              }}
+            >
               {tempPassword}
             </span>
             <button
@@ -216,15 +291,29 @@ export default function NewEmployeePage() {
               className="btn btn-secondary"
               style={{ padding: '8px', minWidth: '40px', height: '40px' }}
             >
-              {copied ? <Check size={18} style={{ color: 'var(--success)' }} /> : <Copy size={18} />}
+              {copied ? (
+                <Check size={18} style={{ color: 'var(--success)' }} />
+              ) : (
+                <Copy size={18} />
+              )}
             </button>
           </div>
 
-          <p style={{ fontSize: '0.8rem', color: 'var(--danger)', fontWeight: 500 }}>
+          <p
+            style={{
+              fontSize: '0.8rem',
+              color: 'var(--danger)',
+              fontWeight: 500,
+            }}
+          >
             ⚠️ Write this down now. It will not be shown again.
           </p>
 
-          <button onClick={handleCloseCreds} className="btn btn-primary" style={{ width: '100%' }}>
+          <button
+            onClick={handleCloseCreds}
+            className="btn btn-primary"
+            style={{ width: '100%' }}
+          >
             Confirm & Complete Enrollment
           </button>
         </div>

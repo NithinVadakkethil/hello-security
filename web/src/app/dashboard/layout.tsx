@@ -1,30 +1,29 @@
 'use client';
 
-import React from 'react';
+import {
+  Activity,
+  AlertTriangle,
+  Calendar,
+  FileText,
+  LogOut,
+  MapPin,
+  Moon,
+  Route,
+  Settings,
+  Shield,
+  Sun,
+  User,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  Shield,
-  Users,
-  Calendar,
-  MapPin,
-  Route,
-  Activity,
-  LogOut,
-  Sun,
-  Moon,
-  Settings,
-  FileText,
-  User,
-  Clock,
-  AlertTriangle,
-} from 'lucide-react';
+import React from 'react';
 import toast from 'react-hot-toast';
 
+import { ProtectedRoute } from '../components/protected-route';
 import { useTheme } from '../providers/theme-provider';
 import { useAuthStore } from '../store/auth-store';
 import { clearTokens } from '../utils/token';
-import { ProtectedRoute } from '../components/protected-route';
 
 export default function DashboardLayout({
   children,
@@ -52,7 +51,11 @@ export default function DashboardLayout({
   const menuItems = isSuperAdmin
     ? [
         { href: '/dashboard', label: 'Dashboard', icon: Activity },
-        { href: '/dashboard/clients', label: 'Client Management', icon: Shield },
+        {
+          href: '/dashboard/clients',
+          label: 'Client Management',
+          icon: Shield,
+        },
         { href: '/dashboard/users', label: 'User Management', icon: Users },
         { href: '/dashboard/audit-logs', label: 'Audit Logs', icon: FileText },
         { href: '/dashboard/profile', label: 'My Profile', icon: User },
@@ -64,13 +67,37 @@ export default function DashboardLayout({
         { href: '/dashboard/shifts', label: 'Shifts', icon: Calendar },
         { href: '/dashboard/employees', label: 'Employees', icon: Users },
         { href: '/dashboard/users', label: 'Users', icon: Shield },
-        { href: '/dashboard/patrol-routes', label: 'Patrol Routes', icon: Route },
-        { href: '/dashboard/assignments', label: 'Guard Assignments', icon: FileText },
-        { href: '/dashboard/patrol-sessions', label: 'Active Patrols', icon: Activity },
-        { href: '/dashboard/patrol-history', label: 'Patrol History', icon: Clock },
-        { href: '/dashboard/incidents', label: 'Incident Reports', icon: AlertTriangle },
-        { href: '/dashboard/reports', label: 'Reports & Analytics', icon: FileText },
-        { href: '/dashboard/profile', label: 'My Profile', icon: User },
+        {
+          href: '/dashboard/patrol-routes',
+          label: 'Patrol Routes',
+          icon: Route,
+        },
+        {
+          href: '/dashboard/assignments',
+          label: 'Guard Assignments',
+          icon: FileText,
+        },
+        {
+          href: '/dashboard/patrol-sessions',
+          label: 'Active Patrols',
+          icon: Activity,
+        },
+        // {
+        //   href: '/dashboard/patrol-history',
+        //   label: 'Patrol History',
+        //   icon: Clock,
+        // },
+        {
+          href: '/dashboard/incidents',
+          label: 'Incident Reports',
+          icon: AlertTriangle,
+        },
+        {
+          href: '/dashboard/reports',
+          label: 'Reports & Analytics',
+          icon: FileText,
+        },
+        // { href: '/dashboard/profile', label: 'My Profile', icon: User },
         { href: '/dashboard/settings', label: 'Settings', icon: Settings },
       ];
 
@@ -118,14 +145,27 @@ export default function DashboardLayout({
           </nav>
 
           <div className="sidebar-footer">
-            <Link href="/dashboard/profile" className="user-profile-badge hover-effect" style={{ textDecoration: 'none', color: 'inherit', marginBottom: '8px' }}>
+            <Link
+              href="/dashboard/profile"
+              className="user-profile-badge hover-effect"
+              style={{
+                textDecoration: 'none',
+                color: 'inherit',
+                marginBottom: '8px',
+              }}
+            >
               <div className="user-avatar">{getInitials(user?.email)}</div>
               <div className="user-details">
                 <p className="user-name">{user?.email}</p>
-                <p className="user-role">{user?.role?.replace('_', ' ')}</p>
+                <p className="user-role">ADMIN</p>
+                {/* <p className="user-role">{user?.role?.replace('_', ' ')}</p> */}
               </div>
             </Link>
-            <button onClick={handleLogout} className="btn btn-secondary w-full" style={{ gap: '8px', cursor: 'pointer' }}>
+            <button
+              onClick={handleLogout}
+              className="btn btn-secondary w-full"
+              style={{ gap: '8px', cursor: 'pointer' }}
+            >
               <LogOut size={16} />
               <span>Sign Out</span>
             </button>
@@ -137,15 +177,18 @@ export default function DashboardLayout({
           <header className="app-header">
             <h2 className="page-title">{getHeaderTitle()}</h2>
             <div className="header-actions">
-              <button onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle Theme" style={{ cursor: 'pointer' }}>
+              <button
+                onClick={toggleTheme}
+                className="theme-toggle-btn"
+                aria-label="Toggle Theme"
+                style={{ cursor: 'pointer' }}
+              >
                 {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
               </button>
             </div>
           </header>
 
-          <main className="main-scrollable">
-            {children}
-          </main>
+          <main className="main-scrollable">{children}</main>
         </div>
       </div>
     </ProtectedRoute>

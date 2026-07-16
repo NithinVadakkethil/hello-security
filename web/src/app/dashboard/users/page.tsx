@@ -1,23 +1,31 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Plus, Edit2, Key, ToggleLeft, ToggleRight, Check, Copy } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Check,
+  Copy,
+  Edit2,
+  Key,
+  Plus,
+  ToggleLeft,
+  ToggleRight,
+} from 'lucide-react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
+import { z } from 'zod';
 
-import { apiClient } from '../../lib/axios';
-import { ApiResponse } from '../../types/api';
+import ConfirmationDialog from '../../components/ui/ConfirmationDialog';
 import DataTable from '../../components/ui/DataTable';
+import { FormInput, Select } from '../../components/ui/FormControls';
+import Modal from '../../components/ui/Modal';
 import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
-import Modal from '../../components/ui/Modal';
-import ConfirmationDialog from '../../components/ui/ConfirmationDialog';
-import { FormInput, Select } from '../../components/ui/FormControls';
+import { apiClient } from '../../lib/axios';
 import { useAuthStore } from '../../store/auth-store';
+import { ApiResponse } from '../../types/api';
 
 interface User {
   id: string;
@@ -37,14 +45,26 @@ interface User {
 // Zod schemas
 const createSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  role: z.enum(['SUPER_ADMIN', 'CLIENT_ADMIN', 'MANAGER', 'SUPERVISOR', 'SECURITY']),
+  role: z.enum([
+    'SUPER_ADMIN',
+    'CLIENT_ADMIN',
+    'MANAGER',
+    'SUPERVISOR',
+    'SECURITY',
+  ]),
   clientId: z.string().optional(),
   password: z.string().optional(),
 });
 
 const editSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  role: z.enum(['SUPER_ADMIN', 'CLIENT_ADMIN', 'MANAGER', 'SUPERVISOR', 'SECURITY']),
+  role: z.enum([
+    'SUPER_ADMIN',
+    'CLIENT_ADMIN',
+    'MANAGER',
+    'SUPERVISOR',
+    'SECURITY',
+  ]),
   clientId: z.string().optional(),
 });
 
@@ -54,7 +74,7 @@ type EditValues = z.infer<typeof editSchema>;
 export default function UsersPage() {
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuthStore();
-  
+
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
@@ -62,7 +82,7 @@ export default function UsersPage() {
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editUserId, setEditUserId] = useState<string | null>(null);
-  
+
   // Password Display State
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -117,7 +137,9 @@ export default function UsersPage() {
   const selectedEditRole = watchEdit('role');
 
   // Fetch Users
-  const { data, isLoading } = useQuery<ApiResponse<{ items: User[]; pagination: { totalPages: number } }>>({
+  const { data, isLoading } = useQuery<
+    ApiResponse<{ items: User[]; pagination: { totalPages: number } }>
+  >({
     queryKey: ['users', page, search, roleFilter],
     queryFn: () =>
       apiClient.get('/users', {
@@ -131,7 +153,9 @@ export default function UsersPage() {
   });
 
   // Fetch Clients (for dropdown)
-  const { data: clientsData } = useQuery<ApiResponse<{ items: { id: string; companyName: string }[] }>>({
+  const { data: clientsData } = useQuery<
+    ApiResponse<{ items: { id: string; companyName: string }[] }>
+  >({
     queryKey: ['clients-dropdown'],
     queryFn: () => apiClient.get('/clients', { params: { limit: 100 } }),
     enabled: currentUser?.role === 'SUPER_ADMIN',
@@ -144,19 +168,20 @@ export default function UsersPage() {
   ];
 
   // Role options (filter CLIENT_ADMIN permissions if applicable)
-  const roleOptions = currentUser?.role === 'SUPER_ADMIN'
-    ? [
-        { value: 'SUPER_ADMIN', label: 'Super Admin' },
-        { value: 'CLIENT_ADMIN', label: 'Client Admin' },
-        { value: 'MANAGER', label: 'Manager' },
-        { value: 'SUPERVISOR', label: 'Supervisor' },
-        { value: 'SECURITY', label: 'Security Guard' },
-      ]
-    : [
-        { value: 'MANAGER', label: 'Manager' },
-        { value: 'SUPERVISOR', label: 'Supervisor' },
-        { value: 'SECURITY', label: 'Security Guard' },
-      ];
+  const roleOptions =
+    currentUser?.role === 'SUPER_ADMIN'
+      ? [
+          { value: 'SUPER_ADMIN', label: 'Super Admin' },
+          { value: 'CLIENT_ADMIN', label: 'Client Admin' },
+          { value: 'MANAGER', label: 'Manager' },
+          { value: 'SUPERVISOR', label: 'Supervisor' },
+          { value: 'SECURITY', label: 'Security Guard' },
+        ]
+      : [
+          { value: 'MANAGER', label: 'Manager' },
+          { value: 'SUPERVISOR', label: 'Supervisor' },
+          { value: 'SECURITY', label: 'Security Guard' },
+        ];
 
   // User Actions Mutations
   const createUserMutation = useMutation({
@@ -193,7 +218,9 @@ export default function UsersPage() {
       apiClient.patch(`/users/${id}/${isActive ? 'activate' : 'deactivate'}`),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      toast.success(`User "${statusConfirm.email}" successfully ${vars.isActive ? 'activated' : 'deactivated'}.`);
+      toast.success(
+        `User "${statusConfirm.email}" successfully ${vars.isActive ? 'activated' : 'deactivated'}.`,
+      );
       setStatusConfirm((prev) => ({ ...prev, isOpen: false }));
     },
     onError: (err: any) => {
@@ -240,7 +267,16 @@ export default function UsersPage() {
       label: 'Role',
       sortable: true,
       render: (row: User) => (
-        <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', padding: '2px 8px', background: 'var(--bg-tertiary)', borderRadius: '4px', fontWeight: 500 }}>
+        <span
+          style={{
+            fontSize: '0.8rem',
+            textTransform: 'uppercase',
+            padding: '2px 8px',
+            background: 'var(--bg-tertiary)',
+            borderRadius: '4px',
+            fontWeight: 500,
+          }}
+        >
           {row.role.replace('_', ' ')}
         </span>
       ),
@@ -248,12 +284,16 @@ export default function UsersPage() {
     {
       key: 'client',
       label: 'Company / Client',
-      render: (row: User) => row.client?.companyName || <em style={{ color: 'var(--text-muted)' }}>Global / System</em>,
+      render: (row: User) =>
+        row.client?.companyName || (
+          <em style={{ color: 'var(--text-muted)' }}>Global / System</em>
+        ),
     },
     {
       key: 'lastLogin',
       label: 'Last Login',
-      render: (row: User) => (row.lastLogin ? new Date(row.lastLogin).toLocaleString() : 'Never'),
+      render: (row: User) =>
+        row.lastLogin ? new Date(row.lastLogin).toLocaleString() : 'Never',
     },
     {
       key: 'isActive',
@@ -275,7 +315,13 @@ export default function UsersPage() {
             <span>Edit</span>
           </button>
           <button
-            onClick={() => setResetConfirm({ isOpen: true, userId: row.id, email: row.email })}
+            onClick={() =>
+              setResetConfirm({
+                isOpen: true,
+                userId: row.id,
+                email: row.email,
+              })
+            }
             className="btn btn-secondary"
             style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px' }}
             title="Reset Password"
@@ -301,7 +347,11 @@ export default function UsersPage() {
                 color: row.isActive ? 'var(--danger)' : 'var(--success)',
               }}
             >
-              {row.isActive ? <ToggleLeft size={16} /> : <ToggleRight size={16} />}
+              {row.isActive ? (
+                <ToggleLeft size={16} />
+              ) : (
+                <ToggleRight size={16} />
+              )}
               <span>{row.isActive ? 'Deactivate' : 'Activate'}</span>
             </button>
           )}
@@ -320,7 +370,15 @@ export default function UsersPage() {
           marginBottom: '24px',
         }}
       >
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', width: '100%', maxWidth: '640px' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '12px',
+            flexWrap: 'wrap',
+            width: '100%',
+            maxWidth: '640px',
+          }}
+        >
           <SearchBar
             value={search}
             onChange={(val) => {
@@ -340,8 +398,10 @@ export default function UsersPage() {
             style={{ maxWidth: '180px' }}
           >
             <option value="ALL">All Roles</option>
-            <option value="SUPER_ADMIN">Super Admin</option>
-            <option value="CLIENT_ADMIN">Client Admin</option>
+            {/* <option value="SUPER_ADMIN">Super Admin</option> */}
+            {currentUser?.role === 'SUPER_ADMIN' && (
+              <option value="CLIENT_ADMIN">Client Admin</option>
+            )}
             <option value="MANAGER">Manager</option>
             <option value="SUPERVISOR">Supervisor</option>
             <option value="SECURITY">Security Guard</option>
@@ -372,8 +432,17 @@ export default function UsersPage() {
       />
 
       {/* CREATE USER MODAL */}
-      <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Create User Account">
-        <form onSubmit={handleCreateSubmit((vals) => createUserMutation.mutate(vals))} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <Modal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        title="Create User Account"
+      >
+        <form
+          onSubmit={handleCreateSubmit((vals) =>
+            createUserMutation.mutate(vals),
+          )}
+          style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
+        >
           <FormInput
             label="Email Address"
             type="email"
@@ -389,14 +458,15 @@ export default function UsersPage() {
             {...registerCreate('role')}
           />
 
-          {currentUser?.role === 'SUPER_ADMIN' && selectedCreateRole !== 'SUPER_ADMIN' && (
-            <Select
-              label="Assigned Client"
-              options={clientOptions}
-              error={createErrors.clientId?.message}
-              {...registerCreate('clientId')}
-            />
-          )}
+          {currentUser?.role === 'SUPER_ADMIN' &&
+            selectedCreateRole !== 'SUPER_ADMIN' && (
+              <Select
+                label="Assigned Client"
+                options={clientOptions}
+                error={createErrors.clientId?.message}
+                {...registerCreate('clientId')}
+              />
+            )}
 
           <FormInput
             label="Password (Optional - generates temporary if empty)"
@@ -412,14 +482,25 @@ export default function UsersPage() {
             style={{ width: '100%', marginTop: '16px' }}
             disabled={createUserMutation.isPending}
           >
-            {createUserMutation.isPending ? 'Creating Account...' : 'Create Account'}
+            {createUserMutation.isPending
+              ? 'Creating Account...'
+              : 'Create Account'}
           </button>
         </form>
       </Modal>
 
       {/* EDIT USER MODAL */}
-      <Modal isOpen={editUserId !== null} onClose={() => setEditUserId(null)} title="Edit User Settings">
-        <form onSubmit={handleEditSubmit((vals) => editUserMutation.mutate({ id: editUserId!, values: vals }))} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <Modal
+        isOpen={editUserId !== null}
+        onClose={() => setEditUserId(null)}
+        title="Edit User Settings"
+      >
+        <form
+          onSubmit={handleEditSubmit((vals) =>
+            editUserMutation.mutate({ id: editUserId!, values: vals }),
+          )}
+          style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
+        >
           <FormInput
             label="Email Address"
             type="email"
@@ -434,14 +515,15 @@ export default function UsersPage() {
             {...registerEdit('role')}
           />
 
-          {currentUser?.role === 'SUPER_ADMIN' && selectedEditRole !== 'SUPER_ADMIN' && (
-            <Select
-              label="Assigned Client"
-              options={clientOptions}
-              error={editErrors.clientId?.message}
-              {...registerEdit('clientId')}
-            />
-          )}
+          {currentUser?.role === 'SUPER_ADMIN' &&
+            selectedEditRole !== 'SUPER_ADMIN' && (
+              <Select
+                label="Assigned Client"
+                options={clientOptions}
+                error={editErrors.clientId?.message}
+                {...registerEdit('clientId')}
+              />
+            )}
 
           <button
             type="submit"
@@ -455,10 +537,28 @@ export default function UsersPage() {
       </Modal>
 
       {/* Password temporary display modal */}
-      <Modal isOpen={tempPassword !== null} onClose={() => setTempPassword(null)} title="Account Credentials Ready">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'center' }}>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.6 }}>
-            The temporary password for this user is shown below. Please secure copy it now:
+      <Modal
+        isOpen={tempPassword !== null}
+        onClose={() => setTempPassword(null)}
+        title="Account Credentials Ready"
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+            textAlign: 'center',
+          }}
+        >
+          <p
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: '0.95rem',
+              lineHeight: 1.6,
+            }}
+          >
+            The temporary password for this user is shown below. Please secure
+            copy it now:
           </p>
 
           <div
@@ -472,7 +572,15 @@ export default function UsersPage() {
               border: '1px solid var(--border-color)',
             }}
           >
-            <span style={{ fontSize: '1.2rem', fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.05em', color: 'var(--primary)' }}>
+            <span
+              style={{
+                fontSize: '1.2rem',
+                fontFamily: 'monospace',
+                fontWeight: 700,
+                letterSpacing: '0.05em',
+                color: 'var(--primary)',
+              }}
+            >
               {tempPassword}
             </span>
             <button
@@ -480,15 +588,29 @@ export default function UsersPage() {
               className="btn btn-secondary"
               style={{ padding: '8px', minWidth: '40px', height: '40px' }}
             >
-              {copied ? <Check size={18} style={{ color: 'var(--success)' }} /> : <Copy size={18} />}
+              {copied ? (
+                <Check size={18} style={{ color: 'var(--success)' }} />
+              ) : (
+                <Copy size={18} />
+              )}
             </button>
           </div>
 
-          <p style={{ fontSize: '0.8rem', color: 'var(--danger)', fontWeight: 500 }}>
+          <p
+            style={{
+              fontSize: '0.8rem',
+              color: 'var(--danger)',
+              fontWeight: 500,
+            }}
+          >
             ⚠️ This password will not be shown again.
           </p>
 
-          <button onClick={() => setTempPassword(null)} className="btn btn-primary" style={{ width: '100%' }}>
+          <button
+            onClick={() => setTempPassword(null)}
+            className="btn btn-primary"
+            style={{ width: '100%' }}
+          >
             Dismiss Credentials
           </button>
         </div>
@@ -498,10 +620,17 @@ export default function UsersPage() {
       <ConfirmationDialog
         isOpen={statusConfirm.isOpen}
         onClose={() => setStatusConfirm((prev) => ({ ...prev, isOpen: false }))}
-        onConfirm={() => toggleStatusMutation.mutate({ id: statusConfirm.userId, isActive: statusConfirm.targetStatus })}
+        onConfirm={() =>
+          toggleStatusMutation.mutate({
+            id: statusConfirm.userId,
+            isActive: statusConfirm.targetStatus,
+          })
+        }
         title={statusConfirm.targetStatus ? 'Activate User' : 'Deactivate User'}
         description={`Are you sure you want to ${statusConfirm.targetStatus ? 'activate' : 'deactivate'} user "${statusConfirm.email}"? ${
-          !statusConfirm.targetStatus ? 'They will not be able to log in to the portal.' : ''
+          !statusConfirm.targetStatus
+            ? 'They will not be able to log in to the portal.'
+            : ''
         }`}
         confirmText={statusConfirm.targetStatus ? 'Activate' : 'Deactivate'}
         isDanger={!statusConfirm.targetStatus}
