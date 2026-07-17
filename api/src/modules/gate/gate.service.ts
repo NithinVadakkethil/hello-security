@@ -48,7 +48,7 @@ export class GateService {
       );
     }
 
-    const sequence = await counterService.next(ENTITY.GATE);
+    const sequence = await counterService.next(ENTITY.GATE, site.clientId);
 
     const gateCode = generateCode(PREFIX.GATE, sequence);
 

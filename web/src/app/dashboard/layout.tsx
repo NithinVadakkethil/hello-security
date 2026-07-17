@@ -120,7 +120,7 @@ export default function DashboardLayout({
             <div className="logo-icon">
               <Shield size={18} fill="currentColor" />
             </div>
-            <span className="logo-text">Hello Security</span>
+            <span className="logo-text">Hello Orbit</span>
           </div>
 
           <nav className="sidebar-menu">

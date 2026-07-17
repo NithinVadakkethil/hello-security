@@ -18,7 +18,7 @@ export default function IndexPage() {
       <div className="auth-loader-container">
         <div className="auth-loader-card">
           <div className="auth-spinner"></div>
-          <h2 className="auth-loader-title">Hello Security</h2>
+          <h2 className="auth-loader-title">Hello Orbit</h2>
           <p className="auth-loader-subtitle">Loading security environment...</p>
         </div>
       </div>

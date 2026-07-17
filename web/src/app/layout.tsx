@@ -5,7 +5,7 @@ import { ThemeProvider } from './providers/theme-provider';
 import { AuthProvider } from './providers/auth-provider';
 
 export const metadata = {
-  title: 'Hello Security - Guard Assignments & Patrol Management',
+  title: 'Hello Orbit - Guard Assignments & Patrol Management',
   description: 'Enterprise patrol tracking and shift assignments platform.',
 };
 

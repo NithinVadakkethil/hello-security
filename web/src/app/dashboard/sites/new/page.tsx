@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Shield, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -28,6 +28,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default function NewSitePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const {
     register,
@@ -43,6 +44,7 @@ export default function NewSitePage() {
   const createSiteMutation = useMutation({
     mutationFn: (values: FormValues) => apiClient.post('/sites', values),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
       toast.success('Site registered successfully!');
       router.push('/dashboard/sites');
     },

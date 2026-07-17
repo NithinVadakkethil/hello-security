@@ -45,7 +45,7 @@ export function LoginScreen() {
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           
-          <Text style={[styles.title, { color: colors.text }]}>Hello Security</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Hello Orbit</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Secure Guardian Management System
           </Text>

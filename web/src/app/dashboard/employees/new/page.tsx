@@ -202,8 +202,18 @@ export default function NewEmployeePage() {
               error={errors.joiningDate?.message}
               {...register('joiningDate')}
             />
-
             <Select
+              label="Security Portal Role"
+              options={[
+                { value: 'SECURITY', label: 'Security Guard' },
+                { value: 'SUPERVISOR', label: 'Supervisor' },
+                { value: 'MANAGER', label: 'Manager' },
+                // { value: 'CLIENT_ADMIN', label: 'Client Administrator' },
+              ]}
+              error={errors.role?.message}
+              {...register('role')}
+            />
+            {/* <Select
               label="Identification Method"
               options={[
                 { value: 'QR', label: 'QR Code scanning' },
@@ -211,10 +221,10 @@ export default function NewEmployeePage() {
               ]}
               error={errors.identificationMethod?.message}
               {...register('identificationMethod')}
-            />
+            /> */}
           </div>
 
-          <Select
+          {/* <Select
             label="Security Portal Role"
             options={[
               { value: 'SECURITY', label: 'Security Guard' },
@@ -224,7 +234,7 @@ export default function NewEmployeePage() {
             ]}
             error={errors.role?.message}
             {...register('role')}
-          />
+          /> */}
 
           <button
             type="submit"

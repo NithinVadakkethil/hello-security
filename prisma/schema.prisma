@@ -453,13 +453,17 @@ model AuditLog {
 model Counter {
   id String @id @default(cuid())
 
-  entity String @unique
+  entity String
+  
+  clientId String @default("GLOBAL")
 
   value Int @default(0)
 
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
+
+  @@unique([entity, clientId])
 }
 
 model Incident {

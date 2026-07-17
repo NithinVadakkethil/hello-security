@@ -33,7 +33,7 @@ export function LoginPlaceholderScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Hello Security</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Hello Orbit</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Guard Portal</Text>
 
         <TextInput

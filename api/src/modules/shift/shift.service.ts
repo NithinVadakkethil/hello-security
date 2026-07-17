@@ -32,7 +32,7 @@ export class ShiftService {
       );
     }
 
-    const sequence = await counterService.next(ENTITY.SHIFT);
+    const sequence = await counterService.next(ENTITY.SHIFT, clientId);
 
     const shiftCode = generateCode(PREFIX.SHIFT, sequence);
 

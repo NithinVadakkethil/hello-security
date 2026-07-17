@@ -22,7 +22,7 @@ export class SiteService {
       );
     }
 
-    const sequence = await counterService.next(ENTITY.SITE);
+    const sequence = await counterService.next(ENTITY.SITE, clientId);
 
     const siteCode = generateCode(PREFIX.SITE, sequence);
 

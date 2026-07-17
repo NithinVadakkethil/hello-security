@@ -105,7 +105,7 @@ export class PatrolRouteService {
       }
     }
 
-    const sequence = await counterService.next(ENTITY.PATROL);
+    const sequence = await counterService.next(ENTITY.PATROL, clientId);
 
     const routeCode = generateCode(PREFIX.PATROL, sequence);
 

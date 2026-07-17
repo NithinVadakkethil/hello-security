@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       <div className="auth-loader-container">
         <div className="auth-loader-card">
           <div className="auth-spinner"></div>
-          <h2 className="auth-loader-title">Hello Security</h2>
+          <h2 className="auth-loader-title">Hello Orbit</h2>
           <p className="auth-loader-subtitle">Establishing secure session...</p>
         </div>
       </div>

@@ -49,7 +49,7 @@ export class PatrolSessionService {
     }
 
     // Generate Patrol Code
-    const sequence = await counterService.next(ENTITY.PATROL_SESSION);
+    const sequence = await counterService.next(ENTITY.PATROL_SESSION, clientId);
 
     const patrolCode = generateCode(PREFIX.PATROL_SESSION, sequence);
 

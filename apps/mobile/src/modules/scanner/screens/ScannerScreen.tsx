@@ -57,7 +57,7 @@ export function ScannerScreen() {
   const handleGrantPermission = async () => {
     const granted = await requestPermission();
     if (!granted) {
-      Alert.alert('Permission Required', 'Hello Security requires Camera permission to scan physical QRs.');
+      Alert.alert('Permission Required', 'Hello Orbit requires Camera permission to scan physical QRs.');
     }
   };
 
@@ -150,7 +150,7 @@ export function ScannerScreen() {
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', padding: 24 }]}>
         <Text style={[styles.permTitle, { color: colors.text }]}>Camera Permission Required</Text>
         <Text style={[styles.permDesc, { color: colors.textSecondary }]}>
-          Hello Security requires camera access to scan QR check-points located at gates and stations.
+          Hello Orbit requires camera access to scan QR check-points located at gates and stations.
         </Text>
         <Button title="Authorize Camera Access" onPress={handleGrantPermission} />
       </View>

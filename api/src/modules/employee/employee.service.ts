@@ -46,7 +46,7 @@ export class EmployeeService {
     }
 
     // Generate employee number
-    const sequence = await counterService.next(ENTITY.EMPLOYEE);
+    const sequence = await counterService.next(ENTITY.EMPLOYEE, clientId);
 
     const employeeNumber = generateCode(PREFIX.EMPLOYEE, sequence);
 

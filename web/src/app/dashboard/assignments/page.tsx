@@ -24,6 +24,10 @@ interface Employee {
   lastName: string;
   employeeNumber: string;
   status: string;
+  designation?: string | null;
+  user?: {
+    role: string;
+  } | null;
 }
 
 interface Site {
@@ -146,7 +150,13 @@ export default function AssignmentsPage() {
 
   const employeeOptions = [
     { value: '', label: '-- Select Guard Staff --' },
-    ...activeEmployees.map((e) => ({ value: e.id, label: `${e.firstName} ${e.lastName} (${e.employeeNumber})` })),
+    ...activeEmployees.map((e) => {
+      const role = e.designation || (e.user?.role ? e.user.role.replace('_', ' ') : 'Security Guard');
+      return {
+        value: e.id,
+        label: `${e.firstName} ${e.lastName} (${e.employeeNumber} - ${role})`,
+      };
+    }),
   ];
 
   const siteOptions = [

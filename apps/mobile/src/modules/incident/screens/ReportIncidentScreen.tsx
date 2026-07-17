@@ -161,7 +161,7 @@ export function ReportIncidentScreen() {
           Incident Reporting Locked
         </Text>
         <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
-          Under Hello Security protocol, you cannot report incidents manually. You must first scan a checkpoint QR code during a patrol route sweep to unlock reporting.
+          Under Hello Orbit protocol, you cannot report incidents manually. You must first scan a checkpoint QR code during a patrol route sweep to unlock reporting.
         </Text>
         <Button title="Go to Patrol Screen" onPress={() => navigation.navigate('Patrol')} />
       </View>

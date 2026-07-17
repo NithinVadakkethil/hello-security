@@ -86,7 +86,7 @@ export default function LoginPage() {
             <div className="logo-icon">
               <Shield size={22} fill="currentColor" />
             </div>
-            <h1 className="login-app-title">Hello Security</h1>
+            <h1 className="login-app-title">Hello Orbit</h1>
             <p className="login-app-subtitle">Enterprise Security Portal</p>
           </div>
 

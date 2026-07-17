@@ -2,7 +2,7 @@ import { env } from './env';
 
 export const appConfig = {
   app: {
-    name: 'Hello Security',
+    name: 'Hello Orbit',
     version: '1.0.0',
     env: env.NODE_ENV,
   },

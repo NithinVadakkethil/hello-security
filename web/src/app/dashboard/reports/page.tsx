@@ -116,7 +116,7 @@ export default function ReportsPage() {
       <div ref={printRef} className="print-container" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
         {/* Printable Header */}
         <div className="print-header" style={{ display: 'none', borderBottom: '2px solid #000', paddingBottom: '12px' }}>
-          <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Hello Security</h1>
+          <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Hello Orbit</h1>
           <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem' }}>Operational Patrol Report Summary</p>
           <span style={{ fontSize: '0.8rem', color: '#555' }}>
             Generated Date: {new Date().toLocaleString()}
