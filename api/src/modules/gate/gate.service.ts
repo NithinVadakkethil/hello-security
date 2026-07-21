@@ -10,6 +10,7 @@ import { generateCode } from '../../common/utils/code-generator';
 
 import { siteRepository } from '../site/site.repository';
 import { gateRepository } from './gate.repository';
+import { prisma } from '../../database/prisma';
 
 import { CreateGateDto, UpdateGateDto } from './gate.types';
 
@@ -23,6 +24,30 @@ export class GateService {
         ErrorCodes.NOT_FOUND,
         'Site not found.',
       );
+    }
+
+    // Validate Checkpoint Creation Limit
+    const client = await prisma.client.findUnique({
+      where: { id: site.clientId },
+      select: { maxCheckpoints: true },
+    });
+
+    if (client && client.maxCheckpoints !== null && client.maxCheckpoints !== undefined) {
+      const currentGateCount = await prisma.gate.count({
+        where: {
+          site: {
+            clientId: site.clientId,
+          },
+        },
+      });
+
+      if (currentGateCount >= client.maxCheckpoints) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          `Checkpoint creation limit reached. Maximum allowed: ${client.maxCheckpoints}. Current count: ${currentGateCount}.`,
+        );
+      }
     }
 
     const existingGate = await gateRepository.findByName(dto.siteId, dto.name);
@@ -48,9 +73,16 @@ export class GateService {
       );
     }
 
-    const sequence = await counterService.next(ENTITY.GATE, site.clientId);
+    let sequence = await counterService.next(ENTITY.GATE, site.clientId);
+    let gateCode = generateCode(PREFIX.GATE, sequence);
 
-    const gateCode = generateCode(PREFIX.GATE, sequence);
+    let existingCode = await gateRepository.findByUniqueCode(gateCode);
+
+    while (existingCode) {
+      sequence = await counterService.next(ENTITY.GATE, site.clientId);
+      gateCode = generateCode(PREFIX.GATE, sequence);
+      existingCode = await gateRepository.findByUniqueCode(gateCode);
+    }
 
     return gateRepository.create({
       ...dto,

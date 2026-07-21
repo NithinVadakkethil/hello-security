@@ -103,6 +103,31 @@ export class ClientService {
 
     return clientRepository.update(id, data);
   }
+
+  async getResourceLimits(clientId: string) {
+    const client = await clientRepository.findById(clientId);
+    if (!client) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Client not found.',
+      );
+    }
+
+    const [currentEmployeeCount, currentCheckpointCount] = await Promise.all([
+      prisma.employee.count({ where: { clientId } }),
+      prisma.gate.count({ where: { site: { clientId } } }),
+    ]);
+
+    return {
+      maxEmployees: client.maxEmployees,
+      currentEmployeeCount,
+      remainingEmployees: Math.max(0, client.maxEmployees - currentEmployeeCount),
+      maxCheckpoints: client.maxCheckpoints,
+      currentCheckpointCount,
+      remainingCheckpoints: Math.max(0, client.maxCheckpoints - currentCheckpointCount),
+    };
+  }
 }
 
 export const clientService = new ClientService();

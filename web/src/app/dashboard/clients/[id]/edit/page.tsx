@@ -21,6 +21,10 @@ const schema = z.object({
     const num = Number(val);
     return !isNaN(num) && num > 0;
   }, 'Maximum employees must be a positive number'),
+  maxCheckpoints: z.any().refine((val) => {
+    const num = Number(val);
+    return !isNaN(num) && num > 0;
+  }, 'Maximum checkpoints must be a positive number'),
   identificationMethod: z.enum(['QR', 'RFID']),
   subscriptionStatus: z.enum(['TRIAL', 'ACTIVE', 'EXPIRED', 'SUSPENDED']),
   isActive: z.boolean(),
@@ -59,6 +63,7 @@ export default function EditClientPage() {
         phone: client.phone || '',
         address: client.address || '',
         maxEmployees: client.maxEmployees,
+        maxCheckpoints: client.maxCheckpoints || 50,
         identificationMethod: client.identificationMethod,
         subscriptionStatus: client.subscriptionStatus,
         isActive: client.isActive,
@@ -80,7 +85,12 @@ export default function EditClientPage() {
   });
 
   const onSubmit = (values: FormValues) => {
-    updateClientMutation.mutate(values);
+    const payload = {
+      ...values,
+      maxEmployees: Number(values.maxEmployees),
+      maxCheckpoints: Number(values.maxCheckpoints),
+    };
+    updateClientMutation.mutate(payload);
   };
 
   if (isLoading) {
@@ -141,22 +151,29 @@ export default function EditClientPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <FormInput
-              label="Maximum Employees"
+              label="Maximum Employee Limit"
               type="number"
               error={errors.maxEmployees?.message as string | undefined}
               {...register('maxEmployees')}
             />
 
-            <Select
-              label="Identification Method"
-              options={[
-                { value: 'QR', label: 'QR Code scanning' },
-                { value: 'RFID', label: 'RFID card scanning' },
-              ]}
-              error={errors.identificationMethod?.message}
-              {...register('identificationMethod')}
+            <FormInput
+              label="Maximum Checkpoint Limit"
+              type="number"
+              error={errors.maxCheckpoints?.message as string | undefined}
+              {...register('maxCheckpoints')}
             />
           </div>
+
+          <Select
+            label="Identification Method"
+            options={[
+              { value: 'QR', label: 'QR Code scanning' },
+              { value: 'RFID', label: 'RFID card scanning' },
+            ]}
+            error={errors.identificationMethod?.message}
+            {...register('identificationMethod')}
+          />
 
           <Select
             label="Subscription Status"

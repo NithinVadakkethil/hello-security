@@ -56,6 +56,13 @@ export default function EmployeesPage() {
     queryFn: () => apiClient.get('/employees'),
   });
 
+  // Query Resource Limits for Client
+  const { data: limitsRes } = useQuery<ApiResponse<any>>({
+    queryKey: ['resource-limits'],
+    queryFn: () => apiClient.get('/clients/resource-limits'),
+  });
+  const limits = limitsRes?.data;
+
   // Status toggle mutation
   const toggleStatusMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
@@ -212,6 +219,44 @@ export default function EmployeesPage() {
 
   return (
     <div>
+      {limits && (
+        <div
+          className="glass-card"
+          style={{
+            padding: '16px 20px',
+            borderRadius: '12px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderLeft: limits.remainingEmployees === 0 ? '4px solid #ef4444' : '4px solid #3b82f6',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+              Employee Resource Limit Allocation
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 800, marginTop: '2px' }}>
+              {limits.currentEmployeeCount} / {limits.maxEmployees} Employees Created ({limits.remainingEmployees} Available)
+            </div>
+          </div>
+          {limits.remainingEmployees === 0 && (
+            <span
+              style={{
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: '20px',
+                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                color: '#ef4444',
+              }}
+            >
+              ⚠️ Employee Limit Reached
+            </span>
+          )}
+        </div>
+      )}
+
       <div
         style={{
           display: 'flex',

@@ -20,6 +20,8 @@ interface Client {
   companyName: string;
   email: string;
   phone?: string;
+  maxEmployees: number;
+  maxCheckpoints: number;
   isActive: boolean;
   subscriptionStatus: string;
   createdAt: string;
@@ -146,7 +148,16 @@ export default function ClientsPage() {
     { key: 'clientCode', label: 'Code', sortable: true },
     { key: 'companyName', label: 'Company Name', sortable: true },
     { key: 'email', label: 'Email', sortable: true },
-    { key: 'phone', label: 'Phone' },
+    {
+      key: 'maxEmployees',
+      label: 'Employee Limit',
+      render: (row: Client) => <span>{row.maxEmployees ?? 50} Max</span>,
+    },
+    {
+      key: 'maxCheckpoints',
+      label: 'Checkpoint Limit',
+      render: (row: Client) => <span>{row.maxCheckpoints ?? 50} Max</span>,
+    },
     {
       key: 'subscriptionStatus',
       label: 'Subscription',

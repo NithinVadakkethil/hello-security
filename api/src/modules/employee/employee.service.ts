@@ -18,6 +18,26 @@ import { CreateEmployeeDto, UpdateEmployeeDto } from './employee.types';
 
 export class EmployeeService {
   async create(clientId: string, dto: CreateEmployeeDto) {
+    // Validate Employee Creation Limit
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { maxEmployees: true },
+    });
+
+    if (client && client.maxEmployees !== null && client.maxEmployees !== undefined) {
+      const currentCount = await prisma.employee.count({
+        where: { clientId },
+      });
+
+      if (currentCount >= client.maxEmployees) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          `Employee creation limit reached. Maximum allowed: ${client.maxEmployees}. Current count: ${currentCount}.`,
+        );
+      }
+    }
+
     // Check duplicate employee email
     if (dto.email) {
       const existingEmployee = await employeeRepository.findByEmail(dto.email);

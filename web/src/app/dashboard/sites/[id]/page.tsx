@@ -90,6 +90,13 @@ export default function SiteDetailPage() {
   const site = siteRes?.data;
   const gates = gatesRes?.data || [];
 
+  // Query Resource Limits for Client
+  const { data: limitsRes } = useQuery<ApiResponse<any>>({
+    queryKey: ['resource-limits'],
+    queryFn: () => apiClient.get('/clients/resource-limits'),
+  });
+  const limits = limitsRes?.data;
+
   const {
     register: registerGate,
     handleSubmit: handleGateSubmit,
@@ -145,6 +152,12 @@ export default function SiteDetailPage() {
   });
 
   const handleOpenAddGate = () => {
+    if (limits && limits.remainingCheckpoints === 0) {
+      toast.error(
+        `Checkpoint creation limit reached. Maximum allowed across client: ${limits.maxCheckpoints}. Current count: ${limits.currentCheckpointCount}.`
+      );
+      return;
+    }
     setEditingGate(null);
     resetGate({
       name: '',
@@ -455,8 +468,37 @@ export default function SiteDetailPage() {
       </div>
 
       {/* Gates / Checkpoint List */}
-      <div className="glass-card" style={{ padding: '28px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div className="glass-card" style={{ padding: '28px', marginTop: '32px' }}>
+        {limits && (
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              backgroundColor: 'var(--surface-color)',
+              border: limits.remainingCheckpoints === 0 ? '1px solid #ef4444' : '1px solid var(--border-color)',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Client Checkpoint Resource Usage
+              </span>
+              <div style={{ fontSize: '0.95rem', fontWeight: 800, marginTop: '2px' }}>
+                {limits.currentCheckpointCount} / {limits.maxCheckpoints} Checkpoints Created Across Client ({limits.remainingCheckpoints} Remaining)
+              </div>
+            </div>
+            {limits.remainingCheckpoints === 0 && (
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.15)', padding: '4px 8px', borderRadius: '4px' }}>
+                ⚠️ Checkpoint Limit Reached
+              </span>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
             <h3 style={{ fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>Security Gates & Patrol Checkpoints</h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>

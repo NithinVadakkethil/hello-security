@@ -65,6 +65,30 @@ export class ClientController {
       next(error);
     }
   }
+
+  async getResourceLimits(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = (req as any).user;
+      const clientId = user.tenantId;
+
+      if (!clientId) {
+        res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: 'Client ID missing in request context.',
+        });
+        return;
+      }
+
+      const result = await clientService.getResourceLimits(clientId);
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const clientController = new ClientController();
