@@ -119,6 +119,20 @@ export class AssignmentController {
       return next(error);
     }
   }
+
+  async getActiveList(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const result = await assignmentService.getActiveList(user.employeeId!);
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export const assignmentController = new AssignmentController();

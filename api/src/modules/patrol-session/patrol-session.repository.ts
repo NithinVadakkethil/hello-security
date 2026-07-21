@@ -30,6 +30,14 @@ export class PatrolSessionRepository {
                 },
               },
             },
+            assignmentGates: {
+              include: {
+                gate: true,
+              },
+              orderBy: {
+                sequence: 'asc',
+              },
+            },
           },
         },
       },
@@ -56,6 +64,9 @@ export class PatrolSessionRepository {
       include: {
         assignment: {
           include: {
+            employee: true,
+            site: true,
+            shift: true,
             patrolRoute: {
               include: {
                 routeGates: {
@@ -66,6 +77,14 @@ export class PatrolSessionRepository {
                     sequence: 'asc',
                   },
                 },
+              },
+            },
+            assignmentGates: {
+              include: {
+                gate: true,
+              },
+              orderBy: {
+                sequence: 'asc',
               },
             },
           },
@@ -82,8 +101,8 @@ export class PatrolSessionRepository {
     });
   }
 
-  findFullById(id: string) {
-    return prisma.patrolSession.findUnique({
+  async findFullById(id: string) {
+    const session = await prisma.patrolSession.findUnique({
       where: {
         id,
       },
@@ -105,6 +124,14 @@ export class PatrolSessionRepository {
                 },
               },
             },
+            assignmentGates: {
+              include: {
+                gate: true,
+              },
+              orderBy: {
+                sequence: 'asc',
+              },
+            },
           },
         },
         checkpoints: {
@@ -117,6 +144,19 @@ export class PatrolSessionRepository {
         },
       },
     });
+
+    if (!session) return null;
+
+    const incidents = await prisma.incident.findMany({
+      where: {
+        patrolSessionId: id,
+      },
+    });
+
+    return {
+      ...session,
+      incidents,
+    };
   }
 
   update(id: string, data: any) {
@@ -142,6 +182,11 @@ export class PatrolSessionRepository {
                 id: true,
                 name: true,
                 routeCode: true,
+              },
+            },
+            assignmentGates: {
+              include: {
+                gate: true,
               },
             },
           },

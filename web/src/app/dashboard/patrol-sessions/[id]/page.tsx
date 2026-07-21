@@ -11,6 +11,7 @@ import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
 import StatusChip from '../../../components/ui/StatusChip';
 import Modal from '../../../components/ui/Modal';
+import { resolveImageUrl } from '../../../../lib/image';
 
 interface Gate {
   id: string;
@@ -27,12 +28,24 @@ interface RouteGate {
   gate: Gate;
 }
 
+interface Incident {
+  id: string;
+  type: string;
+  severity: string;
+  description: string;
+  images: string[];
+  createdAt: string;
+  gateId?: string | null;
+}
+
 interface CheckpointScan {
   id: string;
   gateId: string;
   latitude?: number | null;
   longitude?: number | null;
   remarks?: string | null;
+  status?: string | null;
+  images?: string[] | null;
   scannedAt: string;
   gate: Gate;
 }
@@ -61,13 +74,15 @@ interface PatrolSession {
       startTime: string;
       endTime: string;
     };
-    patrolRoute: {
+    patrolRoute?: {
       name: string;
       description?: string | null;
       routeGates: RouteGate[];
-    };
+    } | null;
+    assignmentGates?: any[];
   };
   checkpoints: CheckpointScan[];
+  incidents?: Incident[];
 }
 
 export default function PatrolSessionDetailPage() {
@@ -147,7 +162,13 @@ export default function PatrolSessionDetailPage() {
     );
   }
 
-  const routeGates = session.assignment?.patrolRoute?.routeGates || [];
+  const routeGates = session.assignment?.assignmentGates && session.assignment.assignmentGates.length > 0
+    ? session.assignment.assignmentGates.map((ag: any, idx: number) => ({
+        sequence: ag.sequence || idx + 1,
+        expectedDuration: null,
+        gate: ag.gate,
+      }))
+    : session.assignment?.patrolRoute?.routeGates || [];
   const scans = session.checkpoints || [];
 
   // Map route gates to their scan status
@@ -162,6 +183,8 @@ export default function PatrolSessionDetailPage() {
         scanned: !!scan,
         scannedAt: scan?.scannedAt,
         remarks: scan?.remarks,
+        status: scan?.status,
+        images: scan?.images || [],
         scanCoords: scan?.latitude && scan?.longitude ? `${scan.latitude.toFixed(5)}, ${scan.longitude.toFixed(5)}` : null,
       };
     });
@@ -262,69 +285,111 @@ export default function PatrolSessionDetailPage() {
                 }}
               ></div>
 
-              {checkpointsTimeline.map((item, index) => (
-                <div key={item.gate.id} style={{ display: 'flex', gap: '16px', position: 'relative', zIndex: 1 }}>
-                  {/* Dot */}
-                  <div
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      borderRadius: '50%',
-                      background: item.scanned ? 'var(--success)' : 'var(--border-color)',
-                      border: '4px solid var(--bg-primary)',
-                      boxShadow: item.scanned ? '0 0 8px rgba(var(--success-rgb), 0.5)' : 'none',
-                      marginTop: '14px',
-                      marginLeft: '-23px',
-                    }}
-                  ></div>
+              {checkpointsTimeline.map((item, index) => {
+                const incident = session.incidents?.find((inc) => inc.gateId === item.gate.id);
+                return (
+                  <div key={item.gate.id} style={{ display: 'flex', gap: '16px', position: 'relative', zIndex: 1 }}>
+                    {/* Dot */}
+                    <div
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        background: item.scanned ? 'var(--success)' : 'var(--border-color)',
+                        border: '4px solid var(--bg-primary)',
+                        boxShadow: item.scanned ? '0 0 8px rgba(var(--success-rgb), 0.5)' : 'none',
+                        marginTop: '14px',
+                        marginLeft: '-23px',
+                      }}
+                    ></div>
 
-                  <div
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 16px',
-                      background: item.scanned ? 'var(--bg-primary)' : 'var(--bg-tertiary)',
-                      borderRadius: 'var(--radius-sm)',
-                      border: `1px solid ${item.scanned ? 'var(--success)' : 'var(--border-color)'}30`,
-                      opacity: item.scanned ? 1 : 0.7,
-                    }}
-                  >
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: item.scanned ? 'var(--success)' : 'var(--text-muted)' }}>
-                        Seq {item.sequence} - {item.scanned ? 'SCANNED' : 'PENDING'}
-                      </span>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: '2px 0' }}>{item.gate.name}</h4>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, fontFamily: 'monospace' }}>
-                        GATE CODE: {item.gate.gateCode}
-                      </p>
-                      {item.remarks && (
-                        <p style={{ fontSize: '0.8rem', color: 'var(--warning)', marginTop: '4px', margin: '4px 0 0 0' }}>
-                          📝 Remarks: {item.remarks}
+                    <div
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        padding: '12px 16px',
+                        background: item.scanned ? 'var(--bg-primary)' : 'var(--bg-tertiary)',
+                        borderRadius: 'var(--radius-sm)',
+                        border: `1px solid ${item.scanned ? 'var(--success)' : 'var(--border-color)'}30`,
+                        opacity: item.scanned ? 1 : 0.7,
+                      }}
+                    >
+                      <div style={{ flex: 1, marginRight: '16px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: item.scanned ? 'var(--success)' : 'var(--text-muted)' }}>
+                          Seq {item.sequence} - {item.scanned ? 'SCANNED' : 'PENDING'}
+                        </span>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: '2px 0' }}>{item.gate.name}</h4>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, fontFamily: 'monospace' }}>
+                          GATE CODE: {item.gate.gateCode}
                         </p>
-                      )}
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      {item.scanned ? (
-                        <>
-                          <p style={{ fontSize: '0.85rem', fontWeight: 600, margin: 0 }}>
-                            {new Date(item.scannedAt!).toLocaleTimeString()}
+                        
+                        {item.scanned && item.status && (
+                          <p style={{ fontSize: '0.8rem', marginTop: '6px', marginBottom: '0px' }}>
+                            🔧 Gate Status: <span style={{ color: item.status === 'GOOD' ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>{item.status === 'GOOD' ? 'Good' : 'Damaged / Issue'}</span>
                           </p>
-                          {item.scanCoords && (
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                              GPS: {item.scanCoords}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <em style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Unscanned</em>
-                      )}
+                        )}
+
+                        {item.remarks && (
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '6px', marginBottom: '0px' }}>
+                            📝 Remarks: {item.remarks}
+                          </p>
+                        )}
+
+                        {incident && (
+                          <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(239, 68, 68, 0.08)', borderLeft: '3px solid var(--danger)', borderRadius: '4px' }}>
+                            <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--danger)', margin: '0 0 4px 0' }}>
+                              🚨 Incident: {incident.type} ({incident.severity})
+                            </h5>
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                              {incident.description}
+                            </p>
+                          </div>
+                        )}
+
+                        {item.scanned && item.images && item.images.length > 0 ? (
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                            {item.images.map((imgUrl, idx) => {
+                              const fullUrl = resolveImageUrl(imgUrl);
+                              return (
+                                <a key={idx} href={fullUrl} target="_blank" rel="noopener noreferrer">
+                                  <img 
+                                    src={fullUrl} 
+                                    alt={`Checkpoint Scan ${idx}`} 
+                                    style={{ width: '80px', height: '80px', borderRadius: '4px', objectFit: 'cover', border: '1px solid var(--border-color)', cursor: 'zoom-in' }} 
+                                  />
+                                </a>
+                              );
+                            })}
+                          </div>
+                        ) : item.scanned ? (
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'inline-block', marginTop: '6px' }}>
+                            📷 No photos attached
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div style={{ textAlign: 'right', minWidth: '80px' }}>
+                        {item.scanned ? (
+                          <>
+                            <p style={{ fontSize: '0.85rem', fontWeight: 600, margin: 0 }}>
+                              {new Date(item.scannedAt!).toLocaleTimeString()}
+                            </p>
+                            {item.scanCoords && (
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace', display: 'block', marginTop: '4px' }}>
+                                GPS: {item.scanCoords}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <em style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Unscanned</em>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

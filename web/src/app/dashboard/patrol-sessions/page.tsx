@@ -39,13 +39,14 @@ interface PatrolSession {
     shift: {
       name: string;
     };
-    patrolRoute: {
+    patrolRoute?: {
       name: string;
       _count?: {
         routeGates: number;
       } | null;
       routeGates?: any[];
-    };
+    } | null;
+    assignmentGates?: any[];
   };
   checkpoints?: Checkpoint[];
 }
@@ -103,13 +104,20 @@ export default function PatrolSessionsPage() {
         </span>
       ),
     },
-    { key: 'site', label: 'Monitored Site', render: (row: PatrolSession) => row.assignment.site.name },
-    { key: 'route', label: 'Route Layout', render: (row: PatrolSession) => row.assignment.patrolRoute.name },
+    { key: 'site', label: 'Monitored Site', render: (row: PatrolSession) => row.assignment?.site?.name || 'N/A' },
+    {
+      key: 'route',
+      label: 'Route / Target',
+      render: (row: PatrolSession) => row.assignment?.patrolRoute?.name || '🚧 Direct Checkpoints',
+    },
     {
       key: 'progress',
       label: 'Checkpoints Scanned',
       render: (row: PatrolSession) => {
-        const totalGates = row.assignment.patrolRoute.routeGates?.length || 0;
+        const totalGates =
+          row.assignment?.patrolRoute?.routeGates?.length ||
+          row.assignment?.assignmentGates?.length ||
+          0;
         const scannedCount = row.checkpoints?.length || 0;
         return (
           <span style={{ fontWeight: 600 }}>

@@ -30,6 +30,13 @@ router.get(
 );
 
 router.get(
+  '/active-list',
+  authenticate,
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR),
+  assignmentController.getActiveList.bind(assignmentController),
+);
+
+router.get(
   '/:id',
   authenticate,
   authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),

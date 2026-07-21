@@ -64,11 +64,12 @@ export class GateRepository {
     });
   }
 
-  list(siteId: string, isActive?: boolean) {
+  list(siteId?: string, isActive?: boolean, clientId?: string) {
     return prisma.gate.findMany({
       where: {
-        siteId,
+        ...(siteId && { siteId }),
         ...(isActive !== undefined && { isActive }),
+        ...(clientId && !siteId && { site: { clientId } }),
       },
       orderBy: {
         sequence: 'asc',

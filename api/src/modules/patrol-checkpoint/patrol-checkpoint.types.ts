@@ -6,4 +6,8 @@ export interface ScanCheckpointDto {
   longitude?: number;
 
   remarks?: string;
+
+  status?: string;
+
+  images?: string[];
 }

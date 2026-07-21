@@ -10,10 +10,12 @@ export class PatrolSessionController {
   async start(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
+      const assignmentId = req.body?.assignmentId || (req.query?.assignmentId as string | undefined);
 
       const result = await patrolSessionService.start(
         user.tenantId!,
         user.employeeId!,
+        assignmentId,
       );
 
       return res.status(HttpStatus.CREATED).json({

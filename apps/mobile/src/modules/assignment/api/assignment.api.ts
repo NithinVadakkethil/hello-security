@@ -13,4 +13,15 @@ export const assignmentApi = {
       throw err;
     }
   },
+  getActiveAssignments: async (): Promise<GuardAssignment[]> => {
+    try {
+      const res = (await apiClient.get('/assignments/active-list')) as any;
+      return res.data || [];
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        return [];
+      }
+      throw err;
+    }
+  },
 };

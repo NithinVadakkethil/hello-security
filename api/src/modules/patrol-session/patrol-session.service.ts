@@ -14,7 +14,7 @@ import { assignmentRepository } from '../assignment/assignment.repository';
 import { patrolSessionRepository } from './patrol-session.repository';
 
 export class PatrolSessionService {
-  async start(clientId: string, employeeId: string) {
+  async start(clientId: string, employeeId: string, targetAssignmentId?: string) {
     if (!employeeId) {
       throw new AppError(
         HttpStatus.UNAUTHORIZED,
@@ -23,9 +23,19 @@ export class PatrolSessionService {
       );
     }
 
-    // Find active assignment
-    const assignment =
-      await assignmentRepository.findEmployeeActiveAssignment(employeeId);
+    let assignment;
+    if (targetAssignmentId) {
+      assignment = await assignmentRepository.findById(targetAssignmentId);
+      if (!assignment || assignment.employeeId !== employeeId || !assignment.isActive) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.NOT_FOUND,
+          'Specified active assignment not found for this employee.',
+        );
+      }
+    } else {
+      assignment = await assignmentRepository.findEmployeeActiveAssignment(employeeId);
+    }
 
     if (!assignment) {
       throw new AppError(

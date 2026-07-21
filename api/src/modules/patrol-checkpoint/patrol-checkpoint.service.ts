@@ -2,7 +2,6 @@ import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 
-import { assignmentRepository } from '../assignment/assignment.repository';
 import { patrolRouteGateRepository } from '../patrol-route-gate/patrol-route-gate.repository';
 import { patrolSessionRepository } from '../patrol-session/patrol-session.repository';
 
@@ -20,27 +19,10 @@ export class PatrolCheckpointService {
     }
 
     // -----------------------------------------
-    // Find active assignment
+    // Find active patrol session for employee
     // -----------------------------------------
 
-    const assignment =
-      await assignmentRepository.findEmployeeActiveAssignment(employeeId);
-
-    if (!assignment) {
-      throw new AppError(
-        HttpStatus.BAD_REQUEST,
-        ErrorCodes.NOT_FOUND,
-        'No active assignment found.',
-      );
-    }
-
-    // -----------------------------------------
-    // Find active patrol
-    // -----------------------------------------
-
-    const patrol = await patrolSessionRepository.findActiveByAssignment(
-      assignment.id,
-    );
+    const patrol = await patrolSessionRepository.findActiveByEmployee(employeeId);
 
     if (!patrol) {
       throw new AppError(
@@ -50,20 +32,31 @@ export class PatrolCheckpointService {
       );
     }
 
+    const assignment = patrol.assignment as any;
+
     // -----------------------------------------
-    // Verify gate belongs to patrol route
+    // Verify gate belongs to patrol route or direct assignment
     // -----------------------------------------
 
-    const routeGate = await patrolRouteGateRepository.findByRouteAndGate(
-      assignment.patrolRouteId,
-      dto.gateId,
-    );
+    let isGateValid = false;
 
-    if (!routeGate) {
+    if (assignment.patrolRouteId) {
+      const routeGate = await patrolRouteGateRepository.findByRouteAndGate(
+        assignment.patrolRouteId,
+        dto.gateId,
+      );
+      if (routeGate) {
+        isGateValid = true;
+      }
+    } else if (assignment.assignmentGates && assignment.assignmentGates.length > 0) {
+      isGateValid = assignment.assignmentGates.some((ag: any) => ag.gateId === dto.gateId);
+    }
+
+    if (!isGateValid) {
       throw new AppError(
         HttpStatus.BAD_REQUEST,
         ErrorCodes.VALIDATION_ERROR,
-        'Gate does not belong to assigned patrol route.',
+        'Gate does not belong to assigned patrol task.',
       );
     }
 
@@ -94,6 +87,8 @@ export class PatrolCheckpointService {
       latitude: dto.latitude,
       longitude: dto.longitude,
       remarks: dto.remarks,
+      status: dto.status,
+      images: dto.images,
     });
 
     // -----------------------------------------
@@ -104,7 +99,11 @@ export class PatrolCheckpointService {
       patrol.id,
     );
 
-    const total = assignment.patrolRoute.routeGates.length;
+    const total = assignment.patrolRoute
+      ? assignment.patrolRoute.routeGates.length
+      : assignment.assignmentGates
+      ? assignment.assignmentGates.length
+      : 0;
 
     const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
 

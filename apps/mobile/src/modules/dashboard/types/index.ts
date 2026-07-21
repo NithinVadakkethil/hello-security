@@ -45,20 +45,36 @@ export interface PatrolRoute {
   routeGates?: any[];
 }
 
+export interface GuardAssignmentGate {
+  id: string;
+  assignmentId: string;
+  gateId: string;
+  sequence: number;
+  gate: {
+    id: string;
+    gateCode: string;
+    name: string;
+    latitude?: number | null;
+    longitude?: number | null;
+  };
+}
+
 export interface GuardAssignment {
   id: string;
   clientId: string;
   employeeId: string;
   siteId: string;
   shiftId: string;
-  patrolRouteId: string;
+  assignmentType?: 'ROUTE' | 'DIRECT_CHECKPOINTS' | null;
+  patrolRouteId?: string | null;
   effectiveFrom: string;
   effectiveTo: string | null;
   isActive: boolean;
   employee: Employee;
   site: Site;
   shift: Shift;
-  patrolRoute: PatrolRoute;
+  patrolRoute?: PatrolRoute | null;
+  assignmentGates?: GuardAssignmentGate[];
 }
 
 export interface PatrolSession {

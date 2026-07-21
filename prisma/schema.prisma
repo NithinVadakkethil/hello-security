@@ -216,6 +216,8 @@ model Gate {
 
   routeGates PatrolRouteGate[]
 
+  assignmentGates GuardAssignmentGate[]
+
   gateCode String @unique
 
   name String
@@ -284,8 +286,12 @@ model GuardAssignment {
   shiftId String
   shift   Shift  @relation(fields: [shiftId], references: [id])
 
-  patrolRouteId String
-  patrolRoute   PatrolRoute @relation(fields: [patrolRouteId], references: [id])
+  assignmentType String @default("ROUTE")
+
+  patrolRouteId String?
+  patrolRoute   PatrolRoute? @relation(fields: [patrolRouteId], references: [id])
+
+  assignmentGates GuardAssignmentGate[]
 
   patrolSessions PatrolSession[]
 
@@ -303,6 +309,24 @@ model GuardAssignment {
   @@index([siteId])
   @@index([shiftId])
   @@index([patrolRouteId])
+}
+
+model GuardAssignmentGate {
+  id String @id @default(cuid())
+
+  assignmentId String
+  assignment   GuardAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  gateId String
+  gate   Gate   @relation(fields: [gateId], references: [id])
+
+  sequence Int @default(1)
+
+  createdAt DateTime @default(now())
+
+  @@unique([assignmentId, gateId])
+  @@index([assignmentId])
+  @@index([gateId])
 }
 
 model PatrolRoute {
@@ -365,6 +389,8 @@ model PatrolCheckpoint {
   longitude Float?
 
   remarks String?
+  status  String?
+  images  String[] @default([])
 
   scannedAt DateTime @default(now())
 

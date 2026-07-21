@@ -1,13 +1,18 @@
 import { z } from 'zod';
 
 export const createAssignmentSchema = z.object({
-  employeeId: z.string().cuid(),
+  employeeId: z.string().optional(),
+  employeeIds: z.array(z.string()).optional(),
 
-  siteId: z.string().cuid(),
+  siteId: z.string().min(1),
 
-  shiftId: z.string().cuid(),
+  shiftId: z.string().min(1),
 
-  patrolRouteId: z.string().cuid(),
+  assignmentType: z.enum(['ROUTE', 'DIRECT_CHECKPOINTS']).optional(),
+
+  patrolRouteId: z.string().optional(),
+
+  gateIds: z.array(z.string()).optional(),
 
   effectiveFrom: z.coerce.date(),
 
@@ -17,5 +22,6 @@ export const createAssignmentSchema = z.object({
 export const updateAssignmentSchema = createAssignmentSchema
   .omit({
     employeeId: true,
+    employeeIds: true,
   })
   .partial();

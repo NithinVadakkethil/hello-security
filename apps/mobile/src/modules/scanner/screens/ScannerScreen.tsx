@@ -1,18 +1,32 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
-import { useTheme } from '../../../app/hooks/useTheme';
-import { usePatrolStore } from '../../patrol/store/patrol-store';
-import { useActiveAssignment } from '../../assignment/hooks/useAssignment';
-import { Card } from '../../dashboard/components/WidgetCard';
-import { Button } from '../../../components/Button';
 import { useNavigation } from '@react-navigation/native';
 import { Zap, ZapOff } from 'lucide-react-native';
-import { Camera, useCameraDevice, useCameraPermission, useCodeScanner } from 'react-native-vision-camera';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  useCodeScanner,
+} from 'react-native-vision-camera';
+import { useTheme } from '../../../app/hooks/useTheme';
+import { Button } from '../../../components/Button';
+import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
+import { Card } from '../../dashboard/components/WidgetCard';
+import { usePatrolStore } from '../../patrol/store/patrol-store';
 
 export function ScannerScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation();
-  const { data: assignment } = useActiveAssignment();
+  const { data: assignmentsList } = useActiveAssignments();
+  const activeAssignments = assignmentsList || [];
   const { scannedGateIds } = usePatrolStore();
 
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -47,7 +61,7 @@ export function ScannerScreen() {
               duration: 2000,
               useNativeDriver: true,
             }),
-          ])
+          ]),
         ).start();
       };
       startLaserAnimation();
@@ -57,7 +71,10 @@ export function ScannerScreen() {
   const handleGrantPermission = async () => {
     const granted = await requestPermission();
     if (!granted) {
-      Alert.alert('Permission Required', 'Hello Orbit requires Camera permission to scan physical QRs.');
+      Alert.alert(
+        'Permission Required',
+        'Hello Orbit requires Camera permission to scan physical QRs.',
+      );
     }
   };
 
@@ -75,55 +92,59 @@ export function ScannerScreen() {
       return;
     }
 
-    const routeGates = assignment?.patrolRoute?.routeGates || [];
-    
-    // Find the next incomplete checkpoint in sequence
-    const nextGate = routeGates.find(
-      (rg: any) => !scannedGateIds.includes(rg.gateId)
-    );
+    let matchedGate: any = null;
 
-    if (!nextGate) {
-      setErrorMessage("All checkpoints on this route have already been completed.");
-      setIsProcessingCode(false);
-      return;
-    }
+    for (const ass of activeAssignments) {
+      const routeGates =
+        ass.assignmentGates && ass.assignmentGates.length > 0
+          ? ass.assignmentGates.map((ag: any, idx: number) => ({
+              id: ag.id,
+              gateId: ag.gateId,
+              gate: ag.gate,
+              sequence: ag.sequence || idx + 1,
+            }))
+          : ass.patrolRoute?.routeGates || [];
 
-    // Verify code matches nextGate
-    const isMatch = 
-      cleanCode === nextGate.gate?.gateCode || 
-      cleanCode === nextGate.gateId || 
-      cleanCode === nextGate.gate?.qrCode;
-
-    if (!isMatch) {
-      // Find if the code belongs to another checkpoint in the route to give specific errors
-      const belongingGate = routeGates.find(
-        (rg: any) => rg.gate?.gateCode === cleanCode || rg.gateId === cleanCode || rg.gate?.qrCode === cleanCode
+      const found = routeGates.find(
+        (rg: any) =>
+          cleanCode === rg.gate?.gateCode ||
+          cleanCode === rg.gateId ||
+          cleanCode === rg.gate?.qrCode,
       );
 
-      if (belongingGate) {
-        if (scannedGateIds.includes(belongingGate.gateId)) {
-          setErrorMessage(`Scan Blocked: Checkpoint "${belongingGate.gate?.name}" is already completed.`);
-        } else {
-          setErrorMessage(`Sequence Violation: You must scan "${nextGate.gate?.name}" next. Skipping checkpoints is prohibited.`);
-        }
-      } else {
-        setErrorMessage(`Invalid QR Code: Scanned code is not registered on this patrol route.`);
+      if (found) {
+        matchedGate = found;
+        break;
       }
+    }
+
+    if (!matchedGate) {
+      setErrorMessage(
+        `Invalid QR Code ("${cleanCode}"). Scanned code is not registered on any active assigned site.`,
+      );
       setIsProcessingCode(false);
       return;
     }
 
-    const gateId = nextGate.gateId;
-    const gateName = nextGate.gate?.name || 'Gate';
+    if (scannedGateIds.includes(matchedGate.gateId)) {
+      setErrorMessage(
+        `Scan Blocked: Checkpoint "${
+          matchedGate.gate?.name || cleanCode
+        }" is already completed.`,
+      );
+      setIsProcessingCode(false);
+      return;
+    }
+
+    const gateId = matchedGate.gateId;
+    const gateName = matchedGate.gate?.name || cleanCode;
 
     try {
-      // Set the checkpoint state to Unlocked
       usePatrolStore.getState().unlockCheckpoint(gateId);
 
       setSuccessMessage(`✓ Checkpoint Unlocked: "${gateName}"`);
       setManualCode('');
-      
-      // Auto close after successful scan
+
       setTimeout(() => {
         navigation.goBack();
         setIsProcessingCode(false);
@@ -137,7 +158,7 @@ export function ScannerScreen() {
   // Configure Code Scanner Hook for Camera View (Vision Camera v4)
   const codeScanner = useCodeScanner({
     codeTypes: ['qr'],
-    onCodeScanned: (codes) => {
+    onCodeScanned: codes => {
       const scannedValue = codes[0]?.value;
       if (scannedValue) {
         handleProcessScan(scannedValue);
@@ -147,25 +168,64 @@ export function ScannerScreen() {
 
   if (!hasPermission) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', padding: 24 }]}>
-        <Text style={[styles.permTitle, { color: colors.text }]}>Camera Permission Required</Text>
-        <Text style={[styles.permDesc, { color: colors.textSecondary }]}>
-          Hello Orbit requires camera access to scan QR check-points located at gates and stations.
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+            justifyContent: 'center',
+            padding: 24,
+          },
+        ]}
+      >
+        <Text style={[styles.permTitle, { color: colors.text }]}>
+          Camera Permission Required
         </Text>
-        <Button title="Authorize Camera Access" onPress={handleGrantPermission} />
+        <Text style={[styles.permDesc, { color: colors.textSecondary }]}>
+          Hello Orbit requires camera access to scan QR check-points located at
+          gates and stations.
+        </Text>
+        <Button
+          title="Authorize Camera Access"
+          onPress={handleGrantPermission}
+        />
       </View>
     );
   }
 
-  const routeGates = assignment?.patrolRoute?.routeGates || [];
-  const nextGateToScan = routeGates.find((rg: any) => !scannedGateIds.includes(rg.gateId));
+  const primaryAssignment = activeAssignments[0];
+  const routeGates =
+    primaryAssignment?.assignmentGates &&
+    primaryAssignment.assignmentGates.length > 0
+      ? primaryAssignment.assignmentGates.map((ag: any, idx: number) => ({
+          id: ag.id,
+          gateId: ag.gateId,
+          gate: ag.gate,
+          sequence: ag.sequence || idx + 1,
+        }))
+      : primaryAssignment?.patrolRoute?.routeGates || [];
+  const nextGateToScan = routeGates.find(
+    (rg: any) => !scannedGateIds.includes(rg.gateId),
+  );
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: '#121214' }]} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: '#121214' }]}
+      contentContainerStyle={styles.scrollContent}
+    >
       <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: '#ffffff' }]}>Scan Checkpoint QR</Text>
-        <TouchableOpacity style={styles.flashButton} onPress={() => setFlashEnabled(!flashEnabled)}>
-          {flashEnabled ? <Zap size={22} color="#f59e0b" /> : <ZapOff size={22} color="#8e8e9a" />}
+        <Text style={[styles.title, { color: '#ffffff' }]}>
+          Scan Checkpoint QR
+        </Text>
+        <TouchableOpacity
+          style={styles.flashButton}
+          onPress={() => setFlashEnabled(!flashEnabled)}
+        >
+          {flashEnabled ? (
+            <Zap size={22} color="#f59e0b" />
+          ) : (
+            <ZapOff size={22} color="#8e8e9a" />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -173,7 +233,9 @@ export function ScannerScreen() {
         <View style={styles.targetBanner}>
           <Text style={styles.targetLabel}>Target Checkpoint:</Text>
           <Text style={styles.targetName}>{nextGateToScan.gate?.name}</Text>
-          <Text style={styles.targetSub}>Sequence Order: {nextGateToScan.sequence}</Text>
+          <Text style={styles.targetSub}>
+            Sequence Order: {nextGateToScan.sequence}
+          </Text>
         </View>
       )}
 
@@ -188,16 +250,51 @@ export function ScannerScreen() {
               torch={flashEnabled ? 'on' : 'off'}
             />
           ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={{ color: '#8e8e9a', fontSize: 11 }}>Camera Feed Unavailable</Text>
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor: '#000000',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                },
+              ]}
+            >
+              <Text style={{ color: '#8e8e9a', fontSize: 11 }}>
+                Camera Feed Unavailable
+              </Text>
             </View>
           )}
 
-          <View style={[styles.corner, styles.topLeft, { borderColor: colors.primary }]} />
-          <View style={[styles.corner, styles.topRight, { borderColor: colors.primary }]} />
-          <View style={[styles.corner, styles.bottomLeft, { borderColor: colors.primary }]} />
-          <View style={[styles.corner, styles.bottomRight, { borderColor: colors.primary }]} />
-          
+          <View
+            style={[
+              styles.corner,
+              styles.topLeft,
+              { borderColor: colors.primary },
+            ]}
+          />
+          <View
+            style={[
+              styles.corner,
+              styles.topRight,
+              { borderColor: colors.primary },
+            ]}
+          />
+          <View
+            style={[
+              styles.corner,
+              styles.bottomLeft,
+              { borderColor: colors.primary },
+            ]}
+          />
+          <View
+            style={[
+              styles.corner,
+              styles.bottomRight,
+              { borderColor: colors.primary },
+            ]}
+          />
+
           <Animated.View
             style={[
               styles.laser,
@@ -211,20 +308,47 @@ export function ScannerScreen() {
       </View>
 
       {errorMessage && (
-        <Card style={[styles.feedbackCard, { borderColor: colors.danger, backgroundColor: colors.danger + '10' }]}>
-          <Text style={[styles.feedbackText, { color: colors.danger }]}>⚠️ {errorMessage}</Text>
+        <Card
+          style={[
+            styles.feedbackCard,
+            {
+              borderColor: colors.danger,
+              backgroundColor: colors.danger + '10',
+            },
+          ]}
+        >
+          <Text style={[styles.feedbackText, { color: colors.danger }]}>
+            ⚠️ {errorMessage}
+          </Text>
         </Card>
       )}
 
       {successMessage && (
-        <Card style={[styles.feedbackCard, { borderColor: colors.success, backgroundColor: colors.success + '10' }]}>
-          <Text style={[styles.feedbackText, { color: colors.success }]}>{successMessage}</Text>
+        <Card
+          style={[
+            styles.feedbackCard,
+            {
+              borderColor: colors.success,
+              backgroundColor: colors.success + '10',
+            },
+          ]}
+        >
+          <Text style={[styles.feedbackText, { color: colors.success }]}>
+            {successMessage}
+          </Text>
         </Card>
       )}
 
-      <Card style={[styles.quickScanCard, { backgroundColor: '#1a1a1e', borderColor: '#2d2d34' }]}>
+      {/* <Card
+        style={[
+          styles.quickScanCard,
+          { backgroundColor: '#1a1a1e', borderColor: '#2d2d34' },
+        ]}
+      >
         <Text style={styles.cardTitle}>Simulate QR Check-in</Text>
-        <Text style={styles.cardDesc}>Select a route checkpoint to simulate scanning its QR code:</Text>
+        <Text style={styles.cardDesc}>
+          Select a route checkpoint to simulate scanning its QR code:
+        </Text>
 
         <View style={styles.buttonList}>
           {routeGates.map((rg: any) => {
@@ -237,14 +361,36 @@ export function ScannerScreen() {
                 style={[
                   styles.scanOption,
                   {
-                    backgroundColor: isScanned ? '#2d2d34' : isNext ? colors.primary + '25' : '#121214',
-                    borderColor: isScanned ? '#3e3e4a' : isNext ? colors.primary : '#2d2d34',
+                    backgroundColor: isScanned
+                      ? '#2d2d34'
+                      : isNext
+                      ? colors.primary + '25'
+                      : '#121214',
+                    borderColor: isScanned
+                      ? '#3e3e4a'
+                      : isNext
+                      ? colors.primary
+                      : '#2d2d34',
                   },
                 ]}
-                onPress={() => handleProcessScan(rg.gate?.gateCode || rg.gateId)}
+                onPress={() =>
+                  handleProcessScan(rg.gate?.gateCode || rg.gateId)
+                }
               >
-                <Text style={[styles.optionText, { color: isScanned ? '#8e8e9a' : isNext ? '#ffffff' : '#b3b3c2' }]}>
-                  {rg.gate?.name} {isScanned ? '(Completed)' : isNext ? '★ (Next Target)' : ''}
+                <Text
+                  style={[
+                    styles.optionText,
+                    {
+                      color: isScanned
+                        ? '#8e8e9a'
+                        : isNext
+                        ? '#ffffff'
+                        : '#b3b3c2',
+                    },
+                  ]}
+                >
+                  {rg.gate?.name}{' '}
+                  {isScanned ? '(Completed)' : isNext ? '★ (Next Target)' : ''}
                 </Text>
               </TouchableOpacity>
             );
@@ -256,7 +402,14 @@ export function ScannerScreen() {
         <Text style={styles.inputLabel}>Or Enter Manual Code Payload:</Text>
         <View style={styles.inputRow}>
           <TextInput
-            style={[styles.input, { borderColor: '#2d2d34', color: '#ffffff', backgroundColor: '#121214' }]}
+            style={[
+              styles.input,
+              {
+                borderColor: '#2d2d34',
+                color: '#ffffff',
+                backgroundColor: '#121214',
+              },
+            ]}
             placeholder="e.g. GATE-001"
             placeholderTextColor="#8e8e9a"
             value={manualCode}
@@ -270,7 +423,7 @@ export function ScannerScreen() {
             <Text style={styles.inputButtonText}>Verify</Text>
           </TouchableOpacity>
         </View>
-      </Card>
+      </Card> */}
     </ScrollView>
   );
 }

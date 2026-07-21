@@ -8,4 +8,8 @@ export const scanCheckpointSchema = z.object({
   longitude: z.number().optional(),
 
   remarks: z.string().max(500).optional(),
+
+  status: z.string().optional(),
+
+  images: z.array(z.string()).optional(),
 });

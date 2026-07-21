@@ -26,23 +26,20 @@ export class GateController {
 
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      const siteId = req.query.siteId as string;
-
-      if (!siteId) {
-        return res.status(HttpStatus.BAD_REQUEST).json({
-          success: false,
-          message: 'siteId is required.',
-        });
-      }
+      const user = currentUser(req);
+      const siteId = req.query.siteId as string | undefined;
 
       const isActive =
         req.query.isActive === undefined
           ? undefined
           : req.query.isActive === 'true';
 
-      const result = await gateService.list(siteId, isActive);
+      const isSuperAdmin = user.role === 'SUPER_ADMIN';
+      const clientId = isSuperAdmin || !user.tenantId ? undefined : user.tenantId;
 
-      return res.json({
+      const result = await gateService.list(siteId, isActive, clientId);
+
+      return res.status(HttpStatus.OK).json({
         success: true,
         data: result,
       });

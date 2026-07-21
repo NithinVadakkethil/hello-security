@@ -58,8 +58,8 @@ export class GateService {
     });
   }
 
-  async list(siteId: string, isActive?: boolean) {
-    return gateRepository.list(siteId, isActive);
+  async list(siteId?: string, isActive?: boolean, clientId?: string) {
+    return gateRepository.list(siteId, isActive, clientId);
   }
 
   async get(id: string) {
