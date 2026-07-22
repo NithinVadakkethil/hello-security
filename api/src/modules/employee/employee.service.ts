@@ -69,12 +69,12 @@ export class EmployeeService {
     let sequence = await counterService.next(ENTITY.EMPLOYEE, clientId);
     let employeeNumber = generateCode(PREFIX.EMPLOYEE, sequence);
 
-    let existingEmpCode = await prisma.employee.findUnique({ where: { employeeNumber } });
+    let existingEmpCode = await prisma.employee.findFirst({ where: { clientId, employeeNumber } });
 
     while (existingEmpCode) {
       sequence = await counterService.next(ENTITY.EMPLOYEE, clientId);
       employeeNumber = generateCode(PREFIX.EMPLOYEE, sequence);
-      existingEmpCode = await prisma.employee.findUnique({ where: { employeeNumber } });
+      existingEmpCode = await prisma.employee.findFirst({ where: { clientId, employeeNumber } });
     }
 
     // Generate temporary password
