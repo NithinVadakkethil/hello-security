@@ -22,9 +22,16 @@ export class SiteService {
       );
     }
 
-    const sequence = await counterService.next(ENTITY.SITE, clientId);
+    let sequence = await counterService.next(ENTITY.SITE, clientId);
+    let siteCode = generateCode(PREFIX.SITE, sequence);
 
-    const siteCode = generateCode(PREFIX.SITE, sequence);
+    let existingCode = await siteRepository.findByCode(siteCode);
+
+    while (existingCode) {
+      sequence = await counterService.next(ENTITY.SITE, clientId);
+      siteCode = generateCode(PREFIX.SITE, sequence);
+      existingCode = await siteRepository.findByCode(siteCode);
+    }
 
     return siteRepository.create({
       clientId,

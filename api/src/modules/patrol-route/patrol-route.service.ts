@@ -105,9 +105,16 @@ export class PatrolRouteService {
       }
     }
 
-    const sequence = await counterService.next(ENTITY.PATROL, clientId);
+    let sequence = await counterService.next(ENTITY.PATROL, clientId);
+    let routeCode = generateCode(PREFIX.PATROL, sequence);
 
-    const routeCode = generateCode(PREFIX.PATROL, sequence);
+    let existingRouteCode = await prisma.patrolRoute.findUnique({ where: { routeCode } });
+
+    while (existingRouteCode) {
+      sequence = await counterService.next(ENTITY.PATROL, clientId);
+      routeCode = generateCode(PREFIX.PATROL, sequence);
+      existingRouteCode = await prisma.patrolRoute.findUnique({ where: { routeCode } });
+    }
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const route = await tx.patrolRoute.create({
