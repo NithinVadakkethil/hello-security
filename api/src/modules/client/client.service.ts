@@ -31,9 +31,16 @@ export class ClientService {
     const temporaryPassword = randomBytes(6).toString('hex');
 
     const hashedPassword = await hashPassword(temporaryPassword);
-    const sequence = await counterService.next(ENTITY.CLIENT);
+    let sequence = await counterService.next(ENTITY.CLIENT);
+    let clientCode = generateCode(PREFIX.CLIENT, sequence);
 
-    const clientCode = generateCode(PREFIX.CLIENT, sequence);
+    let existingClientCode = await clientRepository.findByClientCode(clientCode);
+
+    while (existingClientCode) {
+      sequence = await counterService.next(ENTITY.CLIENT);
+      clientCode = generateCode(PREFIX.CLIENT, sequence);
+      existingClientCode = await clientRepository.findByClientCode(clientCode);
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const client = await tx.client.create({

@@ -32,9 +32,16 @@ export class ShiftService {
       );
     }
 
-    const sequence = await counterService.next(ENTITY.SHIFT, clientId);
+    let sequence = await counterService.next(ENTITY.SHIFT, clientId);
+    let shiftCode = generateCode(PREFIX.SHIFT, sequence);
 
-    const shiftCode = generateCode(PREFIX.SHIFT, sequence);
+    let existingShiftCode = await shiftRepository.findByShiftCode(shiftCode);
+
+    while (existingShiftCode) {
+      sequence = await counterService.next(ENTITY.SHIFT, clientId);
+      shiftCode = generateCode(PREFIX.SHIFT, sequence);
+      existingShiftCode = await shiftRepository.findByShiftCode(shiftCode);
+    }
 
     return shiftRepository.create({
       clientId,

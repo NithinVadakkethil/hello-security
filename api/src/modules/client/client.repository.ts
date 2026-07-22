@@ -15,6 +15,12 @@ export class ClientRepository {
     });
   }
 
+  findByClientCode(clientCode: string) {
+    return prisma.client.findUnique({
+      where: { clientCode },
+    });
+  }
+
   findById(id: string) {
     return prisma.client.findUnique({
       where: { id },
