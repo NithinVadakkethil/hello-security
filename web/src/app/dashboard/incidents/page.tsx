@@ -7,6 +7,7 @@ import Link from 'next/link';
 
 import { apiClient } from '../../lib/axios';
 import { ApiResponse } from '../../types/api';
+import { resolveImageUrl } from '../../../lib/image';
 import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
 
@@ -138,7 +139,7 @@ export default function IncidentsPage() {
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                     {incident.images.slice(0, 3).map((img, idx) => (
                       <div key={idx} style={{ position: 'relative', width: '60px', height: '60px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                        <img src={`http://localhost:3000${img}`} alt="Incident" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={resolveImageUrl(img)} alt="Incident" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         {idx === 2 && incident.images.length > 3 && (
                           <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontSize: '0.8rem', fontWeight: 700 }}>
                             +{incident.images.length - 3}

@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
+import { resolveImageUrl } from '../../../../lib/image';
 
 interface Employee {
   id: string;
@@ -46,7 +47,7 @@ export default function IncidentDetailPage() {
 
   const handleDownload = async (imgUrl: string) => {
     try {
-      const response = await fetch(`http://localhost:3000${imgUrl}`);
+      const response = await fetch(resolveImageUrl(imgUrl));
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -157,7 +158,7 @@ export default function IncidentDetailPage() {
                       onClick={() => setActiveImageIdx(idx)}
                       style={{ cursor: 'pointer', height: '140px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}
                     >
-                      <img src={`http://localhost:3000${img}`} alt="Evidence" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={resolveImageUrl(img)} alt="Evidence" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                     <button
                       onClick={() => handleDownload(img)}
@@ -266,7 +267,7 @@ export default function IncidentDetailPage() {
             </button>
 
             <div style={{ flex: 1, display: 'flex', justifyContent: 'center', height: '65vh', position: 'relative' }}>
-              <img src={`http://localhost:3000${incident.images[activeImageIdx]}`} alt="Slideshow Preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              <img src={resolveImageUrl(incident.images[activeImageIdx])} alt="Slideshow Preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
             </div>
 
             <button
