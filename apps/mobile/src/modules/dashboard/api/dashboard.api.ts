@@ -34,4 +34,8 @@ export const dashboardApi = {
     const res = (await apiClient.patch(`/patrol-sessions/${patrolId}/verify`, data)) as any;
     return res.data;
   },
+  updateCheckpointRemarks: async (checkpointId: string, remarks: string): Promise<any> => {
+    const res = (await apiClient.patch(`/patrol-checkpoints/${checkpointId}/remarks`, { remarks })) as any;
+    return res.data;
+  },
 };

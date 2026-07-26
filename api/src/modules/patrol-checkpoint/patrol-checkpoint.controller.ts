@@ -68,6 +68,22 @@ export class PatrolCheckpointController {
       return next(error);
     }
   }
+
+  async updateRemarks(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const { remarks } = req.body;
+
+      const result = await patrolCheckpointService.updateRemarks(id, remarks || '');
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export const patrolCheckpointController = new PatrolCheckpointController();

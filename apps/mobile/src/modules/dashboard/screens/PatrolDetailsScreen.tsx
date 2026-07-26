@@ -28,6 +28,9 @@ import {
   Navigation,
   FileText,
   Image as ImageIcon,
+  Edit2,
+  Check,
+  X,
 } from 'lucide-react-native';
 
 type PatrolDetailsRouteProp = RouteProp<AppTabParamList, 'PatrolDetails'>;
@@ -40,6 +43,11 @@ export function PatrolDetailsScreen() {
   const { data: patrol, isLoading, refetch } = usePatrolDetail(patrolId);
   const [supervisorRemarks, setSupervisorRemarks] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // State for inline checkpoint sweep note editing
+  const [editingCpId, setEditingCpId] = useState<string | null>(null);
+  const [editingRemarks, setEditingRemarks] = useState('');
+  const [isSavingCp, setIsSavingCp] = useState(false);
 
   // Initialize supervisor remarks when data is loaded
   React.useEffect(() => {
@@ -77,6 +85,9 @@ export function PatrolDetailsScreen() {
     ? `${verifiedBy.employee.firstName} ${verifiedBy.employee.lastName}`
     : verifiedBy.email || 'Supervisor';
 
+  const isAlreadyReviewed =
+    patrol.verificationStatus === 'VERIFIED' || patrol.verificationStatus === 'NOT_VERIFIED';
+
   const handleVerify = async (status: 'VERIFIED' | 'NOT_VERIFIED') => {
     try {
       setIsSubmitting(true);
@@ -93,6 +104,20 @@ export function PatrolDetailsScreen() {
       Alert.alert('Error', error?.response?.data?.error?.message || 'Failed to update verification status.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveCpRemarks = async (cpId: string) => {
+    try {
+      setIsSavingCp(true);
+      await dashboardApi.updateCheckpointRemarks(cpId, editingRemarks.trim());
+      Alert.alert('Success', 'Checkpoint sweep note updated successfully.');
+      setEditingCpId(null);
+      refetch();
+    } catch (error: any) {
+      Alert.alert('Error', error?.response?.data?.error?.message || 'Failed to update sweep note.');
+    } finally {
+      setIsSavingCp(false);
     }
   };
 
@@ -132,7 +157,7 @@ export function PatrolDetailsScreen() {
           ) : patrol.verificationStatus === 'NOT_VERIFIED' ? (
             <View style={[styles.badge, { backgroundColor: colors.danger + '20' }]}>
               <XCircle size={16} color={colors.danger} />
-              <Text style={[styles.badgeText, { color: colors.danger }]}>NOT VERIFIED</Text>
+              <Text style={[styles.badgeText, { color: colors.danger }]}>MARKED NOT VERIFIED</Text>
             </View>
           ) : (
             <View style={[styles.badge, { backgroundColor: colors.warning + '20' }]}>
@@ -259,12 +284,68 @@ export function PatrolDetailsScreen() {
                 </View>
               )}
 
-              {cp.remarks && (
-                <View style={styles.guardRemarkBox}>
-                  <Text style={[styles.guardRemarkLabel, { color: colors.textSecondary }]}>Guard Remark / Sweep Note:</Text>
-                  <Text style={[styles.guardRemarkText, { color: colors.text }]}>{cp.remarks}</Text>
+              {/* Sweep Note Editing for Supervisors */}
+              <View style={[styles.guardRemarkBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={styles.sweepNoteHeader}>
+                  <Text style={[styles.guardRemarkLabel, { color: colors.textSecondary }]}>
+                    Sweep Note / Checkpoint Remarks:
+                  </Text>
+
+                  {editingCpId !== cp.id && (
+                    <TouchableOpacity
+                      style={styles.editNoteBtn}
+                      onPress={() => {
+                        setEditingCpId(cp.id);
+                        setEditingRemarks(cp.remarks || '');
+                      }}
+                    >
+                      <Edit2 size={12} color={colors.primary} />
+                      <Text style={[styles.editNoteBtnText, { color: colors.primary }]}>Edit Sweep Note</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
-              )}
+
+                {editingCpId === cp.id ? (
+                  <View style={styles.editInputContainer}>
+                    <TextInput
+                      style={[styles.cpInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                      value={editingRemarks}
+                      onChangeText={setEditingRemarks}
+                      placeholder="Enter sweep note..."
+                      placeholderTextColor={colors.textSecondary}
+                      multiline
+                    />
+                    <View style={styles.cpActionRow}>
+                      <TouchableOpacity
+                        style={[styles.cpSmallBtn, { backgroundColor: colors.success }]}
+                        onPress={() => handleSaveCpRemarks(cp.id)}
+                        disabled={isSavingCp}
+                      >
+                        {isSavingCp ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <>
+                            <Check size={14} color="#fff" />
+                            <Text style={styles.cpSmallBtnText}>Save</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.cpSmallBtn, { backgroundColor: colors.border }]}
+                        onPress={() => setEditingCpId(null)}
+                        disabled={isSavingCp}
+                      >
+                        <X size={14} color={colors.text} />
+                        <Text style={[styles.cpSmallBtnText, { color: colors.text }]}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={[styles.guardRemarkText, { color: colors.text }]}>
+                    {cp.remarks ? cp.remarks : 'No sweep note entered yet.'}
+                  </Text>
+                )}
+              </View>
 
               {cp.images && cp.images.length > 0 && (
                 <View style={styles.imagesContainer}>
@@ -306,51 +387,81 @@ export function PatrolDetailsScreen() {
         </>
       )}
 
-      {/* Supervisor Verification Actions */}
+      {/* Supervisor Review & Verification Section */}
       <Text style={[styles.sectionTitle, { color: colors.text }]}>Supervisor Review & Verification</Text>
       <Card style={styles.verificationActionCard}>
-        <Text style={[styles.inputLabel, { color: colors.text }]}>Supervisor Remarks</Text>
-        <TextInput
-          style={[styles.textArea, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-          placeholder="Add comments or review notes for audit..."
-          placeholderTextColor={colors.textSecondary}
-          multiline
-          numberOfLines={3}
-          value={supervisorRemarks}
-          onChangeText={setSupervisorRemarks}
-        />
+        {!isAlreadyReviewed ? (
+          <>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Supervisor Remarks</Text>
+            <TextInput
+              style={[styles.textArea, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+              placeholder="Add comments or review notes for audit..."
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              numberOfLines={3}
+              value={supervisorRemarks}
+              onChangeText={setSupervisorRemarks}
+            />
 
-        <View style={styles.actionButtonsRow}>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: colors.success }]}
-            onPress={() => handleVerify('VERIFIED')}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <CheckCircle2 size={18} color="#fff" />
-                <Text style={styles.actionBtnText}>Verify Patrol</Text>
-              </>
-            )}
-          </TouchableOpacity>
+            <View style={styles.actionButtonsRow}>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.success }]}
+                onPress={() => handleVerify('VERIFIED')}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <CheckCircle2 size={18} color="#fff" />
+                    <Text style={styles.actionBtnText}>Verify Patrol</Text>
+                  </>
+                )}
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: colors.danger }]}
-            onPress={() => handleVerify('NOT_VERIFIED')}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <XCircle size={18} color="#fff" />
-                <Text style={styles.actionBtnText}>Mark Not Verified</Text>
-              </>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.danger }]}
+                onPress={() => handleVerify('NOT_VERIFIED')}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <XCircle size={18} color="#fff" />
+                    <Text style={styles.actionBtnText}>Mark Not Verified</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <View style={styles.alreadyReviewedBox}>
+            <View style={styles.rowAlign}>
+              {patrol.verificationStatus === 'VERIFIED' ? (
+                <CheckCircle2 size={20} color={colors.success} />
+              ) : (
+                <XCircle size={20} color={colors.danger} />
+              )}
+              <Text
+                style={[
+                  styles.alreadyReviewedTitle,
+                  { color: patrol.verificationStatus === 'VERIFIED' ? colors.success : colors.danger },
+                ]}
+              >
+                Patrol Review Completed ({patrol.verificationStatus === 'VERIFIED' ? 'VERIFIED' : 'NOT VERIFIED'})
+              </Text>
+            </View>
+            <Text style={[styles.metaText, { color: colors.textSecondary, marginTop: 6 }]}>
+              Verified By: <Text style={{ color: colors.text, fontWeight: '700' }}>{verifierName}</Text> at {formatTime(patrol.verificationTime)}
+            </Text>
+            {patrol.supervisorRemarks && (
+              <Text style={[styles.guardRemarkText, { color: colors.text, marginTop: 6 }]}>
+                Remarks: "{patrol.supervisorRemarks}"
+              </Text>
             )}
-          </TouchableOpacity>
-        </View>
+          </View>
+        )}
       </Card>
     </ScrollView>
   );
@@ -513,18 +624,61 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   guardRemarkBox: {
-    marginTop: 4,
-    padding: 8,
-    borderRadius: 4,
-    backgroundColor: '#00000008',
+    marginTop: 6,
+    padding: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  sweepNoteHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   guardRemarkLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
+  },
+  editNoteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  editNoteBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   guardRemarkText: {
     fontSize: 12,
     marginTop: 2,
+  },
+  editInputContainer: {
+    marginTop: 4,
+    gap: 8,
+  },
+  cpInput: {
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 8,
+    fontSize: 12,
+    minHeight: 50,
+  },
+  cpActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  cpSmallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+    gap: 4,
+  },
+  cpSmallBtnText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
   imagesContainer: {
     marginTop: 6,
@@ -585,6 +739,13 @@ const styles = StyleSheet.create({
   },
   actionBtnText: {
     color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  alreadyReviewedBox: {
+    gap: 4,
+  },
+  alreadyReviewedTitle: {
     fontSize: 13,
     fontWeight: '700',
   },

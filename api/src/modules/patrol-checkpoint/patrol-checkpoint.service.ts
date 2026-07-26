@@ -122,6 +122,20 @@ export class PatrolCheckpointService {
   async history(sessionId: string) {
     return patrolCheckpointRepository.listBySession(sessionId);
   }
+
+  async updateRemarks(checkpointId: string, remarks: string) {
+    const checkpoint = await patrolCheckpointRepository.findById(checkpointId);
+
+    if (!checkpoint) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Patrol checkpoint not found.',
+      );
+    }
+
+    return patrolCheckpointRepository.update(checkpointId, { remarks });
+  }
 }
 
 export const patrolCheckpointService = new PatrolCheckpointService();

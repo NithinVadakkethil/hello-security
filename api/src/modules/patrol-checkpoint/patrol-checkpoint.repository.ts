@@ -60,6 +60,18 @@ export class PatrolCheckpointRepository {
       },
     });
   }
+
+  update(id: string, data: any) {
+    return prisma.patrolCheckpoint.update({
+      where: {
+        id,
+      },
+      data,
+      include: {
+        gate: true,
+      },
+    });
+  }
 }
 
 export const patrolCheckpointRepository = new PatrolCheckpointRepository();

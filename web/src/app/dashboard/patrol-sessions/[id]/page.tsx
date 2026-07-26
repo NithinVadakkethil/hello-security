@@ -1,17 +1,25 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useParams } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Clock, Shield, CheckCircle2, Play, Pause, RefreshCw } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Clock,
+  Pause,
+  Play,
+  RefreshCw,
+  Shield,
+} from 'lucide-react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
 
+import { resolveImageUrl } from '../../../../lib/image';
+import Modal from '../../../components/ui/Modal';
+import StatusChip from '../../../components/ui/StatusChip';
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
-import StatusChip from '../../../components/ui/StatusChip';
-import Modal from '../../../components/ui/Modal';
-import { resolveImageUrl } from '../../../../lib/image';
 
 interface Gate {
   id: string;
@@ -105,7 +113,11 @@ export default function PatrolSessionDetailPage() {
   const [completeRemarks, setCompleteRemarks] = useState('');
 
   // Fetch Patrol Session details
-  const { data: sessionRes, isLoading, isError } = useQuery<ApiResponse<PatrolSession>>({
+  const {
+    data: sessionRes,
+    isLoading,
+    isError,
+  } = useQuery<ApiResponse<PatrolSession>>({
     queryKey: ['patrol-session', id],
     queryFn: () => apiClient.get(`/patrol-sessions/${id}`),
     refetchInterval: (query: any) => {
@@ -142,7 +154,8 @@ export default function PatrolSessionDetailPage() {
 
   // Complete mutation
   const completeMutation = useMutation({
-    mutationFn: (remarks: string) => apiClient.post(`/patrol-sessions/${id}/complete`, { remarks }),
+    mutationFn: (remarks: string) =>
+      apiClient.post(`/patrol-sessions/${id}/complete`, { remarks }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['patrol-session', id] });
       toast.success('Patrol session completed successfully.');
@@ -157,20 +170,50 @@ export default function PatrolSessionDetailPage() {
 
   // Verify mutation
   const verifyMutation = useMutation({
-    mutationFn: (data: { verificationStatus: 'VERIFIED' | 'NOT_VERIFIED'; supervisorRemarks?: string }) =>
-      apiClient.patch(`/patrol-sessions/${id}/verify`, data),
+    mutationFn: (data: {
+      verificationStatus: 'VERIFIED' | 'NOT_VERIFIED';
+      supervisorRemarks?: string;
+    }) => apiClient.patch(`/patrol-sessions/${id}/verify`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['patrol-session', id] });
       toast.success('Supervisor verification updated successfully.');
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Failed to update verification status.');
+      toast.error(
+        err.response?.data?.message || 'Failed to update verification status.',
+      );
+    },
+  });
+
+  const [editingCpIdWeb, setEditingCpIdWeb] = useState<string | null>(null);
+  const [editingRemarksWeb, setEditingRemarksWeb] = useState('');
+
+  const updateCpRemarksMutation = useMutation({
+    mutationFn: (data: { checkpointId: string; remarks: string }) =>
+      apiClient.patch(`/patrol-checkpoints/${data.checkpointId}/remarks`, {
+        remarks: data.remarks,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patrol-session', id] });
+      toast.success('Sweep note updated successfully.');
+      setEditingCpIdWeb(null);
+    },
+    onError: (err: any) => {
+      toast.error(
+        err.response?.data?.message || 'Failed to update sweep note.',
+      );
     },
   });
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          padding: '100px 0',
+        }}
+      >
         <RefreshCw className="spin-animation" size={32} />
       </div>
     );
@@ -178,23 +221,32 @@ export default function PatrolSessionDetailPage() {
 
   if (isError || !session) {
     return (
-      <div className="error-panel glass-card" style={{ maxWidth: '600px', margin: '50px auto' }}>
+      <div
+        className="error-panel glass-card"
+        style={{ maxWidth: '600px', margin: '50px auto' }}
+      >
         <h3>Patrol Session Log Not Found</h3>
         <p>The requested patrol log could not be loaded.</p>
-        <Link href="/dashboard/patrol-sessions" className="btn btn-primary" style={{ marginTop: '16px', textDecoration: 'none' }}>
+        <Link
+          href="/dashboard/patrol-sessions"
+          className="btn btn-primary"
+          style={{ marginTop: '16px', textDecoration: 'none' }}
+        >
           Back to Sessions
         </Link>
       </div>
     );
   }
 
-  const routeGates = session.assignment?.assignmentGates && session.assignment.assignmentGates.length > 0
-    ? session.assignment.assignmentGates.map((ag: any, idx: number) => ({
-        sequence: ag.sequence || idx + 1,
-        expectedDuration: null,
-        gate: ag.gate,
-      }))
-    : session.assignment?.patrolRoute?.routeGates || [];
+  const routeGates =
+    session.assignment?.assignmentGates &&
+    session.assignment.assignmentGates.length > 0
+      ? session.assignment.assignmentGates.map((ag: any, idx: number) => ({
+          sequence: ag.sequence || idx + 1,
+          expectedDuration: null,
+          gate: ag.gate,
+        }))
+      : session.assignment?.patrolRoute?.routeGates || [];
   const scans = session.checkpoints || [];
 
   // Map route gates to their scan status
@@ -207,16 +259,22 @@ export default function PatrolSessionDetailPage() {
         expectedDuration: rg.expectedDuration,
         gate: rg.gate,
         scanned: !!scan,
+        checkpointId: scan?.id,
         scannedAt: scan?.scannedAt,
         remarks: scan?.remarks,
         status: scan?.status,
         images: scan?.images || [],
-        scanCoords: scan?.latitude && scan?.longitude ? `${scan.latitude.toFixed(5)}, ${scan.longitude.toFixed(5)}` : null,
+        scanCoords:
+          scan?.latitude && scan?.longitude
+            ? `${scan.latitude.toFixed(5)}, ${scan.longitude.toFixed(5)}`
+            : null,
       };
     });
 
   const completionPercentage = Math.round(
-    (checkpointsTimeline.filter((c) => c.scanned).length / Math.max(1, checkpointsTimeline.length)) * 100
+    (checkpointsTimeline.filter((c) => c.scanned).length /
+      Math.max(1, checkpointsTimeline.length)) *
+      100,
   );
 
   return (
@@ -225,7 +283,14 @@ export default function PatrolSessionDetailPage() {
       <div>
         <Link
           href="/dashboard/patrol-sessions"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', color: 'var(--text-secondary)', fontWeight: 500 }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            textDecoration: 'none',
+            color: 'var(--text-secondary)',
+            fontWeight: 500,
+          }}
         >
           <ArrowLeft size={16} />
           <span>Back to Monitoring Feed</span>
@@ -233,17 +298,46 @@ export default function PatrolSessionDetailPage() {
       </div>
 
       {/* Header Info */}
-      <div className="glass-card" style={{ padding: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px' }}>
+      <div
+        className="glass-card"
+        style={{
+          padding: '28px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: '20px',
+        }}
+      >
         <div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+          <span
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--text-muted)',
+              fontFamily: 'monospace',
+            }}
+          >
             PATROL LOG ID: {session.patrolCode}
           </span>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '4px 0 8px 0' }}>
-            {session.assignment.employee.firstName} {session.assignment.employee.lastName}
+          <h2
+            style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              margin: '4px 0 8px 0',
+            }}
+          >
+            {session.assignment.employee.firstName}{' '}
+            {session.assignment.employee.lastName}
           </h2>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <StatusChip status={session.status} />
-            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary)' }}>
+            <span
+              style={{
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                color: 'var(--primary)',
+              }}
+            >
               {completionPercentage}% Scanned
             </span>
           </div>
@@ -277,7 +371,11 @@ export default function PatrolSessionDetailPage() {
             <button
               onClick={() => setIsCompleteModalOpen(true)}
               className="btn btn-primary"
-              style={{ gap: '6px', background: 'var(--success)', border: 'none' }}
+              style={{
+                gap: '6px',
+                background: 'var(--success)',
+                border: 'none',
+              }}
             >
               <CheckCircle2 size={14} />
               <span>Complete Session</span>
@@ -287,17 +385,42 @@ export default function PatrolSessionDetailPage() {
       </div>
 
       {/* Grid Info */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px' }}>
+      <div
+        style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px' }}
+      >
         {/* Left Side: Checkpoint timeline */}
         <div className="glass-card" style={{ padding: '28px' }}>
-          <h3 style={{ fontSize: '1.15rem', fontWeight: 600, marginBottom: '24px' }}>Guard Checkpoint Timeline Scan Logs</h3>
+          <h3
+            style={{
+              fontSize: '1.15rem',
+              fontWeight: 600,
+              marginBottom: '24px',
+            }}
+          >
+            Guard Checkpoint Timeline Scan Logs
+          </h3>
 
           {checkpointsTimeline.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '20px 0' }}>
+            <p
+              style={{
+                color: 'var(--text-muted)',
+                fontSize: '0.9rem',
+                textAlign: 'center',
+                padding: '20px 0',
+              }}
+            >
               No gates defined for this route.
             </p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', position: 'relative', paddingLeft: '24px' }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '20px',
+                position: 'relative',
+                paddingLeft: '24px',
+              }}
+            >
               {/* Vertical Line */}
               <div
                 style={{
@@ -312,18 +435,32 @@ export default function PatrolSessionDetailPage() {
               ></div>
 
               {checkpointsTimeline.map((item, index) => {
-                const incident = session.incidents?.find((inc) => inc.gateId === item.gate.id);
+                const incident = session.incidents?.find(
+                  (inc) => inc.gateId === item.gate.id,
+                );
                 return (
-                  <div key={item.gate.id} style={{ display: 'flex', gap: '16px', position: 'relative', zIndex: 1 }}>
+                  <div
+                    key={item.gate.id}
+                    style={{
+                      display: 'flex',
+                      gap: '16px',
+                      position: 'relative',
+                      zIndex: 1,
+                    }}
+                  >
                     {/* Dot */}
                     <div
                       style={{
                         width: '16px',
                         height: '16px',
                         borderRadius: '50%',
-                        background: item.scanned ? 'var(--success)' : 'var(--border-color)',
+                        background: item.scanned
+                          ? 'var(--success)'
+                          : 'var(--border-color)',
                         border: '4px solid var(--bg-primary)',
-                        boxShadow: item.scanned ? '0 0 8px rgba(var(--success-rgb), 0.5)' : 'none',
+                        boxShadow: item.scanned
+                          ? '0 0 8px rgba(var(--success-rgb), 0.5)'
+                          : 'none',
                         marginTop: '14px',
                         marginLeft: '-23px',
                       }}
@@ -336,61 +473,272 @@ export default function PatrolSessionDetailPage() {
                         alignItems: 'flex-start',
                         justifyContent: 'space-between',
                         padding: '12px 16px',
-                        background: item.scanned ? 'var(--bg-primary)' : 'var(--bg-tertiary)',
+                        background: item.scanned
+                          ? 'var(--bg-primary)'
+                          : 'var(--bg-tertiary)',
                         borderRadius: 'var(--radius-sm)',
                         border: `1px solid ${item.scanned ? 'var(--success)' : 'var(--border-color)'}30`,
                         opacity: item.scanned ? 1 : 0.7,
                       }}
                     >
                       <div style={{ flex: 1, marginRight: '16px' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: item.scanned ? 'var(--success)' : 'var(--text-muted)' }}>
-                          Seq {item.sequence} - {item.scanned ? 'SCANNED' : 'PENDING'}
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: item.scanned
+                              ? 'var(--success)'
+                              : 'var(--text-muted)',
+                          }}
+                        >
+                          Seq {item.sequence} -{' '}
+                          {item.scanned ? 'SCANNED' : 'PENDING'}
                         </span>
-                        <h4 style={{ fontSize: '0.95rem', fontWeight: 600, margin: '2px 0' }}>{item.gate.name}</h4>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, fontFamily: 'monospace' }}>
+                        <h4
+                          style={{
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            margin: '2px 0',
+                          }}
+                        >
+                          {item.gate.name}
+                        </h4>
+                        <p
+                          style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--text-muted)',
+                            margin: 0,
+                            fontFamily: 'monospace',
+                          }}
+                        >
                           GATE CODE: {item.gate.gateCode}
                         </p>
-                        
+
                         {item.scanned && item.status && (
-                          <p style={{ fontSize: '0.8rem', marginTop: '6px', marginBottom: '0px' }}>
-                            🔧 Gate Status: <span style={{ color: item.status === 'GOOD' ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>{item.status === 'GOOD' ? 'Good' : 'Damaged / Issue'}</span>
+                          <p
+                            style={{
+                              fontSize: '0.8rem',
+                              marginTop: '6px',
+                              marginBottom: '0px',
+                            }}
+                          >
+                            🔧 Gate Status:{' '}
+                            <span
+                              style={{
+                                color:
+                                  item.status === 'GOOD'
+                                    ? 'var(--success)'
+                                    : 'var(--danger)',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {item.status === 'GOOD'
+                                ? 'Good'
+                                : 'Damaged / Issue'}
+                            </span>
                           </p>
                         )}
 
-                        {item.remarks && (
-                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '6px', marginBottom: '0px' }}>
-                            📝 Remarks: {item.remarks}
-                          </p>
+                        {item.scanned && (
+                          <div
+                            style={{
+                              marginTop: '8px',
+                              padding: '10px',
+                              background: 'var(--bg-secondary)',
+                              borderRadius: '6px',
+                              border: '1px solid var(--border-color)',
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginBottom: '4px',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: '0.8rem',
+                                  fontWeight: 600,
+                                  color: 'var(--text-muted)',
+                                }}
+                              >
+                                📝 Checkpoint Sweep Note:
+                              </span>
+                              {item.checkpointId &&
+                                editingCpIdWeb !== item.checkpointId && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingCpIdWeb(item.checkpointId!);
+                                      setEditingRemarksWeb(item.remarks || '');
+                                    }}
+                                    className="btn btn-secondary"
+                                    style={{
+                                      padding: '2px 8px',
+                                      fontSize: '0.75rem',
+                                      gap: '4px',
+                                    }}
+                                  >
+                                    Edit Sweep Note
+                                  </button>
+                                )}
+                            </div>
+
+                            {item.checkpointId &&
+                            editingCpIdWeb === item.checkpointId ? (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '8px',
+                                  marginTop: '4px',
+                                }}
+                              >
+                                <textarea
+                                  value={editingRemarksWeb}
+                                  onChange={(e) =>
+                                    setEditingRemarksWeb(e.target.value)
+                                  }
+                                  className="form-input"
+                                  style={{
+                                    minHeight: '50px',
+                                    fontSize: '0.85rem',
+                                  }}
+                                  placeholder="Enter sweep note..."
+                                />
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button
+                                    onClick={() =>
+                                      updateCpRemarksMutation.mutate({
+                                        checkpointId: item.checkpointId!,
+                                        remarks: editingRemarksWeb,
+                                      })
+                                    }
+                                    className="btn btn-primary"
+                                    style={{
+                                      padding: '4px 12px',
+                                      fontSize: '0.75rem',
+                                    }}
+                                    disabled={updateCpRemarksMutation.isPending}
+                                  >
+                                    Save Note
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingCpIdWeb(null)}
+                                    className="btn btn-secondary"
+                                    style={{
+                                      padding: '4px 12px',
+                                      fontSize: '0.75rem',
+                                    }}
+                                    disabled={updateCpRemarksMutation.isPending}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p
+                                style={{
+                                  fontSize: '0.85rem',
+                                  color: 'var(--text-primary)',
+                                  margin: 0,
+                                }}
+                              >
+                                {item.remarks ? (
+                                  item.remarks
+                                ) : (
+                                  <span
+                                    style={{
+                                      fontStyle: 'italic',
+                                      color: 'var(--text-muted)',
+                                    }}
+                                  >
+                                    No sweep note provided yet.
+                                  </span>
+                                )}
+                              </p>
+                            )}
+                          </div>
                         )}
 
                         {incident && (
-                          <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(239, 68, 68, 0.08)', borderLeft: '3px solid var(--danger)', borderRadius: '4px' }}>
-                            <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--danger)', margin: '0 0 4px 0' }}>
+                          <div
+                            style={{
+                              marginTop: '8px',
+                              padding: '10px',
+                              background: 'rgba(239, 68, 68, 0.08)',
+                              borderLeft: '3px solid var(--danger)',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            <h5
+                              style={{
+                                fontSize: '0.85rem',
+                                fontWeight: 700,
+                                color: 'var(--danger)',
+                                margin: '0 0 4px 0',
+                              }}
+                            >
                               🚨 Incident: {incident.type} ({incident.severity})
                             </h5>
-                            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                            <p
+                              style={{
+                                fontSize: '0.78rem',
+                                color: 'var(--text-secondary)',
+                                margin: 0,
+                              }}
+                            >
                               {incident.description}
                             </p>
                           </div>
                         )}
 
-                        {item.scanned && item.images && item.images.length > 0 ? (
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                        {item.scanned &&
+                        item.images &&
+                        item.images.length > 0 ? (
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: '8px',
+                              marginTop: '10px',
+                              flexWrap: 'wrap',
+                            }}
+                          >
                             {item.images.map((imgUrl, idx) => {
                               const fullUrl = resolveImageUrl(imgUrl);
                               return (
-                                <a key={idx} href={fullUrl} target="_blank" rel="noopener noreferrer">
-                                  <img 
-                                    src={fullUrl} 
-                                    alt={`Checkpoint Scan ${idx}`} 
-                                    style={{ width: '80px', height: '80px', borderRadius: '4px', objectFit: 'cover', border: '1px solid var(--border-color)', cursor: 'zoom-in' }} 
+                                <a
+                                  key={idx}
+                                  href={fullUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <img
+                                    src={fullUrl}
+                                    alt={`Checkpoint Scan ${idx}`}
+                                    style={{
+                                      width: '80px',
+                                      height: '80px',
+                                      borderRadius: '4px',
+                                      objectFit: 'cover',
+                                      border: '1px solid var(--border-color)',
+                                      cursor: 'zoom-in',
+                                    }}
                                   />
                                 </a>
                               );
                             })}
                           </div>
                         ) : item.scanned ? (
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'inline-block', marginTop: '6px' }}>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              color: 'var(--text-muted)',
+                              display: 'inline-block',
+                              marginTop: '6px',
+                            }}
+                          >
                             📷 No photos attached
                           </span>
                         ) : null}
@@ -399,17 +747,38 @@ export default function PatrolSessionDetailPage() {
                       <div style={{ textAlign: 'right', minWidth: '80px' }}>
                         {item.scanned ? (
                           <>
-                            <p style={{ fontSize: '0.85rem', fontWeight: 600, margin: 0 }}>
+                            <p
+                              style={{
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                margin: 0,
+                              }}
+                            >
                               {new Date(item.scannedAt!).toLocaleTimeString()}
                             </p>
                             {item.scanCoords && (
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace', display: 'block', marginTop: '4px' }}>
+                              <span
+                                style={{
+                                  fontSize: '0.7rem',
+                                  color: 'var(--text-muted)',
+                                  fontFamily: 'monospace',
+                                  display: 'block',
+                                  marginTop: '4px',
+                                }}
+                              >
                                 GPS: {item.scanCoords}
                               </span>
                             )}
                           </>
                         ) : (
-                          <em style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Unscanned</em>
+                          <em
+                            style={{
+                              fontSize: '0.8rem',
+                              color: 'var(--text-muted)',
+                            }}
+                          >
+                            Unscanned
+                          </em>
                         )}
                       </div>
                     </div>
@@ -423,37 +792,104 @@ export default function PatrolSessionDetailPage() {
         {/* Right Side: Quick Stats summary */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
           <div className="glass-card" style={{ padding: '24px' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h3
+              style={{
+                fontSize: '1.05rem',
+                fontWeight: 600,
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
               <Clock size={18} style={{ color: 'var(--text-muted)' }} />
               <span>Patrol Timings</span>
             </h3>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div
+              style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+            >
               <div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>STARTED AT</p>
+                <p
+                  style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--text-muted)',
+                    margin: '0 0 4px 0',
+                  }}
+                >
+                  STARTED AT
+                </p>
                 <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
                   {new Date(session.startedAt).toLocaleString()}
                 </p>
               </div>
 
               <div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>ENDED AT</p>
+                <p
+                  style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--text-muted)',
+                    margin: '0 0 4px 0',
+                  }}
+                >
+                  ENDED AT
+                </p>
                 <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
-                  {session.endedAt ? new Date(session.endedAt).toLocaleString() : 'Active monitoring'}
+                  {session.endedAt
+                    ? new Date(session.endedAt).toLocaleString()
+                    : 'Active monitoring'}
                 </p>
               </div>
 
               <div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>ELAPSED DURATION</p>
-                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary)', margin: 0 }}>
-                  {session.totalDuration ? `${session.totalDuration} minutes` : 'In progress'}
+                <p
+                  style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--text-muted)',
+                    margin: '0 0 4px 0',
+                  }}
+                >
+                  ELAPSED DURATION
+                </p>
+                <p
+                  style={{
+                    fontSize: '0.95rem',
+                    fontWeight: 700,
+                    color: 'var(--primary)',
+                    margin: 0,
+                  }}
+                >
+                  {session.totalDuration
+                    ? `${session.totalDuration} minutes`
+                    : 'In progress'}
                 </p>
               </div>
 
               {session.remarks && (
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>PATROL NOTES / REMARKS</p>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>
+                <div
+                  style={{
+                    borderTop: '1px solid var(--border-color)',
+                    paddingTop: '16px',
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: '0.8rem',
+                      color: 'var(--text-muted)',
+                      margin: '0 0 4px 0',
+                    }}
+                  >
+                    PATROL NOTES / REMARKS
+                  </p>
+                  <p
+                    style={{
+                      fontSize: '0.85rem',
+                      color: 'var(--text-secondary)',
+                      margin: 0,
+                      fontStyle: 'italic',
+                      lineHeight: 1.5,
+                    }}
+                  >
                     "{session.remarks}"
                   </p>
                 </div>
@@ -462,22 +898,56 @@ export default function PatrolSessionDetailPage() {
           </div>
 
           <div className="glass-card" style={{ padding: '24px' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h3
+              style={{
+                fontSize: '1.05rem',
+                fontWeight: 600,
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
               <Shield size={18} style={{ color: 'var(--text-muted)' }} />
               <span>Assignment Context</span>
             </h3>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div
+              style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+            >
               <div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>MONITORED SITE</p>
-                <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>{session.assignment.site.name}</p>
+                <p
+                  style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--text-muted)',
+                    margin: '0 0 4px 0',
+                  }}
+                >
+                  MONITORED SITE
+                </p>
+                <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
+                  {session.assignment.site.name}
+                </p>
               </div>
 
               <div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>SHIFT RANGE</p>
-                <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>{session.assignment.shift.name}</p>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  ({session.assignment.shift.startTime} - {session.assignment.shift.endTime})
+                <p
+                  style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--text-muted)',
+                    margin: '0 0 4px 0',
+                  }}
+                >
+                  SHIFT RANGE
+                </p>
+                <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
+                  {session.assignment.shift.name}
+                </p>
+                <span
+                  style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}
+                >
+                  ({session.assignment.shift.startTime} -{' '}
+                  {session.assignment.shift.endTime})
                 </span>
               </div>
             </div>
@@ -492,40 +962,71 @@ export default function PatrolSessionDetailPage() {
                 session.verificationStatus === 'VERIFIED'
                   ? 'var(--success)'
                   : session.verificationStatus === 'NOT_VERIFIED'
-                  ? 'var(--danger)'
-                  : 'var(--warning)'
+                    ? 'var(--danger)'
+                    : 'var(--warning)'
               }`,
             }}
           >
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h3
+              style={{
+                fontSize: '1.05rem',
+                fontWeight: 600,
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
               <CheckCircle2 size={18} style={{ color: 'var(--primary)' }} />
               <span>Supervisor Verification Status</span>
             </h3>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div
+              style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
+            >
               <div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>STATUS</p>
+                <p
+                  style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--text-muted)',
+                    margin: '0 0 4px 0',
+                  }}
+                >
+                  STATUS
+                </p>
                 <span
                   className={`status-chip ${
                     session.verificationStatus === 'VERIFIED'
                       ? 'status-active'
                       : session.verificationStatus === 'NOT_VERIFIED'
-                      ? 'status-expired'
-                      : 'status-trial'
+                        ? 'status-expired'
+                        : 'status-trial'
                   }`}
-                  style={{ fontWeight: 700, fontSize: '0.8rem', padding: '4px 10px' }}
+                  style={{
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    padding: '4px 10px',
+                  }}
                 >
                   {session.verificationStatus === 'VERIFIED'
                     ? '✓ VERIFIED'
                     : session.verificationStatus === 'NOT_VERIFIED'
-                    ? '✕ NOT VERIFIED'
-                    : '⏳ PENDING VERIFICATION'}
+                      ? '✕ NOT VERIFIED'
+                      : '⏳ PENDING VERIFICATION'}
                 </span>
               </div>
 
               {session.verifiedBy && (
                 <div>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>VERIFIED BY</p>
+                  <p
+                    style={{
+                      fontSize: '0.8rem',
+                      color: 'var(--text-muted)',
+                      margin: '0 0 4px 0',
+                    }}
+                  >
+                    VERIFIED BY
+                  </p>
                   <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
                     {session.verifiedBy.employee
                       ? `${session.verifiedBy.employee.firstName} ${session.verifiedBy.employee.lastName}`
@@ -536,61 +1037,128 @@ export default function PatrolSessionDetailPage() {
 
               {session.verificationTime && (
                 <div>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>VERIFIED AT</p>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  <p
+                    style={{
+                      fontSize: '0.8rem',
+                      color: 'var(--text-muted)',
+                      margin: '0 0 4px 0',
+                    }}
+                  >
+                    VERIFIED AT
+                  </p>
+                  <p
+                    style={{
+                      fontSize: '0.85rem',
+                      color: 'var(--text-secondary)',
+                      margin: 0,
+                    }}
+                  >
                     {new Date(session.verificationTime).toLocaleString()}
                   </p>
                 </div>
               )}
 
               {session.supervisorRemarks && (
-                <div style={{ background: 'var(--bg-secondary)', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                  <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 4px 0' }}>SUPERVISOR REMARKS</p>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.4 }}>
+                <div
+                  style={{
+                    background: 'var(--bg-secondary)',
+                    padding: '12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-color)',
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: 'var(--text-muted)',
+                      margin: '0 0 4px 0',
+                    }}
+                  >
+                    SUPERVISOR REMARKS
+                  </p>
+                  <p
+                    style={{
+                      fontSize: '0.85rem',
+                      color: 'var(--text-primary)',
+                      margin: 0,
+                      lineHeight: 1.4,
+                    }}
+                  >
                     "{session.supervisorRemarks}"
                   </p>
                 </div>
               )}
 
-              {/* Action for Admin / Supervisor on Web */}
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>Add / Edit Supervisor Remarks</p>
-                <textarea
-                  value={webSupervisorRemarks}
-                  onChange={(e) => setWebSupervisorRemarks(e.target.value)}
-                  className="form-input"
-                  style={{ minHeight: '60px', fontSize: '0.85rem', resize: 'vertical' }}
-                  placeholder={session.supervisorRemarks || 'Enter remarks for audit...'}
-                />
-                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                  <button
-                    onClick={() =>
-                      verifyMutation.mutate({
-                        verificationStatus: 'VERIFIED',
-                        supervisorRemarks: webSupervisorRemarks || session.supervisorRemarks || undefined,
-                      })
-                    }
-                    className="btn btn-primary"
-                    style={{ flex: 1, padding: '8px 10px', fontSize: '0.8rem', background: 'var(--success)', border: 'none' }}
-                    disabled={verifyMutation.isPending}
+              {(!session.verificationStatus || session.verificationStatus === 'PENDING') && (
+                <div
+                  style={{
+                    borderTop: '1px solid var(--border-color)',
+                    paddingTop: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      color: 'var(--text-secondary)',
+                      margin: 0,
+                    }}
                   >
-                    Verify Patrol
-                  </button>
-                  <button
-                    onClick={() =>
-                      verifyMutation.mutate({
-                        verificationStatus: 'NOT_VERIFIED',
-                        supervisorRemarks: webSupervisorRemarks || session.supervisorRemarks || undefined,
-                      })
-                    }
-                    className="btn btn-secondary"
-                    style={{ flex: 1, padding: '8px 10px', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}
-                    disabled={verifyMutation.isPending}
-                  >
-                    Mark Not Verified
-                  </button>
+                    Supervisor Review & Action
+                  </p>
+                  <textarea
+                    value={webSupervisorRemarks}
+                    onChange={(e) => setWebSupervisorRemarks(e.target.value)}
+                    className="form-input"
+                    style={{ minHeight: '60px', fontSize: '0.85rem', resize: 'vertical' }}
+                    placeholder="Enter remarks for audit..."
+                  />
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                    <button
+                      onClick={() =>
+                        verifyMutation.mutate({
+                          verificationStatus: 'VERIFIED',
+                          supervisorRemarks: webSupervisorRemarks || undefined,
+                        })
+                      }
+                      className="btn btn-primary"
+                      style={{
+                        flex: 1,
+                        padding: '8px 10px',
+                        fontSize: '0.8rem',
+                        background: 'var(--success)',
+                        border: 'none',
+                      }}
+                      disabled={verifyMutation.isPending}
+                    >
+                      Verify Patrol
+                    </button>
+                    <button
+                      onClick={() =>
+                        verifyMutation.mutate({
+                          verificationStatus: 'NOT_VERIFIED',
+                          supervisorRemarks: webSupervisorRemarks || undefined,
+                        })
+                      }
+                      className="btn btn-secondary"
+                      style={{
+                        flex: 1,
+                        padding: '8px 10px',
+                        fontSize: '0.8rem',
+                        color: 'var(--danger)',
+                        borderColor: 'var(--danger)',
+                      }}
+                      disabled={verifyMutation.isPending}
+                    >
+                      Mark Not Verified
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -603,7 +1171,13 @@ export default function PatrolSessionDetailPage() {
         title="Complete Guard Patrol Session"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: 0 }}>
+          <p
+            style={{
+              fontSize: '0.9rem',
+              color: 'var(--text-secondary)',
+              margin: 0,
+            }}
+          >
             Submit final remarks or notes to conclude this patrol session:
           </p>
 
@@ -615,8 +1189,18 @@ export default function PatrolSessionDetailPage() {
             placeholder="Write final handover remarks, incident summary, etc."
           />
 
-          <div style={{ display: 'flex', justifySelf: 'flex-end', gap: '12px', marginTop: '8px' }}>
-            <button onClick={() => setIsCompleteModalOpen(false)} className="btn btn-secondary">
+          <div
+            style={{
+              display: 'flex',
+              justifySelf: 'flex-end',
+              gap: '12px',
+              marginTop: '8px',
+            }}
+          >
+            <button
+              onClick={() => setIsCompleteModalOpen(false)}
+              className="btn btn-secondary"
+            >
               Cancel
             </button>
             <button
@@ -624,7 +1208,9 @@ export default function PatrolSessionDetailPage() {
               className="btn btn-primary"
               disabled={completeMutation.isPending}
             >
-              {completeMutation.isPending ? 'Completing patrol...' : 'Complete Patrol'}
+              {completeMutation.isPending
+                ? 'Completing patrol...'
+                : 'Complete Patrol'}
             </button>
           </div>
         </div>
