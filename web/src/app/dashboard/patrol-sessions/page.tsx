@@ -26,6 +26,17 @@ interface PatrolSession {
   endedAt?: string | null;
   totalDuration?: number | null;
   remarks?: string | null;
+  verificationStatus?: 'PENDING' | 'VERIFIED' | 'NOT_VERIFIED' | null;
+  verificationTime?: string | null;
+  supervisorRemarks?: string | null;
+  verifiedBy?: {
+    id: string;
+    email: string;
+    employee?: {
+      firstName: string;
+      lastName: string;
+    } | null;
+  } | null;
   createdAt: string;
   assignment: {
     employee: {
@@ -135,6 +146,38 @@ export default function PatrolSessionsPage() {
       key: 'status',
       label: 'Status',
       render: (row: PatrolSession) => <StatusChip status={row.status} />,
+    },
+    {
+      key: 'verification',
+      label: 'Supervisor Verification',
+      render: (row: PatrolSession) => {
+        const vStatus = row.verificationStatus || 'PENDING';
+        const verifier = row.verifiedBy?.employee
+          ? `${row.verifiedBy.employee.firstName} ${row.verifiedBy.employee.lastName}`
+          : row.verifiedBy?.email;
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span
+              className={`status-chip ${
+                vStatus === 'VERIFIED'
+                  ? 'status-active'
+                  : vStatus === 'NOT_VERIFIED'
+                  ? 'status-expired'
+                  : 'status-trial'
+              }`}
+              style={{ fontSize: '0.75rem', padding: '3px 8px', width: 'fit-content', fontWeight: 700 }}
+            >
+              {vStatus === 'VERIFIED' ? '✓ VERIFIED' : vStatus === 'NOT_VERIFIED' ? '✕ NOT VERIFIED' : '⏳ PENDING'}
+            </span>
+            {verifier && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                By: {verifier}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'actions',

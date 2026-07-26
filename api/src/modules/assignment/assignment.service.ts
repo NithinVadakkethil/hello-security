@@ -224,6 +224,18 @@ export class AssignmentService {
 
     return assignmentRepository.findEmployeeActiveAssignments(employeeId);
   }
+
+  async getEmployeeAllAssignments(employeeId: string) {
+    if (!employeeId) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Employee ID is required.',
+      );
+    }
+
+    return assignmentRepository.findEmployeeAllAssignments(employeeId);
+  }
 }
 
 export const assignmentService = new AssignmentService();

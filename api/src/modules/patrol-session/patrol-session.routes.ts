@@ -64,4 +64,11 @@ router.get(
   patrolSessionController.getById.bind(patrolSessionController),
 );
 
+router.patch(
+  '/:id/verify',
+  authenticate,
+  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR),
+  patrolSessionController.verify.bind(patrolSessionController),
+);
+
 export default router;

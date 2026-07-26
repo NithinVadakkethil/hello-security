@@ -172,6 +172,43 @@ export class PatrolSessionService {
   async findById(id: string) {
     return patrolSessionRepository.findFullById(id);
   }
+
+  async verify(
+    id: string,
+    userId: string,
+    dto: {
+      verificationStatus: 'VERIFIED' | 'NOT_VERIFIED';
+      supervisorRemarks?: string;
+    },
+  ) {
+    const patrol = await patrolSessionRepository.findById(id);
+
+    if (!patrol) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Patrol session not found.',
+      );
+    }
+
+    if (
+      dto.verificationStatus !== 'VERIFIED' &&
+      dto.verificationStatus !== 'NOT_VERIFIED'
+    ) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Invalid verification status. Must be VERIFIED or NOT_VERIFIED.',
+      );
+    }
+
+    return patrolSessionRepository.verifyPatrolSession(id, {
+      verificationStatus: dto.verificationStatus,
+      verifiedById: userId,
+      verificationTime: new Date(),
+      supervisorRemarks: dto.supervisorRemarks,
+    });
+  }
 }
 
 export const patrolSessionService = new PatrolSessionService();

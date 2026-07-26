@@ -22,4 +22,16 @@ export const dashboardApi = {
     const res = (await apiClient.get('/employees')) as any;
     return res.data;
   },
+  getMyAssignments: async (): Promise<any[]> => {
+    const res = (await apiClient.get('/assignments/my-assignments')) as any;
+    return res.data;
+  },
+  getPatrolDetail: async (patrolId: string): Promise<any> => {
+    const res = (await apiClient.get(`/patrol-sessions/${patrolId}`)) as any;
+    return res.data;
+  },
+  verifyPatrolSession: async (patrolId: string, data: { verificationStatus: 'VERIFIED' | 'NOT_VERIFIED'; supervisorRemarks?: string }): Promise<any> => {
+    const res = (await apiClient.patch(`/patrol-sessions/${patrolId}/verify`, data)) as any;
+    return res.data;
+  },
 };

@@ -134,6 +134,22 @@ export class PatrolSessionRepository {
             },
           },
         },
+        verifiedBy: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            employee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                employeeNumber: true,
+                designation: true,
+              },
+            },
+          },
+        },
         checkpoints: {
           include: {
             gate: true,
@@ -159,6 +175,21 @@ export class PatrolSessionRepository {
     };
   }
 
+  verifyPatrolSession(
+    id: string,
+    data: {
+      verificationStatus: 'VERIFIED' | 'NOT_VERIFIED' | 'PENDING';
+      verifiedById: string;
+      verificationTime: Date;
+      supervisorRemarks?: string;
+    },
+  ) {
+    return prisma.patrolSession.update({
+      where: { id },
+      data,
+    });
+  }
+
   update(id: string, data: any) {
     return prisma.patrolSession.update({
       where: { id },
@@ -172,6 +203,22 @@ export class PatrolSessionRepository {
         clientId,
       },
       include: {
+        verifiedBy: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            employee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                employeeNumber: true,
+                designation: true,
+              },
+            },
+          },
+        },
         assignment: {
           include: {
             employee: true,

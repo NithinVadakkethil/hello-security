@@ -133,6 +133,20 @@ export class AssignmentController {
       return next(error);
     }
   }
+
+  async getMyAssignments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const result = await assignmentService.getEmployeeAllAssignments(user.employeeId!);
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export const assignmentController = new AssignmentController();

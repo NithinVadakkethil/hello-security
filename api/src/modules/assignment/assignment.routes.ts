@@ -37,6 +37,13 @@ router.get(
 );
 
 router.get(
+  '/my-assignments',
+  authenticate,
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR),
+  assignmentController.getMyAssignments.bind(assignmentController),
+);
+
+router.get(
   '/:id',
   authenticate,
   authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),

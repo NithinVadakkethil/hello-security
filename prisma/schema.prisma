@@ -50,6 +50,12 @@ enum PatrolStatus {
   CANCELLED
 }
 
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  NOT_VERIFIED
+}
+
 model Client {
   id String @id @default(cuid())
 
@@ -121,6 +127,7 @@ model User {
 
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
+  verifiedPatrols PatrolSession[] @relation("VerifiedPatrols")
 }
 
 model Employee {
@@ -426,6 +433,15 @@ model PatrolSession {
   totalDuration Int?
 
   remarks String?
+
+  verificationStatus VerificationStatus @default(PENDING)
+
+  verifiedById String?
+  verifiedBy   User?   @relation("VerifiedPatrols", fields: [verifiedById], references: [id])
+
+  verificationTime DateTime?
+
+  supervisorRemarks String?
 
   createdAt DateTime @default(now())
 

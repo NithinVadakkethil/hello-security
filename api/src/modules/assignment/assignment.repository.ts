@@ -133,6 +133,48 @@ export class AssignmentRepository {
     });
   }
 
+  findEmployeeAllAssignments(employeeId: string) {
+    return prisma.guardAssignment.findMany({
+      where: {
+        employeeId,
+      },
+      include: {
+        employee: true,
+        site: true,
+        shift: true,
+        patrolRoute: {
+          include: {
+            routeGates: {
+              include: {
+                gate: true,
+              },
+              orderBy: {
+                sequence: 'asc',
+              },
+            },
+          },
+        },
+        assignmentGates: {
+          include: {
+            gate: true,
+          },
+          orderBy: {
+            sequence: 'asc',
+          },
+        },
+        patrolSessions: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
+      },
+      orderBy: {
+        effectiveFrom: 'desc',
+      },
+    });
+  }
+
   update(id: string, data: any) {
     return prisma.guardAssignment.update({
       where: {

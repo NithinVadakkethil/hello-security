@@ -83,6 +83,17 @@ interface PatrolSession {
   };
   checkpoints: CheckpointScan[];
   incidents?: Incident[];
+  verificationStatus?: 'PENDING' | 'VERIFIED' | 'NOT_VERIFIED' | null;
+  verificationTime?: string | null;
+  supervisorRemarks?: string | null;
+  verifiedBy?: {
+    id: string;
+    email: string;
+    employee?: {
+      firstName: string;
+      lastName: string;
+    } | null;
+  } | null;
 }
 
 export default function PatrolSessionDetailPage() {
@@ -139,6 +150,21 @@ export default function PatrolSessionDetailPage() {
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Failed to complete session.');
+    },
+  });
+
+  const [webSupervisorRemarks, setWebSupervisorRemarks] = useState('');
+
+  // Verify mutation
+  const verifyMutation = useMutation({
+    mutationFn: (data: { verificationStatus: 'VERIFIED' | 'NOT_VERIFIED'; supervisorRemarks?: string }) =>
+      apiClient.patch(`/patrol-sessions/${id}/verify`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patrol-session', id] });
+      toast.success('Supervisor verification updated successfully.');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Failed to update verification status.');
     },
   });
 
@@ -453,6 +479,117 @@ export default function PatrolSessionDetailPage() {
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   ({session.assignment.shift.startTime} - {session.assignment.shift.endTime})
                 </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Supervisor Verification Card */}
+          <div
+            className="glass-card"
+            style={{
+              padding: '24px',
+              borderLeft: `6px solid ${
+                session.verificationStatus === 'VERIFIED'
+                  ? 'var(--success)'
+                  : session.verificationStatus === 'NOT_VERIFIED'
+                  ? 'var(--danger)'
+                  : 'var(--warning)'
+              }`,
+            }}
+          >
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CheckCircle2 size={18} style={{ color: 'var(--primary)' }} />
+              <span>Supervisor Verification Status</span>
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>STATUS</p>
+                <span
+                  className={`status-chip ${
+                    session.verificationStatus === 'VERIFIED'
+                      ? 'status-active'
+                      : session.verificationStatus === 'NOT_VERIFIED'
+                      ? 'status-expired'
+                      : 'status-trial'
+                  }`}
+                  style={{ fontWeight: 700, fontSize: '0.8rem', padding: '4px 10px' }}
+                >
+                  {session.verificationStatus === 'VERIFIED'
+                    ? '✓ VERIFIED'
+                    : session.verificationStatus === 'NOT_VERIFIED'
+                    ? '✕ NOT VERIFIED'
+                    : '⏳ PENDING VERIFICATION'}
+                </span>
+              </div>
+
+              {session.verifiedBy && (
+                <div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>VERIFIED BY</p>
+                  <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
+                    {session.verifiedBy.employee
+                      ? `${session.verifiedBy.employee.firstName} ${session.verifiedBy.employee.lastName}`
+                      : session.verifiedBy.email}
+                  </p>
+                </div>
+              )}
+
+              {session.verificationTime && (
+                <div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>VERIFIED AT</p>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    {new Date(session.verificationTime).toLocaleString()}
+                  </p>
+                </div>
+              )}
+
+              {session.supervisorRemarks && (
+                <div style={{ background: 'var(--bg-secondary)', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 4px 0' }}>SUPERVISOR REMARKS</p>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.4 }}>
+                    "{session.supervisorRemarks}"
+                  </p>
+                </div>
+              )}
+
+              {/* Action for Admin / Supervisor on Web */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>Add / Edit Supervisor Remarks</p>
+                <textarea
+                  value={webSupervisorRemarks}
+                  onChange={(e) => setWebSupervisorRemarks(e.target.value)}
+                  className="form-input"
+                  style={{ minHeight: '60px', fontSize: '0.85rem', resize: 'vertical' }}
+                  placeholder={session.supervisorRemarks || 'Enter remarks for audit...'}
+                />
+                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                  <button
+                    onClick={() =>
+                      verifyMutation.mutate({
+                        verificationStatus: 'VERIFIED',
+                        supervisorRemarks: webSupervisorRemarks || session.supervisorRemarks || undefined,
+                      })
+                    }
+                    className="btn btn-primary"
+                    style={{ flex: 1, padding: '8px 10px', fontSize: '0.8rem', background: 'var(--success)', border: 'none' }}
+                    disabled={verifyMutation.isPending}
+                  >
+                    Verify Patrol
+                  </button>
+                  <button
+                    onClick={() =>
+                      verifyMutation.mutate({
+                        verificationStatus: 'NOT_VERIFIED',
+                        supervisorRemarks: webSupervisorRemarks || session.supervisorRemarks || undefined,
+                      })
+                    }
+                    className="btn btn-secondary"
+                    style={{ flex: 1, padding: '8px 10px', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                    disabled={verifyMutation.isPending}
+                  >
+                    Mark Not Verified
+                  </button>
+                </div>
               </div>
             </div>
           </div>

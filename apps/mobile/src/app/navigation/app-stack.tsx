@@ -14,6 +14,7 @@ import { PatrolScreen } from '../../modules/patrol/screens/PatrolScreen';
 import { ScannerScreen } from '../../modules/scanner/screens/ScannerScreen';
 import { ReportIncidentScreen } from '../../modules/incident/screens/ReportIncidentScreen';
 import { ProfileScreen } from '../../modules/profile/screens/ProfileScreen';
+import { PatrolDetailsScreen } from '../../modules/dashboard/screens/PatrolDetailsScreen';
 import { Home, ShieldAlert, Camera, Clipboard, User } from 'lucide-react-native';
 
 export type MainTabParamList = {
@@ -125,6 +126,7 @@ export function AppStack() {
       <Stack.Screen name="AssignedGates" component={AssignedGatesScreen} options={{ headerShown: true, title: 'Assigned Gates' }} />
       <Stack.Screen name="MapPreview" component={MapPreviewScreen} options={{ headerShown: true, title: 'Map Preview' }} />
       <Stack.Screen name="Scanner" component={ScannerScreen} options={{ headerShown: true, title: 'QR Scanner' }} />
+      <Stack.Screen name="PatrolDetails" component={PatrolDetailsScreen} options={{ headerShown: true, title: 'Patrol Details & Verification' }} />
     </Stack.Navigator>
   );
 }

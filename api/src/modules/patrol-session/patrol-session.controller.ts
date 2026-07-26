@@ -134,6 +134,29 @@ export class PatrolSessionController {
       return next(error);
     }
   }
+
+  async verify(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const { verificationStatus, supervisorRemarks } = req.body;
+
+      const result = await patrolSessionService.verify(
+        req.params.id as string,
+        user.id,
+        {
+          verificationStatus,
+          supervisorRemarks,
+        },
+      );
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export const patrolSessionController = new PatrolSessionController();
