@@ -1,17 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, Clock, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 
-import { apiClient } from '../../lib/axios';
-import { ApiResponse } from '../../types/api';
 import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
+import { apiClient } from '../../lib/axios';
+import { ApiResponse } from '../../types/api';
 
 interface Checkpoint {
   id: string;
@@ -64,14 +64,16 @@ interface PatrolSession {
 
 export default function PatrolSessionsPage() {
   const searchParams = useSearchParams();
-  const defaultTab = searchParams.get('tab') === 'history' ? 'history' : 'live';
+  const defaultTab = searchParams.get('tab') === 'live' ? 'live' : 'history';
 
   const [activeTab, setActiveTab] = useState<'live' | 'history'>(defaultTab);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
 
   // Query Patrol Sessions
-  const { data: sessionsRes, isLoading } = useQuery<ApiResponse<PatrolSession[]>>({
+  const { data: sessionsRes, isLoading } = useQuery<
+    ApiResponse<PatrolSession[]>
+  >({
     queryKey: ['patrol-sessions'],
     queryFn: () => apiClient.get('/patrol-sessions'),
   });
@@ -96,7 +98,7 @@ export default function PatrolSessionsPage() {
         session.patrolCode.toLowerCase().includes(s) ||
         session.assignment.employee.firstName.toLowerCase().includes(s) ||
         session.assignment.employee.lastName.toLowerCase().includes(s) ||
-        session.assignment.site.name.toLowerCase().includes(s)
+        session.assignment.site.name.toLowerCase().includes(s),
     );
   }
 
@@ -115,11 +117,16 @@ export default function PatrolSessionsPage() {
         </span>
       ),
     },
-    { key: 'site', label: 'Monitored Site', render: (row: PatrolSession) => row.assignment?.site?.name || 'N/A' },
+    {
+      key: 'site',
+      label: 'Monitored Site',
+      render: (row: PatrolSession) => row.assignment?.site?.name || 'N/A',
+    },
     {
       key: 'route',
       label: 'Route / Target',
-      render: (row: PatrolSession) => row.assignment?.patrolRoute?.name || '🚧 Direct Checkpoints',
+      render: (row: PatrolSession) =>
+        row.assignment?.patrolRoute?.name || '🚧 Direct Checkpoints',
     },
     {
       key: 'progress',
@@ -163,15 +170,26 @@ export default function PatrolSessionsPage() {
                 vStatus === 'VERIFIED'
                   ? 'status-active'
                   : vStatus === 'NOT_VERIFIED'
-                  ? 'status-expired'
-                  : 'status-trial'
+                    ? 'status-expired'
+                    : 'status-trial'
               }`}
-              style={{ fontSize: '0.75rem', padding: '3px 8px', width: 'fit-content', fontWeight: 700 }}
+              style={{
+                fontSize: '0.75rem',
+                padding: '3px 8px',
+                width: 'fit-content',
+                fontWeight: 700,
+              }}
             >
-              {vStatus === 'VERIFIED' ? '✓ VERIFIED' : vStatus === 'NOT_VERIFIED' ? '✕ NOT VERIFIED' : '⏳ PENDING'}
+              {vStatus === 'VERIFIED'
+                ? '✓ VERIFIED'
+                : vStatus === 'NOT_VERIFIED'
+                  ? '✕ NOT VERIFIED'
+                  : '⏳ PENDING'}
             </span>
             {verifier && (
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              <span
+                style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}
+              >
                 By: {verifier}
               </span>
             )}
@@ -186,7 +204,12 @@ export default function PatrolSessionsPage() {
         <Link
           href={`/dashboard/patrol-sessions/${row.id}`}
           className="btn btn-secondary"
-          style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px', textDecoration: 'none' }}
+          style={{
+            padding: '6px 10px',
+            fontSize: '0.8rem',
+            gap: '4px',
+            textDecoration: 'none',
+          }}
         >
           <Eye size={14} />
           <span>Inspect Log</span>
@@ -198,30 +221,13 @@ export default function PatrolSessionsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', gap: '16px' }}>
-        <button
-          onClick={() => {
-            setActiveTab('live');
-            setPage(1);
-          }}
-          style={{
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === 'live' ? '2px solid var(--primary)' : '2px solid transparent',
-            color: activeTab === 'live' ? 'var(--text-primary)' : 'var(--text-muted)',
-            padding: '12px 8px',
-            fontSize: '1rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          <Activity size={18} className={activeTab === 'live' ? 'text-primary' : ''} />
-          <span>Live Guard Monitoring</span>
-        </button>
-
+      <div
+        style={{
+          display: 'flex',
+          borderBottom: '1px solid var(--border-color)',
+          gap: '16px',
+        }}
+      >
         <button
           onClick={() => {
             setActiveTab('history');
@@ -230,8 +236,14 @@ export default function PatrolSessionsPage() {
           style={{
             background: 'none',
             border: 'none',
-            borderBottom: activeTab === 'history' ? '2px solid var(--primary)' : '2px solid transparent',
-            color: activeTab === 'history' ? 'var(--text-primary)' : 'var(--text-muted)',
+            borderBottom:
+              activeTab === 'history'
+                ? '2px solid var(--primary)'
+                : '2px solid transparent',
+            color:
+              activeTab === 'history'
+                ? 'var(--text-primary)'
+                : 'var(--text-muted)',
             padding: '12px 8px',
             fontSize: '1rem',
             fontWeight: 600,
@@ -241,8 +253,43 @@ export default function PatrolSessionsPage() {
             gap: '8px',
           }}
         >
-          <Clock size={18} className={activeTab === 'history' ? 'text-primary' : ''} />
+          <Clock
+            size={18}
+            className={activeTab === 'history' ? 'text-primary' : ''}
+          />
           <span>Completed Patrol History</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('live');
+            setPage(1);
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            borderBottom:
+              activeTab === 'live'
+                ? '2px solid var(--primary)'
+                : '2px solid transparent',
+            color:
+              activeTab === 'live'
+                ? 'var(--text-primary)'
+                : 'var(--text-muted)',
+            padding: '12px 8px',
+            fontSize: '1rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <Activity
+            size={18}
+            className={activeTab === 'live' ? 'text-primary' : ''}
+          />
+          <span>Live Guard Monitoring</span>
         </button>
       </div>
 

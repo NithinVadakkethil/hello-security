@@ -11,42 +11,42 @@ const router: Router = Router();
 router.post(
   '/start',
   authenticate,
-  authorize(UserRole.SECURITY),
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
   patrolSessionController.start.bind(patrolSessionController),
 );
 
 router.get(
   '/current',
   authenticate,
-  authorize(UserRole.SECURITY),
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
   patrolSessionController.current.bind(patrolSessionController),
 );
 
 router.get(
   '/history',
   authenticate,
-  authorize(UserRole.SECURITY, UserRole.SUPERVISOR),
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
   patrolSessionController.history.bind(patrolSessionController),
 );
 
 router.patch(
   '/:id/pause',
   authenticate,
-  authorize(UserRole.SECURITY),
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
   patrolSessionController.pause.bind(patrolSessionController),
 );
 
 router.patch(
   '/:id/resume',
   authenticate,
-  authorize(UserRole.SECURITY),
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
   patrolSessionController.resume.bind(patrolSessionController),
 );
 
 router.patch(
   '/:id/complete',
   authenticate,
-  authorize(UserRole.SECURITY),
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
   patrolSessionController.complete.bind(patrolSessionController),
 );
 

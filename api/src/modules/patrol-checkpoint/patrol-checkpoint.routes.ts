@@ -10,9 +10,17 @@ const router: Router = Router();
 
 router.use(authenticate);
 
-router.post('/scan', patrolCheckpointController.scan);
+router.post(
+  '/scan',
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
+  patrolCheckpointController.scan,
+);
 
-router.get('/history/:sessionId', patrolCheckpointController.history);
+router.get(
+  '/history/:sessionId',
+  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER, UserRole.CLIENT_ADMIN),
+  patrolCheckpointController.history,
+);
 
 router.patch(
   '/:id/remarks',

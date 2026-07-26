@@ -566,23 +566,6 @@ export default function PatrolSessionDetailPage() {
                               >
                                 📝 Checkpoint Sweep Note:
                               </span>
-                              {item.checkpointId &&
-                                editingCpIdWeb !== item.checkpointId && (
-                                  <button
-                                    onClick={() => {
-                                      setEditingCpIdWeb(item.checkpointId!);
-                                      setEditingRemarksWeb(item.remarks || '');
-                                    }}
-                                    className="btn btn-secondary"
-                                    style={{
-                                      padding: '2px 8px',
-                                      fontSize: '0.75rem',
-                                      gap: '4px',
-                                    }}
-                                  >
-                                    Edit Sweep Note
-                                  </button>
-                                )}
                             </div>
 
                             {item.checkpointId &&
@@ -1090,7 +1073,8 @@ export default function PatrolSessionDetailPage() {
                 </div>
               )}
 
-              {(!session.verificationStatus || session.verificationStatus === 'PENDING') && (
+              {(!session.verificationStatus ||
+                session.verificationStatus === 'PENDING') && (
                 <div
                   style={{
                     borderTop: '1px solid var(--border-color)',
@@ -1114,10 +1098,16 @@ export default function PatrolSessionDetailPage() {
                     value={webSupervisorRemarks}
                     onChange={(e) => setWebSupervisorRemarks(e.target.value)}
                     className="form-input"
-                    style={{ minHeight: '60px', fontSize: '0.85rem', resize: 'vertical' }}
+                    style={{
+                      minHeight: '60px',
+                      fontSize: '0.85rem',
+                      resize: 'vertical',
+                    }}
                     placeholder="Enter remarks for audit..."
                   />
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                  <div
+                    style={{ display: 'flex', gap: '8px', marginTop: '4px' }}
+                  >
                     <button
                       onClick={() =>
                         verifyMutation.mutate({
