@@ -187,6 +187,7 @@ export default function PatrolSessionDetailPage() {
 
   const [editingCpIdWeb, setEditingCpIdWeb] = useState<string | null>(null);
   const [editingRemarksWeb, setEditingRemarksWeb] = useState('');
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   const updateCpRemarksMutation = useMutation({
     mutationFn: (data: { checkpointId: string; remarks: string }) =>
@@ -691,25 +692,30 @@ export default function PatrolSessionDetailPage() {
                             {item.images.map((imgUrl, idx) => {
                               const fullUrl = resolveImageUrl(imgUrl);
                               return (
-                                <a
+                                <div
                                   key={idx}
-                                  href={fullUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                  onClick={() => setPreviewImageUrl(fullUrl)}
+                                  style={{
+                                    position: 'relative',
+                                    cursor: 'pointer',
+                                    borderRadius: '6px',
+                                    overflow: 'hidden',
+                                    border: '1px solid var(--border-color)',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                  }}
                                 >
                                   <img
                                     src={fullUrl}
                                     alt={`Checkpoint Scan ${idx}`}
                                     style={{
-                                      width: '80px',
-                                      height: '80px',
-                                      borderRadius: '4px',
+                                      width: '90px',
+                                      height: '90px',
                                       objectFit: 'cover',
-                                      border: '1px solid var(--border-color)',
-                                      cursor: 'zoom-in',
+                                      display: 'block',
+                                      transition: 'transform 0.2s ease',
                                     }}
                                   />
-                                </a>
+                                </div>
                               );
                             })}
                           </div>
@@ -1204,6 +1210,55 @@ export default function PatrolSessionDetailPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* INSPECTION PHOTO PREVIEW LIGHTBOX */}
+      <Modal
+        isOpen={!!previewImageUrl}
+        onClose={() => setPreviewImageUrl(null)}
+        title="Inspection Photo Viewer"
+      >
+        {previewImageUrl && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '16px',
+            }}
+          >
+            <img
+              src={previewImageUrl}
+              alt="Inspection Photo Full View"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '70vh',
+                borderRadius: '8px',
+                objectFit: 'contain',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                border: '1px solid var(--border-color)',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <a
+                href={previewImageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary"
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              >
+                Open Full View
+              </a>
+              <button
+                onClick={() => setPreviewImageUrl(null)}
+                className="btn btn-primary"
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
