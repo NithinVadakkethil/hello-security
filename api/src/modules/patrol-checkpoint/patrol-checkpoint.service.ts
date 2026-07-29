@@ -69,27 +69,27 @@ export class PatrolCheckpointService {
       dto.gateId,
     );
 
+    let checkpoint;
     if (existing) {
-      throw new AppError(
-        HttpStatus.CONFLICT,
-        ErrorCodes.VALIDATION_ERROR,
-        'Gate already scanned.',
-      );
+      checkpoint = await patrolCheckpointRepository.update(existing.id, {
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        remarks: dto.remarks,
+        status: dto.status,
+        images: dto.images,
+        scannedAt: new Date(),
+      });
+    } else {
+      checkpoint = await patrolCheckpointRepository.create({
+        patrolSessionId: patrol.id,
+        gateId: dto.gateId,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        remarks: dto.remarks,
+        status: dto.status,
+        images: dto.images,
+      });
     }
-
-    // -----------------------------------------
-    // Save checkpoint
-    // -----------------------------------------
-
-    const checkpoint = await patrolCheckpointRepository.create({
-      patrolSessionId: patrol.id,
-      gateId: dto.gateId,
-      latitude: dto.latitude,
-      longitude: dto.longitude,
-      remarks: dto.remarks,
-      status: dto.status,
-      images: dto.images,
-    });
 
     // -----------------------------------------
     // Progress

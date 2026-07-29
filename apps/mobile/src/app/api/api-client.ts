@@ -130,6 +130,14 @@ apiClient.interceptors.response.use(
       }
     }
 
+    if (error.response?.data) {
+      const data = error.response.data as any;
+      const customMsg = data.error?.message || data.message;
+      if (customMsg) {
+        error.message = customMsg;
+      }
+    }
+
     return Promise.reject(error);
   }
 );
