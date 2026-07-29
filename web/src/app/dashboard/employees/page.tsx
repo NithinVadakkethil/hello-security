@@ -54,6 +54,8 @@ export default function EmployeesPage() {
   const { data: employeesRes, isLoading } = useQuery<ApiResponse<Employee[]>>({
     queryKey: ['employees'],
     queryFn: () => apiClient.get('/employees'),
+    refetchOnMount: true,
+    staleTime: 0,
   });
 
   // Query Resource Limits for Client
@@ -146,7 +148,8 @@ export default function EmployeesPage() {
 
   const limit = 10;
   const totalPages = Math.max(1, Math.ceil(sortedEmployees.length / limit));
-  const paginatedEmployees = sortedEmployees.slice((page - 1) * limit, page * limit);
+  const safePage = Math.min(page, totalPages);
+  const paginatedEmployees = sortedEmployees.slice((safePage - 1) * limit, safePage * limit);
 
   const columns = [
     { key: 'employeeNumber', label: 'ID Number', sortable: true },
@@ -312,7 +315,7 @@ export default function EmployeesPage() {
       />
 
       <Pagination
-        currentPage={page}
+        currentPage={safePage}
         totalPages={totalPages}
         onPageChange={(p) => setPage(p)}
       />

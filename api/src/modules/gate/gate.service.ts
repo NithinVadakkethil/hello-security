@@ -74,7 +74,7 @@ export class GateService {
     }
 
     const gateCount = await prisma.gate.count({
-      where: { site: { clientId: site.clientId } },
+      where: { siteId: dto.siteId },
     });
 
     if (gateCount === 0) {
@@ -82,25 +82,25 @@ export class GateService {
         where: {
           entity_clientId: {
             entity: ENTITY.GATE,
-            clientId: site.clientId,
+            clientId: dto.siteId,
           },
         },
         update: { value: 0 },
         create: {
           entity: ENTITY.GATE,
-          clientId: site.clientId,
+          clientId: dto.siteId,
           value: 0,
         },
       });
     }
 
-    let sequence = await counterService.next(ENTITY.GATE, site.clientId);
+    let sequence = await counterService.next(ENTITY.GATE, dto.siteId);
     let gateCode = generateCode(PREFIX.GATE, sequence);
 
     let existingCode = await gateRepository.findByUniqueCode(dto.siteId, gateCode);
 
     while (existingCode) {
-      sequence = await counterService.next(ENTITY.GATE, site.clientId);
+      sequence = await counterService.next(ENTITY.GATE, dto.siteId);
       gateCode = generateCode(PREFIX.GATE, sequence);
       existingCode = await gateRepository.findByUniqueCode(dto.siteId, gateCode);
     }

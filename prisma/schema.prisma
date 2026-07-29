@@ -65,6 +65,8 @@ model Client {
 
   email String @unique
 
+  authorizedPerson String?
+
   phone String?
 
   address String?
@@ -143,7 +145,7 @@ model Employee {
 
   firstName String
 
-  lastName String
+  lastName String?
 
   email String?
 

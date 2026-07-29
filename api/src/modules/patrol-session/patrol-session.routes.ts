@@ -29,24 +29,81 @@ router.get(
   patrolSessionController.history.bind(patrolSessionController),
 );
 
+router.post(
+  '/:id/pause',
+  authenticate,
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.CLIENT_ADMIN,
+    UserRole.MANAGER,
+    UserRole.SUPERVISOR,
+    UserRole.SECURITY,
+  ),
+  patrolSessionController.pause.bind(patrolSessionController),
+);
+
 router.patch(
   '/:id/pause',
   authenticate,
-  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.CLIENT_ADMIN,
+    UserRole.MANAGER,
+    UserRole.SUPERVISOR,
+    UserRole.SECURITY,
+  ),
   patrolSessionController.pause.bind(patrolSessionController),
+);
+
+router.post(
+  '/:id/resume',
+  authenticate,
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.CLIENT_ADMIN,
+    UserRole.MANAGER,
+    UserRole.SUPERVISOR,
+    UserRole.SECURITY,
+  ),
+  patrolSessionController.resume.bind(patrolSessionController),
 );
 
 router.patch(
   '/:id/resume',
   authenticate,
-  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.CLIENT_ADMIN,
+    UserRole.MANAGER,
+    UserRole.SUPERVISOR,
+    UserRole.SECURITY,
+  ),
   patrolSessionController.resume.bind(patrolSessionController),
+);
+
+router.post(
+  '/:id/complete',
+  authenticate,
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.CLIENT_ADMIN,
+    UserRole.MANAGER,
+    UserRole.SUPERVISOR,
+    UserRole.SECURITY,
+  ),
+  patrolSessionController.complete.bind(patrolSessionController),
 );
 
 router.patch(
   '/:id/complete',
   authenticate,
-  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.CLIENT_ADMIN,
+    UserRole.MANAGER,
+    UserRole.SUPERVISOR,
+    UserRole.SECURITY,
+  ),
   patrolSessionController.complete.bind(patrolSessionController),
 );
 

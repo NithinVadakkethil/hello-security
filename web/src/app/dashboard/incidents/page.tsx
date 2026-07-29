@@ -90,7 +90,8 @@ export default function IncidentsPage() {
 
   const limit = 6;
   const totalPages = Math.max(1, Math.ceil(incidents.length / limit));
-  const paginatedIncidents = incidents.slice((page - 1) * limit, page * limit);
+  const safePage = Math.min(page, totalPages);
+  const paginatedIncidents = incidents.slice((safePage - 1) * limit, safePage * limit);
 
   const getSeverityColor = (sev: string) => {
     switch (sev) {
@@ -451,7 +452,7 @@ export default function IncidentsPage() {
           }}
         >
           <Pagination
-            currentPage={page}
+            currentPage={safePage}
             totalPages={totalPages}
             onPageChange={setPage}
           />

@@ -16,6 +16,7 @@ import Modal from '../../../components/ui/Modal';
 const schema = z.object({
   companyName: z.string().min(2, 'Company name is required (min 2 characters)'),
   email: z.string().email('Please enter a valid email address'),
+  authorizedPerson: z.string().optional(),
   phone: z.string().optional(),
   address: z.string().optional(),
   maxEmployees: z.any().refine((val) => {
@@ -119,6 +120,13 @@ export default function NewClientPage() {
             placeholder="e.g. admin@acmesecurity.com"
             error={errors.email?.message}
             {...register('email')}
+          />
+
+          <FormInput
+            label="Authorised Person"
+            placeholder="e.g. John Doe"
+            error={errors.authorizedPerson?.message}
+            {...register('authorizedPerson')}
           />
 
           <FormInput

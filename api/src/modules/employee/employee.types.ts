@@ -2,7 +2,7 @@ import { EmployeeStatus, IdentificationMethod, UserRole } from '@prisma/client';
 
 export interface CreateEmployeeDto {
   firstName: string;
-  lastName: string;
+  lastName?: string;
   email?: string;
   phone?: string;
   designation?: string;

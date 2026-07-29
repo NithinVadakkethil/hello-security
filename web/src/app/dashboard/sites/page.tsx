@@ -146,7 +146,8 @@ export default function SitesPage() {
   // Client-side pagination
   const limit = 10;
   const totalPages = Math.max(1, Math.ceil(sortedSites.length / limit));
-  const paginatedSites = sortedSites.slice((page - 1) * limit, page * limit);
+  const safePage = Math.min(page, totalPages);
+  const paginatedSites = sortedSites.slice((safePage - 1) * limit, safePage * limit);
 
   const columns = [
     { key: 'siteCode', label: 'Site Code', sortable: true },
@@ -264,7 +265,7 @@ export default function SitesPage() {
       />
 
       <Pagination
-        currentPage={page}
+        currentPage={safePage}
         totalPages={totalPages}
         onPageChange={(p) => setPage(p)}
       />

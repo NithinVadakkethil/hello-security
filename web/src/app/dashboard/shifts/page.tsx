@@ -177,7 +177,8 @@ export default function ShiftsPage() {
 
   const limit = 10;
   const totalPages = Math.max(1, Math.ceil(shifts.length / limit));
-  const paginatedShifts = shifts.slice((page - 1) * limit, page * limit);
+  const safePage = Math.min(page, totalPages);
+  const paginatedShifts = shifts.slice((safePage - 1) * limit, safePage * limit);
 
   const columns = [
     { key: 'shiftCode', label: 'Shift Code', sortable: true },
@@ -284,7 +285,7 @@ export default function ShiftsPage() {
       />
 
       <Pagination
-        currentPage={page}
+        currentPage={safePage}
         totalPages={totalPages}
         onPageChange={(p) => setPage(p)}
       />

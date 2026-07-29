@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   Check,
   Copy,
@@ -150,6 +150,7 @@ export default function UsersPage() {
           role: roleFilter !== 'ALL' ? roleFilter : undefined,
         },
       }),
+    placeholderData: keepPreviousData,
   });
 
   // Fetch Clients (for dropdown)

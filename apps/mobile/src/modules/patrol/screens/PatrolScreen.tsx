@@ -1,16 +1,39 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, ActivityIndicator, RefreshControl, Animated, Modal, Image } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import {
+  BarChart2,
+  CheckCircle2,
+  Hourglass,
+  Lock,
+  ShieldAlert,
+  Unlock,
+} from 'lucide-react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+} from 'react-native-vision-camera';
 import { useTheme } from '../../../app/hooks/useTheme';
+import { useOfflineStore } from '../../../app/store/offline-store';
+import { Button } from '../../../components/Button';
+import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
+import { Card } from '../../dashboard/components/WidgetCard';
 import { usePatrol } from '../hooks/usePatrol';
 import { usePatrolStore } from '../store/patrol-store';
-import { useOfflineStore } from '../../../app/store/offline-store';
-import { useActiveAssignment, useActiveAssignments } from '../../assignment/hooks/useAssignment';
-import { resolveImageUrl } from '../../../app/utils/image';
-import { Card } from '../../dashboard/components/WidgetCard';
-import { Button } from '../../../components/Button';
-import { useNavigation } from '@react-navigation/native';
-import { Play, Pause, CheckCircle2, ShieldAlert, Lock, Unlock, HelpCircle, Hourglass, BarChart2 } from 'lucide-react-native';
-import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 
 export function PatrolScreen() {
   const { colors } = useTheme();
@@ -21,16 +44,23 @@ export function PatrolScreen() {
     if (!hasPermission) {
       const granted = await requestPermission();
       if (!granted) {
-        Alert.alert('Permission Denied', 'Hello Orbit requires camera permission to capture live checkpoint photos.');
+        Alert.alert(
+          'Permission Denied',
+          'Hello Orbit requires camera permission to capture live checkpoint photos.',
+        );
         return;
       }
     }
     setShowCameraModal(true);
   };
   const navigation = useNavigation<any>();
-  const isOnline = useOfflineStore((state) => state.isConnected);
-  const queueLength = useOfflineStore((state) => state.queue.length);
-  const { data: assignmentsList, refetch: refetchAssignment, isLoading: isLoadingAssignment } = useActiveAssignments();
+  const isOnline = useOfflineStore(state => state.isConnected);
+  const queueLength = useOfflineStore(state => state.queue.length);
+  const {
+    data: assignmentsList,
+    refetch: refetchAssignment,
+    isLoading: isLoadingAssignment,
+  } = useActiveAssignments();
   const assignments = assignmentsList || [];
   const [selectedAssignmentIndex, setSelectedAssignmentIndex] = useState(0);
 
@@ -44,7 +74,10 @@ export function PatrolScreen() {
   } = usePatrolStore();
 
   const activeAssignmentFromSession = activeSession?.assignment;
-  const assignment = activeAssignmentFromSession || assignments[selectedAssignmentIndex] || assignments[0];
+  const assignment =
+    activeAssignmentFromSession ||
+    assignments[selectedAssignmentIndex] ||
+    assignments[0];
 
   const {
     startPatrol,
@@ -89,12 +122,12 @@ export function PatrolScreen() {
         if (photo?.path) {
           const response = await fetch(`file://${photo.path}`);
           const blob = await response.blob();
-          
-          await new Promise<void>((resolve) => {
+
+          await new Promise<void>(resolve => {
             const reader = new FileReader();
             reader.onloadend = () => {
               if (typeof reader.result === 'string') {
-                setImages((prev) => [...prev, reader.result as string]);
+                setImages(prev => [...prev, reader.result as string]);
               }
               resolve();
             };
@@ -111,14 +144,14 @@ export function PatrolScreen() {
 
     // High-resolution real security checkpoint inspection photo fallback
     const realInspectionSample = `data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/4gIcSUNDX1BST0ZJTEUAAQEAAAIMbGNtcwIQAABtbnRyUkdCIFhZWiAH3wACAAkABgAxAABhY3NwTVNGVAAAAABzc21zAAAAAAAAAAAAAAAAAAAAAAAA9tYAAQAAAADTLWxjbXMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAApkZXNjAAAA4AAAAF9jcHJ0AAABYAAAADZ3dHB0AAABmAAAABRjaHJtAAABrAAAACR3dHB0AAAB0AAAABRyWFlaAAAB5AAAABRnWFlaAAAB+AAAABRiWFlaAAACDAAAABRyVFJDAAACIAAAACBnVFJDAAACIAAAACBiVFJDAAACIAAAACBkZXNjAAAAAAAAAAVzUkdCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABtbHVjAAAAAAAAABEAAAAMZW5VUwAAAA4AAAAcAEgAUAAgAFAAcgBvAGoAZQBjAHQAcwAAbWx1YwAAAAAAAAARAAAADGVuVVMAAAAMAAAAHABHAE8ATwBHAEwARQAAWFlaIAAAAAAAAG+iAAA49QAAA5BYWVogAAAAAAAAYpkAALeFAAAY2lhZWiAAAAAAAAAkBLIAAD24AAAO5VhZWiAAAAAAAABvqAAAOPUAAAOXRGVzYwAAAAAAAAAARW5nbGlzaAAAAAAAAAAAAAAAaW1nAAAAAABJSERSAAAAUAAAAFAIBgAAAH56m5wAAABMSURFQVR42u3PMQEAAAiAMCv8+16iBwwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC4G1c0AAFH72B9AAAAAElFTkSuQmCC`;
-    setImages((prev) => [...prev, realInspectionSample]);
+    setImages(prev => [...prev, realInspectionSample]);
     setIsCompressing(false);
     setShowCameraModal(false);
     Alert.alert('Photo Captured', 'Checkpoint photo successfully attached.');
   };
 
   const handleRemovePhoto = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
+    setImages(prev => prev.filter((_, i) => i !== index));
   };
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -143,7 +176,10 @@ export function PatrolScreen() {
   const handleStart = async () => {
     try {
       await startPatrol(assignment?.id);
-      Alert.alert('Patrol Started', 'Your active security patrol sweep has initiated.');
+      Alert.alert(
+        'Patrol Started',
+        'Your active security patrol sweep has initiated.',
+      );
     } catch (err: any) {
       Alert.alert('Error starting patrol', err.message || 'Please try again.');
     }
@@ -171,13 +207,16 @@ export function PatrolScreen() {
 
   const handleComplete = async () => {
     if (!activeSession) return;
-    
+
     const totalGates = assignment?.patrolRoute?.routeGates?.length || 0;
     const remaining = totalGates - scannedGateIds.length;
-    
+
     const confirmAndComplete = async () => {
       try {
-        await completePatrol({ id: activeSession.id, remarks: 'Completed checkpoint sweep.' });
+        await completePatrol({
+          id: activeSession.id,
+          remarks: 'Completed checkpoint sweep.',
+        });
         Alert.alert('Patrol Completed', 'Patrol sweep finalized and logged.');
       } catch (err: any) {
         Alert.alert('Error', err.message || 'Failed to complete.');
@@ -190,8 +229,12 @@ export function PatrolScreen() {
         `You have ${remaining} remaining gates unscanned. Are you sure you want to finalize this patrol?`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Finalize Anyway', style: 'destructive', onPress: confirmAndComplete },
-        ]
+          {
+            text: 'Finalize Anyway',
+            style: 'destructive',
+            onPress: confirmAndComplete,
+          },
+        ],
       );
     } else {
       Alert.alert(
@@ -200,14 +243,17 @@ export function PatrolScreen() {
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Complete', onPress: confirmAndComplete },
-        ]
+        ],
       );
     }
   };
 
   const handleCheckpointSubmit = async (gateId: string) => {
     if (!gateStatus) {
-      Alert.alert('Missing Status', 'Please report the status of the gate (Good / Damaged) before checkpoint completion.');
+      Alert.alert(
+        'Missing Status',
+        'Please report the status of the gate (Good / Damaged) before checkpoint completion.',
+      );
       return;
     }
 
@@ -222,8 +268,12 @@ export function PatrolScreen() {
             try {
               const lat = assignment?.site?.latitude || undefined;
               const lng = assignment?.site?.longitude || undefined;
-              const statusPrefix = `Status: ${gateStatus === 'GOOD' ? 'Good' : 'Damaged/Issue'}.`;
-              const fullRemarks = remarks.trim() ? `${statusPrefix} ${remarks.trim()}` : statusPrefix;
+              const statusPrefix = `Status: ${
+                gateStatus === 'GOOD' ? 'Good' : 'Damaged/Issue'
+              }.`;
+              const fullRemarks = remarks.trim()
+                ? `${statusPrefix} ${remarks.trim()}`
+                : statusPrefix;
 
               await scanCheckpoint({
                 gateId,
@@ -237,9 +287,15 @@ export function PatrolScreen() {
               setRemarks('');
               setGateStatus(null);
               setImages([]);
-              Alert.alert('Checkpoint Registered', 'Data securely transmitted and checkpoint locked.');
+              Alert.alert(
+                'Checkpoint Registered',
+                'Data securely transmitted and checkpoint locked.',
+              );
             } catch (err: any) {
-              Alert.alert('Verification Failed', err.message || 'Failed to complete checkpoint.');
+              Alert.alert(
+                'Verification Failed',
+                err.message || 'Failed to complete checkpoint.',
+              );
             }
           },
         },
@@ -258,66 +314,102 @@ export function PatrolScreen() {
     ].join(':');
   };
 
-  const routeGates = assignment?.assignmentGates && assignment.assignmentGates.length > 0
-    ? assignment.assignmentGates.map((ag: any, idx: number) => ({
-        id: ag.id,
-        gateId: ag.gateId,
-        gate: ag.gate,
-        sequence: ag.sequence || idx + 1,
-      }))
-    : assignment?.patrolRoute?.routeGates || [];
+  const routeGates =
+    assignment?.assignmentGates && assignment.assignmentGates.length > 0
+      ? assignment.assignmentGates.map((ag: any, idx: number) => ({
+          id: ag.id,
+          gateId: ag.gateId,
+          gate: ag.gate,
+          sequence: ag.sequence || idx + 1,
+        }))
+      : assignment?.patrolRoute?.routeGates || [];
   const totalGates = routeGates.length;
   const scannedCount = scannedGateIds.length;
   const remainingCount = totalGates - scannedCount;
 
   // Estimation of 3 minutes per remaining gate
-  const estRemainingTime = remainingCount > 0 ? `${remainingCount * 3} mins` : 'Completed';
+  const estRemainingTime =
+    remainingCount > 0 ? `${remainingCount * 3} mins` : 'Completed';
 
   // Find the next assigned gate in sequence
-  const nextAssignedGate = routeGates.find((rg: any) => !scannedGateIds.includes(rg.gateId));
+  const nextAssignedGate = routeGates.find(
+    (rg: any) => !scannedGateIds.includes(rg.gateId),
+  );
 
-  const isDirect = assignment?.assignmentType === 'DIRECT_CHECKPOINTS' || (!assignment?.patrolRoute && assignment?.assignmentGates);
+  const isDirect =
+    assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+    (!assignment?.patrolRoute && assignment?.assignmentGates);
 
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
       refreshControl={
-        <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          tintColor={colors.primary}
+        />
       }
     >
       {/* Offline Status Alert */}
       {!isOnline && (
-        <View style={[styles.offlineBanner, { backgroundColor: colors.danger }]}>
-          <Text style={styles.offlineText}>OFFLINE MODE — Saving actions locally</Text>
+        <View
+          style={[styles.offlineBanner, { backgroundColor: colors.danger }]}
+        >
+          <Text style={styles.offlineText}>
+            OFFLINE MODE — Saving actions locally
+          </Text>
         </View>
       )}
       {queueLength > 0 && (
         <View style={[styles.syncBanner, { backgroundColor: colors.primary }]}>
-          <Text style={styles.syncText}>SYNC QUEUE — {queueLength} item(s) pending upload</Text>
+          <Text style={styles.syncText}>
+            SYNC QUEUE — {queueLength} item(s) pending upload
+          </Text>
         </View>
       )}
 
       {/* Screen Header */}
-      <Text style={[styles.title, { color: colors.text }]}>Checkpoint Patrol</Text>
+      <Text style={[styles.title, { color: colors.text }]}>
+        Checkpoint Patrol
+      </Text>
 
       {/* NO ACTIVE SESSION */}
       {!activeSession && (
         <View style={styles.startContainer}>
           {isLoadingAssignment ? (
-            <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 40 }} />
+            <ActivityIndicator
+              color={colors.primary}
+              size="large"
+              style={{ marginTop: 40 }}
+            />
           ) : assignments.length > 0 ? (
             <Card style={styles.assignmentCard}>
               {/* ASSIGNMENT SWITCHER SELECTOR */}
               {assignments.length > 1 && (
                 <View style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textSecondary, marginBottom: 8, textTransform: 'uppercase' }}>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: '700',
+                      color: colors.textSecondary,
+                      marginBottom: 8,
+                      textTransform: 'uppercase',
+                    }}
+                  >
                     Select Active Assignment ({assignments.length} Active):
                   </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 8 }}
+                  >
                     {assignments.map((item, idx) => {
                       const isSel = idx === selectedAssignmentIndex;
-                      const itemIsDirect = item.assignmentType === 'DIRECT_CHECKPOINTS' || (!item.patrolRoute && item.assignmentGates);
+                      const itemIsDirect =
+                        item.assignmentType === 'DIRECT_CHECKPOINTS' ||
+                        (!item.patrolRoute && item.assignmentGates);
                       return (
                         <TouchableOpacity
                           key={item.id}
@@ -328,14 +420,30 @@ export function PatrolScreen() {
                             borderRadius: 8,
                             borderWidth: 1.5,
                             borderColor: isSel ? colors.primary : colors.border,
-                            backgroundColor: isSel ? 'rgba(59, 130, 246, 0.15)' : colors.surface,
+                            backgroundColor: isSel
+                              ? 'rgba(59, 130, 246, 0.15)'
+                              : colors.surface,
                           }}
                         >
-                          <Text style={{ fontSize: 12, fontWeight: '700', color: isSel ? colors.primary : colors.text }}>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: '700',
+                              color: isSel ? colors.primary : colors.text,
+                            }}
+                          >
                             {item.site?.name || `Site #${idx + 1}`}
                           </Text>
-                          <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }}>
-                            {itemIsDirect ? '🚧 Direct Gates' : `🗺️ ${item.patrolRoute?.name || 'Route'}`}
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              color: colors.textSecondary,
+                              marginTop: 2,
+                            }}
+                          >
+                            {itemIsDirect
+                              ? '🚧 Direct Gates'
+                              : `🗺️ ${item.patrolRoute?.name || 'Route'}`}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -345,27 +453,47 @@ export function PatrolScreen() {
               )}
 
               <Text style={[styles.cardTitle, { color: colors.text }]}>
-                {isDirect ? '🚧 Direct Checkpoints Patrol' : '🗺️ Assigned Route Sweep'}
+                {isDirect
+                  ? '🚧 Direct Checkpoints Patrol'
+                  : '🗺️ Assigned Route Sweep'}
               </Text>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-              
+              <View
+                style={[styles.divider, { backgroundColor: colors.border }]}
+              />
+
               <View style={styles.metaRow}>
-                <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Site Location</Text>
-                <Text style={[styles.metaVal, { color: colors.text }]}>{assignment?.site?.name || 'N/A'}</Text>
+                <Text
+                  style={[styles.metaLabel, { color: colors.textSecondary }]}
+                >
+                  Site Location
+                </Text>
+                <Text style={[styles.metaVal, { color: colors.text }]}>
+                  {assignment?.site?.name || 'N/A'}
+                </Text>
               </View>
               <View style={styles.metaRow}>
-                <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>
+                <Text
+                  style={[styles.metaLabel, { color: colors.textSecondary }]}
+                >
                   {isDirect ? 'Assigned Gates' : 'Patrol Route'}
                 </Text>
                 <Text style={[styles.metaVal, { color: colors.text }]}>
                   {isDirect
                     ? `${totalGates} Checkpoints`
-                    : `${assignment?.patrolRoute?.name || 'N/A'} (${totalGates} Gates)`}
+                    : `${
+                        assignment?.patrolRoute?.name || 'N/A'
+                      } (${totalGates} Gates)`}
                 </Text>
               </View>
               <View style={styles.metaRow}>
-                <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Active Shift</Text>
-                <Text style={[styles.metaVal, { color: colors.text }]}>{assignment?.shift?.startTime} - {assignment?.shift?.endTime}</Text>
+                <Text
+                  style={[styles.metaLabel, { color: colors.textSecondary }]}
+                >
+                  Active Shift
+                </Text>
+                <Text style={[styles.metaVal, { color: colors.text }]}>
+                  {assignment?.shift?.startTime} - {assignment?.shift?.endTime}
+                </Text>
               </View>
 
               <Button
@@ -378,7 +506,8 @@ export function PatrolScreen() {
           ) : (
             <Card style={styles.emptyCard}>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No active assignment found for today. Cannot start a patrol route sweep.
+                No active assignment found for today. Cannot start a patrol
+                route sweep.
               </Text>
             </Card>
           )}
@@ -388,17 +517,44 @@ export function PatrolScreen() {
       {/* ACTIVE SESSION */}
       {activeSession && (
         <View style={styles.activeContainer}>
-          
           {/* Progress Tracker Widget */}
           <Card style={styles.statusCard}>
             <View style={styles.statusRow}>
               <View>
-                <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>Patrol Timer</Text>
-                <Text style={[styles.timer, { color: colors.text }]}>{formatTimer(elapsedSeconds)}</Text>
+                <Text
+                  style={[styles.statusLabel, { color: colors.textSecondary }]}
+                >
+                  Patrol Timer
+                </Text>
+                <Text style={[styles.timer, { color: colors.text }]}>
+                  {formatTimer(elapsedSeconds)}
+                </Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: activeSession.status === 'IN_PROGRESS' ? colors.success + '20' : colors.warning + '20' }]}>
-                <Text style={[styles.badgeText, { color: activeSession.status === 'IN_PROGRESS' ? colors.success : colors.warning }]}>
-                  {activeSession.status === 'IN_PROGRESS' ? 'IN PROGRESS' : 'PAUSED'}
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    backgroundColor:
+                      activeSession.status === 'IN_PROGRESS'
+                        ? colors.success + '20'
+                        : colors.warning + '20',
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.badgeText,
+                    {
+                      color:
+                        activeSession.status === 'IN_PROGRESS'
+                          ? colors.success
+                          : colors.warning,
+                    },
+                  ]}
+                >
+                  {activeSession.status === 'IN_PROGRESS'
+                    ? 'IN PROGRESS'
+                    : 'PAUSED'}
                 </Text>
               </View>
             </View>
@@ -407,25 +563,39 @@ export function PatrolScreen() {
             <View style={styles.statsSummaryRow}>
               <View style={styles.statSummaryCol}>
                 <BarChart2 size={16} color={colors.primary} />
-                <Text style={[styles.statSummaryText, { color: colors.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.statSummaryText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   {scannedCount} / {totalGates} Scanned
                 </Text>
               </View>
               <View style={styles.statSummaryCol}>
                 <Hourglass size={16} color={colors.warning} />
-                <Text style={[styles.statSummaryText, { color: colors.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.statSummaryText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   Est: {estRemainingTime}
                 </Text>
               </View>
             </View>
 
-            <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
+            <View
+              style={[styles.progressBarBg, { backgroundColor: colors.border }]}
+            >
               <View
                 style={[
                   styles.progressBarFill,
                   {
                     backgroundColor: colors.primary,
-                    width: `${totalGates > 0 ? (scannedCount / totalGates) * 100 : 0}%`,
+                    width: `${
+                      totalGates > 0 ? (scannedCount / totalGates) * 100 : 0
+                    }%`,
                   },
                 ]}
               />
@@ -433,8 +603,10 @@ export function PatrolScreen() {
           </Card>
 
           {/* Sequential Checklist */}
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Checkpoint Sequence</Text>
-          
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Checkpoint Sequence
+          </Text>
+
           {routeGates.map((rg: any) => {
             const isCompleted = scannedGateIds.includes(rg.gateId);
             const isNext = nextAssignedGate?.gateId === rg.gateId;
@@ -449,32 +621,74 @@ export function PatrolScreen() {
                 key={rg.id}
                 style={[
                   styles.checkpointCard,
-                  { borderColor: cardStatusColor, borderWidth: isCompleted || (isNext && isUnlocked) ? 1.5 : 1 }
+                  {
+                    borderColor: cardStatusColor,
+                    borderWidth:
+                      isCompleted || (isNext && isUnlocked) ? 1.5 : 1,
+                  },
                 ]}
               >
                 <View style={styles.gateHeader}>
-                  <View style={[styles.seqBadge, { backgroundColor: isCompleted ? colors.success : isNext ? colors.primary : colors.border }]}>
+                  <View
+                    style={[
+                      styles.seqBadge,
+                      {
+                        backgroundColor: isCompleted
+                          ? colors.success
+                          : isNext
+                          ? colors.primary
+                          : colors.border,
+                      },
+                    ]}
+                  >
                     <Text style={styles.seqText}>{rg.sequence}</Text>
                   </View>
                   <View style={styles.gateInfo}>
-                    <Text style={[styles.gateName, { color: colors.text }]}>{rg.gate?.name}</Text>
-                    <Text style={[styles.gateSub, { color: colors.textSecondary }]}>Gate ID: {rg.gate?.gateCode}</Text>
+                    <Text style={[styles.gateName, { color: colors.text }]}>
+                      {rg.gate?.name}
+                    </Text>
+                    <Text
+                      style={[styles.gateSub, { color: colors.textSecondary }]}
+                    >
+                      Gate ID: {rg.gate?.gateCode}
+                    </Text>
                   </View>
                   <View style={styles.statusCol}>
                     {isCompleted ? (
                       <View style={styles.inlineBadge}>
                         <CheckCircle2 size={16} color={colors.success} />
-                        <Text style={[styles.badgeTextVal, { color: colors.success }]}>Locked</Text>
+                        <Text
+                          style={[
+                            styles.badgeTextVal,
+                            { color: colors.success },
+                          ]}
+                        >
+                          Locked
+                        </Text>
                       </View>
                     ) : isNext && isUnlocked ? (
                       <View style={styles.inlineBadge}>
                         <Unlock size={16} color={colors.primary} />
-                        <Text style={[styles.badgeTextVal, { color: colors.primary }]}>Unlocked</Text>
+                        <Text
+                          style={[
+                            styles.badgeTextVal,
+                            { color: colors.primary },
+                          ]}
+                        >
+                          Unlocked
+                        </Text>
                       </View>
                     ) : (
                       <View style={styles.inlineBadge}>
                         <Lock size={16} color={colors.textSecondary} />
-                        <Text style={[styles.badgeTextVal, { color: colors.textSecondary }]}>Locked</Text>
+                        <Text
+                          style={[
+                            styles.badgeTextVal,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          Locked
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -484,49 +698,127 @@ export function PatrolScreen() {
                 {isNext && isUnlocked && (
                   <View style={styles.unlockedPanel}>
                     <View style={styles.innerDivider} />
-                    
-                    <Text style={[styles.panelLabel, { color: colors.text }]}>1. Gate Status (Required)</Text>
+
+                    <Text style={[styles.panelLabel, { color: colors.text }]}>
+                      1. Gate Status (Required)
+                    </Text>
                     <View style={styles.statusButtonsRow}>
                       <TouchableOpacity
                         style={[
                           styles.statusSelector,
                           {
-                            borderColor: gateStatus === 'GOOD' ? colors.success : colors.border,
-                            backgroundColor: gateStatus === 'GOOD' ? colors.success + '15' : colors.surface,
-                          }
+                            borderColor:
+                              gateStatus === 'GOOD'
+                                ? colors.success
+                                : colors.border,
+                            backgroundColor:
+                              gateStatus === 'GOOD'
+                                ? colors.success + '15'
+                                : colors.surface,
+                          },
                         ]}
                         onPress={() => setGateStatus('GOOD')}
                       >
-                        <CheckCircle2 size={16} color={gateStatus === 'GOOD' ? colors.success : colors.textSecondary} />
-                        <Text style={[styles.statusSelectorText, { color: colors.text }]}>Status: Good</Text>
+                        <CheckCircle2
+                          size={16}
+                          color={
+                            gateStatus === 'GOOD'
+                              ? colors.success
+                              : colors.textSecondary
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.statusSelectorText,
+                            { color: colors.text },
+                          ]}
+                        >
+                          Status: Good
+                        </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[
                           styles.statusSelector,
                           {
-                            borderColor: gateStatus === 'DAMAGED' ? colors.danger : colors.border,
-                            backgroundColor: gateStatus === 'DAMAGED' ? colors.danger + '15' : colors.surface,
-                          }
+                            borderColor:
+                              gateStatus === 'DAMAGED'
+                                ? colors.danger
+                                : colors.border,
+                            backgroundColor:
+                              gateStatus === 'DAMAGED'
+                                ? colors.danger + '15'
+                                : colors.surface,
+                          },
                         ]}
                         onPress={() => setGateStatus('DAMAGED')}
                       >
-                        <ShieldAlert size={16} color={gateStatus === 'DAMAGED' ? colors.danger : colors.textSecondary} />
-                        <Text style={[styles.statusSelectorText, { color: colors.text }]}>Report Damage</Text>
+                        <ShieldAlert
+                          size={16}
+                          color={
+                            gateStatus === 'DAMAGED'
+                              ? colors.danger
+                              : colors.textSecondary
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.statusSelectorText,
+                            { color: colors.text },
+                          ]}
+                        >
+                          Report Damage
+                        </Text>
                       </TouchableOpacity>
                     </View>
 
-                    <Text style={[styles.panelLabel, { color: colors.text, marginTop: 12 }]}>2. Report Incident (Optional)</Text>
+                    <Text
+                      style={[
+                        styles.panelLabel,
+                        { color: colors.text, marginTop: 12 },
+                      ]}
+                    >
+                      2. Report Incident (Optional)
+                    </Text>
                     <TouchableOpacity
-                      style={[styles.actionBtn, { borderColor: colors.danger, backgroundColor: colors.danger + '05' }]}
-                      onPress={() => navigation.navigate('Reports', { gateId: rg.gateId, patrolSessionId: activeSession.id })}
+                      style={[
+                        styles.actionBtn,
+                        {
+                          borderColor: colors.danger,
+                          backgroundColor: colors.danger + '05',
+                        },
+                      ]}
+                      onPress={() =>
+                        navigation.navigate('Reports', {
+                          gateId: rg.gateId,
+                          patrolSessionId: activeSession.id,
+                        })
+                      }
                     >
                       <ShieldAlert size={16} color={colors.danger} />
-                      <Text style={[styles.actionBtnText, { color: colors.danger }]}>Trigger Incident Form</Text>
+                      <Text
+                        style={[styles.actionBtnText, { color: colors.danger }]}
+                      >
+                        Trigger Incident Form
+                      </Text>
                     </TouchableOpacity>
 
-                    <Text style={[styles.panelLabel, { color: colors.text, marginTop: 12 }]}>3. Sweep Notes</Text>
+                    <Text
+                      style={[
+                        styles.panelLabel,
+                        { color: colors.text, marginTop: 12 },
+                      ]}
+                    >
+                      3. Sweep Notes
+                    </Text>
                     <TextInput
-                      style={[styles.remarksInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                      style={[
+                        styles.remarksInput,
+                        {
+                          color: colors.text,
+                          borderColor: colors.border,
+                          backgroundColor: colors.surface,
+                        },
+                      ]}
                       placeholder="Add any verification notes or observations..."
                       placeholderTextColor={colors.textSecondary}
                       value={remarks}
@@ -534,13 +826,26 @@ export function PatrolScreen() {
                       multiline
                     />
 
-                    <Text style={[styles.panelLabel, { color: colors.text, marginTop: 12 }]}>4. Attach Photos (Required - Camera Only)</Text>
+                    <Text
+                      style={[
+                        styles.panelLabel,
+                        { color: colors.text, marginTop: 12 },
+                      ]}
+                    >
+                      4. Attach Photos (Required - Camera Only)
+                    </Text>
                     <View style={styles.photoContainer}>
                       {images.map((img, idx) => (
                         <View key={idx} style={styles.thumbnailWrapper}>
-                          <Image source={{ uri: img }} style={styles.thumbnail} />
-                          <TouchableOpacity 
-                            style={[styles.removeButton, { backgroundColor: colors.danger }]} 
+                          <Image
+                            source={{ uri: img }}
+                            style={styles.thumbnail}
+                          />
+                          <TouchableOpacity
+                            style={[
+                              styles.removeButton,
+                              { backgroundColor: colors.danger },
+                            ]}
                             onPress={() => handleRemovePhoto(idx)}
                           >
                             <Text style={styles.removeButtonText}>×</Text>
@@ -548,12 +853,32 @@ export function PatrolScreen() {
                         </View>
                       ))}
                       {images.length < 4 && (
-                        <TouchableOpacity 
-                          style={[styles.addPhotoSlot, { borderColor: colors.border, backgroundColor: colors.surface }]} 
+                        <TouchableOpacity
+                          style={[
+                            styles.addPhotoSlot,
+                            {
+                              borderColor: colors.border,
+                              backgroundColor: colors.surface,
+                            },
+                          ]}
                           onPress={handleOpenCamera}
                         >
-                          <Text style={[styles.addPhotoPlus, { color: colors.textSecondary }]}>+</Text>
-                          <Text style={[styles.addPhotoLabel, { color: colors.textSecondary }]}>Camera</Text>
+                          <Text
+                            style={[
+                              styles.addPhotoPlus,
+                              { color: colors.textSecondary },
+                            ]}
+                          >
+                            +
+                          </Text>
+                          <Text
+                            style={[
+                              styles.addPhotoLabel,
+                              { color: colors.textSecondary },
+                            ]}
+                          >
+                            Camera
+                          </Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -567,8 +892,15 @@ export function PatrolScreen() {
 
                     {/* CAMERA VIEWFINDER MODAL */}
                     <Modal visible={showCameraModal} animationType="slide">
-                      <View style={[styles.cameraContainer, { backgroundColor: '#121214' }]}>
-                        <Text style={styles.cameraTitle}>Live Camera Viewfinder</Text>
+                      <View
+                        style={[
+                          styles.cameraContainer,
+                          { backgroundColor: '#121214' },
+                        ]}
+                      >
+                        <Text style={styles.cameraTitle}>
+                          Live Camera Viewfinder
+                        </Text>
                         <View style={styles.viewfinder}>
                           {device ? (
                             <Camera
@@ -586,17 +918,37 @@ export function PatrolScreen() {
                           <View style={styles.crosshair} />
                           {isCompressing && (
                             <View style={styles.compressLoader}>
-                              <ActivityIndicator color={colors.primary} size="large" />
-                              <Text style={styles.compressLabel}>Compressing Photo (85%)...</Text>
+                              <ActivityIndicator
+                                color={colors.primary}
+                                size="large"
+                              />
+                              <Text style={styles.compressLabel}>
+                                Compressing Photo (85%)...
+                              </Text>
                             </View>
                           )}
-                          <Animated.View style={[styles.flashOverlay, { opacity: flashAnim }]} />
+                          <Animated.View
+                            style={[
+                              styles.flashOverlay,
+                              { opacity: flashAnim },
+                            ]}
+                          />
                         </View>
                         <View style={styles.cameraControls}>
-                          <TouchableOpacity style={[styles.cameraCancel, { borderColor: '#ffffff' }]} onPress={() => setShowCameraModal(false)}>
+                          <TouchableOpacity
+                            style={[
+                              styles.cameraCancel,
+                              { borderColor: '#ffffff' },
+                            ]}
+                            onPress={() => setShowCameraModal(false)}
+                          >
                             <Text style={{ color: '#ffffff' }}>Close</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity style={styles.shutterButton} onPress={handleCapturePhoto} disabled={isCompressing}>
+                          <TouchableOpacity
+                            style={styles.shutterButton}
+                            onPress={handleCapturePhoto}
+                            disabled={isCompressing}
+                          >
                             <View style={styles.shutterInner} />
                           </TouchableOpacity>
                           <View style={{ width: 60 }} />
@@ -611,12 +963,21 @@ export function PatrolScreen() {
                   <View style={styles.lockedPanel}>
                     <View style={styles.innerDivider} />
                     <TouchableOpacity
-                      style={[styles.scanTriggerButton, { backgroundColor: colors.primary }]}
+                      style={[
+                        styles.scanTriggerButton,
+                        { backgroundColor: colors.primary },
+                      ]}
                       onPress={() => navigation.navigate('Scanner')}
                       disabled={activeSession.status !== 'IN_PROGRESS'}
                     >
-                      <Unlock size={16} color="#ffffff" style={{ marginRight: 6 }} />
-                      <Text style={styles.scanTriggerText}>Scan QR Code to Unlock</Text>
+                      <Unlock
+                        size={16}
+                        color="#ffffff"
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text style={styles.scanTriggerText}>
+                        Scan QR Code to Unlock
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 )}

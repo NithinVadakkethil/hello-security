@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Plus, Edit2, Eye, ToggleLeft, ToggleRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -61,6 +61,7 @@ export default function ClientsPage() {
           search: search || undefined,
         },
       }),
+    placeholderData: keepPreviousData,
   });
 
   // Status toggle mutation

@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Shield, ArrowLeft, Edit, Users, Calendar, MapPin, Route, Mail, Phone, MapPinIcon, Clock } from 'lucide-react';
+import { Shield, ArrowLeft, Edit, Users, Calendar, MapPin, Route, Mail, Phone, MapPinIcon, Clock, UserCheck } from 'lucide-react';
 
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
@@ -15,6 +15,7 @@ interface ClientDetail {
   clientCode: string;
   companyName: string;
   email: string;
+  authorizedPerson?: string | null;
   phone?: string;
   address?: string;
   subscriptionStatus: string;
@@ -175,6 +176,14 @@ export default function ClientDetailsPage() {
                 <div>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Primary Email</p>
                   <p style={{ fontSize: '0.9rem', fontWeight: 500, margin: 0 }}>{client.email}</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <UserCheck size={16} style={{ color: 'var(--text-muted)' }} />
+                <div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Authorised Person</p>
+                  <p style={{ fontSize: '0.9rem', fontWeight: 500, margin: 0 }}>{client.authorizedPerson || 'N/A'}</p>
                 </div>
               </div>
 

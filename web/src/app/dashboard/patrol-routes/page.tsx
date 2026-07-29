@@ -144,7 +144,8 @@ export default function PatrolRoutesPage() {
 
   const limit = 10;
   const totalPages = Math.max(1, Math.ceil(sortedRoutes.length / limit));
-  const paginatedRoutes = sortedRoutes.slice((page - 1) * limit, page * limit);
+  const safePage = Math.min(page, totalPages);
+  const paginatedRoutes = sortedRoutes.slice((safePage - 1) * limit, safePage * limit);
 
   const columns = [
     { key: 'routeCode', label: 'Route Code', sortable: true },
@@ -267,7 +268,7 @@ export default function PatrolRoutesPage() {
       />
 
       <Pagination
-        currentPage={page}
+        currentPage={safePage}
         totalPages={totalPages}
         onPageChange={(p) => setPage(p)}
       />

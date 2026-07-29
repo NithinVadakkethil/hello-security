@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Eye, User, Clock } from 'lucide-react';
 
 import { apiClient } from '../../lib/axios';
@@ -70,6 +70,7 @@ export default function AuditLogsPage() {
           endDate: endDate ? new Date(endDate).toISOString() : undefined,
         },
       }),
+    placeholderData: keepPreviousData,
   });
 
   // Fetch Clients for dropdown

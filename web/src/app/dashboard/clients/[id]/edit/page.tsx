@@ -15,6 +15,7 @@ import { FormInput, Select, Switch } from '../../../../components/ui/FormControl
 
 const schema = z.object({
   companyName: z.string().min(2, 'Company name is required (min 2 characters)'),
+  authorizedPerson: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   maxEmployees: z.any().refine((val) => {
@@ -60,6 +61,7 @@ export default function EditClientPage() {
     if (client) {
       reset({
         companyName: client.companyName,
+        authorizedPerson: client.authorizedPerson || '',
         phone: client.phone || '',
         address: client.address || '',
         maxEmployees: client.maxEmployees,
@@ -135,6 +137,12 @@ export default function EditClientPage() {
             label="Company Name"
             error={errors.companyName?.message}
             {...register('companyName')}
+          />
+
+          <FormInput
+            label="Authorised Person"
+            error={errors.authorizedPerson?.message}
+            {...register('authorizedPerson')}
           />
 
           <FormInput

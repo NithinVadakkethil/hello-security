@@ -104,7 +104,8 @@ export default function PatrolSessionsPage() {
 
   const limit = 10;
   const totalPages = Math.max(1, Math.ceil(sessions.length / limit));
-  const paginatedSessions = sessions.slice((page - 1) * limit, page * limit);
+  const safePage = Math.min(page, totalPages);
+  const paginatedSessions = sessions.slice((safePage - 1) * limit, safePage * limit);
 
   const columns = [
     { key: 'patrolCode', label: 'Patrol Code', sortable: true },
@@ -322,7 +323,7 @@ export default function PatrolSessionsPage() {
       />
 
       <Pagination
-        currentPage={page}
+        currentPage={safePage}
         totalPages={totalPages}
         onPageChange={(p) => setPage(p)}
       />

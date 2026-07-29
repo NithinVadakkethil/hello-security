@@ -108,7 +108,7 @@ export class EmployeeService {
             employeeNumber,
 
             firstName: dto.firstName,
-            lastName: dto.lastName,
+            lastName: dto.lastName || null,
 
             email: dto.email,
             phone: dto.phone,

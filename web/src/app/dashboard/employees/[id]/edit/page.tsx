@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Shield, ArrowLeft, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -16,7 +16,7 @@ import { FormInput } from '../../../../components/ui/FormControls';
 
 const schema = z.object({
   firstName: z.string().min(2, 'First name is required (min 2 characters)'),
-  lastName: z.string().min(1, 'Last name is required'),
+  lastName: z.string().optional().or(z.literal('')),
   email: z.string().email('Please enter a valid email address').optional().or(z.literal('')),
   phone: z.string().optional(),
   designation: z.string().optional(),
@@ -28,6 +28,7 @@ type FormValues = z.infer<typeof schema>;
 export default function EditEmployeePage() {
   const router = useRouter();
   const params = useParams();
+  const queryClient = useQueryClient();
   const id = params.id as string;
 
   // Query Employee details
@@ -51,7 +52,7 @@ export default function EditEmployeePage() {
     if (employee) {
       reset({
         firstName: employee.firstName,
-        lastName: employee.lastName,
+        lastName: employee.lastName || '',
         email: employee.email || '',
         phone: employee.phone || '',
         designation: employee.designation || '',
@@ -66,6 +67,9 @@ export default function EditEmployeePage() {
       if (!payload.email) {
         payload.email = null;
       }
+      if (!payload.lastName) {
+        payload.lastName = null;
+      }
       if (payload.joiningDate) {
         payload.joiningDate = new Date(payload.joiningDate).toISOString();
       } else {
@@ -74,6 +78,8 @@ export default function EditEmployeePage() {
       return apiClient.patch(`/employees/${id}`, payload);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['employee', id] });
       toast.success('Employee configurations saved!');
       router.push(`/dashboard/employees/${id}`);
     },
