@@ -79,12 +79,13 @@ export default function DashboardPage() {
         <div className="welcome-banner">
           <h1>
             Welcome Back,{' '}
-            {user?.name ||
+            {user?.companyName ||
+              user?.name ||
               (user?.firstName
                 ? `${user.firstName} ${user.lastName || ''}`.trim()
                 : user?.email
-                ? user.email.split('@')[0]
-                : 'Administrator')}
+                  ? user.email.split('@')[0]
+                  : 'Administrator')}
           </h1>
           <p>System status is secure. Active guard monitoring is online.</p>
         </div>

@@ -9,6 +9,7 @@ export interface AuthUser {
   firstName?: string | null;
   lastName?: string | null;
   name?: string | null;
+  companyName?: string | null;
 }
 
 export interface LoginResponse {

@@ -79,9 +79,11 @@ export class AuthService {
         role: user.role,
         firstName: (user as any).employee?.firstName || null,
         lastName: (user as any).employee?.lastName || null,
-        name: (user as any).employee
-          ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
-          : (user as any).client?.companyName || user.email.split('@')[0],
+        companyName: (user as any).client?.companyName || null,
+        name: (user as any).client?.companyName ||
+          ((user as any).employee
+            ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
+            : user.email.split('@')[0]),
       },
     };
   }
@@ -151,9 +153,11 @@ export class AuthService {
         role: user.role,
         firstName: (user as any).employee?.firstName || null,
         lastName: (user as any).employee?.lastName || null,
-        name: (user as any).employee
-          ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
-          : (user as any).client?.companyName || user.email.split('@')[0],
+        companyName: (user as any).client?.companyName || null,
+        name: (user as any).client?.companyName ||
+          ((user as any).employee
+            ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
+            : user.email.split('@')[0]),
       },
     };
   }

@@ -7,6 +7,7 @@ export interface User {
   firstName?: string | null;
   lastName?: string | null;
   name?: string | null;
+  companyName?: string | null;
 }
 
 export interface AuthData {
