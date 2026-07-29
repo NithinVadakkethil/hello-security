@@ -77,6 +77,11 @@ export class AuthService {
         employeeId: user.employeeId,
         email: user.email,
         role: user.role,
+        firstName: (user as any).employee?.firstName || null,
+        lastName: (user as any).employee?.lastName || null,
+        name: (user as any).employee
+          ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
+          : (user as any).client?.companyName || user.email.split('@')[0],
       },
     };
   }
@@ -144,6 +149,11 @@ export class AuthService {
         employeeId: user.employeeId,
         email: user.email,
         role: user.role,
+        firstName: (user as any).employee?.firstName || null,
+        lastName: (user as any).employee?.lastName || null,
+        name: (user as any).employee
+          ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
+          : (user as any).client?.companyName || user.email.split('@')[0],
       },
     };
   }

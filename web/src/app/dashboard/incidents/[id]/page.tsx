@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Clock, Shield, AlertTriangle, Download, ChevronLeft, ChevronRight, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Clock, Shield, AlertTriangle, Download, ChevronLeft, ChevronRight, RefreshCw, X, MapPin, Building2 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -20,6 +20,29 @@ interface Employee {
   email: string;
 }
 
+interface Gate {
+  id: string;
+  name: string;
+  gateCode: string;
+  site?: {
+    id: string;
+    name: string;
+    siteCode?: string;
+  };
+}
+
+interface PatrolSession {
+  id: string;
+  patrolCode: string;
+  assignment?: {
+    site?: {
+      id: string;
+      name: string;
+      siteCode?: string;
+    };
+  };
+}
+
 interface Incident {
   id: string;
   type: string;
@@ -28,6 +51,8 @@ interface Incident {
   images: string[];
   createdAt: string;
   employee: Employee;
+  gate?: Gate | null;
+  patrolSession?: PatrolSession | null;
 }
 
 export default function IncidentDetailPage() {
@@ -219,6 +244,26 @@ export default function IncidentDetailPage() {
                 Email Address
               </h4>
               <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{incident.employee.email}</span>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Monitored Site
+              </h4>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <MapPin size={16} style={{ color: 'var(--primary)' }} />
+                {incident.gate?.site?.name || incident.patrolSession?.assignment?.site?.name || 'Unassigned Site'}
+              </span>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Checkpoint / Gate
+              </h4>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Building2 size={16} style={{ color: 'var(--text-muted)' }} />
+                {incident.gate ? `${incident.gate.name} (${incident.gate.gateCode})` : 'Direct Incident'}
+              </span>
             </div>
 
             <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>

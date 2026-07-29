@@ -66,6 +66,24 @@ export class EmployeeService {
     }
 
     // Generate employee number
+    const empCount = await prisma.employee.count({ where: { clientId } });
+    if (empCount === 0) {
+      await prisma.counter.upsert({
+        where: {
+          entity_clientId: {
+            entity: ENTITY.EMPLOYEE,
+            clientId,
+          },
+        },
+        update: { value: 0 },
+        create: {
+          entity: ENTITY.EMPLOYEE,
+          clientId,
+          value: 0,
+        },
+      });
+    }
+
     let sequence = await counterService.next(ENTITY.EMPLOYEE, clientId);
     let employeeNumber = generateCode(PREFIX.EMPLOYEE, sequence);
 

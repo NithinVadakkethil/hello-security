@@ -181,7 +181,7 @@ model Site {
 
   client Client @relation(fields: [clientId], references: [id])
 
-  siteCode String @unique
+  siteCode String
 
   name String
 
@@ -212,6 +212,7 @@ model Site {
   updatedAt DateTime @updatedAt
 
   @@unique([clientId, name])
+  @@unique([clientId, siteCode])
 }
 
 model Gate {
@@ -227,7 +228,9 @@ model Gate {
 
   assignmentGates GuardAssignmentGate[]
 
-  gateCode String @unique
+  incidents Incident[]
+
+  gateCode String
 
   name String
 
@@ -250,6 +253,7 @@ model Gate {
   updatedAt DateTime @updatedAt
 
   @@unique([siteId, name])
+  @@unique([siteId, gateCode])
 }
 
 model Shift {
@@ -261,7 +265,7 @@ model Shift {
 
   assignments GuardAssignment[]
 
-  shiftCode String @unique
+  shiftCode String
 
   name String
 
@@ -278,6 +282,7 @@ model Shift {
   updatedAt DateTime @updatedAt
 
   @@unique([clientId, name])
+  @@unique([clientId, shiftCode])
 }
 
 model GuardAssignment {
@@ -347,7 +352,7 @@ model PatrolRoute {
   siteId String
   site   Site   @relation(fields: [siteId], references: [id])
 
-  routeCode String @unique
+  routeCode String
 
   name String
 
@@ -364,6 +369,7 @@ model PatrolRoute {
   routeGates PatrolRouteGate[]
 
   @@unique([siteId, name])
+  @@unique([clientId, routeCode])
 }
 
 model PatrolRouteGate {
@@ -419,6 +425,8 @@ model PatrolSession {
   assignment   GuardAssignment @relation(fields: [assignmentId], references: [id])
 
   checkpoints PatrolCheckpoint[]
+
+  incidents Incident[]
 
   patrolCode String
 
@@ -521,7 +529,9 @@ model Incident {
   description    String
   images         String[] @default([])
   patrolSessionId String?
+  patrolSession   PatrolSession? @relation(fields: [patrolSessionId], references: [id])
   gateId         String?
+  gate           Gate?          @relation(fields: [gateId], references: [id])
   latitude       Float?
   longitude      Float?
   createdAt      DateTime @default(now())

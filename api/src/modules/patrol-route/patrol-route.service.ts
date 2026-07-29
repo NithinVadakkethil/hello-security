@@ -105,15 +105,33 @@ export class PatrolRouteService {
       }
     }
 
+    const routeCount = await prisma.patrolRoute.count({ where: { clientId } });
+    if (routeCount === 0) {
+      await prisma.counter.upsert({
+        where: {
+          entity_clientId: {
+            entity: ENTITY.PATROL,
+            clientId,
+          },
+        },
+        update: { value: 0 },
+        create: {
+          entity: ENTITY.PATROL,
+          clientId,
+          value: 0,
+        },
+      });
+    }
+
     let sequence = await counterService.next(ENTITY.PATROL, clientId);
     let routeCode = generateCode(PREFIX.PATROL, sequence);
 
-    let existingRouteCode = await prisma.patrolRoute.findUnique({ where: { routeCode } });
+    let existingRouteCode = await prisma.patrolRoute.findFirst({ where: { clientId, routeCode } });
 
     while (existingRouteCode) {
       sequence = await counterService.next(ENTITY.PATROL, clientId);
       routeCode = generateCode(PREFIX.PATROL, sequence);
-      existingRouteCode = await prisma.patrolRoute.findUnique({ where: { routeCode } });
+      existingRouteCode = await prisma.patrolRoute.findFirst({ where: { clientId, routeCode } });
     }
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {

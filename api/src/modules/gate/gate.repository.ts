@@ -33,9 +33,10 @@ export class GateRepository {
     });
   }
 
-  findByUniqueCode(gateCode: string) {
-    return prisma.gate.findUnique({
+  findByUniqueCode(siteId: string, gateCode: string) {
+    return prisma.gate.findFirst({
       where: {
+        siteId,
         gateCode,
       },
     });

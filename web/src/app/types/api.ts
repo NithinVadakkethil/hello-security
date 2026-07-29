@@ -4,6 +4,9 @@ export interface User {
   employeeId?: string;
   email: string;
   role: 'SUPER_ADMIN' | 'CLIENT_ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'SECURITY';
+  firstName?: string | null;
+  lastName?: string | null;
+  name?: string | null;
 }
 
 export interface AuthData {

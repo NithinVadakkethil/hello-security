@@ -15,9 +15,10 @@ export class SiteRepository {
     });
   }
 
-  findByCode(siteCode: string) {
-    return prisma.site.findUnique({
+  findByCode(clientId: string, siteCode: string) {
+    return prisma.site.findFirst({
       where: {
+        clientId,
         siteCode,
       },
     });

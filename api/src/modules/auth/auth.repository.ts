@@ -8,6 +8,7 @@ export class AuthRepository {
       },
       include: {
         client: true,
+        employee: true,
       },
     });
   }
@@ -53,6 +54,7 @@ export class AuthRepository {
       },
       include: {
         client: true,
+        employee: true,
       },
     });
   }

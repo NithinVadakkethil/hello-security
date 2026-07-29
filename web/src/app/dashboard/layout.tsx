@@ -74,7 +74,7 @@ export default function DashboardLayout({
         },
         {
           href: '/dashboard/assignments',
-          label: 'Guard Assignments',
+          label: 'Assignments',
           icon: FileText,
         },
         {
@@ -89,7 +89,7 @@ export default function DashboardLayout({
         // },
         {
           href: '/dashboard/incidents',
-          label: 'Incident Reports',
+          label: 'Observation Reports',
           icon: AlertTriangle,
         },
         {
