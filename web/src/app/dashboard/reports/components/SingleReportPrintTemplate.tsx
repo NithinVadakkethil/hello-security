@@ -158,6 +158,37 @@ export default function SingleReportPrintTemplate({ report }: SingleReportPrintT
         </tbody>
       </table>
 
+      {/* Sub-Task Verification Audit Results */}
+      {checkpointsTimeline.some((item: any) => item.scanned && item.subTaskResponses && item.subTaskResponses.length > 0) && (
+        <div style={{ marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '11pt', marginBottom: '8px' }}>Checkpoint Verification Sub-Task Audit Results</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
+            <thead>
+              <tr style={{ borderBottom: '1.5px solid #000', backgroundColor: '#eaeaea' }}>
+                <th style={{ padding: '6px', textAlign: 'left' }}>Checkpoint</th>
+                <th style={{ padding: '6px', textAlign: 'left' }}>Verification Sub-Task</th>
+                <th style={{ padding: '6px', textAlign: 'center', width: '80px' }}>Answer</th>
+                <th style={{ padding: '6px', textAlign: 'left' }}>Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {checkpointsTimeline.flatMap((item: any) =>
+                (item.subTaskResponses || []).map((res: any, idx: number) => (
+                  <tr key={`${item.gate.id}-${res.id || idx}`} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '6px', fontWeight: 'bold' }}>{item.gate.name} ({item.gate.gateCode})</td>
+                    <td style={{ padding: '6px' }}>{res.gateSubTask?.taskName || 'Verification Task'}</td>
+                    <td style={{ padding: '6px', textAlign: 'center', fontWeight: 'bold', color: res.answer === 'YES' ? '#10b981' : '#ef4444' }}>
+                      {res.answer}
+                    </td>
+                    <td style={{ padding: '6px', color: '#555' }}>{res.remarks || '-'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Incidents Section */}
       {incidents.length > 0 && (
         <div style={{ marginBottom: '20px' }}>

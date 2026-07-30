@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Edit, Plus, MapPin, RefreshCw, ToggleLeft, ToggleRight, QrCode } from 'lucide-react';
+import { ArrowLeft, Edit, Plus, MapPin, RefreshCw, ToggleLeft, ToggleRight, QrCode, CheckSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -17,6 +17,7 @@ import Modal from '../../../components/ui/Modal';
 import ConfirmationDialog from '../../../components/ui/ConfirmationDialog';
 import { FormInput } from '../../../components/ui/FormControls';
 import StatusChip from '../../../components/ui/StatusChip';
+import GateSubTasksModal from '../components/GateSubTasksModal';
 
 interface Site {
   id: string;
@@ -73,6 +74,16 @@ export default function SiteDetailPage() {
     gateId: '',
     gateName: '',
     targetStatus: false,
+  });
+
+  const [subTaskModal, setSubTaskModal] = useState<{
+    isOpen: boolean;
+    gateId: string;
+    gateName: string;
+  }>({
+    isOpen: false,
+    gateId: '',
+    gateName: '',
   });
 
   // Fetch Site Details
@@ -329,6 +340,15 @@ export default function SiteDetailPage() {
           >
             <QrCode size={14} />
             <span>Print QR</span>
+          </button>
+          <button
+            onClick={() => setSubTaskModal({ isOpen: true, gateId: row.id, gateName: row.name })}
+            className="btn btn-secondary"
+            style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px', color: 'var(--primary)' }}
+            title="Configure Verification Sub-Tasks"
+          >
+            <CheckSquare size={14} />
+            <span>Sub Tasks ({(row as any).subTasks?.length || 0})</span>
           </button>
           <button
             onClick={() => handleOpenEditGate(row)}
@@ -608,6 +628,13 @@ export default function SiteDetailPage() {
         confirmText={confirmGateStatus.targetStatus ? 'Activate' : 'Deactivate'}
         isDanger={!confirmGateStatus.targetStatus}
         isLoading={toggleGateStatusMutation.isPending}
+      />
+
+      <GateSubTasksModal
+        isOpen={subTaskModal.isOpen}
+        onClose={() => setSubTaskModal((prev) => ({ ...prev, isOpen: false }))}
+        gateId={subTaskModal.gateId}
+        gateName={subTaskModal.gateName}
       />
     </div>
   );

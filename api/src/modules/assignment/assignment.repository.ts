@@ -20,7 +20,16 @@ export class AssignmentRepository {
           shift: true,
           patrolRoute: true,
           assignmentGates: {
-            include: { gate: true },
+            include: {
+              gate: {
+                include: {
+                  subTasks: {
+                    where: { isActive: true },
+                    orderBy: { displayOrder: 'asc' },
+                  },
+                },
+              },
+            },
           },
         },
       });
@@ -34,7 +43,16 @@ export class AssignmentRepository {
         shift: true,
         patrolRoute: true,
         assignmentGates: {
-          include: { gate: true },
+          include: {
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
+          },
         },
       },
     });
@@ -52,7 +70,14 @@ export class AssignmentRepository {
         patrolRoute: true,
         assignmentGates: {
           include: {
-            gate: true,
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
           },
         },
       },
@@ -73,7 +98,14 @@ export class AssignmentRepository {
           include: {
             routeGates: {
               include: {
-                gate: true,
+                gate: {
+                  include: {
+                    subTasks: {
+                      where: { isActive: true },
+                      orderBy: { displayOrder: 'asc' },
+                    },
+                  },
+                },
               },
               orderBy: {
                 sequence: 'asc',
@@ -83,7 +115,14 @@ export class AssignmentRepository {
         },
         assignmentGates: {
           include: {
-            gate: true,
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
           },
           orderBy: {
             sequence: 'asc',
@@ -110,7 +149,14 @@ export class AssignmentRepository {
           include: {
             routeGates: {
               include: {
-                gate: true,
+                gate: {
+                  include: {
+                    subTasks: {
+                      where: { isActive: true },
+                      orderBy: { displayOrder: 'asc' },
+                    },
+                  },
+                },
               },
               orderBy: {
                 sequence: 'asc',
@@ -120,7 +166,14 @@ export class AssignmentRepository {
         },
         assignmentGates: {
           include: {
-            gate: true,
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
           },
           orderBy: {
             sequence: 'asc',
@@ -146,7 +199,14 @@ export class AssignmentRepository {
           include: {
             routeGates: {
               include: {
-                gate: true,
+                gate: {
+                  include: {
+                    subTasks: {
+                      where: { isActive: true },
+                      orderBy: { displayOrder: 'asc' },
+                    },
+                  },
+                },
               },
               orderBy: {
                 sequence: 'asc',
@@ -156,7 +216,14 @@ export class AssignmentRepository {
         },
         assignmentGates: {
           include: {
-            gate: true,
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
           },
           orderBy: {
             sequence: 'asc',

@@ -22,7 +22,15 @@ export const patrolApi = {
     return res.data;
   },
 
-  scanCheckpoint: async (gateId: string, remarks?: string, status?: string, images?: string[], latitude?: number, longitude?: number): Promise<any> => {
+  scanCheckpoint: async (
+    gateId: string,
+    remarks?: string,
+    status?: string,
+    images?: string[],
+    latitude?: number,
+    longitude?: number,
+    subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string }>
+  ): Promise<any> => {
     const res = (await apiClient.post('/patrol-checkpoints/scan', {
       gateId,
       remarks,
@@ -30,6 +38,7 @@ export const patrolApi = {
       images,
       latitude,
       longitude,
+      subTaskResponses,
     })) as any;
     return res.data;
   },

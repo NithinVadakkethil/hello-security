@@ -27,6 +27,8 @@ import {
   useCameraDevice,
   useCameraPermission,
 } from 'react-native-vision-camera';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '../../../app/api/api-client';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { useOfflineStore } from '../../../app/store/offline-store';
 import { Button } from '../../../components/Button';
@@ -95,6 +97,7 @@ export function PatrolScreen() {
   const cameraRef = useRef<Camera>(null);
   const [remarks, setRemarks] = useState('');
   const [gateStatus, setGateStatus] = useState<'GOOD' | 'DAMAGED' | null>(null);
+  const [subTaskResponses, setSubTaskResponses] = useState<Record<string, { answer: 'YES' | 'NO' | null; remarks: string }>>({});
   const [images, setImages] = useState<string[]>([]);
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
@@ -248,11 +251,22 @@ export function PatrolScreen() {
     }
   };
 
-  const handleCheckpointSubmit = async (gateId: string) => {
+  const handleCheckpointSubmit = async (gateId: string, activeSubTasks: any[] = []) => {
     if (!gateStatus) {
       Alert.alert(
         'Missing Status',
         'Please report the status of the gate (Good / Damaged) before checkpoint completion.',
+      );
+      return;
+    }
+
+    const requiredTasks = activeSubTasks.filter((st: any) => st.isRequired && st.isActive !== false);
+    const missingTask = requiredTasks.find((st: any) => !subTaskResponses[st.id]?.answer);
+
+    if (missingTask) {
+      Alert.alert(
+        'Verification Required',
+        `Please answer the required task "${missingTask.taskName}" with YES or NO.`,
       );
       return;
     }
@@ -275,6 +289,14 @@ export function PatrolScreen() {
                 ? `${statusPrefix} ${remarks.trim()}`
                 : statusPrefix;
 
+              const formattedSubTaskResponses = Object.entries(subTaskResponses)
+                .filter(([_, val]) => val.answer === 'YES' || val.answer === 'NO')
+                .map(([gateSubTaskId, val]) => ({
+                  gateSubTaskId,
+                  answer: val.answer as 'YES' | 'NO',
+                  remarks: val.remarks?.trim() || undefined,
+                }));
+
               await scanCheckpoint({
                 gateId,
                 remarks: fullRemarks,
@@ -282,11 +304,13 @@ export function PatrolScreen() {
                 images,
                 latitude: lat,
                 longitude: lng,
+                subTaskResponses: formattedSubTaskResponses,
               });
 
               setRemarks('');
               setGateStatus(null);
               setImages([]);
+              setSubTaskResponses({});
               Alert.alert(
                 'Checkpoint Registered',
                 'Data securely transmitted and checkpoint locked.',
@@ -335,6 +359,27 @@ export function PatrolScreen() {
   const nextAssignedGate = routeGates.find(
     (rg: any) => !scannedGateIds.includes(rg.gateId),
   );
+
+  const activeGateId = nextAssignedGate?.gateId;
+  const { data: fetchedSubTasksRes } = useQuery({
+    queryKey: ['gate-subtasks', activeGateId],
+    queryFn: async () => {
+      if (!activeGateId) return [];
+      const res = (await apiClient.get(`/gates/${activeGateId}/sub-tasks?onlyActive=true`)) as any;
+      return res.data || [];
+    },
+    enabled: !!activeGateId && isOnline,
+  });
+
+  const getSubTasksForGate = (gateObj: any) => {
+    if (gateObj?.subTasks && Array.isArray(gateObj.subTasks) && gateObj.subTasks.length > 0) {
+      return gateObj.subTasks;
+    }
+    if (gateObj?.id === activeGateId && fetchedSubTasksRes && Array.isArray(fetchedSubTasksRes)) {
+      return fetchedSubTasksRes;
+    }
+    return [];
+  };
 
   const isDirect =
     assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
@@ -771,6 +816,143 @@ export function PatrolScreen() {
                       </TouchableOpacity>
                     </View>
 
+                    {/* Checkpoint Verification Sub-Tasks Section */}
+                    {(() => {
+                      const currentGateSubTasks = getSubTasksForGate(rg.gate);
+                      const activeTasks = currentGateSubTasks.filter((st: any) => st.isActive !== false);
+                      if (activeTasks.length === 0) return null;
+
+                      return (
+                        <View style={{ marginTop: 14 }}>
+                          <Text style={[styles.panelLabel, { color: colors.text }]}>
+                            Checkpoint Verification Tasks ({activeTasks.length})
+                          </Text>
+                          {activeTasks.map((task: any, taskIdx: number) => {
+                            const currentResp = subTaskResponses[task.id] || { answer: null, remarks: '' };
+                            return (
+                              <View
+                                key={task.id || taskIdx}
+                                style={{
+                                  backgroundColor: colors.surface,
+                                  borderColor: colors.border,
+                                  borderWidth: 1,
+                                  borderRadius: 10,
+                                  padding: 12,
+                                  marginTop: 8,
+                                }}
+                              >
+                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text, flex: 1 }}>
+                                    #{taskIdx + 1}. {task.taskName}
+                                  </Text>
+                                  {task.isRequired ? (
+                                    <View style={{ backgroundColor: '#ef444420', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                      <Text style={{ fontSize: 10, fontWeight: '700', color: colors.danger }}>REQUIRED</Text>
+                                    </View>
+                                  ) : (
+                                    <View style={{ backgroundColor: colors.border + '40', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                      <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary }}>OPTIONAL</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                {task.description ? (
+                                  <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>
+                                    {task.description}
+                                  </Text>
+                                ) : null}
+
+                                {/* YES / NO Segmented Controls */}
+                                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                                  <TouchableOpacity
+                                    style={{
+                                      flex: 1,
+                                      paddingVertical: 8,
+                                      borderRadius: 8,
+                                      borderWidth: 1.5,
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      borderColor: currentResp.answer === 'YES' ? colors.success : colors.border,
+                                      backgroundColor: currentResp.answer === 'YES' ? colors.success + '20' : colors.surface,
+                                    }}
+                                    onPress={() =>
+                                      setSubTaskResponses((prev) => ({
+                                        ...prev,
+                                        [task.id]: { answer: 'YES', remarks: prev[task.id]?.remarks || '' },
+                                      }))
+                                    }
+                                  >
+                                    <Text
+                                      style={{
+                                        fontSize: 13,
+                                        fontWeight: '700',
+                                        color: currentResp.answer === 'YES' ? colors.success : colors.textSecondary,
+                                      }}
+                                    >
+                                      ✓ YES
+                                    </Text>
+                                  </TouchableOpacity>
+
+                                  <TouchableOpacity
+                                    style={{
+                                      flex: 1,
+                                      paddingVertical: 8,
+                                      borderRadius: 8,
+                                      borderWidth: 1.5,
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      borderColor: currentResp.answer === 'NO' ? colors.danger : colors.border,
+                                      backgroundColor: currentResp.answer === 'NO' ? colors.danger + '20' : colors.surface,
+                                    }}
+                                    onPress={() =>
+                                      setSubTaskResponses((prev) => ({
+                                        ...prev,
+                                        [task.id]: { answer: 'NO', remarks: prev[task.id]?.remarks || '' },
+                                      }))
+                                    }
+                                  >
+                                    <Text
+                                      style={{
+                                        fontSize: 13,
+                                        fontWeight: '700',
+                                        color: currentResp.answer === 'NO' ? colors.danger : colors.textSecondary,
+                                      }}
+                                    >
+                                      ✗ NO
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
+
+                                {/* Remarks per subtask */}
+                                <TextInput
+                                  style={{
+                                    marginTop: 8,
+                                    fontSize: 12,
+                                    color: colors.text,
+                                    borderColor: colors.border,
+                                    borderWidth: 1,
+                                    borderRadius: 6,
+                                    paddingHorizontal: 10,
+                                    paddingVertical: 6,
+                                    backgroundColor: colors.background,
+                                  }}
+                                  placeholder="Optional task remarks (max 300 chars)..."
+                                  placeholderTextColor={colors.textSecondary}
+                                  value={currentResp.remarks}
+                                  maxLength={300}
+                                  onChangeText={(txt) =>
+                                    setSubTaskResponses((prev) => ({
+                                      ...prev,
+                                      [task.id]: { answer: prev[task.id]?.answer || null, remarks: txt },
+                                    }))
+                                  }
+                                />
+                              </View>
+                            );
+                          })}
+                        </View>
+                      );
+                    })()}
+
                     <Text
                       style={[
                         styles.panelLabel,
@@ -885,7 +1067,7 @@ export function PatrolScreen() {
 
                     <Button
                       title="Submit & Lock Checkpoint"
-                      onPress={() => handleCheckpointSubmit(rg.gateId)}
+                      onPress={() => handleCheckpointSubmit(rg.gateId, getSubTasksForGate(rg.gate))}
                       loading={isScanning}
                       style={{ marginTop: 16 }}
                     />

@@ -6,6 +6,11 @@ export class PatrolCheckpointRepository {
       data,
       include: {
         gate: true,
+        subTaskResponses: {
+          include: {
+            gateSubTask: true,
+          },
+        },
       },
     });
   }
@@ -18,6 +23,11 @@ export class PatrolCheckpointRepository {
       include: {
         gate: true,
         patrolSession: true,
+        subTaskResponses: {
+          include: {
+            gateSubTask: true,
+          },
+        },
       },
     });
   }
@@ -27,6 +37,13 @@ export class PatrolCheckpointRepository {
       where: {
         patrolSessionId,
         gateId,
+      },
+      include: {
+        subTaskResponses: {
+          include: {
+            gateSubTask: true,
+          },
+        },
       },
     });
   }
@@ -46,6 +63,11 @@ export class PatrolCheckpointRepository {
       },
       include: {
         gate: true,
+        subTaskResponses: {
+          include: {
+            gateSubTask: true,
+          },
+        },
       },
       orderBy: {
         scannedAt: 'asc',
@@ -69,6 +91,11 @@ export class PatrolCheckpointRepository {
       data,
       include: {
         gate: true,
+        subTaskResponses: {
+          include: {
+            gateSubTask: true,
+          },
+        },
       },
     });
   }

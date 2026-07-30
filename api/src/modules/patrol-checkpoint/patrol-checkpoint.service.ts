@@ -5,6 +5,7 @@ import { HttpStatus } from '../../common/errors/HttpStatus';
 import { patrolRouteGateRepository } from '../patrol-route-gate/patrol-route-gate.repository';
 import { patrolSessionRepository } from '../patrol-session/patrol-session.repository';
 
+import { prisma } from '../../database/prisma';
 import { patrolCheckpointRepository } from './patrol-checkpoint.repository';
 import { ScanCheckpointDto } from './patrol-checkpoint.types';
 
@@ -61,7 +62,32 @@ export class PatrolCheckpointService {
     }
 
     // -----------------------------------------
-    // Prevent duplicate scan
+    // Validate Sub Tasks
+    // -----------------------------------------
+
+    const activeSubTasks = await prisma.gateSubTask.findMany({
+      where: {
+        gateId: dto.gateId,
+        isActive: true,
+      },
+    });
+
+    const subTaskMap = new Map((dto.subTaskResponses || []).map((r) => [r.gateSubTaskId, r]));
+    const missingRequiredTasks = activeSubTasks.filter(
+      (st) => st.isRequired && !subTaskMap.has(st.id),
+    );
+
+    if (missingRequiredTasks.length > 0) {
+      const missingNames = missingRequiredTasks.map((st) => `"${st.taskName}"`).join(', ');
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        `All required sub-tasks must be answered. Missing: ${missingNames}`,
+      );
+    }
+
+    // -----------------------------------------
+    // Save Checkpoint & Sub Task Responses
     // -----------------------------------------
 
     const existing = await patrolCheckpointRepository.findBySessionAndGate(
@@ -69,27 +95,70 @@ export class PatrolCheckpointService {
       dto.gateId,
     );
 
-    let checkpoint;
-    if (existing) {
-      checkpoint = await patrolCheckpointRepository.update(existing.id, {
-        latitude: dto.latitude,
-        longitude: dto.longitude,
-        remarks: dto.remarks,
-        status: dto.status,
-        images: dto.images,
-        scannedAt: new Date(),
+    const checkpoint = await prisma.$transaction(async (tx) => {
+      let cp;
+      if (existing) {
+        cp = await tx.patrolCheckpoint.update({
+          where: { id: existing.id },
+          data: {
+            latitude: dto.latitude,
+            longitude: dto.longitude,
+            remarks: dto.remarks,
+            status: dto.status,
+            images: dto.images,
+            scannedAt: new Date(),
+          },
+        });
+      } else {
+        cp = await tx.patrolCheckpoint.create({
+          data: {
+            patrolSessionId: patrol.id,
+            gateId: dto.gateId,
+            latitude: dto.latitude,
+            longitude: dto.longitude,
+            remarks: dto.remarks,
+            status: dto.status,
+            images: dto.images,
+          },
+        });
+      }
+
+      if (dto.subTaskResponses && dto.subTaskResponses.length > 0) {
+        for (const resp of dto.subTaskResponses) {
+          await tx.patrolSubTaskResponse.upsert({
+            where: {
+              patrolCheckpointId_gateSubTaskId: {
+                patrolCheckpointId: cp.id,
+                gateSubTaskId: resp.gateSubTaskId,
+              },
+            },
+            create: {
+              patrolCheckpointId: cp.id,
+              gateSubTaskId: resp.gateSubTaskId,
+              answer: resp.answer,
+              remarks: resp.remarks?.trim() || null,
+            },
+            update: {
+              answer: resp.answer,
+              remarks: resp.remarks?.trim() || null,
+              answeredAt: new Date(),
+            },
+          });
+        }
+      }
+
+      return tx.patrolCheckpoint.findUnique({
+        where: { id: cp.id },
+        include: {
+          gate: true,
+          subTaskResponses: {
+            include: {
+              gateSubTask: true,
+            },
+          },
+        },
       });
-    } else {
-      checkpoint = await patrolCheckpointRepository.create({
-        patrolSessionId: patrol.id,
-        gateId: dto.gateId,
-        latitude: dto.latitude,
-        longitude: dto.longitude,
-        remarks: dto.remarks,
-        status: dto.status,
-        images: dto.images,
-      });
-    }
+    });
 
     // -----------------------------------------
     // Progress

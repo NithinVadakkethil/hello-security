@@ -5,8 +5,11 @@ import { authenticate } from '../../common/auth/auth.middleware';
 import { authorize } from '../../common/auth/authorize';
 
 import { gateController } from './gate.controller';
+import gateSubTaskRoutes from '../gate-sub-task/gate-sub-task.routes';
 
 const router: Router = Router();
+
+router.use('/:gateId/sub-tasks', gateSubTaskRoutes);
 
 router.post(
   '/',

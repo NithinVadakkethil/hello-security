@@ -12,6 +12,13 @@ export class GateRepository {
       where: {
         id,
       },
+      include: {
+        subTasks: {
+          orderBy: {
+            displayOrder: 'asc',
+          },
+        },
+      },
     });
   }
 
@@ -29,6 +36,16 @@ export class GateRepository {
       where: {
         gateCode,
         isActive: true,
+      },
+      include: {
+        subTasks: {
+          where: {
+            isActive: true,
+          },
+          orderBy: {
+            displayOrder: 'asc',
+          },
+        },
       },
     });
   }
@@ -79,6 +96,13 @@ export class GateRepository {
         ...(siteId && { siteId }),
         ...(isActive !== undefined && { isActive }),
         ...(clientId && !siteId && { site: { clientId } }),
+      },
+      include: {
+        subTasks: {
+          orderBy: {
+            displayOrder: 'asc',
+          },
+        },
       },
       orderBy: {
         sequence: 'asc',

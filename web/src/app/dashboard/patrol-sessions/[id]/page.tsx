@@ -20,6 +20,7 @@ import Modal from '../../../components/ui/Modal';
 import StatusChip from '../../../components/ui/StatusChip';
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
+import TaskVerificationChecklist from '../components/TaskVerificationChecklist';
 
 interface Gate {
   id: string;
@@ -265,6 +266,7 @@ export default function PatrolSessionDetailPage() {
         remarks: scan?.remarks,
         status: scan?.status,
         images: scan?.images || [],
+        subTaskResponses: (scan as any)?.subTaskResponses || [],
         scanCoords:
           scan?.latitude && scan?.longitude
             ? `${scan.latitude.toFixed(5)}, ${scan.longitude.toFixed(5)}`
@@ -731,6 +733,13 @@ export default function PatrolSessionDetailPage() {
                             📷 No photos attached
                           </span>
                         ) : null}
+
+                        {/* NEW SECTION: Task Verification Checklist */}
+                        <TaskVerificationChecklist
+                          scanned={item.scanned}
+                          configuredSubTasks={(item.gate as any)?.subTasks || []}
+                          subTaskResponses={item.subTaskResponses || []}
+                        />
                       </div>
 
                       <div style={{ textAlign: 'right', minWidth: '80px' }}>

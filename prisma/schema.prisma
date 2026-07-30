@@ -232,6 +232,8 @@ model Gate {
 
   incidents Incident[]
 
+  subTasks GateSubTask[]
+
   gateCode String
 
   name String
@@ -409,6 +411,8 @@ model PatrolCheckpoint {
   status  String?
   images  String[] @default([])
 
+  subTaskResponses PatrolSubTaskResponse[]
+
   scannedAt DateTime @default(now())
 
   createdAt DateTime @default(now())
@@ -541,4 +545,38 @@ model Incident {
 
   @@index([clientId])
   @@index([employeeId])
+}
+
+model GateSubTask {
+  id           String                  @id @default(cuid())
+  gateId       String
+  gate         Gate                    @relation(fields: [gateId], references: [id], onDelete: Cascade)
+  taskName     String
+  description  String?
+  displayOrder Int                     @default(0)
+  isRequired   Boolean                 @default(true)
+  isActive     Boolean                 @default(true)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  responses    PatrolSubTaskResponse[]
+
+  @@unique([gateId, taskName])
+  @@index([gateId])
+}
+
+model PatrolSubTaskResponse {
+  id                 String           @id @default(cuid())
+  patrolCheckpointId String
+  patrolCheckpoint   PatrolCheckpoint @relation(fields: [patrolCheckpointId], references: [id], onDelete: Cascade)
+  gateSubTaskId      String
+  gateSubTask        GateSubTask      @relation(fields: [gateSubTaskId], references: [id], onDelete: Cascade)
+  answer             String           // "YES" | "NO"
+  remarks            String?
+  answeredAt         DateTime         @default(now())
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([patrolCheckpointId, gateSubTaskId])
+  @@index([patrolCheckpointId])
+  @@index([gateSubTaskId])
 }
