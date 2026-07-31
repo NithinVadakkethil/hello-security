@@ -144,7 +144,14 @@ export class PatrolSessionRepository {
               include: {
                 routeGates: {
                   include: {
-                    gate: true,
+                    gate: {
+                      include: {
+                        subTasks: {
+                          where: { isActive: true },
+                          orderBy: { displayOrder: 'asc' },
+                        },
+                      },
+                    },
                   },
                   orderBy: {
                     sequence: 'asc',
@@ -154,7 +161,14 @@ export class PatrolSessionRepository {
             },
             assignmentGates: {
               include: {
-                gate: true,
+                gate: {
+                  include: {
+                    subTasks: {
+                      where: { isActive: true },
+                      orderBy: { displayOrder: 'asc' },
+                    },
+                  },
+                },
               },
               orderBy: {
                 sequence: 'asc',
@@ -180,7 +194,19 @@ export class PatrolSessionRepository {
         },
         checkpoints: {
           include: {
-            gate: true,
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
+            subTaskResponses: {
+              include: {
+                gateSubTask: true,
+              },
+            },
           },
           orderBy: {
             scannedAt: 'asc',

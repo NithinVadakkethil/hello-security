@@ -1,19 +1,33 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, Alert, Modal, ActivityIndicator, Animated } from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { AlertCircle } from 'lucide-react-native';
+import React from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import {
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { z } from 'zod';
 import { useTheme } from '../../../app/hooks/useTheme';
-import { useCreateIncident } from '../hooks/useIncident';
 import { useOfflineStore } from '../../../app/store/offline-store';
-import { Card } from '../../dashboard/components/WidgetCard';
 import { Button } from '../../../components/Button';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { usePatrolStore } from '../../patrol/store/patrol-store';
 import { useActiveAssignment } from '../../assignment/hooks/useAssignment';
-import { AlertCircle } from 'lucide-react-native';
+import { Card } from '../../dashboard/components/WidgetCard';
+import { usePatrolStore } from '../../patrol/store/patrol-store';
+import { useCreateIncident } from '../hooks/useIncident';
 
-const INCIDENT_TYPES = ['FIRE', 'THEFT', 'HAZARD', 'INTRUSION', 'OTHER'] as const;
+const INCIDENT_TYPES = [
+  'FIRE',
+  'THEFT',
+  'HAZARD',
+  'INTRUSION',
+  'OTHER',
+] as const;
 const SEVERITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 
 const incidentFormSchema = z.object({
@@ -23,7 +37,9 @@ const incidentFormSchema = z.object({
   severity: z.enum(SEVERITIES, {
     error: 'Please select severity level',
   }),
-  description: z.string().min(10, 'Description must be at least 10 characters long'),
+  description: z
+    .string()
+    .min(10, 'Description must be at least 10 characters long'),
 });
 
 type IncidentFormData = z.infer<typeof incidentFormSchema>;
@@ -34,7 +50,7 @@ export function ReportIncidentScreen() {
   const route = useRoute<any>();
   const routeParams = route.params || {};
 
-  const isOnline = useOfflineStore((state) => state.isConnected);
+  const isOnline = useOfflineStore(state => state.isConnected);
   const { mutateAsync: reportIncident, isPending } = useCreateIncident();
   const { activeSession, unlockedGateId } = usePatrolStore();
   const { data: assignment } = useActiveAssignment();
@@ -46,7 +62,11 @@ export function ReportIncidentScreen() {
   const routeGates = assignment?.patrolRoute?.routeGates || [];
   const targetGate = routeGates.find((rg: any) => rg.gateId === gateId)?.gate;
 
-  const { control, handleSubmit, formState: { errors } } = useForm<IncidentFormData>({
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<IncidentFormData>({
     resolver: zodResolver(incidentFormSchema),
     defaultValues: {
       description: '',
@@ -64,12 +84,12 @@ export function ReportIncidentScreen() {
         longitude: assignment?.site?.longitude || undefined,
       });
 
-      const message = isOnline 
+      const message = isOnline
         ? 'Your incident report has been submitted to the operations desk.'
         : 'Offline mode: incident report saved locally and queued for background sync.';
 
       Alert.alert('Report Saved', message, [
-        { text: 'OK', onPress: () => navigation.goBack() }
+        { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (err: any) {
       Alert.alert('Submission failed', err.message || 'Please try again.');
@@ -78,40 +98,102 @@ export function ReportIncidentScreen() {
 
   if (!gateId || !patrolSessionId) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', padding: 24 }]}>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+            justifyContent: 'center',
+            padding: 24,
+          },
+        ]}
+      >
         <View style={{ alignItems: 'center', marginBottom: 20 }}>
           <AlertCircle size={48} color={colors.danger} />
         </View>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text, textAlign: 'center', marginBottom: 12 }}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: '800',
+            color: colors.text,
+            textAlign: 'center',
+            marginBottom: 12,
+          }}
+        >
           Incident Reporting Locked
         </Text>
-        <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
-          Under Hello Orbit protocol, you cannot report incidents manually. You must first scan a checkpoint QR code during a patrol route sweep to unlock reporting.
+        <Text
+          style={{
+            fontSize: 13,
+            color: colors.textSecondary,
+            textAlign: 'center',
+            lineHeight: 18,
+            marginBottom: 24,
+          }}
+        >
+          Under Hello Orbit protocol, you cannot report incidents manually. You
+          must first scan a checkpoint QR code during a patrol route sweep to
+          unlock reporting.
         </Text>
-        <Button title="Go to Patrol Screen" onPress={() => navigation.navigate('Patrol')} />
+        <Button
+          title="Go to Patrol Screen"
+          onPress={() => navigation.navigate('Patrol')}
+        />
       </View>
     );
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
-      
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.scrollContent}
+    >
       {!isOnline && (
-        <View style={[styles.offlineBanner, { backgroundColor: colors.danger }]}>
-          <Text style={styles.offlineText}>OFFLINE MODE — Report will be queued</Text>
+        <View
+          style={[styles.offlineBanner, { backgroundColor: colors.danger }]}
+        >
+          <Text style={styles.offlineText}>
+            OFFLINE MODE — Report will be queued
+          </Text>
         </View>
       )}
 
-      <Text style={[styles.title, { color: colors.text }]}>Report Incident</Text>
+      <Text style={[styles.title, { color: colors.text }]}>
+        Report Incident
+      </Text>
 
-      <Card style={{ padding: 14, marginBottom: 20, borderColor: colors.primary, borderWidth: 1 }}>
-        <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <Card
+        style={{
+          padding: 14,
+          marginBottom: 20,
+          borderColor: colors.primary,
+          borderWidth: 1,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 10,
+            color: colors.textSecondary,
+            fontWeight: '700',
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}
+        >
           Reporting Incident For Checkpoint:
         </Text>
-        <Text style={{ fontSize: 16, color: colors.text, fontWeight: '800', marginTop: 4 }}>
+        <Text
+          style={{
+            fontSize: 16,
+            color: colors.text,
+            fontWeight: '800',
+            marginTop: 4,
+          }}
+        >
           {targetGate?.name || 'Active Unlocked Gate'}
         </Text>
-        <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
+        <Text
+          style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}
+        >
           Gate ID Code: {targetGate?.gateCode || gateId}
         </Text>
       </Card>
@@ -122,19 +204,25 @@ export function ReportIncidentScreen() {
         control={control}
         render={({ field: { value, onChange } }) => (
           <View style={styles.optionRow}>
-            {INCIDENT_TYPES.map((t) => (
+            {INCIDENT_TYPES.map(t => (
               <TouchableOpacity
                 key={t}
                 style={[
                   styles.optionButton,
                   {
                     borderColor: value === t ? colors.primary : colors.border,
-                    backgroundColor: value === t ? colors.primary + '15' : colors.surface,
+                    backgroundColor:
+                      value === t ? colors.primary + '15' : colors.surface,
                   },
                 ]}
                 onPress={() => onChange(t)}
               >
-                <Text style={[styles.optionText, { color: value === t ? colors.primary : colors.text }]}>
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: value === t ? colors.primary : colors.text },
+                  ]}
+                >
                   {t}
                 </Text>
               </TouchableOpacity>
@@ -142,7 +230,11 @@ export function ReportIncidentScreen() {
           </View>
         )}
       />
-      {errors.type && <Text style={[styles.errorText, { color: colors.danger }]}>{errors.type.message}</Text>}
+      {errors.type && (
+        <Text style={[styles.errorText, { color: colors.danger }]}>
+          {errors.type.message}
+        </Text>
+      )}
 
       <Text style={[styles.label, { color: colors.text }]}>Severity Level</Text>
       <Controller
@@ -150,19 +242,25 @@ export function ReportIncidentScreen() {
         control={control}
         render={({ field: { value, onChange } }) => (
           <View style={styles.optionRow}>
-            {SEVERITIES.map((s) => (
+            {SEVERITIES.map(s => (
               <TouchableOpacity
                 key={s}
                 style={[
                   styles.optionButton,
                   {
                     borderColor: value === s ? colors.primary : colors.border,
-                    backgroundColor: value === s ? colors.primary + '15' : colors.surface,
+                    backgroundColor:
+                      value === s ? colors.primary + '15' : colors.surface,
                   },
                 ]}
                 onPress={() => onChange(s)}
               >
-                <Text style={[styles.optionText, { color: value === s ? colors.primary : colors.text }]}>
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: value === s ? colors.primary : colors.text },
+                  ]}
+                >
                   {s}
                 </Text>
               </TouchableOpacity>
@@ -170,15 +268,28 @@ export function ReportIncidentScreen() {
           </View>
         )}
       />
-      {errors.severity && <Text style={[styles.errorText, { color: colors.danger }]}>{errors.severity.message}</Text>}
+      {errors.severity && (
+        <Text style={[styles.errorText, { color: colors.danger }]}>
+          {errors.severity.message}
+        </Text>
+      )}
 
-      <Text style={[styles.label, { color: colors.text }]}>Incident Description</Text>
+      <Text style={[styles.label, { color: colors.text }]}>
+        Incident Description
+      </Text>
       <Controller
         name="description"
         control={control}
         render={({ field: { value, onChange, onBlur } }) => (
           <TextInput
-            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+            style={[
+              styles.input,
+              {
+                color: colors.text,
+                borderColor: colors.border,
+                backgroundColor: colors.surface,
+              },
+            ]}
             placeholder="Provide a detailed description of the incident..."
             placeholderTextColor={colors.textSecondary}
             value={value}
@@ -189,7 +300,11 @@ export function ReportIncidentScreen() {
           />
         )}
       />
-      {errors.description && <Text style={[styles.errorText, { color: colors.danger }]}>{errors.description.message}</Text>}
+      {errors.description && (
+        <Text style={[styles.errorText, { color: colors.danger }]}>
+          {errors.description.message}
+        </Text>
+      )}
 
       <Button
         title="Submit Incident Report"
@@ -197,7 +312,6 @@ export function ReportIncidentScreen() {
         loading={isPending}
         style={styles.submitButton}
       />
-
     </ScrollView>
   );
 }

@@ -118,6 +118,13 @@ export class GateRepository {
       },
     });
   }
+  delete(id: string) {
+    return prisma.gate.delete({
+      where: {
+        id,
+      },
+    });
+  }
 }
 
 export const gateRepository = new GateRepository();

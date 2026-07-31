@@ -181,6 +181,27 @@ export class GateService {
       message: 'Gate deactivated successfully.',
     };
   }
+
+  async delete(id: string) {
+    await this.get(id);
+
+    const activeSubTasksCount = await prisma.gateSubTask.count({
+      where: {
+        gateId: id,
+        isActive: true,
+      },
+    });
+
+    if (activeSubTasksCount > 0) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        `Cannot delete gate while ${activeSubTasksCount} active sub-task(s) exist. Please delete or deactivate the sub-tasks first.`,
+      );
+    }
+
+    return gateRepository.delete(id);
+  }
 }
 
 export const gateService = new GateService();
