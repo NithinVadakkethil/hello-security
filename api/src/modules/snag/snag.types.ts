@@ -1,0 +1,44 @@
+export interface CreateSnagDto {
+  siteId: string;
+  gateId?: string;
+  patrolSessionId?: string;
+  categoryId?: string;
+  subCategoryId?: string;
+  category: string;
+  subCategory?: string;
+  description: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  images?: string[];
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface UpdateSnagStatusDto {
+  status: 'OPEN' | 'IN_PROGRESS' | 'WAITING' | 'RESOLVED' | 'CLOSED' | 'REJECTED';
+  notes?: string;
+}
+
+export interface AddSnagCommentDto {
+  comment: string;
+}
+
+export interface AssignSnagDto {
+  assignedToId: string;
+  dueDate?: string;
+}
+
+export interface SnagFilterDto {
+  siteId?: string;
+  gateId?: string;
+  patrolSessionId?: string;
+  employeeId?: string;
+  status?: string;
+  priority?: string;
+  category?: string;
+  subCategory?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}

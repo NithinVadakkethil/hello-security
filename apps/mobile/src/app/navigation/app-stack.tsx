@@ -13,6 +13,7 @@ import { MapPreviewScreen } from '../../modules/assignment/screens/MapPreviewScr
 import { PatrolScreen } from '../../modules/patrol/screens/PatrolScreen';
 import { ScannerScreen } from '../../modules/scanner/screens/ScannerScreen';
 import { ReportIncidentScreen } from '../../modules/incident/screens/ReportIncidentScreen';
+import { ReportSnagScreen } from '../../modules/snag/screens/ReportSnagScreen';
 import { ProfileScreen } from '../../modules/profile/screens/ProfileScreen';
 import { PatrolDetailsScreen } from '../../modules/dashboard/screens/PatrolDetailsScreen';
 import { Home, ShieldAlert, Camera, Clipboard, User } from 'lucide-react-native';
@@ -120,6 +121,8 @@ export function AppStack() {
       <Stack.Screen name="Shifts" component={TodayAssignmentScreen} options={{ headerShown: true, title: 'My Assignment' }} />
       <Stack.Screen name="Patrol" component={PatrolScreen} options={{ headerShown: true, title: 'Checkpoint Patrol' }} />
       <Stack.Screen name="Reports" component={ReportIncidentScreen} options={{ headerShown: true, title: 'Incidents & Reports' }} />
+      <Stack.Screen name="ReportIncident" component={ReportIncidentScreen} options={{ headerShown: true, title: 'Report Security Incident' }} />
+      <Stack.Screen name="ReportSnag" component={ReportSnagScreen} options={{ headerShown: true, title: 'Report Maintenance Snag' }} />
       <Stack.Screen name="AssignmentDetails" component={AssignmentDetailsScreen} options={{ headerShown: true, title: 'Assignment Details' }} />
       <Stack.Screen name="ShiftDetails" component={ShiftDetailsScreen} options={{ headerShown: true, title: 'Shift Details' }} />
       <Stack.Screen name="PatrolRoute" component={PatrolRouteScreen} options={{ headerShown: true, title: 'Patrol Route' }} />

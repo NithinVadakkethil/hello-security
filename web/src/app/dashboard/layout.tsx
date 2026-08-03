@@ -14,6 +14,8 @@ import {
   Sun,
   User,
   Users,
+  Wrench,
+  Tag,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -91,6 +93,16 @@ export default function DashboardLayout({
           href: '/dashboard/incidents',
           label: 'Observation Reports',
           icon: AlertTriangle,
+        },
+        {
+          href: '/dashboard/maintenance/snags',
+          label: 'Maintenance Snags',
+          icon: Wrench,
+        },
+        {
+          href: '/dashboard/maintenance/categories',
+          label: 'Snag Categories',
+          icon: Tag,
         },
         {
           href: '/dashboard/reports',

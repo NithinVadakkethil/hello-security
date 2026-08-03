@@ -28,6 +28,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
 
   const scans = report.checkpoints || [];
   const incidents = report.incidents || [];
+  const snags = report.snags || [];
 
   const checkpointsTimeline = routeGates
     .sort((a: any, b: any) => a.sequence - b.sequence)
@@ -348,6 +349,32 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
                   </div>
                   <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                     {inc.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Reported Snags / Defects Summary */}
+        {snags.length > 0 && (
+          <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem', fontWeight: 700, color: '#f59e0b' }}>
+              🔧 Reported Snags & Maintenance Defects ({snags.length})
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {snags.map((snag: any) => (
+                <div key={snag.id} style={{ padding: '12px', borderRadius: '6px', backgroundColor: 'var(--surface-color)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#f59e0b' }}>
+                      {snag.category} {snag.subCategory ? `• ${snag.subCategory}` : ''} ({snag.priority} PRIORITY)
+                    </div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>
+                      {snag.status}
+                    </span>
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    {snag.description}
                   </p>
                 </div>
               ))}

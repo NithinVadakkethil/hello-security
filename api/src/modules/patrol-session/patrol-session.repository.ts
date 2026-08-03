@@ -223,9 +223,19 @@ export class PatrolSessionRepository {
       },
     });
 
+    const snags = await prisma.snag.findMany({
+      where: {
+        patrolSessionId: id,
+      },
+      include: {
+        gate: { select: { id: true, name: true, gateCode: true } },
+      },
+    });
+
     return {
       ...session,
       incidents,
+      snags,
     };
   }
 

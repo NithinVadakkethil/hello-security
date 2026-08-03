@@ -26,6 +26,9 @@ const INCIDENT_TYPES = [
   'THEFT',
   'HAZARD',
   'INTRUSION',
+  'MEDICAL',
+  'VIOLENCE',
+  'EQUIPMENT_FAILURE',
   'OTHER',
 ] as const;
 const SEVERITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;

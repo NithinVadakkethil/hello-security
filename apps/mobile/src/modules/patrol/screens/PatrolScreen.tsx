@@ -36,6 +36,7 @@ import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
 import { Card } from '../../dashboard/components/WidgetCard';
 import { usePatrol } from '../hooks/usePatrol';
 import { usePatrolStore } from '../store/patrol-store';
+import { ReportIssueBottomSheet } from '../components/ReportIssueBottomSheet';
 
 export function PatrolScreen() {
   const { colors } = useTheme();
@@ -100,6 +101,7 @@ export function PatrolScreen() {
   const [subTaskResponses, setSubTaskResponses] = useState<Record<string, { answer: 'YES' | 'NO' | null; remarks: string }>>({});
   const [images, setImages] = useState<string[]>([]);
   const [showCameraModal, setShowCameraModal] = useState(false);
+  const [showReportIssueSheet, setShowReportIssueSheet] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const flashAnim = useRef(new Animated.Value(0)).current;
 
@@ -959,28 +961,23 @@ export function PatrolScreen() {
                         { color: colors.text, marginTop: 12 },
                       ]}
                     >
-                      2. Report Incident (Optional)
+                      3. Report an Issue (Optional)
                     </Text>
                     <TouchableOpacity
                       style={[
                         styles.actionBtn,
                         {
-                          borderColor: colors.danger,
-                          backgroundColor: colors.danger + '05',
+                          borderColor: colors.warning,
+                          backgroundColor: colors.warning + '10',
                         },
                       ]}
-                      onPress={() =>
-                        navigation.navigate('Reports', {
-                          gateId: rg.gateId,
-                          patrolSessionId: activeSession.id,
-                        })
-                      }
+                      onPress={() => setShowReportIssueSheet(true)}
                     >
-                      <ShieldAlert size={16} color={colors.danger} />
+                      <ShieldAlert size={16} color={colors.warning} />
                       <Text
-                        style={[styles.actionBtnText, { color: colors.danger }]}
+                        style={[styles.actionBtnText, { color: colors.warning }]}
                       >
-                        Trigger Incident Form
+                        Report an Issue (Incident / Snag)
                       </Text>
                     </TouchableOpacity>
 
@@ -1195,6 +1192,24 @@ export function PatrolScreen() {
           </View>
         </View>
       )}
+
+      {/* Report Issue Bottom Sheet */}
+      <ReportIssueBottomSheet
+        visible={showReportIssueSheet}
+        onClose={() => setShowReportIssueSheet(false)}
+        onSelectIncident={() =>
+          navigation.navigate('ReportIncident', {
+            gateId: unlockedGateId,
+            patrolSessionId: activeSession?.id,
+          })
+        }
+        onSelectSnag={() =>
+          navigation.navigate('ReportSnag', {
+            gateId: unlockedGateId,
+            patrolSessionId: activeSession?.id,
+          })
+        }
+      />
     </ScrollView>
   );
 }

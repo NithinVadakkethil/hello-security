@@ -63,6 +63,21 @@ export const useOfflineStore = create<OfflineState>((set, get) => ({
     set((state) => ({ queue: [...state.queue, mutation] }));
   },
 
+  enqueueMutation: async (item: { url: string; method: OfflineMutation['method']; payload: any; mutationType?: string }) => {
+    const id = Math.random().toString(36).substring(7);
+    const mutation: OfflineMutation = {
+      id,
+      url: item.url,
+      method: item.method,
+      data: item.payload,
+      createdAt: Date.now(),
+      status: 'pending',
+      retryCount: 0,
+    };
+    await sqliteDb.insert('offline_mutations', id, mutation);
+    set((state) => ({ queue: [...state.queue, mutation] }));
+  },
+
   dequeue: async (id) => {
     await sqliteDb.delete('offline_mutations', id);
     set((state) => ({ queue: state.queue.filter((m) => m.id !== id) }));

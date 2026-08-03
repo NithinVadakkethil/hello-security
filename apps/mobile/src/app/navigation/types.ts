@@ -14,6 +14,7 @@ export type AppTabParamList = {
   MapPreview: { site: any; route: any };
   Scanner: undefined;
   ReportIncident: undefined;
+  ReportSnag: { gateId?: string; patrolSessionId?: string } | undefined;
   PatrolDetails: { patrolId: string };
 };
 

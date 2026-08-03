@@ -104,6 +104,10 @@ model Client {
   auditLogs AuditLog[]
 
   incidents Incident[]
+
+  snags Snag[]
+
+  snagCategories SnagCategory[]
 }
 
 model User {
@@ -130,6 +134,11 @@ model User {
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
   verifiedPatrols PatrolSession[] @relation("VerifiedPatrols")
+
+  snagComments       SnagComment[]
+  snagHistoryEntries SnagHistory[]
+  snagAssignmentsTo  SnagAssignment[] @relation("SnagAssignedTo")
+  snagAssignmentsBy  SnagAssignment[] @relation("SnagAssignedBy")
 }
 
 model Employee {
@@ -173,6 +182,8 @@ model Employee {
 
   incidents Incident[]
 
+  snags Snag[]
+
   @@unique([clientId, employeeNumber])
 }
 
@@ -192,6 +203,8 @@ model Site {
   patrolRoutes PatrolRoute[]
 
   assignments GuardAssignment[]
+
+  snags Snag[]
 
   address String?
 
@@ -231,6 +244,8 @@ model Gate {
   assignmentGates GuardAssignmentGate[]
 
   incidents Incident[]
+
+  snags Snag[]
 
   subTasks GateSubTask[]
 
@@ -434,6 +449,8 @@ model PatrolSession {
 
   incidents Incident[]
 
+  snags Snag[]
+
   patrolCode String
 
   status PatrolStatus @default(IN_PROGRESS)
@@ -580,3 +597,117 @@ model PatrolSubTaskResponse {
   @@index([patrolCheckpointId])
   @@index([gateSubTaskId])
 }
+
+model SnagCategory {
+  id           String            @id @default(cuid())
+  clientId     String
+  client       Client            @relation(fields: [clientId], references: [id])
+  name         String
+  description  String?
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  subCategories SnagSubCategory[]
+  snags        Snag[]
+
+  @@unique([clientId, name])
+  @@index([clientId])
+}
+
+model SnagSubCategory {
+  id         String       @id @default(cuid())
+  categoryId String
+  category   SnagCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name       String
+  description String?
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  snags      Snag[]
+
+  @@unique([categoryId, name])
+  @@index([categoryId])
+}
+
+model Snag {
+  id              String           @id @default(cuid())
+  clientId        String
+  client          Client           @relation(fields: [clientId], references: [id])
+  siteId          String
+  site            Site             @relation(fields: [siteId], references: [id])
+  gateId          String?
+  gate            Gate?            @relation(fields: [gateId], references: [id])
+  patrolSessionId String?
+  patrolSession   PatrolSession?   @relation(fields: [patrolSessionId], references: [id])
+  employeeId      String
+  employee        Employee         @relation(fields: [employeeId], references: [id])
+  categoryId      String?
+  categoryRel     SnagCategory?    @relation(fields: [categoryId], references: [id])
+  subCategoryId   String?
+  subCategoryRel  SnagSubCategory? @relation(fields: [subCategoryId], references: [id])
+  category        String           // Category Name text (for predefined master UI compatibility)
+  subCategory     String?          // Sub-category Name text
+  description     String
+  priority        String           // "LOW" | "MEDIUM" | "HIGH"
+  status          String           @default("OPEN") // "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
+  images          String[]         @default([])
+  latitude        Float?
+  longitude       Float?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  comments        SnagComment[]
+  history         SnagHistory[]
+  assignments     SnagAssignment[]
+
+  @@index([clientId])
+  @@index([siteId])
+  @@index([employeeId])
+  @@index([patrolSessionId])
+}
+
+model SnagComment {
+  id        String   @id @default(cuid())
+  snagId    String
+  snag      Snag     @relation(fields: [snagId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  comment   String
+  createdAt DateTime @default(now())
+
+  @@index([snagId])
+  @@index([userId])
+}
+
+model SnagHistory {
+  id            String   @id @default(cuid())
+  snagId        String
+  snag          Snag     @relation(fields: [snagId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  action        String
+  previousState String?
+  newState      String?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  @@index([snagId])
+  @@index([userId])
+}
+
+model SnagAssignment {
+  id           String    @id @default(cuid())
+  snagId       String
+  snag         Snag      @relation(fields: [snagId], references: [id], onDelete: Cascade)
+  assignedToId String
+  assignedTo   User      @relation("SnagAssignedTo", fields: [assignedToId], references: [id])
+  assignedById String
+  assignedBy   User      @relation("SnagAssignedBy", fields: [assignedById], references: [id])
+  dueDate      DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([snagId])
+  @@index([assignedToId])
+  @@index([assignedById])
+}
+

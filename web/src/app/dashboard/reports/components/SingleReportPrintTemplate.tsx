@@ -20,6 +20,7 @@ export default function SingleReportPrintTemplate({ report }: SingleReportPrintT
 
   const scans = report.checkpoints || [];
   const incidents = report.incidents || [];
+  const snags = report.snags || [];
 
   const checkpointsTimeline = routeGates
     .sort((a: any, b: any) => a.sequence - b.sequence)
@@ -192,10 +193,22 @@ export default function SingleReportPrintTemplate({ report }: SingleReportPrintT
       {/* Incidents Section */}
       {incidents.length > 0 && (
         <div style={{ marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '11pt', color: '#d97706', marginBottom: '6px' }}>Reported Incidents ({incidents.length})</h3>
+          <h3 style={{ fontSize: '11pt', color: '#dc2626', marginBottom: '6px' }}>Reported Incidents ({incidents.length})</h3>
           {incidents.map((inc: any, idx: number) => (
-            <div key={idx} style={{ padding: '8px', border: '1px solid #fcd34d', backgroundColor: '#fffbeb', borderRadius: '4px', marginBottom: '6px', fontSize: '8.5pt' }}>
+            <div key={idx} style={{ padding: '8px', border: '1px solid #fca5a5', backgroundColor: '#fef2f2', borderRadius: '4px', marginBottom: '6px', fontSize: '8.5pt' }}>
               <strong>{inc.type} ({inc.severity})</strong>: {inc.description}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Snags Section */}
+      {snags.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '11pt', color: '#d97706', marginBottom: '6px' }}>Reported Maintenance Snags & Defects ({snags.length})</h3>
+          {snags.map((snag: any, idx: number) => (
+            <div key={idx} style={{ padding: '8px', border: '1px solid #fde68a', backgroundColor: '#fffbe6', borderRadius: '4px', marginBottom: '6px', fontSize: '8.5pt' }}>
+              <strong>{snag.category} {snag.subCategory ? `• ${snag.subCategory}` : ''} ({snag.priority} PRIORITY - {snag.status})</strong>: {snag.description}
             </div>
           ))}
         </div>
