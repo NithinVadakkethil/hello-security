@@ -3,6 +3,8 @@ import { NextFunction, Request, Response } from 'express';
 import { currentUser } from '../../common/auth/current-user';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 
+import { resolveEmployeeId } from '../../common/auth/resolve-employee';
+
 import { completePatrolSchema } from './patrol-session.schema';
 import { patrolSessionService } from './patrol-session.service';
 
@@ -10,11 +12,12 @@ export class PatrolSessionController {
   async start(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
       const assignmentId = req.body?.assignmentId || (req.query?.assignmentId as string | undefined);
 
       const result = await patrolSessionService.start(
         user.tenantId!,
-        user.employeeId!,
+        employeeId,
         assignmentId,
       );
 
@@ -30,8 +33,9 @@ export class PatrolSessionController {
   async current(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
 
-      const result = await patrolSessionService.current(user.employeeId!);
+      const result = await patrolSessionService.current(employeeId);
 
       return res.json({
         success: true,

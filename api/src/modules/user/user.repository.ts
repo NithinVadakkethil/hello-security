@@ -24,9 +24,10 @@ export class UserRepository {
       where,
       skip,
       take,
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [
+        { isActive: 'desc' },
+        { createdAt: 'desc' },
+      ],
       select: {
         id: true,
         email: true,

@@ -6,6 +6,7 @@ import Modal from '../../../components/ui/Modal';
 import StatusChip from '../../../components/ui/StatusChip';
 import { resolveImageUrl } from '../../../../lib/image';
 import SingleReportPrintTemplate from './SingleReportPrintTemplate';
+import TaskVerificationChecklist from '../../patrol-sessions/components/TaskVerificationChecklist';
 
 interface DetailedReportModalProps {
   isOpen: boolean;
@@ -251,52 +252,16 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
                     </div>
                   )}
 
-                  {item.scanned && item.subTaskResponses && item.subTaskResponses.length > 0 && (
-                    <div
-                      style={{
-                        marginTop: '8px',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        backgroundColor: 'var(--bg-secondary)',
-                        border: '1px solid var(--border-color)',
-                      }}
-                    >
-                      <div style={{ fontSize: '0.78rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-primary)' }}>
-                        Checkpoint Sub-Task Verification:
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {item.subTaskResponses.map((res: any) => (
-                          <div
-                            key={res.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              fontSize: '0.8rem',
-                            }}
-                          >
-                            <span style={{ color: 'var(--text-secondary)' }}>• {res.gateSubTask?.taskName || 'Verification Task'}</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span
-                                style={{
-                                  fontWeight: 700,
-                                  fontSize: '0.72rem',
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  backgroundColor: res.answer === 'YES' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                  color: res.answer === 'YES' ? '#10b981' : '#ef4444',
-                                }}
-                              >
-                                {res.answer}
-                              </span>
-                              {res.remarks && (
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({res.remarks})</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                  {item.scanned && (
+                    <TaskVerificationChecklist
+                      scanned={item.scanned}
+                      configuredSubTasks={item.gate?.subTasks || []}
+                      subTaskResponses={item.subTaskResponses || []}
+                      checkpointImages={item.images || []}
+                      employeeRole={report.employeeRole || 'SECURITY'}
+                      employeeName={report.employeeName}
+                      scannedAt={item.scannedAt}
+                    />
                   )}
 
                   {item.scanned && item.images && item.images.length > 0 ? (

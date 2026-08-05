@@ -3,6 +3,8 @@ import { NextFunction, Request, Response } from 'express';
 import { currentUser } from '../../common/auth/current-user';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 
+import { resolveEmployeeId } from '../../common/auth/resolve-employee';
+
 import {
   createAssignmentSchema,
   updateAssignmentSchema,
@@ -109,7 +111,8 @@ export class AssignmentController {
   async getActive(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const result = await assignmentService.getActive(user.employeeId!);
+      const employeeId = await resolveEmployeeId(user);
+      const result = await assignmentService.getActive(employeeId);
 
       return res.json({
         success: true,
@@ -123,7 +126,8 @@ export class AssignmentController {
   async getActiveList(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const result = await assignmentService.getActiveList(user.employeeId!);
+      const employeeId = await resolveEmployeeId(user);
+      const result = await assignmentService.getActiveList(employeeId);
 
       return res.json({
         success: true,
@@ -137,7 +141,8 @@ export class AssignmentController {
   async getMyAssignments(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const result = await assignmentService.getEmployeeAllAssignments(user.employeeId!);
+      const employeeId = await resolveEmployeeId(user);
+      const result = await assignmentService.getEmployeeAllAssignments(employeeId);
 
       return res.json({
         success: true,

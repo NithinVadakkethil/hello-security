@@ -21,14 +21,15 @@ import { useTheme } from '../../../app/hooks/useTheme';
 import { Button } from '../../../components/Button';
 import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
 import { Card } from '../../dashboard/components/WidgetCard';
+import { patrolApi } from '../../patrol/api/patrol.api';
 import { usePatrolStore } from '../../patrol/store/patrol-store';
 
 export function ScannerScreen() {
   const { colors } = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { data: assignmentsList } = useActiveAssignments();
   const activeAssignments = assignmentsList || [];
-  const { scannedGateIds } = usePatrolStore();
+  const { scannedGateIds, activeSession } = usePatrolStore();
 
   const { hasPermission, requestPermission } = useCameraPermission();
   const [manualCode, setManualCode] = useState('');
@@ -94,7 +95,9 @@ export function ScannerScreen() {
     }
 
     let matchedGate: any = null;
+    let matchedAssignment: any = null;
 
+    // Search across employee active assignments (supports Security, Cleaner, Technician, Service Engineer, Plumber, Lifeguard)
     for (const ass of activeAssignments) {
       const routeGates =
         ass.assignmentGates && ass.assignmentGates.length > 0
@@ -110,46 +113,81 @@ export function ScannerScreen() {
         (rg: any) =>
           cleanCode === rg.gate?.gateCode ||
           cleanCode === rg.gateId ||
-          cleanCode === rg.gate?.qrCode,
+          cleanCode === rg.gate?.qrCode ||
+          cleanCode === rg.gate?.nfcTag,
       );
 
       if (found) {
         matchedGate = found;
+        matchedAssignment = ass;
         break;
       }
     }
 
+    // Workflow Rule 1: If checkpoint is NOT assigned to logged-in employee, DO NOT unlock and REMAIN on scanner screen
     if (!matchedGate) {
-      setErrorMessage(
-        `Invalid QR Code ("${cleanCode}"). Scanned code is not registered on any active assigned site.`,
-      );
-      setIsProcessingCode(false);
+      const errorMsg = 'You are not assigned to this checkpoint.';
+      setErrorMessage(errorMsg);
+      Alert.alert('Access Blocked', errorMsg, [
+        {
+          text: 'OK',
+          onPress: () => {
+            setTimeout(() => setIsProcessingCode(false), 1500);
+          },
+        },
+      ]);
+      // Remain on Scanner screen and re-enable scanner after 2s
+      setTimeout(() => setIsProcessingCode(false), 2000);
       return;
     }
 
+    // Workflow Rule 2: If checkpoint is already verified and locked
     if (scannedGateIds.includes(matchedGate.gateId)) {
-      setErrorMessage(
-        `Scan Blocked: Checkpoint "${
-          matchedGate.gate?.name || cleanCode
-        }" is already completed.`,
-      );
-      setIsProcessingCode(false);
+      const gateName = matchedGate.gate?.name || cleanCode;
+      const completedMsg = `Checkpoint "${gateName}" is already completed.`;
+      setErrorMessage(completedMsg);
+      Alert.alert('Checkpoint Already Completed', completedMsg, [
+        {
+          text: 'OK',
+          onPress: () => {
+            setTimeout(() => setIsProcessingCode(false), 1500);
+          },
+        },
+      ]);
+      // Remain on Scanner screen
+      setTimeout(() => setIsProcessingCode(false), 2000);
       return;
     }
 
-    const gateId = matchedGate.gateId;
+    const gateId =
+      matchedGate.gateId || matchedGate.gate?.id || matchedGate.id;
     const gateName = matchedGate.gate?.name || cleanCode;
 
     try {
-      usePatrolStore.getState().unlockCheckpoint(gateId);
+      // Auto-start patrol session if not yet active
+      const currentActiveSession = usePatrolStore.getState().activeSession;
+      if (!currentActiveSession && matchedAssignment?.id) {
+        try {
+          const startedSession = await patrolApi.startPatrol(
+            matchedAssignment.id,
+          );
+          await usePatrolStore.getState().startSession(startedSession);
+        } catch (e) {
+          console.warn('Auto start patrol session fallback:', e);
+        }
+      }
+
+      // Unlock checkpoint immediately
+      await usePatrolStore.getState().unlockCheckpoint(gateId);
 
       setSuccessMessage(`✓ Checkpoint Unlocked: "${gateName}"`);
       setManualCode('');
 
+      // Workflow Rule 3: Navigate directly to Checkpoint Verification screen (PatrolTab) and do NOT return to Home
       setTimeout(() => {
-        navigation.goBack();
+        navigation.navigate('PatrolTab');
         setIsProcessingCode(false);
-      }, 1500);
+      }, 400);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to unlock checkpoint.');
       setIsProcessingCode(false);
@@ -159,7 +197,7 @@ export function ScannerScreen() {
   // Configure Code Scanner Hook for Camera View (Vision Camera v4)
   const codeScanner = useCodeScanner({
     codeTypes: ['qr'],
-    onCodeScanned: codes => {
+    onCodeScanned: (codes) => {
       const scannedValue = codes[0]?.value;
       if (scannedValue) {
         handleProcessScan(scannedValue);
@@ -446,6 +484,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '800',
+    letterSpacing: -0.3,
   },
   flashButton: {
     padding: 8,
@@ -456,102 +495,92 @@ const styles = StyleSheet.create({
   },
   targetBanner: {
     backgroundColor: '#1a1a1e',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#2d2d34',
-    marginBottom: 20,
   },
   targetLabel: {
-    color: '#8e8e9a',
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: '#f59e0b',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   targetName: {
-    color: '#ffffff',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
+    color: '#ffffff',
     marginTop: 2,
   },
   targetSub: {
-    color: '#8e8e9a',
     fontSize: 11,
+    color: '#8e8e9a',
     marginTop: 2,
   },
-  permTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  permDesc: {
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 24,
-  },
   viewfinderContainer: {
-    height: 220,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginVertical: 12,
   },
   reticle: {
-    width: 200,
-    height: 200,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    position: 'relative',
+    width: 240,
+    height: 240,
+    borderRadius: 20,
     overflow: 'hidden',
+    position: 'relative',
     backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: '#2d2d34',
   },
   reticleFlash: {
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    shadowColor: '#ffffff',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
+    borderColor: '#f59e0b',
   },
   corner: {
-    width: 20,
-    height: 20,
     position: 'absolute',
-    borderWidth: 3,
+    width: 24,
+    height: 24,
   },
   topLeft: {
-    top: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
+    top: 12,
+    left: 12,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
   },
   topRight: {
-    top: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderBottomWidth: 0,
+    top: 12,
+    right: 12,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
   },
   bottomLeft: {
-    bottom: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
+    bottom: 12,
+    left: 12,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
   },
   bottomRight: {
-    bottom: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
+    bottom: 12,
+    right: 12,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
   },
   laser: {
-    height: 2,
-    width: '100%',
     position: 'absolute',
+    left: 20,
+    right: 20,
+    height: 2,
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
   },
   feedbackCard: {
-    padding: 12,
+    padding: 14,
+    borderRadius: 12,
+    marginVertical: 10,
     borderWidth: 1,
-    marginBottom: 20,
-    alignItems: 'center',
   },
   feedbackText: {
     fontSize: 13,
@@ -559,28 +588,29 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   quickScanCard: {
-    padding: 18,
+    padding: 16,
+    borderRadius: 16,
+    marginTop: 16,
+    borderWidth: 1,
   },
   cardTitle: {
-    color: '#ffffff',
     fontSize: 15,
     fontWeight: '800',
+    color: '#ffffff',
     marginBottom: 4,
   },
   cardDesc: {
-    color: '#8e8e9a',
     fontSize: 12,
-    marginBottom: 14,
+    color: '#8e8e9a',
+    marginBottom: 12,
   },
   buttonList: {
-    marginBottom: 16,
+    gap: 8,
   },
   scanOption: {
-    borderWidth: 1,
-    borderRadius: 8,
     padding: 12,
-    marginBottom: 8,
-    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
   },
   optionText: {
     fontSize: 13,
@@ -588,37 +618,48 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    marginVertical: 14,
+    marginVertical: 16,
   },
   inputLabel: {
-    color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
+    color: '#b3b3c2',
     marginBottom: 8,
   },
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 10,
   },
   input: {
     flex: 1,
-    height: 40,
+    height: 44,
     borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: 10,
     paddingHorizontal: 12,
     fontSize: 13,
-    marginRight: 8,
   },
   inputButton: {
-    height: 40,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
+    paddingHorizontal: 18,
+    height: 44,
+    borderRadius: 10,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   inputButtonText: {
     color: '#ffffff',
+    fontWeight: '800',
     fontSize: 13,
-    fontWeight: '700',
+  },
+  permTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  permDesc: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
   },
 });

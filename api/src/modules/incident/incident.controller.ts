@@ -49,10 +49,13 @@ function saveBase64Image(base64Str: string): string {
   }
 }
 
+import { resolveEmployeeId } from '../../common/auth/resolve-employee';
+
 export class IncidentController {
   async create(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
       const body = createIncidentSchema.parse(req.body);
 
       const files = req.files as Express.Multer.File[] | undefined;
@@ -65,7 +68,7 @@ export class IncidentController {
 
       const result = await incidentService.create(
         user.tenantId!,
-        user.employeeId!,
+        employeeId,
         {
           ...body,
           images: imageUrls,

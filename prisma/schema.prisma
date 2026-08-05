@@ -13,6 +13,11 @@ enum UserRole {
   MANAGER
   SUPERVISOR
   SECURITY
+  CLEANER
+  SERVICE_ENGINEER
+  TECHNICIAN
+  LIFE_GUARD
+  PLUMBER
 }
 
 enum EmployeeStatus {
@@ -173,6 +178,8 @@ model Employee {
   rfidTag String?
 
   status EmployeeStatus @default(ACTIVE)
+
+  role UserRole @default(SECURITY)
 
   createdAt DateTime @default(now())
 
@@ -568,6 +575,7 @@ model GateSubTask {
   id           String                  @id @default(cuid())
   gateId       String
   gate         Gate                    @relation(fields: [gateId], references: [id], onDelete: Cascade)
+  role         UserRole                @default(SECURITY)
   taskName     String
   description  String?
   displayOrder Int                     @default(0)
@@ -577,8 +585,9 @@ model GateSubTask {
   updatedAt    DateTime                @updatedAt
   responses    PatrolSubTaskResponse[]
 
-  @@unique([gateId, taskName])
+  @@unique([gateId, role, taskName])
   @@index([gateId])
+  @@index([role])
 }
 
 model PatrolSubTaskResponse {
@@ -589,6 +598,7 @@ model PatrolSubTaskResponse {
   gateSubTask        GateSubTask      @relation(fields: [gateSubTaskId], references: [id], onDelete: Cascade)
   answer             String           // "YES" | "NO"
   remarks            String?
+  images             String[]         @default([])
   answeredAt         DateTime         @default(now())
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt

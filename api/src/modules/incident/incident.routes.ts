@@ -5,26 +5,28 @@ import { authorize } from '../../common/auth/authorize';
 import { incidentController } from './incident.controller';
 import { upload } from '../../common/middleware/upload';
 
+import { OPERATIONAL_ROLES } from '../../common/auth/constants';
+
 const router: Router = Router();
 
 router.use(authenticate);
 
 router.post(
   '/',
-  authorize(UserRole.SECURITY, UserRole.SUPERVISOR),
+  authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR),
   upload.array('images', 4),
   incidentController.create.bind(incidentController)
 );
 
 router.get(
   '/',
-  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.SECURITY),
+  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, ...OPERATIONAL_ROLES),
   incidentController.list.bind(incidentController)
 );
 
 router.get(
   '/:id',
-  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.SECURITY),
+  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, ...OPERATIONAL_ROLES),
   incidentController.getById.bind(incidentController)
 );
 

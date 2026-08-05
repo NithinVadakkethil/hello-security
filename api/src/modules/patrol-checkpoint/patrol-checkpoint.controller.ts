@@ -51,10 +51,13 @@ function saveBase64Image(base64Str: string): string {
   }
 }
 
+import { resolveEmployeeId } from '../../common/auth/resolve-employee';
+
 export class PatrolCheckpointController {
   async scan(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
 
       const body = scanCheckpointSchema.parse(req.body);
 
@@ -63,7 +66,7 @@ export class PatrolCheckpointController {
         imageUrls = body.images.map((img: string) => saveBase64Image(img));
       }
 
-      const result = await patrolCheckpointService.scan(user.employeeId!, {
+      const result = await patrolCheckpointService.scan(employeeId, {
         ...body,
         images: imageUrls,
       });

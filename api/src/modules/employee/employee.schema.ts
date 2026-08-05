@@ -34,4 +34,5 @@ export const updateEmployeeSchema = z.object({
   joiningDate: z.coerce.date().optional(),
 
   status: z.nativeEnum(EmployeeStatus).optional(),
+  role: z.nativeEnum(UserRole).optional(),
 });

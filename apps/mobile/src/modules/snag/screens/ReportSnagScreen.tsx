@@ -65,6 +65,7 @@ export function ReportSnagScreen() {
   const [images, setImages] = useState<string[]>([]);
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
 
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
@@ -81,6 +82,7 @@ export function ReportSnagScreen() {
   };
 
   const handleOpenCamera = async () => {
+    setCameraError(false);
     if (!hasPermission) {
       const granted = await requestPermission();
       if (!granted) {
@@ -327,13 +329,17 @@ export function ReportSnagScreen() {
       {/* Live Camera Modal */}
       <Modal visible={showCameraModal} animationType="slide" onRequestClose={() => setShowCameraModal(false)}>
         <View style={styles.cameraContainer}>
-          {device ? (
+          {device && !cameraError ? (
             <Camera
               ref={cameraRef}
               style={StyleSheet.absoluteFill}
               device={device}
               isActive={showCameraModal}
               photo={true}
+              onError={(error) => {
+                console.warn('VisionCamera session error:', error);
+                setCameraError(true);
+              }}
             />
           ) : (
             <View style={[styles.cameraFallback, { backgroundColor: colors.background }]}>

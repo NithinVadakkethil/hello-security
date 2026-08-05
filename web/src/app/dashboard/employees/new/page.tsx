@@ -32,6 +32,11 @@ const schema = z.object({
     'MANAGER',
     'SUPERVISOR',
     'SECURITY',
+    'CLEANER',
+    'SERVICE_ENGINEER',
+    'TECHNICIAN',
+    'LIFE_GUARD',
+    'PLUMBER',
   ]),
 });
 
@@ -213,12 +218,16 @@ export default function NewEmployeePage() {
               {...register('joiningDate')}
             />
             <Select
-              label="Security Portal Role"
+              label="App User / Operational Field Role *"
               options={[
                 { value: 'SECURITY', label: 'Security Guard' },
+                { value: 'CLEANER', label: 'Cleaner' },
+                { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+                { value: 'TECHNICIAN', label: 'Technician' },
+                { value: 'LIFE_GUARD', label: 'Life Guard' },
+                { value: 'PLUMBER', label: 'Plumber' },
                 { value: 'SUPERVISOR', label: 'Supervisor' },
                 { value: 'MANAGER', label: 'Manager' },
-                // { value: 'CLIENT_ADMIN', label: 'Client Administrator' },
               ]}
               error={errors.role?.message}
               {...register('role')}

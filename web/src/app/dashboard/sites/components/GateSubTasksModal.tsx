@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Edit2, Trash2, ArrowUp, ArrowDown, CheckSquare, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Edit2, Trash2, ArrowUp, ArrowDown, CheckSquare, ToggleLeft, ToggleRight, Shield, Wrench, Sparkles, Cpu, LifeBuoy, Droplet } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { apiClient } from '../../../lib/axios';
@@ -17,6 +17,7 @@ import ConfirmationDialog from '../../../components/ui/ConfirmationDialog';
 export interface GateSubTask {
   id: string;
   gateId: string;
+  role: string;
   taskName: string;
   description?: string | null;
   displayOrder: number;
@@ -31,6 +32,15 @@ interface GateSubTasksModalProps {
   gateId: string;
   gateName: string;
 }
+
+const ROLE_OPTIONS = [
+  { key: 'SECURITY', label: 'Security', icon: Shield, color: '#3b82f6' },
+  { key: 'CLEANER', label: 'Cleaner', icon: Sparkles, color: '#10b981' },
+  { key: 'TECHNICIAN', label: 'Technician', icon: Wrench, color: '#f59e0b' },
+  { key: 'SERVICE_ENGINEER', label: 'Service Engineer', icon: Cpu, color: '#8b5cf6' },
+  { key: 'LIFE_GUARD', label: 'Life Guard', icon: LifeBuoy, color: '#ec4899' },
+  { key: 'PLUMBER', label: 'Plumber', icon: Droplet, color: '#06b6d4' },
+];
 
 const subTaskSchema = z.object({
   taskName: z
@@ -51,6 +61,7 @@ export default function GateSubTasksModal({
   gateName,
 }: GateSubTasksModalProps) {
   const queryClient = useQueryClient();
+  const [selectedRole, setSelectedRole] = useState<string>('SECURITY');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSubTask, setEditingSubTask] = useState<GateSubTask | null>(null);
 
@@ -78,10 +89,10 @@ export default function GateSubTasksModal({
     },
   });
 
-  // Fetch Sub Tasks
+  // Fetch Sub Tasks by Gate & Role
   const { data: subTasksRes, isLoading } = useQuery<ApiResponse<GateSubTask[]>>({
-    queryKey: ['sub-tasks', gateId],
-    queryFn: () => apiClient.get(`/gates/${gateId}/sub-tasks`),
+    queryKey: ['sub-tasks', gateId, selectedRole],
+    queryFn: () => apiClient.get(`/gates/${gateId}/sub-tasks`, { params: { role: selectedRole } }),
     enabled: isOpen && !!gateId,
   });
 
@@ -89,11 +100,12 @@ export default function GateSubTasksModal({
 
   // Create Mutation
   const createMutation = useMutation({
-    mutationFn: (values: SubTaskValues) => apiClient.post(`/gates/${gateId}/sub-tasks`, values),
+    mutationFn: (values: SubTaskValues) =>
+      apiClient.post(`/gates/${gateId}/sub-tasks`, { ...values, role: selectedRole }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sub-tasks', gateId] });
+      queryClient.invalidateQueries({ queryKey: ['sub-tasks', gateId, selectedRole] });
       queryClient.invalidateQueries({ queryKey: ['gates'] });
-      toast.success('Sub-task created successfully');
+      toast.success(`Sub-task created for ${selectedRole}`);
       handleCloseForm();
     },
     onError: (err: any) => {
@@ -106,7 +118,7 @@ export default function GateSubTasksModal({
     mutationFn: ({ id, values }: { id: string; values: Partial<SubTaskValues> }) =>
       apiClient.patch(`/gates/${gateId}/sub-tasks/${id}`, values),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sub-tasks', gateId] });
+      queryClient.invalidateQueries({ queryKey: ['sub-tasks', gateId, selectedRole] });
       queryClient.invalidateQueries({ queryKey: ['gates'] });
       toast.success('Sub-task updated successfully');
       handleCloseForm();
@@ -120,7 +132,7 @@ export default function GateSubTasksModal({
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiClient.delete(`/gates/${gateId}/sub-tasks/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sub-tasks', gateId] });
+      queryClient.invalidateQueries({ queryKey: ['sub-tasks', gateId, selectedRole] });
       queryClient.invalidateQueries({ queryKey: ['gates'] });
       toast.success('Sub-task deleted successfully');
       setDeleteConfirm((prev) => ({ ...prev, isOpen: false }));
@@ -136,7 +148,7 @@ export default function GateSubTasksModal({
     mutationFn: (items: Array<{ id: string; displayOrder: number }>) =>
       apiClient.patch(`/gates/${gateId}/sub-tasks/reorder`, { subTasks: items }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sub-tasks', gateId] });
+      queryClient.invalidateQueries({ queryKey: ['sub-tasks', gateId, selectedRole] });
       queryClient.invalidateQueries({ queryKey: ['gates'] });
       toast.success('Sub-tasks reordered');
     },
@@ -203,25 +215,74 @@ export default function GateSubTasksModal({
     });
   };
 
+  const activeRoleObj = ROLE_OPTIONS.find((r) => r.key === selectedRole) || ROLE_OPTIONS[0];
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Checkpoint Verification Sub-Tasks: ${gateName}`}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: '320px', maxWidth: '680px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: '340px', maxWidth: '720px' }}>
+        
+        {/* Role Switcher Tabs */}
+        <div>
+          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+            Select Operational Role Tasks:
+          </label>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {ROLE_OPTIONS.map((r) => {
+              const IconComp = r.icon;
+              const isSelected = selectedRole === r.key;
+              return (
+                <button
+                  key={r.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedRole(r.key);
+                    setIsFormOpen(false);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: '20px',
+                    fontSize: '0.82rem',
+                    fontWeight: isSelected ? 700 : 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    border: isSelected ? `2px solid ${r.color}` : '1px solid var(--border-color)',
+                    backgroundColor: isSelected ? `${r.color}22` : 'var(--surface-color)',
+                    color: isSelected ? r.color : 'var(--text-color)',
+                  }}
+                >
+                  <IconComp size={15} color={r.color} />
+                  <span>{r.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Top Action Bar */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Configure mandatory or optional verification questions guards must perform at this checkpoint.
-            </span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--surface-color)', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <activeRoleObj.icon size={18} color={activeRoleObj.color} />
+            <div>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: activeRoleObj.color }}>
+                {activeRoleObj.label} Tasks ({subTasks.length})
+              </span>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                These tasks appear exclusively for employees logged in with role <b>{activeRoleObj.label}</b>.
+              </p>
+            </div>
           </div>
           {!isFormOpen && (
             <button
               type="button"
               onClick={handleOpenAddForm}
               className="btn btn-primary"
-              style={{ padding: '8px 14px', fontSize: '0.85rem', gap: '6px' }}
+              style={{ padding: '8px 14px', fontSize: '0.82rem', gap: '6px' }}
             >
               <Plus size={16} />
-              <span>Add Sub Task</span>
+              <span>Add {activeRoleObj.label} Task</span>
             </button>
           )}
         </div>
@@ -233,35 +294,35 @@ export default function GateSubTasksModal({
               padding: '16px',
               borderRadius: '12px',
               backgroundColor: 'var(--surface-color)',
-              border: '1px solid var(--border-color)',
+              border: `1px solid ${activeRoleObj.color}66`,
               display: 'flex',
               flexDirection: 'column',
               gap: '12px',
             }}
           >
-            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>
-              {editingSubTask ? 'Edit Sub Task' : 'Add New Verification Sub Task'}
+            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: activeRoleObj.color }}>
+              {editingSubTask ? `Edit ${activeRoleObj.label} Task` : `Add New ${activeRoleObj.label} Task`}
             </h4>
             <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <FormInput
                 label="Task Question / Title *"
-                placeholder="e.g. Is the perimeter gate securely locked?"
+                placeholder={`e.g. ${activeRoleObj.label} inspection question`}
                 error={errors.taskName?.message}
                 {...register('taskName')}
               />
               <FormTextarea
-                label="Description / Guard Instructions (Optional)"
-                placeholder="e.g. Verify lock mechanism and check for damage"
+                label="Instructions / Operational Notes (Optional)"
+                placeholder="e.g. Check equipment status and report remarks"
                 error={errors.description?.message}
                 {...register('description')}
               />
               <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                  <input type="checkbox" {...register('isRequired')} style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }} />
-                  <span style={{ fontWeight: 600 }}>Required Answer (Guard cannot skip)</span>
+                  <input type="checkbox" {...register('isRequired')} style={{ width: '16px', height: '16px', accentColor: activeRoleObj.color }} />
+                  <span style={{ fontWeight: 600 }}>Required Answer (Cannot be skipped)</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                  <input type="checkbox" {...register('isActive')} style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }} />
+                  <input type="checkbox" {...register('isActive')} style={{ width: '16px', height: '16px', accentColor: activeRoleObj.color }} />
                   <span style={{ fontWeight: 600 }}>Active Status</span>
                 </label>
               </div>
@@ -273,13 +334,13 @@ export default function GateSubTasksModal({
                   type="submit"
                   disabled={createMutation.isPending || updateMutation.isPending}
                   className="btn btn-primary"
-                  style={{ fontSize: '0.82rem', padding: '6px 16px' }}
+                  style={{ fontSize: '0.82rem', padding: '6px 16px', backgroundColor: activeRoleObj.color, borderColor: activeRoleObj.color }}
                 >
                   {createMutation.isPending || updateMutation.isPending
                     ? 'Saving...'
                     : editingSubTask
                     ? 'Update Task'
-                    : 'Save Sub Task'}
+                    : 'Save Task'}
                 </button>
               </div>
             </form>
@@ -289,7 +350,7 @@ export default function GateSubTasksModal({
         {/* Sub Tasks List */}
         {isLoading ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-            Loading verification sub tasks...
+            Loading {activeRoleObj.label} tasks...
           </div>
         ) : subTasks.length === 0 ? (
           <div
@@ -298,164 +359,121 @@ export default function GateSubTasksModal({
               textAlign: 'center',
               borderRadius: '12px',
               border: '1px dashed var(--border-color)',
-              backgroundColor: 'var(--bg-secondary)',
+              color: 'var(--text-muted)',
+              backgroundColor: 'var(--surface-color)',
             }}
           >
-            <CheckSquare size={32} style={{ color: 'var(--text-muted)', marginBottom: '8px' }} />
-            <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: 600 }}>No Sub Tasks Created Yet</h4>
-            <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-              Add verification questions to ensure security guards verify critical checkpoints during patrols.
+            <CheckSquare size={36} style={{ marginBottom: '8px', opacity: 0.5, color: activeRoleObj.color }} />
+            <p style={{ margin: '0 0 6px 0', fontWeight: 600, color: 'var(--text-color)' }}>
+              No verification tasks configured for {activeRoleObj.label}
+            </p>
+            <p style={{ margin: 0, fontSize: '0.82rem' }}>
+              Click <b>&quot;Add {activeRoleObj.label} Task&quot;</b> above to create role-specific verification questions.
             </p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '420px', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '360px', overflowY: 'auto' }}>
             {subTasks.map((task, idx) => (
               <div
                 key={task.id}
                 style={{
-                  padding: '14px 16px',
-                  borderRadius: '10px',
-                  backgroundColor: task.isActive ? 'var(--surface-color)' : 'var(--bg-secondary)',
-                  border: '1px solid var(--border-color)',
-                  opacity: task.isActive ? 1 : 0.65,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '12px',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  backgroundColor: 'var(--surface-color)',
+                  border: '1px solid var(--border-color)',
+                  opacity: task.isActive ? 1 : 0.55,
                 }}
               >
-                {/* Left reorder controls */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <button
-                    type="button"
-                    disabled={idx === 0 || reorderMutation.isPending}
-                    onClick={() => handleMove(idx, 'UP')}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      cursor: idx === 0 ? 'not-allowed' : 'pointer',
-                      opacity: idx === 0 ? 0.3 : 0.8,
-                      padding: '2px',
-                      color: 'var(--text-primary)',
-                    }}
-                    title="Move Up"
-                  >
-                    <ArrowUp size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={idx === subTasks.length - 1 || reorderMutation.isPending}
-                    onClick={() => handleMove(idx, 'DOWN')}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      cursor: idx === subTasks.length - 1 ? 'not-allowed' : 'pointer',
-                      opacity: idx === subTasks.length - 1 ? 0.3 : 0.8,
-                      padding: '2px',
-                      color: 'var(--text-primary)',
-                    }}
-                    title="Move Down"
-                  >
-                    <ArrowDown size={14} />
-                  </button>
-                </div>
-
-                {/* Sub Task Content */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>#{idx + 1}</span>
-                    <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{task.taskName}</strong>
-                    {task.isRequired ? (
-                      <span
-                        style={{
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                          color: '#dc2626',
-                          border: '1px solid rgba(239, 68, 68, 0.25)',
-                        }}
-                      >
-                        REQUIRED
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => handleMove(idx, 'UP')}
+                      style={{ border: 'none', background: 'none', cursor: idx === 0 ? 'not-allowed' : 'pointer', opacity: idx === 0 ? 0.3 : 0.8, color: 'var(--text-color)' }}
+                    >
+                      <ArrowUp size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === subTasks.length - 1}
+                      onClick={() => handleMove(idx, 'DOWN')}
+                      style={{ border: 'none', background: 'none', cursor: idx === subTasks.length - 1 ? 'not-allowed' : 'pointer', opacity: idx === subTasks.length - 1 ? 0.3 : 0.8, color: 'var(--text-color)' }}
+                    >
+                      <ArrowDown size={14} />
+                    </button>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-color)' }}>
+                        {idx + 1}. {task.taskName}
                       </span>
-                    ) : (
-                      <span
-                        style={{
-                          fontSize: '0.68rem',
-                          fontWeight: 600,
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          backgroundColor: 'var(--bg-secondary)',
-                          color: 'var(--text-muted)',
-                        }}
-                      >
-                        OPTIONAL
-                      </span>
+                      {task.isRequired ? (
+                        <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '12px', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', fontWeight: 600 }}>
+                          Required
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '12px', backgroundColor: 'var(--chip-bg, #333)', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          Optional
+                        </span>
+                      )}
+                      {!task.isActive && (
+                        <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#475569', color: '#cbd5e1', fontWeight: 600 }}>
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                    {task.description && (
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        {task.description}
+                      </p>
                     )}
                   </div>
-                  {task.description && (
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{task.description}</span>
-                  )}
                 </div>
 
-                {/* Action Buttons */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <button
                     type="button"
                     onClick={() => handleToggleActive(task)}
-                    className="btn btn-secondary"
-                    style={{
-                      padding: '5px 8px',
-                      fontSize: '0.75rem',
-                      gap: '4px',
-                      color: task.isActive ? 'var(--success)' : 'var(--danger)',
-                    }}
-                    title={task.isActive ? 'Deactivate Sub Task' : 'Activate Sub Task'}
+                    title={task.isActive ? 'Deactivate Task' : 'Activate Task'}
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: task.isActive ? '#10b981' : '#64748b' }}
                   >
-                    {task.isActive ? <ToggleLeft size={14} /> : <ToggleRight size={14} />}
-                    <span>{task.isActive ? 'Active' : 'Inactive'}</span>
+                    {task.isActive ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleOpenEditForm(task)}
-                    className="btn btn-secondary"
-                    style={{ padding: '5px 8px', fontSize: '0.75rem', gap: '4px' }}
-                    title="Edit Sub Task"
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--primary)' }}
+                    title="Edit Task"
                   >
-                    <Edit2 size={12} />
+                    <Edit2 size={16} />
                   </button>
                   <button
                     type="button"
                     onClick={() => setDeleteConfirm({ isOpen: true, id: task.id, taskName: task.taskName })}
-                    className="btn btn-secondary"
-                    style={{ padding: '5px 8px', fontSize: '0.75rem', gap: '4px', color: 'var(--danger)' }}
-                    title="Delete Sub Task"
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444' }}
+                    title="Delete Task"
                   >
-                    <Trash2 size={12} />
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>
             ))}
           </div>
         )}
-
-        {/* Modal Footer */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
-          <button type="button" onClick={onClose} className="btn btn-secondary" style={{ padding: '8px 18px', fontSize: '0.85rem' }}>
-            Close
-          </button>
-        </div>
       </div>
 
       <ConfirmationDialog
         isOpen={deleteConfirm.isOpen}
         onClose={() => setDeleteConfirm((prev) => ({ ...prev, isOpen: false }))}
         onConfirm={() => deleteMutation.mutate(deleteConfirm.id)}
-        title="Delete Sub Task"
-        description={`Are you sure you want to delete the sub task "${deleteConfirm.taskName}"? This action cannot be undone.`}
-        confirmText="Delete"
-        isDanger={true}
+        title="Delete Verification Sub Task"
+        description={`Are you sure you want to delete "${deleteConfirm.taskName}"? This action cannot be undone.`}
+        confirmText="Delete Task"
+        isDanger
         isLoading={deleteMutation.isPending}
       />
     </Modal>

@@ -70,9 +70,10 @@ export class SiteRepository {
         clientId,
         ...(isActive !== undefined && { isActive }),
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [
+        { isActive: 'desc' },
+        { createdAt: 'desc' },
+      ],
     });
   }
 }

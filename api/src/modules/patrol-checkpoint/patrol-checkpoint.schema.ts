@@ -18,7 +18,8 @@ export const scanCheckpointSchema = z.object({
       z.object({
         gateSubTaskId: z.string().min(1, 'Gate sub task ID is required.'),
         answer: z.enum(['YES', 'NO']),
-        remarks: z.string().max(300, 'Remarks cannot exceed 300 characters.').optional(),
+        remarks: z.string().max(500, 'Remarks cannot exceed 500 characters.').optional(),
+        images: z.array(z.string()).optional(),
       }),
     )
     .optional(),

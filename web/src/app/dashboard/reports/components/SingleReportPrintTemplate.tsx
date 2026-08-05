@@ -97,9 +97,9 @@ export default function SingleReportPrintTemplate({ report }: SingleReportPrintT
       {/* Inspection Meta Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '16px', backgroundColor: '#f5f5f5', padding: '12px', borderRadius: '6px' }}>
         <div>
-          <div style={{ fontSize: '8pt', color: '#666' }}>Security Officer</div>
+          <div style={{ fontSize: '8pt', color: '#666' }}>Assigned Employee & Role</div>
           <div style={{ fontSize: '10pt', fontWeight: 'bold' }}>
-            {report.assignment?.employee?.firstName} {report.assignment?.employee?.lastName} (ID: {report.assignment?.employee?.employeeNumber})
+            {report.assignment?.employee?.firstName} {report.assignment?.employee?.lastName} (ID: {report.assignment?.employee?.employeeNumber}) - [{report.assignment?.employee?.role || 'SECURITY'}]
           </div>
         </div>
         <div>

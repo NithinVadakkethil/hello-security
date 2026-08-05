@@ -8,6 +8,8 @@ import { useOfflineStore } from '../../../app/store/offline-store';
 import { Card } from '../../dashboard/components/WidgetCard';
 import { LogOut, User, Shield, Key, RefreshCw, Database } from 'lucide-react-native';
 
+import { getRoleConfig } from '../../../app/utils/role-helpers';
+
 export function ProfileScreen() {
   const { colors } = useTheme();
   const user = useAuthStore((state) => state.user);
@@ -15,6 +17,10 @@ export function ProfileScreen() {
   const isOnline = useOfflineStore((state) => state.isConnected);
   const queryClient = useQueryClient();
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const empRole = (user as any)?.employee?.role || user?.role || 'SECURITY';
+  const roleObj = getRoleConfig(empRole);
+  const RoleIcon = roleObj.icon;
 
   const handleLogout = () => {
     Alert.alert(
@@ -30,7 +36,8 @@ export function ProfileScreen() {
             try {
               await performLogout(queryClient);
             } catch (err: any) {
-              Alert.alert('Logout Error', err.message || 'Please try again.');
+              console.warn('[ProfileScreen] Logout fallback:', err);
+              useAuthStore.getState().clearAuth();
             } finally {
               setLoggingOut(false);
             }
@@ -45,7 +52,7 @@ export function ProfileScreen() {
       
       {/* Header Profile Card */}
       <View style={styles.header}>
-        <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+        <View style={[styles.avatar, { backgroundColor: roleObj.color }]}>
           <Text style={styles.avatarText}>
             {user?.firstName?.substring(0, 1).toUpperCase()}
             {user?.lastName?.substring(0, 1).toUpperCase()}
@@ -54,9 +61,9 @@ export function ProfileScreen() {
         <Text style={[styles.name, { color: colors.text }]}>
           {user?.firstName} {user?.lastName}
         </Text>
-        <View style={[styles.roleBadge, { backgroundColor: colors.primary + '15' }]}>
-          <Shield size={12} color={colors.primary} style={{ marginRight: 4 }} />
-          <Text style={[styles.roleText, { color: colors.primary }]}>{user?.role}</Text>
+        <View style={[styles.roleBadge, { backgroundColor: roleObj.color + '22' }]}>
+          <RoleIcon size={12} color={roleObj.color} style={{ marginRight: 4 }} />
+          <Text style={[styles.roleText, { color: roleObj.color }]}>{roleObj.label}</Text>
         </View>
       </View>
 

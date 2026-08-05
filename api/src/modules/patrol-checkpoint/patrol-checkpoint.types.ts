@@ -2,6 +2,7 @@ export interface SubTaskResponseDto {
   gateSubTaskId: string;
   answer: 'YES' | 'NO';
   remarks?: string;
+  images?: string[];
 }
 
 export interface ScanCheckpointDto {

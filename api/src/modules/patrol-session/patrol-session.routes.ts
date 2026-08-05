@@ -4,6 +4,8 @@ import { Router } from 'express';
 import { authenticate } from '../../common/auth/auth.middleware';
 import { authorize } from '../../common/auth/authorize';
 
+import { OPERATIONAL_ROLES } from '../../common/auth/constants';
+
 import { patrolSessionController } from './patrol-session.controller';
 
 const router: Router = Router();
@@ -11,21 +13,21 @@ const router: Router = Router();
 router.post(
   '/start',
   authenticate,
-  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
+  authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR, UserRole.MANAGER),
   patrolSessionController.start.bind(patrolSessionController),
 );
 
 router.get(
   '/current',
   authenticate,
-  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
+  authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR, UserRole.MANAGER),
   patrolSessionController.current.bind(patrolSessionController),
 );
 
 router.get(
   '/history',
   authenticate,
-  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
+  authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR, UserRole.MANAGER),
   patrolSessionController.history.bind(patrolSessionController),
 );
 
@@ -37,7 +39,7 @@ router.post(
     UserRole.CLIENT_ADMIN,
     UserRole.MANAGER,
     UserRole.SUPERVISOR,
-    UserRole.SECURITY,
+    ...OPERATIONAL_ROLES,
   ),
   patrolSessionController.pause.bind(patrolSessionController),
 );
@@ -50,7 +52,7 @@ router.patch(
     UserRole.CLIENT_ADMIN,
     UserRole.MANAGER,
     UserRole.SUPERVISOR,
-    UserRole.SECURITY,
+    ...OPERATIONAL_ROLES,
   ),
   patrolSessionController.pause.bind(patrolSessionController),
 );
@@ -63,7 +65,7 @@ router.post(
     UserRole.CLIENT_ADMIN,
     UserRole.MANAGER,
     UserRole.SUPERVISOR,
-    UserRole.SECURITY,
+    ...OPERATIONAL_ROLES,
   ),
   patrolSessionController.resume.bind(patrolSessionController),
 );
@@ -76,7 +78,7 @@ router.patch(
     UserRole.CLIENT_ADMIN,
     UserRole.MANAGER,
     UserRole.SUPERVISOR,
-    UserRole.SECURITY,
+    ...OPERATIONAL_ROLES,
   ),
   patrolSessionController.resume.bind(patrolSessionController),
 );
@@ -89,7 +91,7 @@ router.post(
     UserRole.CLIENT_ADMIN,
     UserRole.MANAGER,
     UserRole.SUPERVISOR,
-    UserRole.SECURITY,
+    ...OPERATIONAL_ROLES,
   ),
   patrolSessionController.complete.bind(patrolSessionController),
 );
@@ -102,7 +104,7 @@ router.patch(
     UserRole.CLIENT_ADMIN,
     UserRole.MANAGER,
     UserRole.SUPERVISOR,
-    UserRole.SECURITY,
+    ...OPERATIONAL_ROLES,
   ),
   patrolSessionController.complete.bind(patrolSessionController),
 );
@@ -110,14 +112,14 @@ router.patch(
 router.get(
   '/',
   authenticate,
-  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.SECURITY),
+  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, ...OPERATIONAL_ROLES),
   patrolSessionController.list.bind(patrolSessionController),
 );
 
 router.get(
   '/:id',
   authenticate,
-  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.SECURITY),
+  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, ...OPERATIONAL_ROLES),
   patrolSessionController.getById.bind(patrolSessionController),
 );
 

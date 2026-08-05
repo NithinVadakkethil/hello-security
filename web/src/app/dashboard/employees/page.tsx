@@ -127,8 +127,14 @@ export default function EmployeesPage() {
     employees = employees.filter((c) => c.status === statusFilter);
   }
 
-  // Sort logic
+  // Active-first sorting rule
   const sortedEmployees = [...employees].sort((a, b) => {
+    const aIsActive = a.status === 'ACTIVE';
+    const bIsActive = b.status === 'ACTIVE';
+    if (aIsActive !== bIsActive) {
+      return aIsActive ? -1 : 1;
+    }
+
     let aVal: any = a[sortBy as keyof Employee] ?? '';
     let bVal: any = b[sortBy as keyof Employee] ?? '';
 

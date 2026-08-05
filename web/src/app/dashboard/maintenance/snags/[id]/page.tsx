@@ -46,6 +46,9 @@ export default function SnagDetailPage() {
     }
   }, [snag?.status]);
 
+  const [staffSearch, setStaffSearch] = useState('');
+  const [staffRoleFilter, setStaffRoleFilter] = useState('ALL');
+
   // 2. Fetch Users list for Assignment dropdown
   const { data: usersRes } = useQuery<ApiResponse<any>>({
     queryKey: ['users-list-assign'],
@@ -57,6 +60,19 @@ export default function SnagDetailPage() {
     : Array.isArray(rawUsers?.items)
     ? rawUsers.items
     : [];
+
+  const filteredUsers = users.filter((u) => {
+    const roleMatch = staffRoleFilter === 'ALL' || u.role === staffRoleFilter || u.employee?.role === staffRoleFilter;
+    if (!roleMatch) return false;
+    if (!staffSearch.trim()) return true;
+    const s = staffSearch.toLowerCase();
+    const name = `${u.employee?.firstName || ''} ${u.employee?.lastName || ''}`.toLowerCase();
+    const empNum = (u.employee?.employeeNumber || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    const phone = (u.employee?.phone || '').toLowerCase();
+    const role = (u.role || '').toLowerCase();
+    return name.includes(s) || empNum.includes(s) || email.includes(s) || phone.includes(s) || role.includes(s);
+  });
 
   // Mutations
   const updateStatusMutation = useMutation({
@@ -402,22 +418,98 @@ export default function SnagDetailPage() {
             </h3>
 
             <div>
-              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>
-                Select User / Staff:
+              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Search Maintenance Staff:
               </label>
-              <select
-                value={assignedToId}
-                onChange={(e) => setAssignedToId(e.target.value)}
-                className="form-input"
-                style={{ fontSize: '0.82rem' }}
-              >
-                <option value="">Select Maintenance User...</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.employee ? `${u.employee.firstName} ${u.employee.lastName || ''} (${u.role})` : `${u.email} (${u.role})`}
-                  </option>
-                ))}
-              </select>
+
+              {/* Search & Role Filter Bar */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                <input
+                  type="text"
+                  placeholder="Search by Name, Emp #, Email, Phone..."
+                  value={staffSearch}
+                  onChange={(e) => setStaffSearch(e.target.value)}
+                  className="form-input"
+                  style={{ fontSize: '0.82rem', padding: '8px 12px' }}
+                />
+
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  {['ALL', 'CLEANER', 'TECHNICIAN', 'SERVICE_ENGINEER', 'LIFE_GUARD', 'PLUMBER', 'SECURITY'].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setStaffRoleFilter(r)}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.72rem',
+                        fontWeight: staffRoleFilter === r ? 700 : 500,
+                        border: staffRoleFilter === r ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                        backgroundColor: staffRoleFilter === r ? 'var(--primary-light, rgba(59, 130, 246, 0.2))' : 'var(--chip-bg, #222)',
+                        color: staffRoleFilter === r ? 'var(--primary)' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {r.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Searchable Staff Cards Scroll List */}
+              <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px', backgroundColor: 'var(--surface-color)' }}>
+                {filteredUsers.length === 0 ? (
+                  <div style={{ padding: '16px', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    No matching staff found
+                  </div>
+                ) : (
+                  filteredUsers.map((u) => {
+                    const isSelected = assignedToId === u.id;
+                    const emp = u.employee;
+                    const role = emp?.role || u.role;
+                    const name = emp ? `${emp.firstName} ${emp.lastName || ''}`.trim() : u.email;
+                    const empNum = emp?.employeeNumber || 'N/A';
+                    const phone = emp?.phone || 'No phone';
+
+                    return (
+                      <div
+                        key={u.id}
+                        onClick={() => setAssignedToId(u.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                          border: isSelected ? '1px solid var(--primary)' : '1px solid transparent',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: isSelected ? 'var(--primary)' : '#334155', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem' }}>
+                          {name.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-color)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {name}
+                            </span>
+                            <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '10px', backgroundColor: 'var(--chip-bg, #1e293b)', color: 'var(--primary)', fontWeight: 600 }}>
+                              {role}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '10px', fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            <span>Emp #: {empNum}</span>
+                            <span>•</span>
+                            <span>{phone}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
 
             <div>

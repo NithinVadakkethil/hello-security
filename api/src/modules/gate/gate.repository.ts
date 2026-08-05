@@ -104,9 +104,10 @@ export class GateRepository {
           },
         },
       },
-      orderBy: {
-        sequence: 'asc',
-      },
+      orderBy: [
+        { isActive: 'desc' },
+        { sequence: 'asc' },
+      ],
     });
   }
 

@@ -7,6 +7,7 @@ import {
   Clock,
   Pause,
   Play,
+  Printer,
   RefreshCw,
   Shield,
 } from 'lucide-react';
@@ -15,12 +16,12 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { resolveImageUrl } from '../../../../lib/image';
 import Modal from '../../../components/ui/Modal';
 import StatusChip from '../../../components/ui/StatusChip';
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
 import TaskVerificationChecklist from '../components/TaskVerificationChecklist';
+import PatrolSessionPrintTemplate from '../components/PatrolSessionPrintTemplate';
 
 interface Gate {
   id: string;
@@ -186,26 +187,7 @@ export default function PatrolSessionDetailPage() {
     },
   });
 
-  const [editingCpIdWeb, setEditingCpIdWeb] = useState<string | null>(null);
-  const [editingRemarksWeb, setEditingRemarksWeb] = useState('');
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
-
-  const updateCpRemarksMutation = useMutation({
-    mutationFn: (data: { checkpointId: string; remarks: string }) =>
-      apiClient.patch(`/patrol-checkpoints/${data.checkpointId}/remarks`, {
-        remarks: data.remarks,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['patrol-session', id] });
-      toast.success('Sweep note updated successfully.');
-      setEditingCpIdWeb(null);
-    },
-    onError: (err: any) => {
-      toast.error(
-        err.response?.data?.message || 'Failed to update sweep note.',
-      );
-    },
-  });
 
   if (isLoading) {
     return (
@@ -346,45 +328,71 @@ export default function PatrolSessionDetailPage() {
           </div>
         </div>
 
-        {/* Action Controls for Live Patrols */}
-        {(session.status === 'IN_PROGRESS' || session.status === 'PAUSED') && (
-          <div style={{ display: 'flex', gap: '12px' }}>
-            {session.status === 'IN_PROGRESS' ? (
-              <button
-                onClick={() => pauseMutation.mutate()}
-                className="btn btn-secondary"
-                style={{ gap: '6px' }}
-                disabled={pauseMutation.isPending}
-              >
-                <Pause size={14} />
-                <span>Pause Patrol</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => resumeMutation.mutate()}
-                className="btn btn-primary"
-                style={{ gap: '6px' }}
-                disabled={resumeMutation.isPending}
-              >
-                <Play size={14} />
-                <span>Resume Patrol</span>
-              </button>
-            )}
+        {/* Header Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="btn btn-secondary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: 'var(--surface-color)',
+              border: '1px solid var(--border-color)',
+              color: 'var(--text-primary)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+            }}
+            title="Print Enterprise A4 Patrol Report or Save as PDF"
+          >
+            <Printer size={16} style={{ color: 'var(--primary)' }} />
+            <span>Print Report (PDF)</span>
+          </button>
 
-            <button
-              onClick={() => setIsCompleteModalOpen(true)}
-              className="btn btn-primary"
-              style={{
-                gap: '6px',
-                background: 'var(--success)',
-                border: 'none',
-              }}
-            >
-              <CheckCircle2 size={14} />
-              <span>Complete Session</span>
-            </button>
-          </div>
-        )}
+          {/* Action Controls for Live Patrols */}
+          {(session.status === 'IN_PROGRESS' || session.status === 'PAUSED') && (
+            <>
+              {session.status === 'IN_PROGRESS' ? (
+                <button
+                  onClick={() => pauseMutation.mutate()}
+                  className="btn btn-secondary"
+                  style={{ gap: '6px' }}
+                  disabled={pauseMutation.isPending}
+                >
+                  <Pause size={14} />
+                  <span>Pause Patrol</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => resumeMutation.mutate()}
+                  className="btn btn-primary"
+                  style={{ gap: '6px' }}
+                  disabled={resumeMutation.isPending}
+                >
+                  <Play size={14} />
+                  <span>Resume Patrol</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => setIsCompleteModalOpen(true)}
+                className="btn btn-primary"
+                style={{
+                  gap: '6px',
+                  background: 'var(--success)',
+                  border: 'none',
+                }}
+              >
+                <CheckCircle2 size={14} />
+                <span>Complete Session</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Grid Info */}
@@ -542,7 +550,7 @@ export default function PatrolSessionDetailPage() {
                           </p>
                         )}
 
-                        {item.scanned && (
+                        {/* {item.scanned && (
                           <div
                             style={{
                               marginTop: '8px',
@@ -552,25 +560,6 @@ export default function PatrolSessionDetailPage() {
                               border: '1px solid var(--border-color)',
                             }}
                           >
-                            <div
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: '4px',
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: '0.8rem',
-                                  fontWeight: 600,
-                                  color: 'var(--text-muted)',
-                                }}
-                              >
-                                📝 Checkpoint Sweep Note:
-                              </span>
-                            </div>
-
                             {item.checkpointId &&
                             editingCpIdWeb === item.checkpointId ? (
                               <div
@@ -646,7 +635,7 @@ export default function PatrolSessionDetailPage() {
                               </p>
                             )}
                           </div>
-                        )}
+                        )} */}
 
                         {incident && (
                           <div
@@ -680,65 +669,25 @@ export default function PatrolSessionDetailPage() {
                           </div>
                         )}
 
-                        {item.scanned &&
-                        item.images &&
-                        item.images.length > 0 ? (
-                          <div
-                            style={{
-                              display: 'flex',
-                              gap: '8px',
-                              marginTop: '10px',
-                              flexWrap: 'wrap',
-                            }}
-                          >
-                            {item.images.map((imgUrl, idx) => {
-                              const fullUrl = resolveImageUrl(imgUrl);
-                              return (
-                                <div
-                                  key={idx}
-                                  onClick={() => setPreviewImageUrl(fullUrl)}
-                                  style={{
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    borderRadius: '6px',
-                                    overflow: 'hidden',
-                                    border: '1px solid var(--border-color)',
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                  }}
-                                >
-                                  <img
-                                    src={fullUrl}
-                                    alt={`Checkpoint Scan ${idx}`}
-                                    style={{
-                                      width: '90px',
-                                      height: '90px',
-                                      objectFit: 'cover',
-                                      display: 'block',
-                                      transition: 'transform 0.2s ease',
-                                    }}
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : item.scanned ? (
-                          <span
-                            style={{
-                              fontSize: '0.72rem',
-                              color: 'var(--text-muted)',
-                              display: 'inline-block',
-                              marginTop: '6px',
-                            }}
-                          >
-                            📷 No photos attached
-                          </span>
-                        ) : null}
-
-                        {/* NEW SECTION: Task Verification Checklist */}
+                        {/* Task Verification Checklist */}
                         <TaskVerificationChecklist
                           scanned={item.scanned}
-                          configuredSubTasks={(item.gate as any)?.subTasks || []}
+                          configuredSubTasks={
+                            (item.gate as any)?.subTasks || []
+                          }
                           subTaskResponses={item.subTaskResponses || []}
+                          checkpointImages={item.images || []}
+                          employeeRole={
+                            (session?.assignment?.employee as any)?.role ||
+                            (session as any)?.employee?.role ||
+                            'SECURITY'
+                          }
+                          employeeName={
+                            session?.assignment?.employee
+                              ? `${session.assignment.employee.firstName} ${session.assignment.employee.lastName}`
+                              : undefined
+                          }
+                          scannedAt={item.scannedAt || undefined}
                         />
                       </div>
 
@@ -1269,6 +1218,9 @@ export default function PatrolSessionDetailPage() {
           </div>
         )}
       </Modal>
+
+      {/* Printable Enterprise A4 Patrol Completion Report Component */}
+      <PatrolSessionPrintTemplate session={session} />
     </div>
   );
 }

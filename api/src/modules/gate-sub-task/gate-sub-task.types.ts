@@ -1,4 +1,7 @@
+import { UserRole } from '@prisma/client';
+
 export interface CreateGateSubTaskDto {
+  role?: UserRole;
   taskName: string;
   description?: string;
   displayOrder?: number;
@@ -7,6 +10,7 @@ export interface CreateGateSubTaskDto {
 }
 
 export interface UpdateGateSubTaskDto {
+  role?: UserRole;
   taskName?: string;
   description?: string;
   displayOrder?: number;
@@ -19,4 +23,9 @@ export interface ReorderGateSubTasksDto {
     id: string;
     displayOrder: number;
   }>;
+}
+
+export interface GateSubTaskQueryDto {
+  role?: UserRole;
+  isActive?: boolean;
 }

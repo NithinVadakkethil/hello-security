@@ -1,3 +1,4 @@
+import { UserRole } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { CreateGateSubTaskDto, UpdateGateSubTaskDto } from './gate-sub-task.types';
 
@@ -21,10 +22,11 @@ export class GateSubTaskRepository {
     });
   }
 
-  async findByGateAndName(gateId: string, taskName: string) {
+  async findByGateAndNameAndRole(gateId: string, taskName: string, role: UserRole = 'SECURITY') {
     return prisma.gateSubTask.findFirst({
       where: {
         gateId,
+        role,
         taskName: {
           equals: taskName,
           mode: 'insensitive',
@@ -33,29 +35,36 @@ export class GateSubTaskRepository {
     });
   }
 
-  async listByGate(gateId: string, onlyActive = false) {
+  async listByGate(gateId: string, onlyActive = false, role?: UserRole) {
     return prisma.gateSubTask.findMany({
       where: {
         gateId,
+        ...(role ? { role } : {}),
         ...(onlyActive ? { isActive: true } : {}),
       },
-      orderBy: {
-        displayOrder: 'asc',
-      },
+      orderBy: [
+        { isActive: 'desc' },
+        { displayOrder: 'asc' },
+      ],
     });
   }
 
-  async countByGate(gateId: string) {
+  async countByGate(gateId: string, role?: UserRole) {
     return prisma.gateSubTask.count({
-      where: { gateId },
+      where: {
+        gateId,
+        ...(role ? { role } : {}),
+      },
     });
   }
 
   async create(gateId: string, dto: CreateGateSubTaskDto) {
-    const count = await this.countByGate(gateId);
+    const role = dto.role || 'SECURITY';
+    const count = await this.countByGate(gateId, role);
     return prisma.gateSubTask.create({
       data: {
         gateId,
+        role,
         taskName: dto.taskName.trim(),
         description: dto.description?.trim() || null,
         displayOrder: dto.displayOrder ?? count,
@@ -69,6 +78,7 @@ export class GateSubTaskRepository {
     return prisma.gateSubTask.update({
       where: { id },
       data: {
+        ...(dto.role !== undefined ? { role: dto.role } : {}),
         ...(dto.taskName !== undefined ? { taskName: dto.taskName.trim() } : {}),
         ...(dto.description !== undefined ? { description: dto.description?.trim() || null } : {}),
         ...(dto.displayOrder !== undefined ? { displayOrder: dto.displayOrder } : {}),

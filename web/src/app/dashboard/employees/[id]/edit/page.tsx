@@ -12,7 +12,7 @@ import Link from 'next/link';
 
 import { apiClient } from '../../../../lib/axios';
 import { ApiResponse } from '../../../../types/api';
-import { FormInput } from '../../../../components/ui/FormControls';
+import { FormInput, Select } from '../../../../components/ui/FormControls';
 
 const schema = z.object({
   firstName: z.string().min(2, 'First name is required (min 2 characters)'),
@@ -21,6 +21,16 @@ const schema = z.object({
   phone: z.string().optional(),
   designation: z.string().optional(),
   joiningDate: z.string().optional(),
+  role: z.enum([
+    'SECURITY',
+    'CLEANER',
+    'SERVICE_ENGINEER',
+    'TECHNICIAN',
+    'LIFE_GUARD',
+    'PLUMBER',
+    'SUPERVISOR',
+    'MANAGER',
+  ]),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -57,6 +67,7 @@ export default function EditEmployeePage() {
         phone: employee.phone || '',
         designation: employee.designation || '',
         joiningDate: employee.joiningDate ? new Date(employee.joiningDate).toISOString().split('T')[0] : '',
+        role: employee.role || employee.user?.role || 'SECURITY',
       });
     }
   }, [employee, reset]);
@@ -159,12 +170,30 @@ export default function EditEmployeePage() {
             />
           </div>
 
-          <FormInput
-            label="Joining Date"
-            type="date"
-            error={errors.joiningDate?.message}
-            {...register('joiningDate')}
-          />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <FormInput
+              label="Joining Date"
+              type="date"
+              error={errors.joiningDate?.message}
+              {...register('joiningDate')}
+            />
+
+            <Select
+              label="Operational Role / App Role *"
+              options={[
+                { value: 'SECURITY', label: 'Security Guard' },
+                { value: 'CLEANER', label: 'Cleaner' },
+                { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+                { value: 'TECHNICIAN', label: 'Technician' },
+                { value: 'LIFE_GUARD', label: 'Life Guard' },
+                { value: 'PLUMBER', label: 'Plumber' },
+                { value: 'SUPERVISOR', label: 'Supervisor' },
+                { value: 'MANAGER', label: 'Manager' },
+              ]}
+              error={errors.role?.message}
+              {...register('role')}
+            />
+          </div>
 
           <button
             type="submit"

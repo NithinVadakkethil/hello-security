@@ -1,9 +1,10 @@
+import { UserRole } from '@prisma/client';
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 import { gateRepository } from '../gate/gate.repository';
 import { gateSubTaskRepository } from './gate-sub-task.repository';
-import { CreateGateSubTaskDto, UpdateGateSubTaskDto, ReorderGateSubTasksDto } from './gate-sub-task.types';
+import { CreateGateSubTaskDto, UpdateGateSubTaskDto } from './gate-sub-task.types';
 import { auditLogService } from '../audit-log/audit-log.service';
 
 export class GateSubTaskService {
@@ -13,12 +14,13 @@ export class GateSubTaskService {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
     }
 
-    const existing = await gateSubTaskRepository.findByGateAndName(gateId, dto.taskName.trim());
+    const role = dto.role || 'SECURITY';
+    const existing = await gateSubTaskRepository.findByGateAndNameAndRole(gateId, dto.taskName.trim(), role);
     if (existing) {
       throw new AppError(
         HttpStatus.CONFLICT,
         ErrorCodes.VALIDATION_ERROR,
-        `A sub-task named "${dto.taskName.trim()}" already exists for this gate.`,
+        `A sub-task named "${dto.taskName.trim()}" already exists for role ${role} at this gate.`,
       );
     }
 
@@ -37,12 +39,12 @@ export class GateSubTaskService {
     return subTask;
   }
 
-  async list(gateId: string, onlyActive = false) {
+  async list(gateId: string, onlyActive = false, role?: UserRole) {
     const gate = await gateRepository.findById(gateId);
     if (!gate) {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
     }
-    return gateSubTaskRepository.listByGate(gateId, onlyActive);
+    return gateSubTaskRepository.listByGate(gateId, onlyActive, role);
   }
 
   async get(id: string) {
@@ -55,14 +57,15 @@ export class GateSubTaskService {
 
   async update(id: string, dto: UpdateGateSubTaskDto, userId?: string, clientId?: string) {
     const subTask = await this.get(id);
+    const targetRole = dto.role || subTask.role;
 
-    if (dto.taskName && dto.taskName.trim().toLowerCase() !== subTask.taskName.toLowerCase()) {
-      const existing = await gateSubTaskRepository.findByGateAndName(subTask.gateId, dto.taskName.trim());
+    if (dto.taskName && (dto.taskName.trim().toLowerCase() !== subTask.taskName.toLowerCase() || targetRole !== subTask.role)) {
+      const existing = await gateSubTaskRepository.findByGateAndNameAndRole(subTask.gateId, dto.taskName.trim(), targetRole);
       if (existing && existing.id !== id) {
         throw new AppError(
           HttpStatus.CONFLICT,
           ErrorCodes.VALIDATION_ERROR,
-          `A sub-task named "${dto.taskName.trim()}" already exists for this gate.`,
+          `A sub-task named "${dto.taskName.trim()}" already exists for role ${targetRole} at this gate.`,
         );
       }
     }
@@ -84,7 +87,8 @@ export class GateSubTaskService {
 
   async delete(id: string, userId?: string, clientId?: string) {
     await this.get(id);
-    const deleted = await gateSubTaskRepository.delete(id);
+
+    await gateSubTaskRepository.delete(id);
 
     if (userId && clientId) {
       await auditLogService.create({
@@ -96,28 +100,23 @@ export class GateSubTaskService {
       });
     }
 
-    return deleted;
+    return { success: true, id };
   }
 
-  async reorder(gateId: string, dto: ReorderGateSubTasksDto, userId?: string, clientId?: string) {
-    const gate = await gateRepository.findById(gateId);
-    if (!gate) {
-      throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
-    }
+  async reorder(gateId: string, dto: { subTasks: Array<{ id: string; displayOrder: number }> }, userId?: string, clientId?: string) {
+    const updated = await gateSubTaskRepository.reorder(dto.subTasks);
 
-    await gateSubTaskRepository.reorder(dto.subTasks);
-
-    if (userId && clientId) {
+    if (userId && clientId && dto.subTasks.length > 0) {
       await auditLogService.create({
         userId,
         clientId,
         action: 'UPDATE',
         entity: 'GateSubTask',
-        entityId: gateId,
+        entityId: dto.subTasks[0].id,
       });
     }
 
-    return gateSubTaskRepository.listByGate(gateId);
+    return updated;
   }
 }
 

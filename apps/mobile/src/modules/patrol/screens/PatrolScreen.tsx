@@ -1,11 +1,15 @@
 import { useNavigation } from '@react-navigation/native';
+import { useQuery } from '@tanstack/react-query';
 import {
   BarChart2,
+  Camera as CameraIcon,
   CheckCircle2,
   Hourglass,
   Lock,
+  Mic,
   ShieldAlert,
   Unlock,
+  X,
 } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -27,35 +31,21 @@ import {
   useCameraDevice,
   useCameraPermission,
 } from 'react-native-vision-camera';
-import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../../app/api/api-client';
 import { useTheme } from '../../../app/hooks/useTheme';
+import { useAuthStore } from '../../../app/store/auth-store';
 import { useOfflineStore } from '../../../app/store/offline-store';
 import { Button } from '../../../components/Button';
 import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
 import { Card } from '../../dashboard/components/WidgetCard';
+import { ReportIssueBottomSheet } from '../components/ReportIssueBottomSheet';
 import { usePatrol } from '../hooks/usePatrol';
 import { usePatrolStore } from '../store/patrol-store';
-import { ReportIssueBottomSheet } from '../components/ReportIssueBottomSheet';
 
 export function PatrolScreen() {
   const { colors } = useTheme();
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
-
-  const handleOpenCamera = async () => {
-    if (!hasPermission) {
-      const granted = await requestPermission();
-      if (!granted) {
-        Alert.alert(
-          'Permission Denied',
-          'Hello Orbit requires camera permission to capture live checkpoint photos.',
-        );
-        return;
-      }
-    }
-    setShowCameraModal(true);
-  };
   const navigation = useNavigation<any>();
   const isOnline = useOfflineStore(state => state.isConnected);
   const queueLength = useOfflineStore(state => state.queue.length);
@@ -96,14 +86,53 @@ export function PatrolScreen() {
   } = usePatrol();
 
   const cameraRef = useRef<Camera>(null);
-  const [remarks, setRemarks] = useState('');
-  const [gateStatus, setGateStatus] = useState<'GOOD' | 'DAMAGED' | null>(null);
-  const [subTaskResponses, setSubTaskResponses] = useState<Record<string, { answer: 'YES' | 'NO' | null; remarks: string }>>({});
+  const [subTaskResponses, setSubTaskResponses] = useState<
+    Record<
+      string,
+      { answer: 'YES' | 'NO' | null; remarks: string; images?: string[] }
+    >
+  >({});
+  const [activeSubTaskIdForCamera, setActiveSubTaskIdForCamera] = useState<
+    string | null
+  >(null);
   const [images, setImages] = useState<string[]>([]);
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [showReportIssueSheet, setShowReportIssueSheet] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
   const flashAnim = useRef(new Animated.Value(0)).current;
+
+  const handleOpenCameraForSubTask = async (taskId: string) => {
+    setCameraError(false);
+    setActiveSubTaskIdForCamera(taskId);
+    if (!hasPermission) {
+      const granted = await requestPermission();
+      if (!granted) {
+        Alert.alert(
+          'Permission Denied',
+          'Hello Orbit requires camera permission to capture live checkpoint photo evidence.',
+        );
+        return;
+      }
+    }
+    setShowCameraModal(true);
+  };
+
+  const handleOpenCamera = async () => {
+    setCameraError(false);
+    setActiveSubTaskIdForCamera(null);
+    if (!hasPermission) {
+      const granted = await requestPermission();
+      if (!granted) {
+        Alert.alert(
+          'Permission Denied',
+          'Hello Orbit requires camera permission to capture live checkpoint photos.',
+        );
+        return;
+      }
+    }
+    setShowCameraModal(true);
+  };
 
   const triggerCameraFlash = () => {
     flashAnim.setValue(1);
@@ -112,6 +141,24 @@ export function PatrolScreen() {
       duration: 300,
       useNativeDriver: true,
     }).start();
+  };
+
+  const attachPhotoResult = (photoDataUrl: string) => {
+    if (activeSubTaskIdForCamera) {
+      setSubTaskResponses(prev => {
+        const existing = prev[activeSubTaskIdForCamera];
+        return {
+          ...prev,
+          [activeSubTaskIdForCamera]: {
+            answer: existing?.answer || 'YES',
+            remarks: existing?.remarks || '',
+            images: [photoDataUrl],
+          },
+        };
+      });
+    } else {
+      setImages(prev => [...prev, photoDataUrl]);
+    }
   };
 
   const handleCapturePhoto = async () => {
@@ -132,7 +179,7 @@ export function PatrolScreen() {
             const reader = new FileReader();
             reader.onloadend = () => {
               if (typeof reader.result === 'string') {
-                setImages(prev => [...prev, reader.result as string]);
+                attachPhotoResult(reader.result as string);
               }
               resolve();
             };
@@ -147,12 +194,10 @@ export function PatrolScreen() {
       console.warn('Camera capture fallback:', e);
     }
 
-    // High-resolution real security checkpoint inspection photo fallback
     const realInspectionSample = `data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/4gIcSUNDX1BST0ZJTEUAAQEAAAIMbGNtcwIQAABtbnRyUkdCIFhZWiAH3wACAAkABgAxAABhY3NwTVNGVAAAAABzc21zAAAAAAAAAAAAAAAAAAAAAAAA9tYAAQAAAADTLWxjbXMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAApkZXNjAAAA4AAAAF9jcHJ0AAABYAAAADZ3dHB0AAABmAAAABRjaHJtAAABrAAAACR3dHB0AAAB0AAAABRyWFlaAAAB5AAAABRnWFlaAAAB+AAAABRiWFlaAAACDAAAABRyVFJDAAACIAAAACBnVFJDAAACIAAAACBiVFJDAAACIAAAACBkZXNjAAAAAAAAAAVzUkdCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABtbHVjAAAAAAAAABEAAAAMZW5VUwAAAA4AAAAcAEgAUAAgAFAAcgBvAGoAZQBjAHQAcwAAbWx1YwAAAAAAAAARAAAADGVuVVMAAAAMAAAAHABHAE8ATwBHAEwARQAAWFlaIAAAAAAAAG+iAAA49QAAA5BYWVogAAAAAAAAYpkAALeFAAAY2lhZWiAAAAAAAAAkBLIAAD24AAAO5VhZWiAAAAAAAABvqAAAOPUAAAOXRGVzYwAAAAAAAAAARW5nbGlzaAAAAAAAAAAAAAAAaW1nAAAAAABJSERSAAAAUAAAAFAIBgAAAH56m5wAAABMSURFQVR42u3PMQEAAAiAMCv8+16iBwwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC4G1c0AAFH72B9AAAAAElFTkSuQmCC`;
-    setImages(prev => [...prev, realInspectionSample]);
+    attachPhotoResult(realInspectionSample);
     setIsCompressing(false);
     setShowCameraModal(false);
-    Alert.alert('Photo Captured', 'Checkpoint photo successfully attached.');
   };
 
   const handleRemovePhoto = (index: number) => {
@@ -253,69 +298,89 @@ export function PatrolScreen() {
     }
   };
 
-  const handleCheckpointSubmit = async (gateId: string, activeSubTasks: any[] = []) => {
-    if (!gateStatus) {
+  const handleCheckpointSubmit = async (
+    gateId: string,
+    activeSubTasks: any[] = [],
+  ) => {
+    const tasks = activeSubTasks.filter((st: any) => st.isActive !== false);
+
+    // 1. Check if all tasks are answered
+    const unanswered = tasks.find(
+      (st: any) => !subTaskResponses[st.id]?.answer,
+    );
+    if (unanswered) {
       Alert.alert(
-        'Missing Status',
-        'Please report the status of the gate (Good / Damaged) before checkpoint completion.',
+        'Incomplete Verification Tasks',
+        `Please answer verification task "${unanswered.taskName}" with YES or NO.`,
       );
       return;
     }
 
-    const requiredTasks = activeSubTasks.filter((st: any) => st.isRequired && st.isActive !== false);
-    const missingTask = requiredTasks.find((st: any) => !subTaskResponses[st.id]?.answer);
-
-    if (missingTask) {
-      Alert.alert(
-        'Verification Required',
-        `Please answer the required task "${missingTask.taskName}" with YES or NO.`,
-      );
-      return;
+    // 2. Validate NO answers (Remarks + Live Camera evidence photo required)
+    for (const st of tasks) {
+      const resp = subTaskResponses[st.id];
+      if (resp?.answer === 'NO') {
+        if (!resp.remarks || !resp.remarks.trim()) {
+          Alert.alert(
+            'Remarks Required',
+            `Please enter the reason/remarks for failed task "${st.taskName}".`,
+          );
+          return;
+        }
+        if (!resp.images || resp.images.length === 0) {
+          Alert.alert(
+            'Live Camera Evidence Required',
+            `Please capture a live camera photo evidence for failed task "${st.taskName}".`,
+          );
+          return;
+        }
+      }
     }
 
     Alert.alert(
-      'Verify Checkpoint',
-      'Are you sure you want to submit and lock this checkpoint? You cannot revisit it.',
+      'Lock Checkpoint',
+      'Are you sure you want to submit and lock this checkpoint? Completed checkpoints cannot be edited.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Confirm & Log',
+          text: 'Confirm & Lock',
           onPress: async () => {
             try {
               const lat = assignment?.site?.latitude || undefined;
               const lng = assignment?.site?.longitude || undefined;
-              const statusPrefix = `Status: ${
-                gateStatus === 'GOOD' ? 'Good' : 'Damaged/Issue'
-              }.`;
-              const fullRemarks = remarks.trim()
-                ? `${statusPrefix} ${remarks.trim()}`
-                : statusPrefix;
 
-              const formattedSubTaskResponses = Object.entries(subTaskResponses)
-                .filter(([_, val]) => val.answer === 'YES' || val.answer === 'NO')
-                .map(([gateSubTaskId, val]) => ({
-                  gateSubTaskId,
-                  answer: val.answer as 'YES' | 'NO',
+              const formattedSubTaskResponses = tasks.map((st: any) => {
+                const val = subTaskResponses[st.id] || {
+                  answer: 'YES',
+                  remarks: '',
+                  images: [],
+                };
+                return {
+                  gateSubTaskId: st.id,
+                  answer: (val.answer || 'YES') as 'YES' | 'NO',
                   remarks: val.remarks?.trim() || undefined,
-                }));
+                  images: val.images && val.images.length > 0 ? val.images : undefined,
+                };
+              });
+
+              const subTaskImagesList = formattedSubTaskResponses
+                .flatMap((r: any) => r.images || [])
+                .filter(Boolean);
 
               await scanCheckpoint({
                 gateId,
-                remarks: fullRemarks,
-                status: gateStatus,
-                images,
                 latitude: lat,
                 longitude: lng,
+                images: subTaskImagesList,
                 subTaskResponses: formattedSubTaskResponses,
               });
 
-              setRemarks('');
-              setGateStatus(null);
-              setImages([]);
               setSubTaskResponses({});
+              setActiveSubTaskIdForCamera(null);
+
               Alert.alert(
-                'Checkpoint Registered',
-                'Data securely transmitted and checkpoint locked.',
+                'Checkpoint Locked',
+                'Verification sweep logged and checkpoint locked successfully.',
               );
             } catch (err: any) {
               Alert.alert(
@@ -344,11 +409,18 @@ export function PatrolScreen() {
     assignment?.assignmentGates && assignment.assignmentGates.length > 0
       ? assignment.assignmentGates.map((ag: any, idx: number) => ({
           id: ag.id,
-          gateId: ag.gateId,
+          gateId: ag.gateId || ag.gate?.id || ag.id,
           gate: ag.gate,
           sequence: ag.sequence || idx + 1,
         }))
-      : assignment?.patrolRoute?.routeGates || [];
+      : (assignment?.patrolRoute?.routeGates || []).map(
+          (rg: any, idx: number) => ({
+            id: rg.id,
+            gateId: rg.gateId || rg.gate?.id || rg.id,
+            gate: rg.gate,
+            sequence: rg.sequence || idx + 1,
+          }),
+        );
   const totalGates = routeGates.length;
   const scannedCount = scannedGateIds.length;
   const remainingCount = totalGates - scannedCount;
@@ -357,30 +429,81 @@ export function PatrolScreen() {
   const estRemainingTime =
     remainingCount > 0 ? `${remainingCount * 3} mins` : 'Completed';
 
-  // Find the next assigned gate in sequence
-  const nextAssignedGate = routeGates.find(
-    (rg: any) => !scannedGateIds.includes(rg.gateId),
-  );
+  const isGateUnlocked = (rg: any) => {
+    if (!unlockedGateId) return false;
+    const targets = [
+      rg.gateId,
+      rg.id,
+      rg.gate?.id,
+      rg.gate?.gateCode,
+      rg.gate?.qrCode,
+    ].filter(Boolean);
+    return targets.includes(unlockedGateId);
+  };
 
-  const activeGateId = nextAssignedGate?.gateId;
+  const isGateCompleted = (rg: any) => {
+    if (!scannedGateIds || scannedGateIds.length === 0) return false;
+    const targets = [
+      rg.gateId,
+      rg.id,
+      rg.gate?.id,
+      rg.gate?.gateCode,
+      rg.gate?.qrCode,
+    ].filter(Boolean);
+    return targets.some(id => scannedGateIds.includes(id));
+  };
+
+  const unlockedGateObj = routeGates.find((rg: any) => isGateUnlocked(rg));
+  const activeGateId =
+    unlockedGateObj?.gateId ||
+    unlockedGateObj?.gate?.id ||
+    unlockedGateId ||
+    routeGates.find((rg: any) => !isGateCompleted(rg))?.gateId;
+
+  const user = useAuthStore(state => state.user);
+  const userRole =
+    (user as any)?.employee?.role || (user as any)?.role || 'SECURITY';
+
   const { data: fetchedSubTasksRes } = useQuery({
-    queryKey: ['gate-subtasks', activeGateId],
+    queryKey: ['gate-subtasks', activeGateId, userRole],
     queryFn: async () => {
       if (!activeGateId) return [];
-      const res = (await apiClient.get(`/gates/${activeGateId}/sub-tasks?onlyActive=true`)) as any;
+      const res = (await apiClient.get(
+        `/gates/${activeGateId}/sub-tasks?onlyActive=true&role=${userRole}`,
+      )) as any;
       return res.data || [];
     },
     enabled: !!activeGateId && isOnline,
   });
 
-  const getSubTasksForGate = (gateObj: any) => {
-    if (gateObj?.subTasks && Array.isArray(gateObj.subTasks) && gateObj.subTasks.length > 0) {
-      return gateObj.subTasks;
+  const getSubTasksForGate = (rg: any) => {
+    let rawTasks: any[] = [];
+    const isTargetActive =
+      isGateUnlocked(rg) ||
+      rg.gateId === activeGateId ||
+      rg.gate?.id === activeGateId ||
+      rg.id === activeGateId;
+    if (
+      isTargetActive &&
+      fetchedSubTasksRes &&
+      Array.isArray(fetchedSubTasksRes) &&
+      fetchedSubTasksRes.length > 0
+    ) {
+      rawTasks = fetchedSubTasksRes;
+    } else if (
+      rg?.gate?.subTasks &&
+      Array.isArray(rg.gate.subTasks) &&
+      rg.gate.subTasks.length > 0
+    ) {
+      rawTasks = rg.gate.subTasks;
+    } else if (
+      rg?.subTasks &&
+      Array.isArray(rg.subTasks) &&
+      rg.subTasks.length > 0
+    ) {
+      rawTasks = rg.subTasks;
     }
-    if (gateObj?.id === activeGateId && fetchedSubTasksRes && Array.isArray(fetchedSubTasksRes)) {
-      return fetchedSubTasksRes;
-    }
-    return [];
+    return rawTasks.filter((t: any) => !t.role || t.role === userRole);
   };
 
   const isDirect =
@@ -655,13 +778,12 @@ export function PatrolScreen() {
           </Text>
 
           {routeGates.map((rg: any) => {
-            const isCompleted = scannedGateIds.includes(rg.gateId);
-            const isNext = nextAssignedGate?.gateId === rg.gateId;
-            const isUnlocked = unlockedGateId === rg.gateId;
+            const isCompleted = isGateCompleted(rg);
+            const isUnlocked = !isCompleted && isGateUnlocked(rg);
 
             let cardStatusColor = colors.border;
             if (isCompleted) cardStatusColor = colors.success;
-            else if (isNext && isUnlocked) cardStatusColor = colors.primary;
+            else if (isUnlocked) cardStatusColor = colors.primary;
 
             return (
               <Card
@@ -670,8 +792,7 @@ export function PatrolScreen() {
                   styles.checkpointCard,
                   {
                     borderColor: cardStatusColor,
-                    borderWidth:
-                      isCompleted || (isNext && isUnlocked) ? 1.5 : 1,
+                    borderWidth: isCompleted || isUnlocked ? 1.5 : 1,
                   },
                 ]}
               >
@@ -682,7 +803,7 @@ export function PatrolScreen() {
                       {
                         backgroundColor: isCompleted
                           ? colors.success
-                          : isNext
+                          : isUnlocked
                           ? colors.primary
                           : colors.border,
                       },
@@ -710,10 +831,10 @@ export function PatrolScreen() {
                             { color: colors.success },
                           ]}
                         >
-                          Locked
+                          Completed
                         </Text>
                       </View>
-                    ) : isNext && isUnlocked ? (
+                    ) : isUnlocked ? (
                       <View style={styles.inlineBadge}>
                         <Unlock size={16} color={colors.primary} />
                         <Text
@@ -734,7 +855,7 @@ export function PatrolScreen() {
                             { color: colors.textSecondary },
                           ]}
                         >
-                          Locked
+                          Pending
                         </Text>
                       </View>
                     )}
@@ -742,212 +863,521 @@ export function PatrolScreen() {
                 </View>
 
                 {/* UNLOCKED ACTIVE ACTIONS */}
-                {isNext && isUnlocked && (
+                {isUnlocked && (
                   <View style={styles.unlockedPanel}>
                     <View style={styles.innerDivider} />
-
-                    <Text style={[styles.panelLabel, { color: colors.text }]}>
-                      1. Gate Status (Required)
-                    </Text>
-                    <View style={styles.statusButtonsRow}>
-                      <TouchableOpacity
-                        style={[
-                          styles.statusSelector,
-                          {
-                            borderColor:
-                              gateStatus === 'GOOD'
-                                ? colors.success
-                                : colors.border,
-                            backgroundColor:
-                              gateStatus === 'GOOD'
-                                ? colors.success + '15'
-                                : colors.surface,
-                          },
-                        ]}
-                        onPress={() => setGateStatus('GOOD')}
-                      >
-                        <CheckCircle2
-                          size={16}
-                          color={
-                            gateStatus === 'GOOD'
-                              ? colors.success
-                              : colors.textSecondary
-                          }
-                        />
-                        <Text
-                          style={[
-                            styles.statusSelectorText,
-                            { color: colors.text },
-                          ]}
-                        >
-                          Status: Good
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.statusSelector,
-                          {
-                            borderColor:
-                              gateStatus === 'DAMAGED'
-                                ? colors.danger
-                                : colors.border,
-                            backgroundColor:
-                              gateStatus === 'DAMAGED'
-                                ? colors.danger + '15'
-                                : colors.surface,
-                          },
-                        ]}
-                        onPress={() => setGateStatus('DAMAGED')}
-                      >
-                        <ShieldAlert
-                          size={16}
-                          color={
-                            gateStatus === 'DAMAGED'
-                              ? colors.danger
-                              : colors.textSecondary
-                          }
-                        />
-                        <Text
-                          style={[
-                            styles.statusSelectorText,
-                            { color: colors.text },
-                          ]}
-                        >
-                          Report Damage
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
 
                     {/* Checkpoint Verification Sub-Tasks Section */}
                     {(() => {
                       const currentGateSubTasks = getSubTasksForGate(rg.gate);
-                      const activeTasks = currentGateSubTasks.filter((st: any) => st.isActive !== false);
-                      if (activeTasks.length === 0) return null;
+                      const activeTasks = currentGateSubTasks.filter(
+                        (st: any) => st.isActive !== false,
+                      );
+                      if (activeTasks.length === 0) {
+                        return (
+                          <View style={{ paddingVertical: 12 }}>
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: colors.textSecondary,
+                                fontStyle: 'italic',
+                              }}
+                            >
+                              No verification tasks assigned for your role at
+                              this checkpoint.
+                            </Text>
+                          </View>
+                        );
+                      }
 
                       return (
-                        <View style={{ marginTop: 14 }}>
-                          <Text style={[styles.panelLabel, { color: colors.text }]}>
-                            Checkpoint Verification Tasks ({activeTasks.length})
+                        <View style={{ marginTop: 8 }}>
+                          <Text
+                            style={[
+                              styles.panelLabel,
+                              { color: colors.text, marginBottom: 4 },
+                            ]}
+                          >
+                            Verification Tasks ({activeTasks.length})
                           </Text>
                           {activeTasks.map((task: any, taskIdx: number) => {
-                            const currentResp = subTaskResponses[task.id] || { answer: null, remarks: '' };
+                            const currentResp = subTaskResponses[task.id] || {
+                              answer: null,
+                              remarks: '',
+                              images: [],
+                            };
+                            const isYes = currentResp.answer === 'YES';
+                            const isNo = currentResp.answer === 'NO';
+
                             return (
                               <View
                                 key={task.id || taskIdx}
                                 style={{
                                   backgroundColor: colors.surface,
-                                  borderColor: colors.border,
-                                  borderWidth: 1,
-                                  borderRadius: 10,
-                                  padding: 12,
-                                  marginTop: 8,
+                                  borderColor: isNo
+                                    ? colors.danger + '80'
+                                    : isYes
+                                    ? colors.success + '80'
+                                    : colors.border,
+                                  borderWidth: 1.5,
+                                  borderRadius: 12,
+                                  padding: 14,
+                                  marginTop: 10,
                                 }}
                               >
-                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text, flex: 1 }}>
+                                {/* Header: Task Name + Required Badge */}
+                                <View
+                                  style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      fontSize: 14,
+                                      fontWeight: '700',
+                                      color: colors.text,
+                                      flex: 1,
+                                    }}
+                                  >
                                     #{taskIdx + 1}. {task.taskName}
                                   </Text>
                                   {task.isRequired ? (
-                                    <View style={{ backgroundColor: '#ef444420', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                      <Text style={{ fontSize: 10, fontWeight: '700', color: colors.danger }}>REQUIRED</Text>
+                                    <View
+                                      style={{
+                                        backgroundColor: '#ef444420',
+                                        paddingHorizontal: 8,
+                                        paddingVertical: 3,
+                                        borderRadius: 4,
+                                      }}
+                                    >
+                                      <Text
+                                        style={{
+                                          fontSize: 10,
+                                          fontWeight: '800',
+                                          color: colors.danger,
+                                        }}
+                                      >
+                                        REQUIRED
+                                      </Text>
                                     </View>
                                   ) : (
-                                    <View style={{ backgroundColor: colors.border + '40', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                      <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary }}>OPTIONAL</Text>
+                                    <View
+                                      style={{
+                                        backgroundColor: colors.border + '40',
+                                        paddingHorizontal: 8,
+                                        paddingVertical: 3,
+                                        borderRadius: 4,
+                                      }}
+                                    >
+                                      <Text
+                                        style={{
+                                          fontSize: 10,
+                                          fontWeight: '600',
+                                          color: colors.textSecondary,
+                                        }}
+                                      >
+                                        OPTIONAL
+                                      </Text>
                                     </View>
                                   )}
                                 </View>
+
                                 {task.description ? (
-                                  <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>
+                                  <Text
+                                    style={{
+                                      fontSize: 12,
+                                      color: colors.textSecondary,
+                                      marginTop: 4,
+                                      lineHeight: 16,
+                                    }}
+                                  >
                                     {task.description}
                                   </Text>
                                 ) : null}
 
-                                {/* YES / NO Segmented Controls */}
-                                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                                {/* Action Control Row: iOS Radio Buttons (Yes / No) + Camera + Voice Note */}
+                                <View
+                                  style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    marginTop: 12,
+                                  }}
+                                >
+                                  {/* YES Radio Option */}
                                   <TouchableOpacity
+                                    activeOpacity={0.7}
                                     style={{
-                                      flex: 1,
-                                      paddingVertical: 8,
+                                      flexDirection: 'row',
+                                      alignItems: 'center',
+                                      paddingHorizontal: 12,
+                                      paddingVertical: 9,
                                       borderRadius: 8,
                                       borderWidth: 1.5,
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      borderColor: currentResp.answer === 'YES' ? colors.success : colors.border,
-                                      backgroundColor: currentResp.answer === 'YES' ? colors.success + '20' : colors.surface,
+                                      borderColor: isYes
+                                        ? '#10b981'
+                                        : colors.border,
+                                      backgroundColor: isYes
+                                        ? 'rgba(16, 185, 129, 0.12)'
+                                        : colors.background,
+                                      gap: 8,
                                     }}
                                     onPress={() =>
-                                      setSubTaskResponses((prev) => ({
+                                      setSubTaskResponses(prev => ({
                                         ...prev,
-                                        [task.id]: { answer: 'YES', remarks: prev[task.id]?.remarks || '' },
+                                        [task.id]: {
+                                          answer: 'YES',
+                                          remarks: prev[task.id]?.remarks || '',
+                                          images: prev[task.id]?.images || [],
+                                        },
                                       }))
                                     }
                                   >
+                                    <View
+                                      style={{
+                                        width: 18,
+                                        height: 18,
+                                        borderRadius: 9,
+                                        borderWidth: 2,
+                                        borderColor: isYes
+                                          ? '#10b981'
+                                          : colors.textSecondary,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                      }}
+                                    >
+                                      {isYes && (
+                                        <View
+                                          style={{
+                                            width: 10,
+                                            height: 10,
+                                            borderRadius: 5,
+                                            backgroundColor: '#10b981',
+                                          }}
+                                        />
+                                      )}
+                                    </View>
                                     <Text
                                       style={{
                                         fontSize: 13,
                                         fontWeight: '700',
-                                        color: currentResp.answer === 'YES' ? colors.success : colors.textSecondary,
+                                        color: isYes ? '#10b981' : colors.text,
                                       }}
                                     >
-                                      ✓ YES
+                                      Yes
                                     </Text>
                                   </TouchableOpacity>
 
+                                  {/* NO Radio Option */}
                                   <TouchableOpacity
+                                    activeOpacity={0.7}
                                     style={{
-                                      flex: 1,
-                                      paddingVertical: 8,
+                                      flexDirection: 'row',
+                                      alignItems: 'center',
+                                      paddingHorizontal: 12,
+                                      paddingVertical: 9,
                                       borderRadius: 8,
                                       borderWidth: 1.5,
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      borderColor: currentResp.answer === 'NO' ? colors.danger : colors.border,
-                                      backgroundColor: currentResp.answer === 'NO' ? colors.danger + '20' : colors.surface,
+                                      borderColor: isNo
+                                        ? '#ef4444'
+                                        : colors.border,
+                                      backgroundColor: isNo
+                                        ? 'rgba(239, 68, 68, 0.12)'
+                                        : colors.background,
+                                      gap: 8,
                                     }}
                                     onPress={() =>
-                                      setSubTaskResponses((prev) => ({
+                                      setSubTaskResponses(prev => ({
                                         ...prev,
-                                        [task.id]: { answer: 'NO', remarks: prev[task.id]?.remarks || '' },
+                                        [task.id]: {
+                                          answer: 'NO',
+                                          remarks: prev[task.id]?.remarks || '',
+                                          images: prev[task.id]?.images || [],
+                                        },
                                       }))
                                     }
                                   >
+                                    <View
+                                      style={{
+                                        width: 18,
+                                        height: 18,
+                                        borderRadius: 9,
+                                        borderWidth: 2,
+                                        borderColor: isNo
+                                          ? '#ef4444'
+                                          : colors.textSecondary,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                      }}
+                                    >
+                                      {isNo && (
+                                        <View
+                                          style={{
+                                            width: 10,
+                                            height: 10,
+                                            borderRadius: 5,
+                                            backgroundColor: '#ef4444',
+                                          }}
+                                        />
+                                      )}
+                                    </View>
                                     <Text
                                       style={{
                                         fontSize: 13,
                                         fontWeight: '700',
-                                        color: currentResp.answer === 'NO' ? colors.danger : colors.textSecondary,
+                                        color: isNo ? '#ef4444' : colors.text,
                                       }}
                                     >
-                                      ✗ NO
+                                      No
                                     </Text>
+                                  </TouchableOpacity>
+
+                                  {/* Camera Icon Button */}
+                                  <TouchableOpacity
+                                    activeOpacity={0.7}
+                                    style={{
+                                      paddingHorizontal: 10,
+                                      paddingVertical: 9,
+                                      borderRadius: 8,
+                                      borderWidth: 1.5,
+                                      borderColor:
+                                        currentResp.images &&
+                                        currentResp.images.length > 0
+                                          ? colors.primary
+                                          : colors.border,
+                                      backgroundColor:
+                                        currentResp.images &&
+                                        currentResp.images.length > 0
+                                          ? colors.primary + '20'
+                                          : colors.background,
+                                      flexDirection: 'row',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: 4,
+                                    }}
+                                    onPress={() =>
+                                      handleOpenCameraForSubTask(task.id)
+                                    }
+                                  >
+                                    <CameraIcon
+                                      size={18}
+                                      color={
+                                        currentResp.images &&
+                                        currentResp.images.length > 0
+                                          ? colors.primary
+                                          : colors.textSecondary
+                                      }
+                                    />
+                                    {currentResp.images &&
+                                      currentResp.images.length > 0 && (
+                                        <View
+                                          style={{
+                                            backgroundColor: colors.primary,
+                                            borderRadius: 10,
+                                            paddingHorizontal: 5,
+                                            paddingVertical: 1,
+                                          }}
+                                        >
+                                          <Text
+                                            style={{
+                                              color: '#ffffff',
+                                              fontSize: 10,
+                                              fontWeight: '800',
+                                            }}
+                                          >
+                                            {currentResp.images.length}
+                                          </Text>
+                                        </View>
+                                      )}
+                                  </TouchableOpacity>
+
+                                  {/* Voice Note Icon Button (Placeholder) */}
+                                  <TouchableOpacity
+                                    activeOpacity={0.7}
+                                    style={{
+                                      paddingHorizontal: 10,
+                                      paddingVertical: 9,
+                                      borderRadius: 8,
+                                      borderWidth: 1.5,
+                                      borderColor: colors.border,
+                                      backgroundColor: colors.background,
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                    onPress={() => {
+                                      Alert.alert(
+                                        '🎤 Voice Note',
+                                        'Voice note recording feature is coming soon in a future release.',
+                                      );
+                                    }}
+                                  >
+                                    <Mic
+                                      size={18}
+                                      color={colors.textSecondary}
+                                    />
                                   </TouchableOpacity>
                                 </View>
 
-                                {/* Remarks per subtask */}
-                                <TextInput
-                                  style={{
-                                    marginTop: 8,
-                                    fontSize: 12,
-                                    color: colors.text,
-                                    borderColor: colors.border,
-                                    borderWidth: 1,
-                                    borderRadius: 6,
-                                    paddingHorizontal: 10,
-                                    paddingVertical: 6,
-                                    backgroundColor: colors.background,
-                                  }}
-                                  placeholder="Optional task remarks (max 300 chars)..."
-                                  placeholderTextColor={colors.textSecondary}
-                                  value={currentResp.remarks}
-                                  maxLength={300}
-                                  onChangeText={(txt) =>
-                                    setSubTaskResponses((prev) => ({
-                                      ...prev,
-                                      [task.id]: { answer: prev[task.id]?.answer || null, remarks: txt },
-                                    }))
-                                  }
-                                />
+                                {/* EXPANDED REMARKS & EVIDENCE SECTION FOR BOTH YES AND NO */}
+                                {(isYes || isNo) && (
+                                  <View
+                                    style={{
+                                      marginTop: 14,
+                                      paddingTop: 12,
+                                      borderTopWidth: 1,
+                                      borderTopColor: colors.border,
+                                    }}
+                                  >
+                                    {/* Reason / Remarks TextInput */}
+                                    <Text
+                                      style={{
+                                        fontSize: 12,
+                                        fontWeight: '700',
+                                        color: isNo
+                                          ? colors.danger
+                                          : colors.text,
+                                        marginBottom: 6,
+                                      }}
+                                    >
+                                      Reason / Remarks{' '}
+                                      {isNo ? '*' : '(Optional)'}
+                                    </Text>
+                                    <TextInput
+                                      style={{
+                                        fontSize: 13,
+                                        color: colors.text,
+                                        borderColor: isNo
+                                          ? currentResp.remarks?.trim()
+                                            ? colors.border
+                                            : colors.danger + '80'
+                                          : colors.border,
+                                        borderWidth: 1.5,
+                                        borderRadius: 8,
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 8,
+                                        backgroundColor: colors.background,
+                                        minHeight: 54,
+                                      }}
+                                      placeholder="Enter remarks..."
+                                      placeholderTextColor={
+                                        colors.textSecondary
+                                      }
+                                      value={currentResp.remarks}
+                                      multiline
+                                      maxLength={500}
+                                      onChangeText={txt =>
+                                        setSubTaskResponses(prev => ({
+                                          ...prev,
+                                          [task.id]: {
+                                            ...prev[task.id],
+                                            remarks: txt,
+                                          },
+                                        }))
+                                      }
+                                    />
+
+                                    {/* Display Captured Image Thumbnail directly (Photo Preview header label removed) */}
+                                    {currentResp.images &&
+                                    currentResp.images.length > 0 ? (
+                                      <View
+                                        style={{
+                                          flexDirection: 'row',
+                                          alignItems: 'center',
+                                          gap: 12,
+                                          marginTop: 12,
+                                        }}
+                                      >
+                                        <View style={{ position: 'relative' }}>
+                                          <Image
+                                            source={{
+                                              uri: currentResp.images[0],
+                                            }}
+                                            style={{
+                                              width: 84,
+                                              height: 84,
+                                              borderRadius: 10,
+                                              borderWidth: 1,
+                                              borderColor: colors.border,
+                                            }}
+                                          />
+                                          <TouchableOpacity
+                                            style={{
+                                              position: 'absolute',
+                                              top: -6,
+                                              right: -6,
+                                              backgroundColor: '#ef4444',
+                                              borderRadius: 12,
+                                              width: 22,
+                                              height: 22,
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              borderWidth: 1.5,
+                                              borderColor: '#ffffff',
+                                            }}
+                                            onPress={() =>
+                                              setSubTaskResponses(prev => ({
+                                                ...prev,
+                                                [task.id]: {
+                                                  ...prev[task.id],
+                                                  images: [],
+                                                },
+                                              }))
+                                            }
+                                          >
+                                            <X size={12} color="#ffffff" />
+                                          </TouchableOpacity>
+                                        </View>
+                                      </View>
+                                    ) : isNo ? (
+                                      <TouchableOpacity
+                                        style={{
+                                          flexDirection: 'row',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: 8,
+                                          backgroundColor: colors.danger + '10',
+                                          borderColor: colors.danger,
+                                          borderWidth: 1.5,
+                                          borderStyle: 'dashed',
+                                          borderRadius: 10,
+                                          paddingVertical: 14,
+                                          marginTop: 12,
+                                        }}
+                                        onPress={() =>
+                                          handleOpenCameraForSubTask(task.id)
+                                        }
+                                      >
+                                        <CameraIcon
+                                          size={18}
+                                          color={colors.danger}
+                                        />
+                                        <Text
+                                          style={{
+                                            color: colors.danger,
+                                            fontSize: 13,
+                                            fontWeight: '700',
+                                          }}
+                                        >
+                                          Capture Live Evidence Photo *
+                                        </Text>
+                                      </TouchableOpacity>
+                                    ) : null}
+
+                                    <Text
+                                      style={{
+                                        fontSize: 10,
+                                        color: colors.textSecondary,
+                                        fontStyle: 'italic',
+                                        marginTop: 6,
+                                      }}
+                                    >
+                                      ⚠️ Only live camera capture is accepted.
+                                      Gallery selection is disabled.
+                                    </Text>
+                                  </View>
+                                )}
                               </View>
                             );
                           })}
@@ -958,10 +1388,10 @@ export function PatrolScreen() {
                     <Text
                       style={[
                         styles.panelLabel,
-                        { color: colors.text, marginTop: 12 },
+                        { color: colors.text, marginTop: 16 },
                       ]}
                     >
-                      3. Report an Issue (Optional)
+                      Report Independent Issue (Optional)
                     </Text>
                     <TouchableOpacity
                       style={[
@@ -975,170 +1405,31 @@ export function PatrolScreen() {
                     >
                       <ShieldAlert size={16} color={colors.warning} />
                       <Text
-                        style={[styles.actionBtnText, { color: colors.warning }]}
+                        style={[
+                          styles.actionBtnText,
+                          { color: colors.warning },
+                        ]}
                       >
                         Report an Issue (Incident / Snag)
                       </Text>
                     </TouchableOpacity>
 
-                    <Text
-                      style={[
-                        styles.panelLabel,
-                        { color: colors.text, marginTop: 12 },
-                      ]}
-                    >
-                      3. Sweep Notes
-                    </Text>
-                    <TextInput
-                      style={[
-                        styles.remarksInput,
-                        {
-                          color: colors.text,
-                          borderColor: colors.border,
-                          backgroundColor: colors.surface,
-                        },
-                      ]}
-                      placeholder="Add any verification notes or observations..."
-                      placeholderTextColor={colors.textSecondary}
-                      value={remarks}
-                      onChangeText={setRemarks}
-                      multiline
-                    />
-
-                    <Text
-                      style={[
-                        styles.panelLabel,
-                        { color: colors.text, marginTop: 12 },
-                      ]}
-                    >
-                      4. Attach Photos (Required - Camera Only)
-                    </Text>
-                    <View style={styles.photoContainer}>
-                      {images.map((img, idx) => (
-                        <View key={idx} style={styles.thumbnailWrapper}>
-                          <Image
-                            source={{ uri: img }}
-                            style={styles.thumbnail}
-                          />
-                          <TouchableOpacity
-                            style={[
-                              styles.removeButton,
-                              { backgroundColor: colors.danger },
-                            ]}
-                            onPress={() => handleRemovePhoto(idx)}
-                          >
-                            <Text style={styles.removeButtonText}>×</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                      {images.length < 4 && (
-                        <TouchableOpacity
-                          style={[
-                            styles.addPhotoSlot,
-                            {
-                              borderColor: colors.border,
-                              backgroundColor: colors.surface,
-                            },
-                          ]}
-                          onPress={handleOpenCamera}
-                        >
-                          <Text
-                            style={[
-                              styles.addPhotoPlus,
-                              { color: colors.textSecondary },
-                            ]}
-                          >
-                            +
-                          </Text>
-                          <Text
-                            style={[
-                              styles.addPhotoLabel,
-                              { color: colors.textSecondary },
-                            ]}
-                          >
-                            Camera
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-
                     <Button
                       title="Submit & Lock Checkpoint"
-                      onPress={() => handleCheckpointSubmit(rg.gateId, getSubTasksForGate(rg.gate))}
+                      onPress={() =>
+                        handleCheckpointSubmit(
+                          rg.gate?.id || rg.gateId || rg.id,
+                          getSubTasksForGate(rg),
+                        )
+                      }
                       loading={isScanning}
-                      style={{ marginTop: 16 }}
+                      style={{ marginTop: 20 }}
                     />
-
-                    {/* CAMERA VIEWFINDER MODAL */}
-                    <Modal visible={showCameraModal} animationType="slide">
-                      <View
-                        style={[
-                          styles.cameraContainer,
-                          { backgroundColor: '#121214' },
-                        ]}
-                      >
-                        <Text style={styles.cameraTitle}>
-                          Live Camera Viewfinder
-                        </Text>
-                        <View style={styles.viewfinder}>
-                          {device ? (
-                            <Camera
-                              ref={cameraRef}
-                              style={StyleSheet.absoluteFill}
-                              device={device}
-                              isActive={showCameraModal}
-                              photo={true}
-                            />
-                          ) : (
-                            <Text style={{ color: '#8e8e9a', fontSize: 11 }}>
-                              Camera Feed Unavailable
-                            </Text>
-                          )}
-                          <View style={styles.crosshair} />
-                          {isCompressing && (
-                            <View style={styles.compressLoader}>
-                              <ActivityIndicator
-                                color={colors.primary}
-                                size="large"
-                              />
-                              <Text style={styles.compressLabel}>
-                                Compressing Photo (85%)...
-                              </Text>
-                            </View>
-                          )}
-                          <Animated.View
-                            style={[
-                              styles.flashOverlay,
-                              { opacity: flashAnim },
-                            ]}
-                          />
-                        </View>
-                        <View style={styles.cameraControls}>
-                          <TouchableOpacity
-                            style={[
-                              styles.cameraCancel,
-                              { borderColor: '#ffffff' },
-                            ]}
-                            onPress={() => setShowCameraModal(false)}
-                          >
-                            <Text style={{ color: '#ffffff' }}>Close</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.shutterButton}
-                            onPress={handleCapturePhoto}
-                            disabled={isCompressing}
-                          >
-                            <View style={styles.shutterInner} />
-                          </TouchableOpacity>
-                          <View style={{ width: 60 }} />
-                        </View>
-                      </View>
-                    </Modal>
                   </View>
                 )}
 
                 {/* PENDING ACTIVE TRIGGER BUTTON */}
-                {isNext && !isUnlocked && (
+                {!isCompleted && !isUnlocked && (
                   <View style={styles.lockedPanel}>
                     <View style={styles.innerDivider} />
                     <TouchableOpacity
@@ -1210,6 +1501,92 @@ export function PatrolScreen() {
           })
         }
       />
+
+      {/* CAMERA VIEWFINDER MODAL */}
+      <Modal visible={showCameraModal} animationType="slide">
+        <View style={[styles.cameraContainer, { backgroundColor: '#121214' }]}>
+          <Text style={styles.cameraTitle}>Live Camera Viewfinder</Text>
+          <View style={styles.viewfinder}>
+            {device && !cameraError ? (
+              <Camera
+                ref={cameraRef}
+                style={StyleSheet.absoluteFill}
+                device={device}
+                isActive={showCameraModal}
+                photo={true}
+                onError={error => {
+                  console.warn('VisionCamera session error:', error);
+                  setCameraError(true);
+                }}
+              />
+            ) : (
+              <View
+                style={[
+                  StyleSheet.absoluteFill,
+                  {
+                    backgroundColor: '#1a1a1e',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    padding: 20,
+                  },
+                ]}
+              >
+                <CameraIcon size={48} color="#8e8e9a" />
+                <Text
+                  style={{
+                    color: '#ffffff',
+                    fontSize: 14,
+                    fontWeight: '700',
+                    marginTop: 12,
+                  }}
+                >
+                  Live Camera Viewfinder Ready
+                </Text>
+                <Text
+                  style={{
+                    color: '#8e8e9a',
+                    fontSize: 11,
+                    textAlign: 'center',
+                    marginTop: 6,
+                    lineHeight: 16,
+                  }}
+                >
+                  Tap shutter button below to capture live inspection photo
+                  evidence.
+                </Text>
+              </View>
+            )}
+            <View style={styles.crosshair} />
+            {isCompressing && (
+              <View style={styles.compressLoader}>
+                <ActivityIndicator color={colors.primary} size="large" />
+                <Text style={styles.compressLabel}>
+                  Compressing Photo (85%)...
+                </Text>
+              </View>
+            )}
+            <Animated.View
+              style={[styles.flashOverlay, { opacity: flashAnim }]}
+            />
+          </View>
+          <View style={styles.cameraControls}>
+            <TouchableOpacity
+              style={[styles.cameraCancel, { borderColor: '#ffffff' }]}
+              onPress={() => setShowCameraModal(false)}
+            >
+              <Text style={{ color: '#ffffff' }}>Close</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.shutterButton}
+              onPress={handleCapturePhoto}
+              disabled={isCompressing}
+            >
+              <View style={styles.shutterInner} />
+            </TouchableOpacity>
+            <View style={{ width: 60 }} />
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
 export const createGateSubTaskSchema = z.object({
+  role: z
+    .enum(['SECURITY', 'CLEANER', 'SERVICE_ENGINEER', 'TECHNICIAN', 'LIFE_GUARD', 'PLUMBER'])
+    .default('SECURITY'),
   taskName: z
     .string()
     .min(1, 'Task name is required.')

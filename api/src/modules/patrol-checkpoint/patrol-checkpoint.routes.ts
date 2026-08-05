@@ -4,6 +4,8 @@ import { Router } from 'express';
 import { authenticate } from '../../common/auth/auth.middleware';
 import { authorize } from '../../common/auth/authorize';
 
+import { OPERATIONAL_ROLES } from '../../common/auth/constants';
+
 import { patrolCheckpointController } from './patrol-checkpoint.controller';
 
 const router: Router = Router();
@@ -12,13 +14,13 @@ router.use(authenticate);
 
 router.post(
   '/scan',
-  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER),
+  authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR, UserRole.MANAGER),
   patrolCheckpointController.scan,
 );
 
 router.get(
   '/history/:sessionId',
-  authorize(UserRole.SECURITY, UserRole.SUPERVISOR, UserRole.MANAGER, UserRole.CLIENT_ADMIN),
+  authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR, UserRole.MANAGER, UserRole.CLIENT_ADMIN),
   patrolCheckpointController.history,
 );
 

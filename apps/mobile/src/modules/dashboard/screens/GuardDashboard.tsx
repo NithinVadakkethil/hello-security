@@ -1,12 +1,34 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import {
+  Shield,
+  Sparkles,
+  Wrench,
+  Cpu,
+  LifeBuoy,
+  Droplet,
+  Clock,
+  MapPin,
+  CheckCircle2,
+  Play,
+  RotateCcw,
+} from 'lucide-react-native';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { useAuthStore } from '../../../app/store/auth-store';
-import { useCurrentPatrolSession, usePatrolHistory } from '../hooks/useDashboard';
-import { useIncidents } from '../../incident/hooks/useIncident';
-import { Card, StatCard, QuickAction } from '../components/WidgetCard';
-import { DashboardSkeleton } from '../components/SkeletonLoader';
-import { useNavigation } from '@react-navigation/native';
+import { getRoleConfig } from '../../../app/utils/role-helpers';
+import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
+import { usePatrolStore } from '../../patrol/store/patrol-store';
+import { usePatrol } from '../../patrol/hooks/usePatrol';
+import { Card } from '../components/WidgetCard';
 
 export function GuardDashboard() {
   const { colors } = useTheme();
@@ -14,121 +36,172 @@ export function GuardDashboard() {
   const navigation = useNavigation<any>();
 
   const {
-    data: currentSession,
-    isLoading: isSessionLoading,
-    refetch: refetchSession,
-    isRefetching: isSessionRefetching,
-  } = useCurrentPatrolSession();
+    data: assignmentsList,
+    refetch: refetchAssignments,
+    isLoading: isLoadingAssignments,
+    isRefetching,
+  } = useActiveAssignments();
 
-  const {
-    data: history,
-    isLoading: isHistoryLoading,
-    refetch: refetchHistory,
-    isRefetching: isHistoryRefetching,
-  } = usePatrolHistory();
+  const { activeSession, loadActiveSession } = usePatrolStore();
+  const { startPatrol, resumePatrol, isStarting } = usePatrol();
 
-  const {
-    data: incidents,
-    isLoading: isIncidentsLoading,
-    refetch: refetchIncidents,
-    isRefetching: isIncidentsRefetching,
-  } = useIncidents();
+  const assignments = assignmentsList || [];
 
-  const onRefresh = () => {
-    refetchSession();
-    refetchHistory();
-    refetchIncidents();
+  const onRefresh = async () => {
+    await refetchAssignments();
+    await loadActiveSession();
   };
 
-  const isLoading = isSessionLoading || isHistoryLoading || isIncidentsLoading;
-  const isRefreshing = isSessionRefetching || isHistoryRefetching || isIncidentsRefetching;
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
 
-  if (isLoading) {
-    return <DashboardSkeleton />;
-  }
+  const empRole = (user as any)?.employee?.role || (user as any)?.role || 'SECURITY';
+  const roleObj = getRoleConfig(empRole);
+  const RoleIcon = roleObj.icon;
+  const firstNameStr = user?.employee?.firstName || user?.email?.split('@')[0] || 'User';
+  const greetingRoleName = `${roleObj.label} ${firstNameStr}`;
 
-  const totalPatrols = history?.length || 0;
-  const completedPatrols = history?.filter((s) => s.status === 'COMPLETED').length || 0;
+  const currentTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const handleStartAssignment = async (asg: any) => {
+    try {
+      if (activeSession) {
+        navigation.navigate('PatrolTab');
+        return;
+      }
+      await startPatrol(asg.id);
+      navigation.navigate('PatrolTab');
+    } catch (err: any) {
+      Alert.alert('Patrol Error', err.message || 'Failed to start patrol.');
+    }
+  };
 
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
       refreshControl={
-        <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+        <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} colors={[colors.primary]} />
       }
     >
+      {/* Header Greeting & Role Badge */}
       <View style={styles.header}>
-        <Text style={[styles.welcome, { color: colors.textSecondary }]}>Welcome back,</Text>
-        <Text style={[styles.name, { color: colors.text }]}>Officer {user?.email.split('@')[0]}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.greeting, { color: colors.textSecondary }]}>{getGreeting()},</Text>
+          <Text style={[styles.name, { color: colors.text }]}>{greetingRoleName}</Text>
+        </View>
+
+        <View style={[styles.roleBadge, { backgroundColor: roleObj.color + '22', borderColor: roleObj.color }]}>
+          <RoleIcon size={14} color={roleObj.color} />
+          <Text style={[styles.roleText, { color: roleObj.color }]}>{roleObj.label}</Text>
+        </View>
       </View>
 
-      {currentSession ? (
-        <Card style={[styles.activeCard, { borderColor: colors.primary }]}>
-          <View style={styles.activeHeader}>
-            <View style={[styles.dot, { backgroundColor: colors.success }]} />
-            <Text style={[styles.activeLabel, { color: colors.success }]}>PATROL ACTIVE</Text>
-          </View>
-          <Text style={[styles.activeTitle, { color: colors.text }]}>
-            {currentSession.assignment?.patrolRoute?.name || 'Assigned Route'}
-          </Text>
-          <Text style={[styles.activeDesc, { color: colors.textSecondary }]}>
-            Site: {currentSession.assignment?.site?.name || 'Active Site'}
-          </Text>
-          <Text style={[styles.activeDesc, { color: colors.textSecondary }]}>
-            Started At: {new Date(currentSession.startedAt).toLocaleTimeString()}
-          </Text>
-        </Card>
-      ) : (
-        <Card style={styles.emptyAssignmentCard}>
-          <Text style={[styles.emptyAssignmentTitle, { color: colors.text }]}>Today's Assignment</Text>
-          <Text style={[styles.emptyAssignmentText, { color: colors.textSecondary }]}>
-            No patrol session currently active. Use the quick actions below to initiate your security sweep.
-          </Text>
-        </Card>
-      )}
-
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Today's Statistics</Text>
-      <View style={styles.statsGrid}>
-        <StatCard value={totalPatrols} label="Total Patrols" badge="Today" badgeColor={colors.primary} />
-        <StatCard value={completedPatrols} label="Completed" badge="Success" badgeColor={colors.success} />
-      </View>
-
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Incidents</Text>
-      {incidents && incidents.length > 0 ? (
-        incidents.slice(0, 2).map((inc) => (
-          <Card key={inc.id} style={[styles.incidentCard, { borderLeftWidth: 4, borderLeftColor: colors.danger }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Text style={{ fontWeight: '700', fontSize: 13, color: colors.text }}>{inc.type}</Text>
-              <Text style={{ fontWeight: '800', fontSize: 11, color: colors.danger }}>{inc.severity}</Text>
+      {/* Current Time & Shift Status Widget */}
+      <Card style={[styles.statusCard, { borderColor: colors.border }]}>
+        <View style={styles.statusRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Clock size={18} color={colors.primary} />
+            <View>
+              <Text style={[styles.statusMetaLabel, { color: colors.textSecondary }]}>Current Time</Text>
+              <Text style={[styles.statusMetaVal, { color: colors.text }]}>{currentTimeStr}</Text>
             </View>
-            <Text style={[styles.incidentText, { color: colors.textSecondary }]}>
-              {inc.description}
+          </View>
+
+          <View style={styles.verticalDivider} />
+
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.statusMetaLabel, { color: colors.textSecondary }]}>Work Status</Text>
+            <Text style={[styles.statusMetaVal, { color: activeSession ? colors.success : colors.primary }]}>
+              {activeSession ? '● Patrol In Progress' : 'Ready for Sweep'}
             </Text>
-          </Card>
-        ))
-      ) : (
-        <Card style={styles.incidentCard}>
-          <Text style={[styles.incidentTitle, { color: colors.textSecondary }]}>No recent incidents reported</Text>
-          <Text style={[styles.incidentText, { color: colors.textSecondary }]}>
-            All gates and checkpoints are clear. Reporting remains stable.
+          </View>
+        </View>
+      </Card>
+
+      {/* Assigned Work Header */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>My Assigned Work</Text>
+
+      {assignments.length === 0 ? (
+        <Card style={styles.emptyCard}>
+          <CheckCircle2 size={36} color={colors.textSecondary} style={{ alignSelf: 'center', marginBottom: 8 }} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No assignments today</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+            You currently have no active patrol routes or site checkpoint assignments for today&apos;s shift.
           </Text>
         </Card>
-      )}
+      ) : (
+        assignments.map((asg: any) => {
+          const isDirect = asg.assignmentType === 'DIRECT_CHECKPOINTS' || (!asg.patrolRoute && asg.assignmentGates);
+          const totalGates = isDirect
+            ? asg.assignmentGates?.length || 0
+            : asg.patrolRoute?.routeGates?.length || 0;
+          const siteName = asg.site?.name || 'Assigned Site';
+          const title = isDirect ? 'Direct Checkpoints Sweep' : asg.patrolRoute?.name || 'Patrol Route';
+          const isActiveThis = activeSession?.assignmentId === asg.id;
 
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
-      <QuickAction
-        title="Initiate Guard Sweep"
-        description="Scan site gates and log checkpoint status"
-        onPress={() => navigation.navigate('Patrol')}
-        color={colors.primary}
-      />
-      <QuickAction
-        title="Report Incident"
-        description="Log an active hazard, breach, or observation"
-        onPress={() => navigation.navigate('Reports')}
-        color={colors.danger}
-      />
+          return (
+            <Card key={asg.id} style={[styles.workCard, { borderColor: isActiveThis ? colors.primary : colors.border }]}>
+              <View style={styles.workHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.workTitle, { color: colors.text }]}>{title}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                    <MapPin size={13} color={colors.primary} />
+                    <Text style={[styles.siteName, { color: colors.primary }]}>{siteName}</Text>
+                  </View>
+                </View>
+
+                {/* Completed Today Badge */}
+                <View style={[styles.completedBadge, { backgroundColor: colors.success + '20' }]}>
+                  <CheckCircle2 size={12} color={colors.success} />
+                  <Text style={[styles.completedText, { color: colors.success }]}>Completed Today</Text>
+                </View>
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              <View style={styles.workMetaRow}>
+                <View style={styles.metaItem}>
+                  <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Checkpoints</Text>
+                  <Text style={[styles.metaVal, { color: colors.text }]}>{totalGates} Checkpoints</Text>
+                </View>
+
+                <View style={styles.metaItem}>
+                  <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Shift Timing</Text>
+                  <Text style={[styles.metaVal, { color: colors.text }]}>
+                    {asg.shift ? `${asg.shift.startTime} - ${asg.shift.endTime}` : 'Active Shift'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ marginTop: 14 }}>
+                {isActiveThis ? (
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: colors.success }]}
+                    onPress={() => navigation.navigate('PatrolTab')}
+                  >
+                    <RotateCcw size={16} color="#fff" />
+                    <Text style={styles.actionBtnText}>Resume Patrol</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: colors.primary }]}
+                    onPress={() => handleStartAssignment(asg)}
+                    disabled={isStarting}
+                  >
+                    <Play size={16} color="#fff" />
+                    <Text style={styles.actionBtnText}>Start Patrol</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </Card>
+          );
+        })
+      )}
     </ScrollView>
   );
 }
@@ -138,86 +211,139 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
+    padding: 16,
+    gap: 14,
   },
   header: {
-    marginBottom: 24,
-  },
-  welcome: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: '800',
-    marginTop: 4,
-  },
-  activeCard: {
-    borderWidth: 2,
-    marginBottom: 24,
-  },
-  activeHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'space-between',
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
+  greeting: {
+    fontSize: 13,
+    fontWeight: '600',
   },
-  activeLabel: {
+  name: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginTop: 1,
+  },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 6,
+  },
+  roleText: {
     fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 1,
   },
-  activeTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 4,
+  statusCard: {
+    padding: 14,
+    borderRadius: 14,
   },
-  activeDesc: {
-    fontSize: 13,
-    marginTop: 2,
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  emptyAssignmentCard: {
-    marginBottom: 24,
-    padding: 20,
+  verticalDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: 'var(--border-color, #333)',
+    marginHorizontal: 16,
   },
-  emptyAssignmentTitle: {
-    fontSize: 16,
+  statusMetaLabel: {
+    fontSize: 10,
     fontWeight: '700',
-    marginBottom: 6,
+    textTransform: 'uppercase',
   },
-  emptyAssignmentText: {
-    fontSize: 13,
-    lineHeight: 18,
+  statusMetaVal: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 2,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    marginTop: 8,
-    marginBottom: 12,
+    fontWeight: '800',
+    marginTop: 6,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  incidentCard: {
-    padding: 16,
-    marginBottom: 20,
+  emptyCard: {
+    padding: 36,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  incidentTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
   },
-  incidentText: {
+  emptySubtitle: {
     fontSize: 12,
     textAlign: 'center',
+    marginTop: 4,
+  },
+  workCard: {
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  workHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  workTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  siteName: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  completedText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  divider: {
+    height: 1,
+    marginVertical: 12,
+  },
+  workMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  metaItem: {
+    flex: 1,
+  },
+  metaLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  metaVal: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  actionBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

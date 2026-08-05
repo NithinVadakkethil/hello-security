@@ -19,4 +19,5 @@ export interface UpdateEmployeeDto {
   designation?: string;
   joiningDate?: Date;
   status?: EmployeeStatus;
+  role?: UserRole;
 }

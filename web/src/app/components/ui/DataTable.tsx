@@ -16,6 +16,7 @@ interface DataTableProps<T> {
   sortOrder?: 'asc' | 'desc';
   onSort?: (key: string) => void;
   emptyMessage?: string;
+  getRowStyle?: (row: T) => React.CSSProperties;
 }
 
 export default function DataTable<T extends { id: string | number }>({
@@ -26,6 +27,7 @@ export default function DataTable<T extends { id: string | number }>({
   sortOrder,
   onSort,
   emptyMessage = 'No data available.',
+  getRowStyle,
 }: DataTableProps<T>) {
   return (
     <div className="glass-card table-container" style={{ overflowX: 'auto', width: '100%' }}>
@@ -83,19 +85,31 @@ export default function DataTable<T extends { id: string | number }>({
               </td>
             </tr>
           ) : (
-            data.map((row) => (
-              <tr
-                key={row.id}
-                className="table-row hover-effect"
-                style={{ borderBottom: '1px solid var(--border-color)', transition: 'background var(--transition-fast)' }}
-              >
-                {columns.map((col) => (
-                  <td key={col.key} style={{ padding: '16px 20px', fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                    {col.render ? col.render(row) : (row[col.key as keyof T] as unknown as React.ReactNode)}
-                  </td>
-                ))}
-              </tr>
-            ))
+            data.map((row) => {
+              const isInactive =
+                (row as any).status === 'INACTIVE' ||
+                (row as any).isActive === false ||
+                (row as any).status === 'SUSPENDED';
+
+              return (
+                <tr
+                  key={row.id}
+                  className="table-row hover-effect"
+                  style={{
+                    borderBottom: '1px solid var(--border-color)',
+                    transition: 'background var(--transition-fast)',
+                    opacity: isInactive ? 0.6 : 1,
+                    ...(getRowStyle ? getRowStyle(row) : {}),
+                  }}
+                >
+                  {columns.map((col) => (
+                    <td key={col.key} style={{ padding: '16px 20px', fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                      {col.render ? col.render(row) : (row[col.key as keyof T] as unknown as React.ReactNode)}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>

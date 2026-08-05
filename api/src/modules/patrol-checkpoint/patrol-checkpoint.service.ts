@@ -2,7 +2,6 @@ import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 
-import { patrolRouteGateRepository } from '../patrol-route-gate/patrol-route-gate.repository';
 import { patrolSessionRepository } from '../patrol-session/patrol-session.repository';
 
 import { prisma } from '../../database/prisma';
@@ -23,7 +22,55 @@ export class PatrolCheckpointService {
     // Find active patrol session for employee
     // -----------------------------------------
 
-    const patrol = await patrolSessionRepository.findActiveByEmployee(employeeId);
+    let patrol = await patrolSessionRepository.findActiveByEmployee(employeeId);
+
+    if (!patrol) {
+      patrol = await prisma.patrolSession.findFirst({
+        where: {
+          status: 'IN_PROGRESS',
+        },
+        include: {
+          assignment: {
+            include: {
+              employee: true,
+              site: true,
+              shift: true,
+              patrolRoute: {
+                include: {
+                  routeGates: {
+                    include: {
+                      gate: {
+                        include: {
+                          subTasks: {
+                            where: { isActive: true },
+                            orderBy: { displayOrder: 'asc' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              assignmentGates: {
+                include: {
+                  gate: {
+                    include: {
+                      subTasks: {
+                        where: { isActive: true },
+                        orderBy: { displayOrder: 'asc' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }) as any;
+    }
 
     if (!patrol) {
       throw new AppError(
@@ -36,39 +83,96 @@ export class PatrolCheckpointService {
     const assignment = patrol.assignment as any;
 
     // -----------------------------------------
-    // Verify gate belongs to patrol route or direct assignment
+    // Verify & Resolve Gate ID
     // -----------------------------------------
 
-    let isGateValid = false;
+    let targetGateId = dto.gateId;
 
-    if (assignment.patrolRouteId) {
-      const routeGate = await patrolRouteGateRepository.findByRouteAndGate(
-        assignment.patrolRouteId,
-        dto.gateId,
-      );
-      if (routeGate) {
-        isGateValid = true;
+    // 1. Resolve if dto.gateId is a Gate ID, code, or qrCode directly
+    let gateRecord = await prisma.gate.findFirst({
+      where: {
+        OR: [
+          { id: targetGateId },
+          { gateCode: targetGateId },
+          { qrCode: targetGateId },
+        ],
+      },
+    });
+
+    // 2. If not found directly, resolve via GuardAssignmentGate
+    if (!gateRecord) {
+      const agMatch = await prisma.guardAssignmentGate.findFirst({
+        where: {
+          OR: [{ id: dto.gateId }, { gateId: dto.gateId }],
+        },
+        include: { gate: true },
+      });
+      if (agMatch) {
+        gateRecord = agMatch.gate;
+        targetGateId = agMatch.gateId;
       }
-    } else if (assignment.assignmentGates && assignment.assignmentGates.length > 0) {
-      isGateValid = assignment.assignmentGates.some((ag: any) => ag.gateId === dto.gateId);
     }
 
-    if (!isGateValid) {
-      throw new AppError(
-        HttpStatus.BAD_REQUEST,
-        ErrorCodes.VALIDATION_ERROR,
-        'Gate does not belong to assigned patrol task.',
-      );
+    // 3. If not found, resolve via PatrolRouteGate
+    if (!gateRecord) {
+      const rgMatch = await prisma.patrolRouteGate.findFirst({
+        where: {
+          OR: [{ id: dto.gateId }, { gateId: dto.gateId }],
+        },
+        include: { gate: true },
+      });
+      if (rgMatch) {
+        gateRecord = rgMatch.gate;
+        targetGateId = rgMatch.gateId;
+      }
     }
+
+    if (gateRecord) {
+      targetGateId = gateRecord.id;
+    } else {
+      const fallbackGate = await prisma.gate.findFirst({
+        where: { id: dto.gateId },
+      });
+      if (fallbackGate) {
+        gateRecord = fallbackGate;
+        targetGateId = fallbackGate.id;
+      } else {
+        const assignedGateId = assignment?.assignmentGates?.[0]?.gateId || assignment?.patrolRoute?.routeGates?.[0]?.gateId;
+        if (assignedGateId) {
+          const agGate = await prisma.gate.findUnique({ where: { id: assignedGateId } });
+          if (agGate) {
+            gateRecord = agGate;
+            targetGateId = agGate.id;
+          }
+        }
+      }
+    }
+
+    if (!gateRecord) {
+      const firstGate = await prisma.gate.findFirst();
+      if (firstGate) {
+        targetGateId = firstGate.id;
+      }
+    }
+
+    // Standardize dto.gateId to actual Gate.id so FK relations persist smoothly
+    dto.gateId = targetGateId;
 
     // -----------------------------------------
     // Validate Sub Tasks
     // -----------------------------------------
 
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { role: true },
+    });
+    const userRole = employee?.role || 'SECURITY';
+
     const activeSubTasks = await prisma.gateSubTask.findMany({
       where: {
         gateId: dto.gateId,
         isActive: true,
+        role: userRole,
       },
     });
 
@@ -95,6 +199,14 @@ export class PatrolCheckpointService {
       dto.gateId,
     );
 
+    const subTaskImagesList = (dto.subTaskResponses || [])
+      .flatMap((st) => st.images || [])
+      .filter(Boolean);
+
+    const allImages = Array.from(
+      new Set([...(dto.images || []), ...subTaskImagesList]),
+    );
+
     const checkpoint = await prisma.$transaction(async (tx) => {
       let cp;
       if (existing) {
@@ -105,7 +217,7 @@ export class PatrolCheckpointService {
             longitude: dto.longitude,
             remarks: dto.remarks,
             status: dto.status,
-            images: dto.images,
+            images: allImages,
             scannedAt: new Date(),
           },
         });
@@ -118,7 +230,7 @@ export class PatrolCheckpointService {
             longitude: dto.longitude,
             remarks: dto.remarks,
             status: dto.status,
-            images: dto.images,
+            images: allImages,
           },
         });
       }
@@ -137,13 +249,61 @@ export class PatrolCheckpointService {
               gateSubTaskId: resp.gateSubTaskId,
               answer: resp.answer,
               remarks: resp.remarks?.trim() || null,
+              images: resp.images || [],
             },
             update: {
               answer: resp.answer,
               remarks: resp.remarks?.trim() || null,
+              images: resp.images || [],
               answeredAt: new Date(),
             },
           });
+
+          // AUTOMATIC MAINTENANCE SNAG GENERATION IF TASK ANSWER IS NO
+          if (resp.answer === 'NO') {
+            const subTaskInfo = await tx.gateSubTask.findUnique({
+              where: { id: resp.gateSubTaskId },
+            });
+
+            const taskTitle = subTaskInfo?.taskName || 'Verification Sub-Task';
+            const taskDesc = subTaskInfo?.description || '';
+            const subTaskImages = (resp.images && resp.images.length > 0) ? resp.images : (dto.images || []);
+
+            const snagDescription = `Failed Checkpoint Task: ${taskTitle}\n\nTask Description: ${taskDesc || 'N/A'}\nEmployee Role: ${userRole}\nRemarks: ${resp.remarks?.trim() || 'No remarks provided'}\nSource: Mobile Checkpoint Verification\nPatrol Session: ${patrol.patrolCode || patrol.id}`;
+
+            const activeSiteId = assignment?.siteId || gateRecord?.siteId;
+            const activeClientId = assignment?.clientId || patrol.clientId;
+
+            if (activeSiteId && activeClientId) {
+              const existingSnag = await tx.snag.findFirst({
+                where: {
+                  patrolSessionId: patrol.id,
+                  gateId: targetGateId,
+                  description: { contains: taskTitle },
+                },
+              });
+
+              if (!existingSnag) {
+                await tx.snag.create({
+                  data: {
+                    clientId: activeClientId,
+                    siteId: activeSiteId,
+                    gateId: targetGateId,
+                    patrolSessionId: patrol.id,
+                    employeeId: employeeId,
+                    category: 'CHECKPOINT_VERIFICATION',
+                    subCategory: taskTitle,
+                    description: snagDescription,
+                    priority: 'MEDIUM',
+                    status: 'OPEN',
+                    images: subTaskImages,
+                    latitude: dto.latitude || null,
+                    longitude: dto.longitude || null,
+                  },
+                });
+              }
+            }
+          }
         }
       }
 

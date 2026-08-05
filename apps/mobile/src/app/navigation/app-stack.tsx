@@ -16,13 +16,16 @@ import { ReportIncidentScreen } from '../../modules/incident/screens/ReportIncid
 import { ReportSnagScreen } from '../../modules/snag/screens/ReportSnagScreen';
 import { ProfileScreen } from '../../modules/profile/screens/ProfileScreen';
 import { PatrolDetailsScreen } from '../../modules/dashboard/screens/PatrolDetailsScreen';
-import { Home, ShieldAlert, Camera, Clipboard, User } from 'lucide-react-native';
+import { HistoryScreen } from '../../modules/history/screens/HistoryScreen';
+import { AssignedMaintenanceScreen } from '../../modules/maintenance/screens/AssignedMaintenanceScreen';
+import { Home, ShieldAlert, Camera, Clipboard, User, History as HistoryIcon, Wrench } from 'lucide-react-native';
 
 export type MainTabParamList = {
   HomeTab: undefined;
   PatrolTab: undefined;
   ScannerTab: undefined;
-  IncidentsTab: undefined;
+  HistoryTab: undefined;
+  MaintenanceTab: undefined;
   ProfileTab: undefined;
 };
 
@@ -90,12 +93,21 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="IncidentsTab"
-        component={ReportIncidentScreen}
+        name="HistoryTab"
+        component={HistoryScreen}
         options={{
-          title: 'Report Incident',
-          tabBarLabel: 'Incidents',
-          tabBarIcon: ({ color, size }) => <ShieldAlert size={size} color={color} />,
+          title: 'Work History',
+          tabBarLabel: 'History',
+          tabBarIcon: ({ color, size }) => <HistoryIcon size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="MaintenanceTab"
+        component={AssignedMaintenanceScreen}
+        options={{
+          title: 'Assigned Work',
+          tabBarLabel: 'Jobs',
+          tabBarIcon: ({ color, size }) => <Wrench size={size} color={color} />,
         }}
       />
       <Tab.Screen

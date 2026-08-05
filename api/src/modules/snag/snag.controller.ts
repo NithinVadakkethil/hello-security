@@ -3,12 +3,14 @@ import { currentUser } from '../../common/auth/current-user';
 import { addSnagCommentSchema, assignSnagSchema, createSnagSchema, updateSnagStatusSchema } from './snag.schema';
 import { snagService } from './snag.service';
 
+import { resolveEmployeeId } from '../../common/auth/resolve-employee';
+
 export class SnagController {
   async create(req: Request, res: Response) {
     const user = currentUser(req);
     const validated = createSnagSchema.parse(req.body);
     const clientId = user.tenantId!;
-    const employeeId = user.employeeId!;
+    const employeeId = await resolveEmployeeId(user);
     const userId = user.id;
 
     const snag = await snagService.create(clientId, employeeId, userId, validated);

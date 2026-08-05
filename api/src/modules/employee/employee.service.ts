@@ -114,6 +114,7 @@ export class EmployeeService {
             phone: dto.phone,
 
             designation: dto.designation,
+            role: dto.role,
 
             joiningDate: dto.joiningDate,
 

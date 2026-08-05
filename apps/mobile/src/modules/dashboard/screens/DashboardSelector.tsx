@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAuthStore } from '../../../app/store/auth-store';
 import { useTheme } from '../../../app/hooks/useTheme';
+import { isOperationalRole } from '../../../app/utils/role-helpers';
 import { GuardDashboard } from './GuardDashboard';
 import { SupervisorDashboard } from './SupervisorDashboard';
 import { SyncStatusWidget } from '../../../app/components/SyncStatusWidget';
@@ -18,7 +19,10 @@ export function DashboardSelector() {
     );
   }
 
-  if (user.role === 'SECURITY') {
+  const userRole = (user as any)?.employee?.role || user.role;
+
+  // Operational field roles (Security Guard, Cleaner, Technician, Service Engineer, Plumber, Lifeguard)
+  if (isOperationalRole(userRole)) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
@@ -29,7 +33,8 @@ export function DashboardSelector() {
     );
   }
 
-  if (user.role === 'SUPERVISOR') {
+  // Supervisor role maintains its dedicated workflow
+  if (userRole === 'SUPERVISOR') {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
@@ -44,7 +49,7 @@ export function DashboardSelector() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={[styles.title, { color: colors.text }]}>Role Not Supported</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        Mobile dashboards are only supported for Security and Supervisor roles.
+        Mobile dashboards are supported for Operational Roles (Security, Cleaner, Technician, Service Engineer, Plumber, Lifeguard) and Supervisor roles.
       </Text>
     </View>
   );

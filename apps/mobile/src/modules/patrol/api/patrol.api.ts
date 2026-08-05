@@ -29,7 +29,7 @@ export const patrolApi = {
     images?: string[],
     latitude?: number,
     longitude?: number,
-    subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string }>
+    subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string; images?: string[] }>
   ): Promise<any> => {
     const res = (await apiClient.post('/patrol-checkpoints/scan', {
       gateId,

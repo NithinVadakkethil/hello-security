@@ -82,7 +82,7 @@ export function usePatrol() {
     },
   });
 
-  const scanMutation = useMutation<any, Error, { gateId: string; remarks?: string; status?: string; images?: string[]; latitude?: number; longitude?: number; subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string }> }>({
+  const scanMutation = useMutation<any, Error, { gateId: string; remarks?: string; status?: string; images?: string[]; latitude?: number; longitude?: number; subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string; images?: string[] }> }>({
     mutationFn: async ({ gateId, remarks, status, images, latitude, longitude, subTaskResponses }) => {
       if (!isConnected) {
         await useOfflineStore.getState().enqueue('/patrol-checkpoints/scan', 'POST', {
@@ -100,6 +100,8 @@ export function usePatrol() {
     },
     onSuccess: async (_, variables) => {
       await scanGate(variables.gateId);
+      queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
+      queryClient.invalidateQueries({ queryKey: ['patrol-sessions'] });
     },
   });
 

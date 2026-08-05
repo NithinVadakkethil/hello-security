@@ -74,9 +74,10 @@ export class EmployeeRepository {
       include: {
         user: true,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [
+        { status: 'asc' },
+        { createdAt: 'desc' },
+      ],
     });
   }
 
