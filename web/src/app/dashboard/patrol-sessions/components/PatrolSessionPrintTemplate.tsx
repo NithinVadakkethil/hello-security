@@ -14,7 +14,6 @@ export default function PatrolSessionPrintTemplate({
   const assignment = session.assignment || {};
   const employee = assignment.employee || session.employee || {};
   const site = assignment.site || {};
-  const client = site.client || assignment.client || {};
   const shift = assignment.shift || {};
 
   const routeGates =
