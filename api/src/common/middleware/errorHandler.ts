@@ -35,6 +35,16 @@ export function errorHandler(
     });
   }
 
+  if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
+    return res.status(HttpStatus.UNAUTHORIZED).json({
+      success: false,
+      error: {
+        code: ErrorCodes.UNAUTHORIZED,
+        message: err.name === 'TokenExpiredError' ? 'Access token has expired.' : 'Invalid access token.',
+      },
+    });
+  }
+
   logger.error(
     {
       err,
