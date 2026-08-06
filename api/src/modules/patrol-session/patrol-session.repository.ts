@@ -71,10 +71,7 @@ export class PatrolSessionRepository {
     return prisma.patrolSession.findFirst({
       where: {
         status: PatrolStatus.IN_PROGRESS,
-        OR: [
-          { assignment: { employeeId } },
-          { startedById: employeeId },
-        ],
+        assignment: { employeeId },
       },
       include: {
         assignment: {
