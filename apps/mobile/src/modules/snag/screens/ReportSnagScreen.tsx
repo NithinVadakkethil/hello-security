@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   flashOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#ffffff',
   },
   cameraCloseBtn: {

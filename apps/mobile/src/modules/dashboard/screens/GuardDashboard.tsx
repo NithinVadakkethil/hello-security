@@ -62,7 +62,7 @@ export function GuardDashboard() {
   const empRole = (user as any)?.employee?.role || (user as any)?.role || 'SECURITY';
   const roleObj = getRoleConfig(empRole);
   const RoleIcon = roleObj.icon;
-  const firstNameStr = user?.employee?.firstName || user?.email?.split('@')[0] || 'User';
+  const firstNameStr = (user as any)?.employee?.firstName || user?.email?.split('@')[0] || 'User';
   const greetingRoleName = `${roleObj.label} ${firstNameStr}`;
 
   const currentTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -70,11 +70,11 @@ export function GuardDashboard() {
   const handleStartAssignment = async (asg: any) => {
     try {
       if (activeSession) {
-        navigation.navigate('PatrolTab');
+        navigation.navigate('Dashboard', { screen: 'PatrolTab' });
         return;
       }
       await startPatrol(asg.id);
-      navigation.navigate('PatrolTab');
+      navigation.navigate('Dashboard', { screen: 'PatrolTab' });
     } catch (err: any) {
       Alert.alert('Patrol Error', err.message || 'Failed to start patrol.');
     }
@@ -182,7 +182,7 @@ export function GuardDashboard() {
                 {isActiveThis ? (
                   <TouchableOpacity
                     style={[styles.actionBtn, { backgroundColor: colors.success }]}
-                    onPress={() => navigation.navigate('PatrolTab')}
+                    onPress={() => navigation.navigate('Dashboard', { screen: 'PatrolTab' })}
                   >
                     <RotateCcw size={16} color="#fff" />
                     <Text style={styles.actionBtnText}>Resume Patrol</Text>

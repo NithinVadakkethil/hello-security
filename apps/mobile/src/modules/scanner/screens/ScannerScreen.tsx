@@ -185,7 +185,7 @@ export function ScannerScreen() {
 
       // Workflow Rule 3: Navigate directly to Checkpoint Verification screen (PatrolTab) and do NOT return to Home
       setTimeout(() => {
-        navigation.navigate('PatrolTab');
+        navigation.navigate('Dashboard', { screen: 'PatrolTab' });
         setIsProcessingCode(false);
       }, 400);
     } catch (err: any) {

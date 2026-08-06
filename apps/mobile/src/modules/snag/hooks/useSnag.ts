@@ -18,12 +18,11 @@ export interface CreateSnagInput {
 export function useCreateSnag() {
   const queryClient = useQueryClient();
   const isOnline = useOfflineStore(state => state.isConnected);
-  const enqueueMutation = useOfflineStore(state => state.enqueueMutation);
 
   return useMutation({
     mutationFn: async (input: CreateSnagInput) => {
       if (!isOnline) {
-        enqueueMutation({
+        (useOfflineStore.getState() as any).enqueueMutation({
           url: '/snags',
           method: 'POST',
           payload: input,
