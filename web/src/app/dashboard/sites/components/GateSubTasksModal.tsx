@@ -35,7 +35,7 @@ interface GateSubTasksModalProps {
 
 const ROLE_OPTIONS = [
   { key: 'SECURITY', label: 'Security', icon: Shield, color: '#3b82f6' },
-  { key: 'CLEANER', label: 'Cleaner', icon: Sparkles, color: '#10b981' },
+  { key: 'CLEANER', label: 'House Keeping', icon: Sparkles, color: '#10b981' },
   { key: 'TECHNICIAN', label: 'Technician', icon: Wrench, color: '#f59e0b' },
   { key: 'SERVICE_ENGINEER', label: 'Service Engineer', icon: Cpu, color: '#8b5cf6' },
   { key: 'LIFE_GUARD', label: 'Life Guard', icon: LifeBuoy, color: '#ec4899' },

@@ -450,7 +450,7 @@ export default function SnagDetailPage() {
                         cursor: 'pointer',
                       }}
                     >
-                      {r.replace('_', ' ')}
+                      {r === 'CLEANER' ? 'House Keeping' : r.replace('_', ' ')}
                     </button>
                   ))}
                 </div>

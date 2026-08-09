@@ -181,7 +181,7 @@ export default function UsersPage() {
   // Role options (filter CLIENT_ADMIN permissions if applicable)
   const operationalRoles = [
     { value: 'SECURITY', label: 'Security Guard' },
-    { value: 'CLEANER', label: 'Cleaner' },
+    { value: 'CLEANER', label: 'House Keeping' },
     { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
     { value: 'TECHNICIAN', label: 'Technician' },
     { value: 'LIFE_GUARD', label: 'Life Guard' },
@@ -297,7 +297,7 @@ export default function UsersPage() {
             fontWeight: 500,
           }}
         >
-          {row.role.replace('_', ' ')}
+          {row.role === 'CLEANER' ? 'HOUSE KEEPING' : row.role.replace('_', ' ')}
         </span>
       ),
     },
@@ -424,7 +424,7 @@ export default function UsersPage() {
             <option value="MANAGER">Manager</option>
             <option value="SUPERVISOR">Supervisor</option>
             <option value="SECURITY">Security Guard</option>
-            <option value="CLEANER">Cleaner</option>
+            <option value="CLEANER">House Keeping</option>
             <option value="SERVICE_ENGINEER">Service Engineer</option>
             <option value="TECHNICIAN">Technician</option>
             <option value="LIFE_GUARD">Life Guard</option>

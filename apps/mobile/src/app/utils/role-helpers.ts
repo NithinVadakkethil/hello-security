@@ -30,7 +30,7 @@ export function getRoleConfig(role?: string): RoleConfig {
 
   switch (normalized) {
     case 'CLEANER':
-      return { label: 'Cleaner', icon: Sparkles, color: '#10b981' };
+      return { label: 'House Keeping', icon: Sparkles, color: '#10b981' };
     case 'TECHNICIAN':
       return { label: 'Technician', icon: Wrench, color: '#f59e0b' };
     case 'SERVICE_ENGINEER':

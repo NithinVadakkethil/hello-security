@@ -1,38 +1,32 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
-  Shield,
-  Sparkles,
-  Wrench,
-  Cpu,
-  LifeBuoy,
-  Droplet,
+  CheckCircle2,
   Clock,
   MapPin,
-  CheckCircle2,
   Play,
   RotateCcw,
 } from 'lucide-react-native';
+import React from 'react';
+import {
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { useAuthStore } from '../../../app/store/auth-store';
 import { getRoleConfig } from '../../../app/utils/role-helpers';
 import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
-import { usePatrolStore } from '../../patrol/store/patrol-store';
 import { usePatrol } from '../../patrol/hooks/usePatrol';
+import { usePatrolStore } from '../../patrol/store/patrol-store';
 import { Card } from '../components/WidgetCard';
 
 export function GuardDashboard() {
   const { colors } = useTheme();
-  const user = useAuthStore((state) => state.user);
+  const user = useAuthStore(state => state.user);
   const navigation = useNavigation<any>();
 
   const {
@@ -59,13 +53,18 @@ export function GuardDashboard() {
     return 'Good Evening';
   };
 
-  const empRole = (user as any)?.employee?.role || (user as any)?.role || 'SECURITY';
+  const empRole =
+    (user as any)?.employee?.role || (user as any)?.role || 'SECURITY';
   const roleObj = getRoleConfig(empRole);
   const RoleIcon = roleObj.icon;
-  const firstNameStr = (user as any)?.employee?.firstName || user?.email?.split('@')[0] || 'User';
-  const greetingRoleName = `${roleObj.label} ${firstNameStr}`;
+  const firstNameStr =
+    (user as any)?.employee?.firstName || user?.email?.split('@')[0] || 'User';
+  const greetingRoleName = `${firstNameStr}`;
 
-  const currentTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const currentTimeStr = new Date().toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
   const handleStartAssignment = async (asg: any) => {
     try {
@@ -85,19 +84,37 @@ export function GuardDashboard() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
       refreshControl={
-        <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} colors={[colors.primary]} />
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={onRefresh}
+          colors={[colors.primary]}
+        />
       }
     >
       {/* Header Greeting & Role Badge */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.greeting, { color: colors.textSecondary }]}>{getGreeting()},</Text>
-          <Text style={[styles.name, { color: colors.text }]}>{greetingRoleName}</Text>
+          <Text style={[styles.greeting, { color: colors.textSecondary }]}>
+            {getGreeting()},
+          </Text>
+          <Text style={[styles.name, { color: colors.text }]}>
+            {greetingRoleName}
+          </Text>
         </View>
 
-        <View style={[styles.roleBadge, { backgroundColor: roleObj.color + '22', borderColor: roleObj.color }]}>
+        <View
+          style={[
+            styles.roleBadge,
+            {
+              backgroundColor: roleObj.color + '22',
+              borderColor: roleObj.color,
+            },
+          ]}
+        >
           <RoleIcon size={14} color={roleObj.color} />
-          <Text style={[styles.roleText, { color: roleObj.color }]}>{roleObj.label}</Text>
+          <Text style={[styles.roleText, { color: roleObj.color }]}>
+            {roleObj.label}
+          </Text>
         </View>
       </View>
 
@@ -107,73 +124,144 @@ export function GuardDashboard() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Clock size={18} color={colors.primary} />
             <View>
-              <Text style={[styles.statusMetaLabel, { color: colors.textSecondary }]}>Current Time</Text>
-              <Text style={[styles.statusMetaVal, { color: colors.text }]}>{currentTimeStr}</Text>
+              <Text
+                style={[
+                  styles.statusMetaLabel,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                Current Time
+              </Text>
+              <Text style={[styles.statusMetaVal, { color: colors.text }]}>
+                {currentTimeStr}
+              </Text>
             </View>
           </View>
 
           <View style={styles.verticalDivider} />
 
           <View style={{ flex: 1 }}>
-            <Text style={[styles.statusMetaLabel, { color: colors.textSecondary }]}>Work Status</Text>
-            <Text style={[styles.statusMetaVal, { color: activeSession ? colors.success : colors.primary }]}>
-              {activeSession ? '● Patrol In Progress' : 'Ready for Sweep'}
+            <Text
+              style={[styles.statusMetaLabel, { color: colors.textSecondary }]}
+            >
+              Work Status
+            </Text>
+            <Text
+              style={[
+                styles.statusMetaVal,
+                { color: activeSession ? colors.success : colors.primary },
+              ]}
+            >
+              {activeSession ? '● Patrol In Progress' : 'Ready'}
             </Text>
           </View>
         </View>
       </Card>
 
       {/* Assigned Work Header */}
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>My Assigned Work</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+        My Assigned Work
+      </Text>
 
       {assignments.length === 0 ? (
         <Card style={styles.emptyCard}>
-          <CheckCircle2 size={36} color={colors.textSecondary} style={{ alignSelf: 'center', marginBottom: 8 }} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>No assignments today</Text>
+          <CheckCircle2
+            size={36}
+            color={colors.textSecondary}
+            style={{ alignSelf: 'center', marginBottom: 8 }}
+          />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            No assignments today
+          </Text>
           <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-            You currently have no active patrol routes or site checkpoint assignments for today&apos;s shift.
+            You currently have no active patrol routes or site checkpoint
+            assignments for today&apos;s shift.
           </Text>
         </Card>
       ) : (
         assignments.map((asg: any) => {
-          const isDirect = asg.assignmentType === 'DIRECT_CHECKPOINTS' || (!asg.patrolRoute && asg.assignmentGates);
+          const isDirect =
+            asg.assignmentType === 'DIRECT_CHECKPOINTS' ||
+            (!asg.patrolRoute && asg.assignmentGates);
           const totalGates = isDirect
             ? asg.assignmentGates?.length || 0
             : asg.patrolRoute?.routeGates?.length || 0;
           const siteName = asg.site?.name || 'Assigned Site';
-          const title = isDirect ? 'Direct Checkpoints Sweep' : asg.patrolRoute?.name || 'Patrol Route';
+          const title = isDirect
+            ? 'Direct Checkpoints Sweep'
+            : asg.patrolRoute?.name || 'Patrol Route';
           const isActiveThis = activeSession?.assignmentId === asg.id;
 
           return (
-            <Card key={asg.id} style={[styles.workCard, { borderColor: isActiveThis ? colors.primary : colors.border }]}>
+            <Card
+              key={asg.id}
+              style={[
+                styles.workCard,
+                { borderColor: isActiveThis ? colors.primary : colors.border },
+              ]}
+            >
               <View style={styles.workHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.workTitle, { color: colors.text }]}>{title}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                  <Text style={[styles.workTitle, { color: colors.text }]}>
+                    {title}
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      marginTop: 2,
+                    }}
+                  >
                     <MapPin size={13} color={colors.primary} />
-                    <Text style={[styles.siteName, { color: colors.primary }]}>{siteName}</Text>
+                    <Text style={[styles.siteName, { color: colors.primary }]}>
+                      {siteName}
+                    </Text>
                   </View>
                 </View>
 
                 {/* Completed Today Badge */}
-                <View style={[styles.completedBadge, { backgroundColor: colors.success + '20' }]}>
+                <View
+                  style={[
+                    styles.completedBadge,
+                    { backgroundColor: colors.success + '20' },
+                  ]}
+                >
                   <CheckCircle2 size={12} color={colors.success} />
-                  <Text style={[styles.completedText, { color: colors.success }]}>Completed Today</Text>
+                  <Text
+                    style={[styles.completedText, { color: colors.success }]}
+                  >
+                    Completed Today
+                  </Text>
                 </View>
               </View>
 
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View
+                style={[styles.divider, { backgroundColor: colors.border }]}
+              />
 
               <View style={styles.workMetaRow}>
                 <View style={styles.metaItem}>
-                  <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Checkpoints</Text>
-                  <Text style={[styles.metaVal, { color: colors.text }]}>{totalGates} Checkpoints</Text>
+                  <Text
+                    style={[styles.metaLabel, { color: colors.textSecondary }]}
+                  >
+                    Checkpoints
+                  </Text>
+                  <Text style={[styles.metaVal, { color: colors.text }]}>
+                    {totalGates} Checkpoints
+                  </Text>
                 </View>
 
                 <View style={styles.metaItem}>
-                  <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Shift Timing</Text>
+                  <Text
+                    style={[styles.metaLabel, { color: colors.textSecondary }]}
+                  >
+                    Shift Timing
+                  </Text>
                   <Text style={[styles.metaVal, { color: colors.text }]}>
-                    {asg.shift ? `${asg.shift.startTime} - ${asg.shift.endTime}` : 'Active Shift'}
+                    {asg.shift
+                      ? `${asg.shift.startTime} - ${asg.shift.endTime}`
+                      : 'Active Shift'}
                   </Text>
                 </View>
               </View>
@@ -181,15 +269,23 @@ export function GuardDashboard() {
               <View style={{ marginTop: 14 }}>
                 {isActiveThis ? (
                   <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: colors.success }]}
-                    onPress={() => navigation.navigate('Dashboard', { screen: 'PatrolTab' })}
+                    style={[
+                      styles.actionBtn,
+                      { backgroundColor: colors.success },
+                    ]}
+                    onPress={() =>
+                      navigation.navigate('Dashboard', { screen: 'PatrolTab' })
+                    }
                   >
                     <RotateCcw size={16} color="#fff" />
                     <Text style={styles.actionBtnText}>Resume Patrol</Text>
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: colors.primary }]}
+                    style={[
+                      styles.actionBtn,
+                      { backgroundColor: colors.primary },
+                    ]}
                     onPress={() => handleStartAssignment(asg)}
                     disabled={isStarting}
                   >

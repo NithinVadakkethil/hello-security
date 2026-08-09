@@ -182,7 +182,7 @@ export default function EditEmployeePage() {
               label="Operational Role / App Role *"
               options={[
                 { value: 'SECURITY', label: 'Security Guard' },
-                { value: 'CLEANER', label: 'Cleaner' },
+                { value: 'CLEANER', label: 'House Keeping' },
                 { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
                 { value: 'TECHNICIAN', label: 'Technician' },
                 { value: 'LIFE_GUARD', label: 'Life Guard' },

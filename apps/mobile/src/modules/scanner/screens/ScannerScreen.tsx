@@ -159,8 +159,7 @@ export function ScannerScreen() {
       return;
     }
 
-    const gateId =
-      matchedGate.gateId || matchedGate.gate?.id || matchedGate.id;
+    const gateId = matchedGate.gateId || matchedGate.gate?.id || matchedGate.id;
     const gateName = matchedGate.gate?.name || cleanCode;
 
     try {
@@ -187,7 +186,7 @@ export function ScannerScreen() {
       setTimeout(() => {
         navigation.navigate('Dashboard', { screen: 'PatrolTab' });
         setIsProcessingCode(false);
-      }, 400);
+      }, 150);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to unlock checkpoint.');
       setIsProcessingCode(false);
@@ -197,7 +196,7 @@ export function ScannerScreen() {
   // Configure Code Scanner Hook for Camera View (Vision Camera v4)
   const codeScanner = useCodeScanner({
     codeTypes: ['qr'],
-    onCodeScanned: (codes) => {
+    onCodeScanned: codes => {
       const scannedValue = codes[0]?.value;
       if (scannedValue) {
         handleProcessScan(scannedValue);

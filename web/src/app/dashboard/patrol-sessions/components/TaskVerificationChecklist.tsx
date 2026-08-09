@@ -53,7 +53,7 @@ const ROLE_BADGES: Record<
     icon: '🔧',
   },
   CLEANER: {
-    label: 'Cleaner',
+    label: 'House Keeping',
     bg: 'rgba(16, 185, 129, 0.15)',
     color: '#10b981',
     icon: '🧹',

@@ -49,7 +49,7 @@ export function DashboardSelector() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={[styles.title, { color: colors.text }]}>Role Not Supported</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        Mobile dashboards are supported for Operational Roles (Security, Cleaner, Technician, Service Engineer, Plumber, Lifeguard) and Supervisor roles.
+        Mobile dashboards are supported for Operational Roles (Security, House Keeping, Technician, Service Engineer, Plumber, Lifeguard) and Supervisor roles.
       </Text>
     </View>
   );
