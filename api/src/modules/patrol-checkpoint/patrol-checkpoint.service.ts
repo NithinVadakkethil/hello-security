@@ -198,6 +198,11 @@ export class PatrolCheckpointService {
     const submissionStartTime = Date.now();
     const requestId = `cp-scan-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
 
+    const existing = await patrolCheckpointRepository.findBySessionAndGate(
+      patrol.id,
+      dto.gateId,
+    );
+
     const processedDtoImages = await processImagesList(dto.images, 'cp-main');
     const processedSubTaskResponses = dto.subTaskResponses
       ? await Promise.all(
@@ -216,15 +221,18 @@ export class PatrolCheckpointService {
       new Set([...processedDtoImages, ...subTaskImagesList]),
     );
 
-    logger.info(`[CheckpointScan] Submission initiated`, {
-      requestId,
-      employeeId,
-      patrolSessionId: patrol.id,
-      gateId: dto.gateId,
-      dtoImagesCount: dto.images?.length || 0,
-      subTaskResponsesCount: processedSubTaskResponses.length,
-      processedTotalImagesCount: allImages.length,
-    });
+    logger.info(
+      {
+        requestId,
+        employeeId,
+        patrolSessionId: patrol.id,
+        gateId: dto.gateId,
+        dtoImagesCount: dto.images?.length || 0,
+        subTaskResponsesCount: processedSubTaskResponses.length,
+        processedTotalImagesCount: allImages.length,
+      },
+      '[CheckpointScan] Submission initiated',
+    );
 
     const checkpoint = await prisma
       .$transaction(
@@ -349,23 +357,29 @@ export class PatrolCheckpointService {
         },
       )
       .catch((err) => {
-        logger.error(`[CheckpointScan] DB Transaction failed`, {
-          requestId,
-          employeeId,
-          gateId: dto.gateId,
-          durationMs: Date.now() - submissionStartTime,
-          error: err.message,
-          stack: err.stack,
-        });
+        logger.error(
+          {
+            requestId,
+            employeeId,
+            gateId: dto.gateId,
+            durationMs: Date.now() - submissionStartTime,
+            error: err.message,
+            stack: err.stack,
+          },
+          '[CheckpointScan] DB Transaction failed',
+        );
         throw err;
       });
 
-    logger.info(`[CheckpointScan] Submission completed successfully`, {
-      requestId,
-      employeeId,
-      checkpointId: checkpoint?.id,
-      durationMs: Date.now() - submissionStartTime,
-    });
+    logger.info(
+      {
+        requestId,
+        employeeId,
+        checkpointId: checkpoint?.id,
+        durationMs: Date.now() - submissionStartTime,
+      },
+      '[CheckpointScan] Submission completed successfully',
+    );
 
     // -----------------------------------------
     // Progress
