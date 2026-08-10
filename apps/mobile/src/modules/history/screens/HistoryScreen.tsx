@@ -85,45 +85,51 @@ export function HistoryScreen() {
     refetchSnags();
   };
 
-  const filterByDate = (dateStr?: string) => {
-    if (!dateStr) return true;
-    const itemDate = new Date(dateStr);
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const filterByDate = React.useCallback(
+    (dateStr?: string) => {
+      if (!dateStr) return true;
+      const itemDate = new Date(dateStr);
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    if (dateFilter === 'TODAY') {
-      return itemDate >= todayStart;
-    }
-    if (dateFilter === 'YESTERDAY') {
-      const yesterdayStart = new Date(todayStart);
-      yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-      return itemDate >= yesterdayStart && itemDate < todayStart;
-    }
-    if (dateFilter === 'WEEK') {
-      const weekStart = new Date(todayStart);
-      weekStart.setDate(weekStart.getDate() - 7);
-      return itemDate >= weekStart;
-    }
-    return true;
-  };
+      if (dateFilter === 'TODAY') {
+        return itemDate >= todayStart;
+      }
+      if (dateFilter === 'YESTERDAY') {
+        const yesterdayStart = new Date(todayStart);
+        yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+        return itemDate >= yesterdayStart && itemDate < todayStart;
+      }
+      if (dateFilter === 'WEEK') {
+        const weekStart = new Date(todayStart);
+        weekStart.setDate(weekStart.getDate() - 7);
+        return itemDate >= weekStart;
+      }
+      return true;
+    },
+    [dateFilter],
+  );
 
-  const rawList =
-    activeTab === 'PATROLS'
+  const rawList = React.useMemo(() => {
+    return activeTab === 'PATROLS'
       ? patrolsRes || []
       : activeTab === 'INCIDENTS'
       ? incidentsRes || []
       : snagsRes || [];
+  }, [activeTab, patrolsRes, incidentsRes, snagsRes]);
 
-  const filteredList = rawList.filter((item: any) => {
-    const dateMatch = filterByDate(item.createdAt || item.startedAt);
-    if (!dateMatch) return false;
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    const site = (item.assignment?.site?.name || item.site?.name || '').toLowerCase();
-    const code = (item.patrolCode || item.incidentCode || item.snagCode || '').toLowerCase();
-    const title = (item.title || item.description || item.remarks || '').toLowerCase();
-    return site.includes(q) || code.includes(q) || title.includes(q);
-  });
+  const filteredList = React.useMemo(() => {
+    return rawList.filter((item: any) => {
+      const dateMatch = filterByDate(item.createdAt || item.startedAt);
+      if (!dateMatch) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      const site = (item.assignment?.site?.name || item.site?.name || '').toLowerCase();
+      const code = (item.patrolCode || item.incidentCode || item.snagCode || '').toLowerCase();
+      const title = (item.title || item.description || item.remarks || '').toLowerCase();
+      return site.includes(q) || code.includes(q) || title.includes(q);
+    });
+  }, [rawList, filterByDate, searchQuery]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

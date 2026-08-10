@@ -146,11 +146,7 @@ export default function TaskVerificationChecklist({
       const stRole = res.gateSubTask?.role || 'SECURITY';
 
       const taskImgs =
-        res.images && res.images.length > 0
-          ? res.images
-          : checkpointImages && checkpointImages.length > 0
-          ? checkpointImages
-          : [];
+        Array.isArray(res.images) && res.images.length > 0 ? res.images : [];
 
       const existing = taskMap.get(subTaskId);
       if (existing) {
@@ -508,7 +504,15 @@ export default function TaskVerificationChecklist({
                   }}
                 >
                   {/* Task Header & Body Row */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', width: '100%' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: '16px',
+                      width: '100%',
+                    }}
+                  >
                     {/* Left & Center: Status Icon, Task Name, Role Badge, Description, Remarks */}
                     <div
                       style={{
@@ -520,7 +524,10 @@ export default function TaskVerificationChecklist({
                     >
                       <div style={{ marginTop: '2px', flexShrink: 0 }}>
                         {isYes ? (
-                          <CheckCircle2 size={18} style={{ color: '#10b981' }} />
+                          <CheckCircle2
+                            size={18}
+                            style={{ color: '#10b981' }}
+                          />
                         ) : isNo ? (
                           <XCircle size={18} style={{ color: '#ef4444' }} />
                         ) : (
@@ -793,7 +800,10 @@ export default function TaskVerificationChecklist({
                   </div>
 
                   {/* Task Evidence Metadata Footer (Employee Name, Timestamp, Voice Note Indicator) */}
-                  {(isYes || isNo || task.remarks || (task.images && task.images.length > 0)) && (
+                  {(isYes ||
+                    isNo ||
+                    task.remarks ||
+                    (task.images && task.images.length > 0)) && (
                     <div
                       style={{
                         paddingTop: '8px',
@@ -809,7 +819,14 @@ export default function TaskVerificationChecklist({
                       }}
                     >
                       {/* Left: Employee Name & Timestamp */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '14px',
+                          flexWrap: 'wrap',
+                        }}
+                      >
                         {employeeName && (
                           <span
                             style={{
@@ -820,7 +837,10 @@ export default function TaskVerificationChecklist({
                               color: 'var(--text-primary)',
                             }}
                           >
-                            <User size={13} style={{ color: 'var(--primary)' }} />
+                            <User
+                              size={13}
+                              style={{ color: 'var(--primary)' }}
+                            />
                             <span>Submitted by: {employeeName}</span>
                           </span>
                         )}
@@ -835,7 +855,12 @@ export default function TaskVerificationChecklist({
                             }}
                           >
                             <Calendar size={13} />
-                            <span>Recorded: {new Date(task.completedAt || scannedAt!).toLocaleString()}</span>
+                            <span>
+                              Recorded:{' '}
+                              {new Date(
+                                task.completedAt || scannedAt!,
+                              ).toLocaleString()}
+                            </span>
                           </span>
                         )}
                       </div>

@@ -1,13 +1,20 @@
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { Zap, ZapOff } from 'lucide-react-native';
-import React, { useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Alert,
   Animated,
+  AppState,
+  AppStateStatus,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -27,9 +34,27 @@ import { usePatrolStore } from '../../patrol/store/patrol-store';
 export function ScannerScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
+
+  // AppState to pause camera when app is backgrounded
+  const [appState, setAppState] = useState<AppStateStatus>(
+    AppState.currentState,
+  );
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextState => {
+      setAppState(nextState);
+    });
+    return () => subscription.remove();
+  }, []);
+
+  const isCameraActive = isFocused && appState === 'active';
+
   const { data: assignmentsList } = useActiveAssignments();
-  const activeAssignments = assignmentsList || [];
-  const { scannedGateIds, activeSession } = usePatrolStore();
+  const activeAssignments = useMemo(
+    () => assignmentsList || [],
+    [assignmentsList],
+  );
+  const scannedGateIds = usePatrolStore(state => state.scannedGateIds);
 
   const { hasPermission, requestPermission } = useCameraPermission();
   const [manualCode, setManualCode] = useState('');
@@ -38,37 +63,50 @@ export function ScannerScreen() {
   const [flashEnabled, setFlashEnabled] = useState(false);
   const [isProcessingCode, setIsProcessingCode] = useState(false);
 
+  // Synchronous scan lock ref to block 30-60 fps duplicate camera frames
+  const isProcessingScanRef = useRef(false);
+  const lastScannedCodeRef = useRef<string | null>(null);
+  const lastScanTimeRef = useRef<number>(0);
+
   const laserTranslateY = useRef(new Animated.Value(0)).current;
   const device = useCameraDevice('back');
 
   useEffect(() => {
-    if (!hasPermission) {
+    if (!hasPermission && isFocused) {
       requestPermission();
     }
-  }, [hasPermission]);
+  }, [hasPermission, isFocused, requestPermission]);
+
+  // Reset scan locks when screen gains focus
+  useEffect(() => {
+    if (isFocused) {
+      isProcessingScanRef.current = false;
+      lastScannedCodeRef.current = null;
+      setIsProcessingCode(false);
+    }
+  }, [isFocused]);
 
   useEffect(() => {
-    if (hasPermission) {
-      const startLaserAnimation = () => {
-        laserTranslateY.setValue(0);
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(laserTranslateY, {
-              toValue: 180,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(laserTranslateY, {
-              toValue: 0,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-          ]),
-        ).start();
-      };
-      startLaserAnimation();
+    if (hasPermission && isFocused) {
+      laserTranslateY.setValue(0);
+      const animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(laserTranslateY, {
+            toValue: 180,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(laserTranslateY, {
+            toValue: 0,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      animation.start();
+      return () => animation.stop();
     }
-  }, [hasPermission, laserTranslateY]);
+  }, [hasPermission, isFocused, laserTranslateY]);
 
   const handleGrantPermission = async () => {
     const granted = await requestPermission();
@@ -80,129 +118,182 @@ export function ScannerScreen() {
     }
   };
 
-  const handleProcessScan = async (code: string) => {
-    // Avoid double trigger scans in same tick
-    if (isProcessingCode) return;
-    setIsProcessingCode(true);
-
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    const cleanCode = code.trim();
-    if (!cleanCode) {
-      setIsProcessingCode(false);
-      return;
-    }
-
-    let matchedGate: any = null;
-    let matchedAssignment: any = null;
-
-    // Search across employee active assignments (supports Security, Cleaner, Technician, Service Engineer, Plumber, Lifeguard)
-    for (const ass of activeAssignments) {
-      const routeGates =
-        ass.assignmentGates && ass.assignmentGates.length > 0
-          ? ass.assignmentGates.map((ag: any, idx: number) => ({
-              id: ag.id,
-              gateId: ag.gateId,
-              gate: ag.gate,
-              sequence: ag.sequence || idx + 1,
-            }))
-          : ass.patrolRoute?.routeGates || [];
-
-      const found = routeGates.find(
-        (rg: any) =>
-          cleanCode === rg.gate?.gateCode ||
-          cleanCode === rg.gateId ||
-          cleanCode === rg.gate?.qrCode ||
-          cleanCode === rg.gate?.nfcTag,
-      );
-
-      if (found) {
-        matchedGate = found;
-        matchedAssignment = ass;
-        break;
+  const handleProcessScan = useCallback(
+    async (code: string) => {
+      const cleanCode = code.trim();
+      if (!cleanCode) {
+        isProcessingScanRef.current = false;
+        setIsProcessingCode(false);
+        return;
       }
-    }
 
-    // Workflow Rule 1: If checkpoint is NOT assigned to logged-in employee, DO NOT unlock and REMAIN on scanner screen
-    if (!matchedGate) {
-      const errorMsg = 'You are not assigned to this checkpoint.';
-      setErrorMessage(errorMsg);
-      Alert.alert('Access Blocked', errorMsg, [
-        {
-          text: 'OK',
-          onPress: () => {
-            setTimeout(() => setIsProcessingCode(false), 1500);
-          },
-        },
-      ]);
-      // Remain on Scanner screen and re-enable scanner after 2s
-      setTimeout(() => setIsProcessingCode(false), 2000);
-      return;
-    }
+      setIsProcessingCode(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
 
-    // Workflow Rule 2: If checkpoint is already verified and locked
-    if (scannedGateIds.includes(matchedGate.gateId)) {
-      const gateName = matchedGate.gate?.name || cleanCode;
-      const completedMsg = `Checkpoint "${gateName}" is already completed.`;
-      setErrorMessage(completedMsg);
-      Alert.alert('Checkpoint Already Completed', completedMsg, [
-        {
-          text: 'OK',
-          onPress: () => {
-            setTimeout(() => setIsProcessingCode(false), 1500);
-          },
-        },
-      ]);
-      // Remain on Scanner screen
-      setTimeout(() => setIsProcessingCode(false), 2000);
-      return;
-    }
+      let matchedGate: any = null;
+      let matchedAssignment: any = null;
 
-    const gateId = matchedGate.gateId || matchedGate.gate?.id || matchedGate.id;
-    const gateName = matchedGate.gate?.name || cleanCode;
+      // Search across employee active assignments (supports Security, House Keeping, Technician, Service Engineer, Plumber, Lifeguard)
+      for (const ass of activeAssignments) {
+        const routeGates =
+          ass.assignmentGates && ass.assignmentGates.length > 0
+            ? ass.assignmentGates.map((ag: any, idx: number) => ({
+                id: ag.id,
+                gateId: ag.gateId,
+                gate: ag.gate,
+                sequence: ag.sequence || idx + 1,
+              }))
+            : ass.patrolRoute?.routeGates || [];
 
-    try {
-      // Auto-start patrol session if not yet active
-      const currentActiveSession = usePatrolStore.getState().activeSession;
-      if (!currentActiveSession && matchedAssignment?.id) {
-        try {
-          const startedSession = await patrolApi.startPatrol(
-            matchedAssignment.id,
-          );
-          await usePatrolStore.getState().startSession(startedSession);
-        } catch (e) {
-          console.warn('Auto start patrol session fallback:', e);
+        const found = routeGates.find(
+          (rg: any) =>
+            cleanCode === rg.gate?.gateCode ||
+            cleanCode === rg.gateId ||
+            cleanCode === rg.gate?.qrCode ||
+            cleanCode === rg.gate?.nfcTag,
+        );
+
+        if (found) {
+          matchedGate = found;
+          matchedAssignment = ass;
+          break;
         }
       }
 
-      // Unlock checkpoint immediately
-      await usePatrolStore.getState().unlockCheckpoint(gateId);
+      // Workflow Rule 1: If checkpoint is NOT assigned to logged-in employee, DO NOT unlock and REMAIN on scanner screen
+      if (!matchedGate) {
+        const errorMsg = 'You are not assigned to this checkpoint.';
+        setErrorMessage(errorMsg);
+        Alert.alert('Access Blocked', errorMsg, [
+          {
+            text: 'OK',
+            onPress: () => {
+              setTimeout(() => {
+                isProcessingScanRef.current = false;
+                setIsProcessingCode(false);
+              }, 1000);
+            },
+          },
+        ]);
+        setTimeout(() => {
+          isProcessingScanRef.current = false;
+          setIsProcessingCode(false);
+        }, 2000);
+        return;
+      }
 
-      setSuccessMessage(`✓ Checkpoint Unlocked: "${gateName}"`);
-      setManualCode('');
+      // Workflow Rule 2: If checkpoint is already verified and locked
+      if (scannedGateIds.includes(matchedGate.gateId)) {
+        const gateName = matchedGate.gate?.name || cleanCode;
+        const completedMsg = `Checkpoint "${gateName}" is already completed.`;
+        setErrorMessage(completedMsg);
+        Alert.alert('Checkpoint Already Completed', completedMsg, [
+          {
+            text: 'OK',
+            onPress: () => {
+              setTimeout(() => {
+                isProcessingScanRef.current = false;
+                setIsProcessingCode(false);
+              }, 1000);
+            },
+          },
+        ]);
+        setTimeout(() => {
+          isProcessingScanRef.current = false;
+          setIsProcessingCode(false);
+        }, 2000);
+        return;
+      }
 
-      // Workflow Rule 3: Navigate directly to Checkpoint Verification screen (PatrolTab) and do NOT return to Home
-      setTimeout(() => {
-        navigation.navigate('Dashboard', { screen: 'PatrolTab' });
+      const gateId =
+        matchedGate.gateId || matchedGate.gate?.id || matchedGate.id;
+      const gateName = matchedGate.gate?.name || cleanCode;
+
+      try {
+        // Auto-start patrol session if not yet active
+        const currentActiveSession = usePatrolStore.getState().activeSession;
+        if (!currentActiveSession && matchedAssignment?.id) {
+          try {
+            const startedSession = await patrolApi.startPatrol(
+              matchedAssignment.id,
+            );
+            await usePatrolStore.getState().startSession(startedSession);
+          } catch (e) {
+            // Auto start session fallback handled silently
+          }
+        }
+
+        // Unlock checkpoint immediately
+        await usePatrolStore.getState().unlockCheckpoint(gateId);
+
+        setSuccessMessage(`✓ Checkpoint Unlocked: "${gateName}"`);
+        setManualCode('');
+
+        // Workflow Rule 3: Navigate directly to Checkpoint Verification screen (PatrolTab)
+        setTimeout(() => {
+          navigation.navigate('Dashboard', { screen: 'PatrolTab' });
+          isProcessingScanRef.current = false;
+          setIsProcessingCode(false);
+        }, 150);
+      } catch (err: any) {
+        setErrorMessage(err.message || 'Failed to unlock checkpoint.');
+        isProcessingScanRef.current = false;
         setIsProcessingCode(false);
-      }, 150);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to unlock checkpoint.');
-      setIsProcessingCode(false);
-    }
-  };
+      }
+    },
+    [activeAssignments, scannedGateIds, navigation],
+  );
 
   // Configure Code Scanner Hook for Camera View (Vision Camera v4)
   const codeScanner = useCodeScanner({
     codeTypes: ['qr'],
-    onCodeScanned: codes => {
-      const scannedValue = codes[0]?.value;
-      if (scannedValue) {
+    onCodeScanned: useCallback(
+      (codes: any[]) => {
+        const scannedValue = codes[0]?.value;
+        if (!scannedValue) return;
+
+        const now = Date.now();
+        // Synchronous lock check - 0ms delay, instant block for duplicate 30-60fps camera frames!
+        if (
+          isProcessingScanRef.current ||
+          (lastScannedCodeRef.current === scannedValue &&
+            now - lastScanTimeRef.current < 3000)
+        ) {
+          return;
+        }
+
+        // Immediately lock synchronously BEFORE async React state updates
+        isProcessingScanRef.current = true;
+        lastScannedCodeRef.current = scannedValue;
+        lastScanTimeRef.current = now;
+
         handleProcessScan(scannedValue);
-      }
-    },
+      },
+      [handleProcessScan],
+    ),
   });
+
+  const routeGates = useMemo(() => {
+    const primaryAssignment = activeAssignments[0];
+    if (
+      primaryAssignment?.assignmentGates &&
+      primaryAssignment.assignmentGates.length > 0
+    ) {
+      return primaryAssignment.assignmentGates.map((ag: any, idx: number) => ({
+        id: ag.id,
+        gateId: ag.gateId,
+        gate: ag.gate,
+        sequence: ag.sequence || idx + 1,
+      }));
+    }
+    return primaryAssignment?.patrolRoute?.routeGates || [];
+  }, [activeAssignments]);
+
+  const nextGateToScan = useMemo(
+    () => routeGates.find((rg: any) => !scannedGateIds.includes(rg.gateId)),
+    [routeGates, scannedGateIds],
+  );
 
   if (!hasPermission) {
     return (
@@ -231,21 +322,6 @@ export function ScannerScreen() {
     );
   }
 
-  const primaryAssignment = activeAssignments[0];
-  const routeGates =
-    primaryAssignment?.assignmentGates &&
-    primaryAssignment.assignmentGates.length > 0
-      ? primaryAssignment.assignmentGates.map((ag: any, idx: number) => ({
-          id: ag.id,
-          gateId: ag.gateId,
-          gate: ag.gate,
-          sequence: ag.sequence || idx + 1,
-        }))
-      : primaryAssignment?.patrolRoute?.routeGates || [];
-  const nextGateToScan = routeGates.find(
-    (rg: any) => !scannedGateIds.includes(rg.gateId),
-  );
-
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: '#121214' }]}
@@ -257,7 +333,7 @@ export function ScannerScreen() {
         </Text>
         <TouchableOpacity
           style={styles.flashButton}
-          onPress={() => setFlashEnabled(!flashEnabled)}
+          onPress={() => setFlashEnabled(prev => !prev)}
         >
           {flashEnabled ? (
             <Zap size={22} color="#f59e0b" />
@@ -283,7 +359,7 @@ export function ScannerScreen() {
             <Camera
               style={StyleSheet.absoluteFill}
               device={device}
-              isActive={true}
+              isActive={isCameraActive && !isProcessingCode}
               codeScanner={codeScanner}
               torch={flashEnabled ? 'on' : 'off'}
             />
@@ -377,7 +453,7 @@ export function ScannerScreen() {
         </Card>
       )}
 
-      <Card
+      {/* <Card
         style={[
           styles.quickScanCard,
           { backgroundColor: '#1a1a1e', borderColor: '#2d2d34' },
@@ -411,9 +487,12 @@ export function ScannerScreen() {
                       : '#2d2d34',
                   },
                 ]}
-                onPress={() =>
-                  handleProcessScan(rg.gate?.gateCode || rg.gateId)
-                }
+                onPress={() => {
+                  if (!isProcessingScanRef.current) {
+                    isProcessingScanRef.current = true;
+                    handleProcessScan(rg.gate?.gateCode || rg.gateId);
+                  }
+                }}
               >
                 <Text
                   style={[
@@ -456,12 +535,17 @@ export function ScannerScreen() {
           />
           <TouchableOpacity
             style={[styles.inputButton, { backgroundColor: colors.primary }]}
-            onPress={() => handleProcessScan(manualCode)}
+            onPress={() => {
+              if (!isProcessingScanRef.current) {
+                isProcessingScanRef.current = true;
+                handleProcessScan(manualCode);
+              }
+            }}
           >
             <Text style={styles.inputButtonText}>Verify</Text>
           </TouchableOpacity>
         </View>
-      </Card>
+      </Card> */}
     </ScrollView>
   );
 }

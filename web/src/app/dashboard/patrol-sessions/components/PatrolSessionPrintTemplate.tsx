@@ -885,11 +885,9 @@ export default function PatrolSessionPrintTemplate({
                         'Inspection Task';
                       const taskRole = res.gateSubTask?.role || 'SECURITY';
                       const taskImgs =
-                        res.images && res.images.length > 0
+                        Array.isArray(res.images) && res.images.length > 0
                           ? res.images
-                          : item.images && item.images.length > 0
-                            ? item.images
-                            : [];
+                          : [];
 
                       return (
                         <tr

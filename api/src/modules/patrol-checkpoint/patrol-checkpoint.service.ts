@@ -1,6 +1,8 @@
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
+import { logger } from '../../common/logger/logger';
+import { processImagesList } from '../../common/utils/file-upload.util';
 
 import { patrolSessionRepository } from '../patrol-session/patrol-session.repository';
 
@@ -191,133 +193,178 @@ export class PatrolCheckpointService {
     }
 
     // -----------------------------------------
-    // Save Checkpoint & Sub Task Responses
+    // Pre-process Base64 Images into Static Files
     // -----------------------------------------
+    const submissionStartTime = Date.now();
+    const requestId = `cp-scan-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
 
-    const existing = await patrolCheckpointRepository.findBySessionAndGate(
-      patrol.id,
-      dto.gateId,
-    );
+    const processedDtoImages = await processImagesList(dto.images, 'cp-main');
+    const processedSubTaskResponses = dto.subTaskResponses
+      ? await Promise.all(
+          dto.subTaskResponses.map(async (st) => ({
+            ...st,
+            images: await processImagesList(st.images, 'cp-subtask'),
+          })),
+        )
+      : [];
 
-    const subTaskImagesList = (dto.subTaskResponses || [])
+    const subTaskImagesList = processedSubTaskResponses
       .flatMap((st) => st.images || [])
       .filter(Boolean);
 
     const allImages = Array.from(
-      new Set([...(dto.images || []), ...subTaskImagesList]),
+      new Set([...processedDtoImages, ...subTaskImagesList]),
     );
 
-    const checkpoint = await prisma.$transaction(async (tx) => {
-      let cp;
-      if (existing) {
-        cp = await tx.patrolCheckpoint.update({
-          where: { id: existing.id },
-          data: {
-            latitude: dto.latitude,
-            longitude: dto.longitude,
-            remarks: dto.remarks,
-            status: dto.status,
-            images: allImages,
-            scannedAt: new Date(),
-          },
-        });
-      } else {
-        cp = await tx.patrolCheckpoint.create({
-          data: {
-            patrolSessionId: patrol.id,
-            gateId: dto.gateId,
-            latitude: dto.latitude,
-            longitude: dto.longitude,
-            remarks: dto.remarks,
-            status: dto.status,
-            images: allImages,
-          },
-        });
-      }
+    logger.info(`[CheckpointScan] Submission initiated`, {
+      requestId,
+      employeeId,
+      patrolSessionId: patrol.id,
+      gateId: dto.gateId,
+      dtoImagesCount: dto.images?.length || 0,
+      subTaskResponsesCount: processedSubTaskResponses.length,
+      processedTotalImagesCount: allImages.length,
+    });
 
-      if (dto.subTaskResponses && dto.subTaskResponses.length > 0) {
-        for (const resp of dto.subTaskResponses) {
-          await tx.patrolSubTaskResponse.upsert({
-            where: {
-              patrolCheckpointId_gateSubTaskId: {
-                patrolCheckpointId: cp.id,
-                gateSubTaskId: resp.gateSubTaskId,
+    const checkpoint = await prisma
+      .$transaction(
+        async (tx) => {
+          let cp;
+          if (existing) {
+            cp = await tx.patrolCheckpoint.update({
+              where: { id: existing.id },
+              data: {
+                latitude: dto.latitude,
+                longitude: dto.longitude,
+                remarks: dto.remarks,
+                status: dto.status,
+                images: allImages,
+                scannedAt: new Date(),
               },
-            },
-            create: {
-              patrolCheckpointId: cp.id,
-              gateSubTaskId: resp.gateSubTaskId,
-              answer: resp.answer,
-              remarks: resp.remarks?.trim() || null,
-              images: resp.images || [],
-            },
-            update: {
-              answer: resp.answer,
-              remarks: resp.remarks?.trim() || null,
-              images: resp.images || [],
-              answeredAt: new Date(),
-            },
-          });
-
-          // AUTOMATIC MAINTENANCE SNAG GENERATION IF TASK ANSWER IS NO
-          if (resp.answer === 'NO') {
-            const subTaskInfo = await tx.gateSubTask.findUnique({
-              where: { id: resp.gateSubTaskId },
             });
+          } else {
+            cp = await tx.patrolCheckpoint.create({
+              data: {
+                patrolSessionId: patrol.id,
+                gateId: dto.gateId,
+                latitude: dto.latitude,
+                longitude: dto.longitude,
+                remarks: dto.remarks,
+                status: dto.status,
+                images: allImages,
+              },
+            });
+          }
 
-            const taskTitle = subTaskInfo?.taskName || 'Verification Sub-Task';
-            const taskDesc = subTaskInfo?.description || '';
-            const subTaskImages = (resp.images && resp.images.length > 0) ? resp.images : (dto.images || []);
-
-            const snagDescription = `Failed Checkpoint Task: ${taskTitle}\n\nTask Description: ${taskDesc || 'N/A'}\nEmployee Role: ${userRole}\nRemarks: ${resp.remarks?.trim() || 'No remarks provided'}\nSource: Mobile Checkpoint Verification\nPatrol Session: ${patrol.patrolCode || patrol.id}`;
-
-            const activeSiteId = assignment?.siteId || gateRecord?.siteId;
-            const activeClientId = assignment?.clientId || patrol.clientId;
-
-            if (activeSiteId && activeClientId) {
-              const existingSnag = await tx.snag.findFirst({
+          if (processedSubTaskResponses && processedSubTaskResponses.length > 0) {
+            for (const resp of processedSubTaskResponses) {
+              await tx.patrolSubTaskResponse.upsert({
                 where: {
-                  patrolSessionId: patrol.id,
-                  gateId: targetGateId,
-                  description: { contains: taskTitle },
+                  patrolCheckpointId_gateSubTaskId: {
+                    patrolCheckpointId: cp.id,
+                    gateSubTaskId: resp.gateSubTaskId,
+                  },
+                },
+                create: {
+                  patrolCheckpointId: cp.id,
+                  gateSubTaskId: resp.gateSubTaskId,
+                  answer: resp.answer,
+                  remarks: resp.remarks?.trim() || null,
+                  images: resp.images || [],
+                },
+                update: {
+                  answer: resp.answer,
+                  remarks: resp.remarks?.trim() || null,
+                  images: resp.images || [],
+                  answeredAt: new Date(),
                 },
               });
 
-              if (!existingSnag) {
-                await tx.snag.create({
-                  data: {
-                    clientId: activeClientId,
-                    siteId: activeSiteId,
-                    gateId: targetGateId,
-                    patrolSessionId: patrol.id,
-                    employeeId: employeeId,
-                    category: 'CHECKPOINT_VERIFICATION',
-                    subCategory: taskTitle,
-                    description: snagDescription,
-                    priority: 'MEDIUM',
-                    status: 'OPEN',
-                    images: subTaskImages,
-                    latitude: dto.latitude || null,
-                    longitude: dto.longitude || null,
-                  },
+              // AUTOMATIC MAINTENANCE SNAG GENERATION IF TASK ANSWER IS NO
+              if (resp.answer === 'NO') {
+                const subTaskInfo = await tx.gateSubTask.findUnique({
+                  where: { id: resp.gateSubTaskId },
                 });
+
+                const taskTitle = subTaskInfo?.taskName || 'Verification Sub-Task';
+                const taskDesc = subTaskInfo?.description || '';
+                const subTaskImages =
+                  resp.images && resp.images.length > 0
+                    ? resp.images
+                    : processedDtoImages;
+
+                const snagDescription = `Failed Checkpoint Task: ${taskTitle}\n\nTask Description: ${taskDesc || 'N/A'}\nEmployee Role: ${userRole}\nRemarks: ${resp.remarks?.trim() || 'No remarks provided'}\nSource: Mobile Checkpoint Verification\nPatrol Session: ${patrol.patrolCode || patrol.id}`;
+
+                const activeSiteId = assignment?.siteId || gateRecord?.siteId;
+                const activeClientId = assignment?.clientId || patrol.clientId;
+
+                if (activeSiteId && activeClientId) {
+                  const existingSnag = await tx.snag.findFirst({
+                    where: {
+                      patrolSessionId: patrol.id,
+                      gateId: targetGateId,
+                      description: { contains: taskTitle },
+                    },
+                  });
+
+                  if (!existingSnag) {
+                    await tx.snag.create({
+                      data: {
+                        clientId: activeClientId,
+                        siteId: activeSiteId,
+                        gateId: targetGateId,
+                        patrolSessionId: patrol.id,
+                        employeeId: employeeId,
+                        category: 'CHECKPOINT_VERIFICATION',
+                        subCategory: taskTitle,
+                        description: snagDescription,
+                        priority: 'MEDIUM',
+                        status: 'OPEN',
+                        images: subTaskImages,
+                        latitude: dto.latitude || null,
+                        longitude: dto.longitude || null,
+                      },
+                    });
+                  }
+                }
               }
             }
           }
-        }
-      }
 
-      return tx.patrolCheckpoint.findUnique({
-        where: { id: cp.id },
-        include: {
-          gate: true,
-          subTaskResponses: {
+          return tx.patrolCheckpoint.findUnique({
+            where: { id: cp.id },
             include: {
-              gateSubTask: true,
+              gate: true,
+              subTaskResponses: {
+                include: {
+                  gateSubTask: true,
+                },
+              },
             },
-          },
+          });
         },
+        {
+          maxWait: 10000,
+          timeout: 20000,
+        },
+      )
+      .catch((err) => {
+        logger.error(`[CheckpointScan] DB Transaction failed`, {
+          requestId,
+          employeeId,
+          gateId: dto.gateId,
+          durationMs: Date.now() - submissionStartTime,
+          error: err.message,
+          stack: err.stack,
+        });
+        throw err;
       });
+
+    logger.info(`[CheckpointScan] Submission completed successfully`, {
+      requestId,
+      employeeId,
+      checkpointId: checkpoint?.id,
+      durationMs: Date.now() - submissionStartTime,
     });
 
     // -----------------------------------------

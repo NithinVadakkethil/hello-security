@@ -30,6 +30,31 @@ interface Employee {
   } | null;
 }
 
+function getRoleLabel(emp: { designation?: string | null; user?: { role: string } | null }): string {
+  const rawRole = (emp.user?.role || emp.designation || 'SECURITY').toUpperCase();
+  switch (rawRole) {
+    case 'CLEANER':
+      return 'House Keeping';
+    case 'TECHNICIAN':
+      return 'Technician';
+    case 'SERVICE_ENGINEER':
+      return 'Service Engineer';
+    case 'PLUMBER':
+      return 'Plumber';
+    case 'LIFE_GUARD':
+    case 'LIFEGUARD':
+      return 'Lifeguard';
+    case 'SUPERVISOR':
+      return 'Supervisor';
+    case 'MANAGER':
+      return 'Manager';
+    case 'SECURITY':
+    case 'SECURITY_GUARD':
+    default:
+      return 'Security Guard';
+  }
+}
+
 interface Site {
   id: string;
   name: string;
@@ -74,6 +99,10 @@ interface Assignment {
     firstName: string;
     lastName: string;
     employeeNumber: string;
+    designation?: string | null;
+    user?: {
+      role: string;
+    } | null;
   };
   site: {
     id: string;
@@ -623,7 +652,7 @@ export default function AssignmentsPage() {
                             }
                           }}
                         />
-                        <span>{emp.firstName} {emp.lastName} ({emp.employeeNumber})</span>
+                        <span>{emp.firstName} {emp.lastName} &mdash; {getRoleLabel(emp)} ({emp.employeeNumber})</span>
                       </label>
                     );
                   })
@@ -638,7 +667,7 @@ export default function AssignmentsPage() {
                 className="form-input"
                 disabled
                 style={{ opacity: 0.7 }}
-                value={`${editingAssignment.employee.firstName} ${editingAssignment.employee.lastName} (${editingAssignment.employee.employeeNumber})`}
+                value={`${editingAssignment.employee.firstName} ${editingAssignment.employee.lastName} \u2014 ${getRoleLabel(editingAssignment.employee)} (${editingAssignment.employee.employeeNumber})`}
               />
             </div>
           )}
