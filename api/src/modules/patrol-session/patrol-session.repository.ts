@@ -1,6 +1,7 @@
 import { PatrolStatus } from '@prisma/client';
 
 import { prisma } from '../../database/prisma';
+import { ListPatrolSessionsQuery } from './patrol-session.types';
 
 export class PatrolSessionRepository {
   create(data: any) {
@@ -259,52 +260,142 @@ export class PatrolSessionRepository {
     });
   }
 
-  list(clientId: string) {
-    return prisma.patrolSession.findMany({
-      where: {
-        clientId,
-      },
-      include: {
-        verifiedBy: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-            employee: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                employeeNumber: true,
-                designation: true,
+  async list(clientId: string, query?: ListPatrolSessionsQuery) {
+    const page = query?.page && query.page > 0 ? Number(query.page) : 1;
+    const limit = query?.limit && query.limit > 0 ? Number(query.limit) : 10;
+    const skip = (page - 1) * limit;
+
+    const where: any = { clientId };
+
+    if (query?.tab === 'live') {
+      where.status = { in: [PatrolStatus.IN_PROGRESS, PatrolStatus.PAUSED] };
+    } else if (query?.tab === 'history') {
+      where.status = {
+        in: [PatrolStatus.COMPLETED, PatrolStatus.CANCELLED, PatrolStatus.NOT_STARTED],
+      };
+    } else if (query?.status) {
+      where.status = query.status as PatrolStatus;
+    }
+
+    if (query?.siteId) {
+      where.assignment = { ...where.assignment, siteId: query.siteId };
+    }
+
+    if (query?.employeeId) {
+      where.assignment = { ...where.assignment, employeeId: query.employeeId };
+    }
+
+    if (query?.search && query.search.trim()) {
+      const s = query.search.trim();
+      where.OR = [
+        { patrolCode: { contains: s, mode: 'insensitive' } },
+        {
+          assignment: {
+            employee: { firstName: { contains: s, mode: 'insensitive' } },
+          },
+        },
+        {
+          assignment: {
+            employee: { lastName: { contains: s, mode: 'insensitive' } },
+          },
+        },
+        {
+          assignment: {
+            site: { name: { contains: s, mode: 'insensitive' } },
+          },
+        },
+      ];
+    }
+
+    const [total, sessions] = await Promise.all([
+      prisma.patrolSession.count({ where }),
+      prisma.patrolSession.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          checkpoints: {
+            select: {
+              id: true,
+              gateId: true,
+              scannedAt: true,
+            },
+          },
+          verifiedBy: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              employee: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  employeeNumber: true,
+                  designation: true,
+                },
+              },
+            },
+          },
+          assignment: {
+            include: {
+              employee: true,
+              site: true,
+              shift: true,
+              patrolRoute: {
+                include: {
+                  routeGates: {
+                    select: {
+                      id: true,
+                      gateId: true,
+                      sequence: true,
+                    },
+                  },
+                },
+              },
+              assignmentGates: {
+                include: {
+                  gate: true,
+                },
               },
             },
           },
         },
-        assignment: {
-          include: {
-            employee: true,
-            site: true,
-            shift: true,
-            patrolRoute: {
-              select: {
-                id: true,
-                name: true,
-                routeCode: true,
-              },
-            },
-            assignmentGates: {
-              include: {
-                gate: true,
-              },
-            },
-          },
+        orderBy: {
+          startedAt: 'desc',
         },
-      },
-      orderBy: {
-        startedAt: 'desc',
-      },
+      }),
+    ]);
+
+    const enhancedSessions = sessions.map((session) => {
+      const uniqueScannedGateIds = new Set(
+        (session.checkpoints || []).map((cp) => cp.gateId).filter(Boolean),
+      );
+      const scannedCount = uniqueScannedGateIds.size;
+
+      const totalCheckpointCount =
+        session.assignment?.patrolRoute?.routeGates?.length ||
+        session.assignment?.assignmentGates?.length ||
+        0;
+
+      return {
+        ...session,
+        scannedCount,
+        totalCheckpointCount,
+      };
     });
+
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    return {
+      sessions: enhancedSessions,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    };
   }
 }
 

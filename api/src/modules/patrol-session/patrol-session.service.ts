@@ -12,6 +12,7 @@ import { generateCode } from '../../common/utils/code-generator';
 
 import { assignmentRepository } from '../assignment/assignment.repository';
 import { patrolSessionRepository } from './patrol-session.repository';
+import { ListPatrolSessionsQuery } from './patrol-session.types';
 
 export class PatrolSessionService {
   async start(clientId: string, employeeId: string, targetAssignmentId?: string) {
@@ -83,8 +84,8 @@ export class PatrolSessionService {
     return patrolSessionRepository.findActiveByAssignment(assignment.id);
   }
 
-  async history(clientId: string) {
-    return patrolSessionRepository.list(clientId);
+  async history(clientId: string, query?: ListPatrolSessionsQuery) {
+    return patrolSessionRepository.list(clientId, query);
   }
 
   async pause(id: string) {

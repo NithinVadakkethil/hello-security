@@ -11,17 +11,17 @@ import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
 import { apiClient } from '../../lib/axios';
-import { ApiResponse } from '../../types/api';
 
 interface Checkpoint {
   id: string;
+  gateId?: string;
   scannedAt: string;
 }
 
 interface PatrolSession {
   id: string;
   patrolCode: string;
-  status: 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
   startedAt: string;
   endedAt?: string | null;
   totalDuration?: number | null;
@@ -29,6 +29,8 @@ interface PatrolSession {
   verificationStatus?: 'PENDING' | 'VERIFIED' | 'NOT_VERIFIED' | null;
   verificationTime?: string | null;
   supervisorRemarks?: string | null;
+  scannedCount?: number;
+  totalCheckpointCount?: number;
   verifiedBy?: {
     id: string;
     email: string;
@@ -70,42 +72,37 @@ export default function PatrolSessionsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
 
-  // Query Patrol Sessions
-  const { data: sessionsRes, isLoading } = useQuery<
-    ApiResponse<PatrolSession[]>
-  >({
-    queryKey: ['patrol-sessions'],
-    queryFn: () => apiClient.get('/patrol-sessions'),
+  // Query Patrol Sessions with backend pagination & search
+  const { data: responseRes, isLoading } = useQuery<{
+    success: boolean;
+    data: PatrolSession[];
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+  }>({
+    queryKey: ['patrol-sessions', activeTab, page, search],
+    queryFn: () =>
+      apiClient.get('/patrol-sessions', {
+        params: {
+          tab: activeTab,
+          page,
+          limit: 10,
+          search: search.trim() || undefined,
+        },
+      }),
+    placeholderData: (previousData) => previousData,
   });
 
-  const allSessions = sessionsRes?.data || [];
-
-  // Filter based on activeTab
-  const filteredByTab = allSessions.filter((s) => {
-    if (activeTab === 'live') {
-      return s.status === 'IN_PROGRESS' || s.status === 'PAUSED';
-    } else {
-      return s.status === 'COMPLETED' || s.status === 'CANCELLED';
-    }
-  });
-
-  // Filter based on search query
-  let sessions = filteredByTab;
-  if (search) {
-    const s = search.toLowerCase();
-    sessions = filteredByTab.filter(
-      (session) =>
-        session.patrolCode.toLowerCase().includes(s) ||
-        session.assignment.employee.firstName.toLowerCase().includes(s) ||
-        session.assignment.employee.lastName.toLowerCase().includes(s) ||
-        session.assignment.site.name.toLowerCase().includes(s),
-    );
-  }
-
-  const limit = 10;
-  const totalPages = Math.max(1, Math.ceil(sessions.length / limit));
-  const safePage = Math.min(page, totalPages);
-  const paginatedSessions = sessions.slice((safePage - 1) * limit, safePage * limit);
+  const sessions = responseRes?.data || [];
+  const pagination = responseRes?.pagination || {
+    total: sessions.length,
+    page,
+    limit: 10,
+    totalPages: 1,
+  };
 
   const columns = [
     { key: 'patrolCode', label: 'Patrol Code', sortable: true },
@@ -114,7 +111,8 @@ export default function PatrolSessionsPage() {
       label: 'Security Officer',
       render: (row: PatrolSession) => (
         <span>
-          {row.assignment.employee.firstName} {row.assignment.employee.lastName}
+          {row.assignment?.employee?.firstName}{' '}
+          {row.assignment?.employee?.lastName}
         </span>
       ),
     },
@@ -127,17 +125,24 @@ export default function PatrolSessionsPage() {
       key: 'route',
       label: 'Route / Target',
       render: (row: PatrolSession) =>
-        row.assignment?.patrolRoute?.name || '🚧 Direct Checkpoints',
+        row.assignment?.patrolRoute?.name || '🚧 Checkpoints',
     },
     {
       key: 'progress',
       label: 'Checkpoints Scanned',
       render: (row: PatrolSession) => {
         const totalGates =
-          row.assignment?.patrolRoute?.routeGates?.length ||
-          row.assignment?.assignmentGates?.length ||
-          0;
-        const scannedCount = row.checkpoints?.length || 0;
+          row.totalCheckpointCount ??
+          (row.assignment?.patrolRoute?.routeGates?.length ||
+            row.assignment?.assignmentGates?.length ||
+            0);
+
+        const uniqueScannedGates = new Set(
+          (row.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean),
+        );
+        const scannedCount =
+          row.scannedCount ?? (row.checkpoints ? uniqueScannedGates.size : 0);
+
         return (
           <span style={{ fontWeight: 600 }}>
             {scannedCount} / {totalGates} Scanned
@@ -153,7 +158,29 @@ export default function PatrolSessionsPage() {
     {
       key: 'status',
       label: 'Status',
-      render: (row: PatrolSession) => <StatusChip status={row.status} />,
+      render: (row: PatrolSession) => {
+        const totalGates =
+          row.totalCheckpointCount ??
+          (row.assignment?.patrolRoute?.routeGates?.length ||
+            row.assignment?.assignmentGates?.length ||
+            0);
+
+        const uniqueScannedGates = new Set(
+          (row.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean),
+        );
+        const scannedCount =
+          row.scannedCount ?? (row.checkpoints ? uniqueScannedGates.size : 0);
+        return (
+          <StatusChip
+            // status={row.status}
+            status={
+              activeTab === 'history' && scannedCount !== totalGates
+                ? 'SUSPENDED'
+                : row.status
+            }
+          />
+        );
+      },
     },
     {
       key: 'verification',
@@ -213,7 +240,7 @@ export default function PatrolSessionsPage() {
           }}
         >
           <Eye size={14} />
-          <span>Inspect Log</span>
+          <span>Logs</span>
         </Link>
       ),
     },
@@ -313,7 +340,7 @@ export default function PatrolSessionsPage() {
 
       <DataTable
         columns={columns}
-        data={paginatedSessions}
+        data={sessions}
         isLoading={isLoading}
         emptyMessage={
           activeTab === 'live'
@@ -323,8 +350,8 @@ export default function PatrolSessionsPage() {
       />
 
       <Pagination
-        currentPage={safePage}
-        totalPages={totalPages}
+        currentPage={pagination.page}
+        totalPages={pagination.totalPages}
         onPageChange={(p) => setPage(p)}
       />
     </div>

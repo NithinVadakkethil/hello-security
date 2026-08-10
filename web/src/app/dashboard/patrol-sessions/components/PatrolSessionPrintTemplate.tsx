@@ -509,7 +509,7 @@ export default function PatrolSessionPrintTemplate({
               fontWeight: 700,
             }}
           >
-            YES Tasks
+            COMPLETED TASKS
           </div>
           <div
             style={{
@@ -542,7 +542,7 @@ export default function PatrolSessionPrintTemplate({
               fontWeight: 700,
             }}
           >
-            NO Tasks
+            NOT COMPLETED TASKS
           </div>
           <div
             style={{
@@ -846,16 +846,6 @@ export default function PatrolSessionPrintTemplate({
                       </th>
                       <th
                         style={{
-                          textAlign: 'center',
-                          padding: '4px 6px',
-                          color: '#475569',
-                          width: '12%',
-                        }}
-                      >
-                        Answer
-                      </th>
-                      <th
-                        style={{
                           textAlign: 'left',
                           padding: '4px 6px',
                           color: '#475569',
@@ -873,6 +863,16 @@ export default function PatrolSessionPrintTemplate({
                         }}
                       >
                         Evidence Photo
+                      </th>
+                      <th
+                        style={{
+                          textAlign: 'center',
+                          padding: '4px 6px',
+                          color: '#475569',
+                          width: '15%',
+                        }}
+                      >
+                        Status
                       </th>
                     </tr>
                   </thead>
@@ -916,23 +916,6 @@ export default function PatrolSessionPrintTemplate({
                             }}
                           >
                             {taskRole}
-                          </td>
-                          <td
-                            style={{ padding: '5px 6px', textAlign: 'center' }}
-                          >
-                            <span
-                              style={{
-                                fontWeight: 800,
-                                fontSize: '7.5pt',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: isYes ? '#dcfce7' : '#fee2e2',
-                                color: isYes ? '#15803d' : '#b91c1c',
-                                border: `1px solid ${isYes ? '#bbf7d0' : '#fecaca'}`,
-                              }}
-                            >
-                              {isYes ? '✓ YES' : '✕ NO'}
-                            </span>
                           </td>
                           <td style={{ padding: '5px 6px', color: '#334155' }}>
                             {res.remarks ? (
@@ -984,6 +967,23 @@ export default function PatrolSessionPrintTemplate({
                                 No Photo
                               </span>
                             )}
+                          </td>
+                          <td
+                            style={{ padding: '5px 6px', textAlign: 'center' }}
+                          >
+                            <span
+                              style={{
+                                fontWeight: 800,
+                                fontSize: '7.5pt',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                backgroundColor: isYes ? '#dcfce7' : '#fee2e2',
+                                color: isYes ? '#15803d' : '#b91c1c',
+                                border: `1px solid ${isYes ? '#bbf7d0' : '#fecaca'}`,
+                              }}
+                            >
+                              {isYes ? '✓ All In Order' : '✗ Not In Order'}
+                            </span>
                           </td>
                         </tr>
                       );
