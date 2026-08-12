@@ -208,7 +208,14 @@ export class ReportRepository {
                 include: {
                   routeGates: {
                     include: {
-                      gate: true,
+                      gate: {
+                        include: {
+                          subTasks: {
+                            where: { isActive: true },
+                            orderBy: { displayOrder: 'asc' },
+                          },
+                        },
+                      },
                     },
                     orderBy: {
                       sequence: 'asc',
@@ -218,7 +225,14 @@ export class ReportRepository {
               },
               assignmentGates: {
                 include: {
-                  gate: true,
+                  gate: {
+                    include: {
+                      subTasks: {
+                        where: { isActive: true },
+                        orderBy: { displayOrder: 'asc' },
+                      },
+                    },
+                  },
                 },
                 orderBy: {
                   sequence: 'asc',
@@ -228,7 +242,19 @@ export class ReportRepository {
           },
           checkpoints: {
             include: {
-              gate: true,
+              gate: {
+                include: {
+                  subTasks: {
+                    where: { isActive: true },
+                    orderBy: { displayOrder: 'asc' },
+                  },
+                },
+              },
+              subTaskResponses: {
+                include: {
+                  gateSubTask: true,
+                },
+              },
             },
             orderBy: {
               scannedAt: 'asc',
@@ -238,19 +264,31 @@ export class ReportRepository {
       }),
     ]);
 
-    // Fetch incident counts and incidents for each session
+    // Fetch incidents and snags for each session
     const sessionIds = data.map((d) => d.id);
-    const incidents = await prisma.incident.findMany({
-      where: {
-        patrolSessionId: { in: sessionIds },
-      },
-    });
+    const [incidents, snags] = await Promise.all([
+      prisma.incident.findMany({
+        where: {
+          patrolSessionId: { in: sessionIds },
+        },
+      }),
+      prisma.snag.findMany({
+        where: {
+          patrolSessionId: { in: sessionIds },
+        },
+        include: {
+          gate: { select: { id: true, name: true, gateCode: true } },
+        },
+      }),
+    ]);
 
     const enrichedData = data.map((session) => {
       const sessionIncidents = incidents.filter((i) => i.patrolSessionId === session.id);
+      const sessionSnags = snags.filter((s) => s.patrolSessionId === session.id);
       return {
         ...session,
         incidents: sessionIncidents,
+        snags: sessionSnags,
       };
     });
 

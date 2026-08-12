@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { Printer, Shield } from 'lucide-react';
 import Modal from '../../../components/ui/Modal';
 import StatusChip from '../../../components/ui/StatusChip';
-import { resolveImageUrl } from '../../../../lib/image';
 import SingleReportPrintTemplate from './SingleReportPrintTemplate';
 import TaskVerificationChecklist from '../../patrol-sessions/components/TaskVerificationChecklist';
 
@@ -252,48 +251,21 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
                     </div>
                   )}
 
-                  {item.scanned && (
-                    <TaskVerificationChecklist
-                      scanned={item.scanned}
-                      configuredSubTasks={item.gate?.subTasks || []}
-                      subTaskResponses={item.subTaskResponses || []}
-                      checkpointImages={item.images || []}
-                      employeeRole={report.employeeRole || 'SECURITY'}
-                      employeeName={report.employeeName}
-                      scannedAt={item.scannedAt}
-                    />
-                  )}
-
-                  {item.scanned && item.images && item.images.length > 0 ? (
-                    <div>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                        Uploaded Live Inspection Photos:
-                      </div>
-                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                        {item.images.map((imgUrl: string, imgIdx: number) => {
-                          const fullUrl = resolveImageUrl(imgUrl);
-                          return (
-                            <img
-                              key={imgIdx}
-                              src={fullUrl}
-                              alt={`Scan photo ${imgIdx}`}
-                              onClick={() => setSelectedImage(fullUrl)}
-                              style={{
-                                width: '76px',
-                                height: '76px',
-                                borderRadius: '6px',
-                                objectFit: 'cover',
-                                border: '1px solid var(--border-color)',
-                                cursor: 'zoom-in',
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : item.scanned ? (
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>📷 No photos attached</div>
-                  ) : null}
+                  <TaskVerificationChecklist
+                    scanned={item.scanned}
+                    configuredSubTasks={item.gate?.subTasks || []}
+                    subTaskResponses={item.subTaskResponses || []}
+                    checkpointImages={item.images || []}
+                    employeeRole={
+                      report.assignment?.employee?.role || report.employeeRole || 'SECURITY'
+                    }
+                    employeeName={
+                      report.assignment?.employee
+                        ? `${report.assignment.employee.firstName} ${report.assignment.employee.lastName}`
+                        : report.employeeName
+                    }
+                    scannedAt={item.scannedAt}
+                  />
                 </div>
               );
             })}

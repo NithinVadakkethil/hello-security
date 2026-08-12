@@ -34,6 +34,7 @@ export default function SingleReportPrintTemplate({ report }: SingleReportPrintT
         remarks: scan?.remarks,
         status: scan?.status,
         images: scan?.images || [],
+        subTaskResponses: scan?.subTaskResponses || [],
         scanCoords: scan?.latitude && scan?.longitude ? `${scan.latitude.toFixed(5)}, ${scan.longitude.toFixed(5)}` : null,
       };
     });
@@ -170,20 +171,40 @@ export default function SingleReportPrintTemplate({ report }: SingleReportPrintT
                 <th style={{ padding: '6px', textAlign: 'left' }}>Verification Sub-Task</th>
                 <th style={{ padding: '6px', textAlign: 'center', width: '80px' }}>Answer</th>
                 <th style={{ padding: '6px', textAlign: 'left' }}>Remarks</th>
+                <th style={{ padding: '6px', textAlign: 'center' }}>Evidence Photo</th>
               </tr>
             </thead>
             <tbody>
               {checkpointsTimeline.flatMap((item: any) =>
-                (item.subTaskResponses || []).map((res: any, idx: number) => (
-                  <tr key={`${item.gate.id}-${res.id || idx}`} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={{ padding: '6px', fontWeight: 'bold' }}>{item.gate.name} ({item.gate.gateCode})</td>
-                    <td style={{ padding: '6px' }}>{res.gateSubTask?.taskName || 'Verification Task'}</td>
-                    <td style={{ padding: '6px', textAlign: 'center', fontWeight: 'bold', color: res.answer === 'YES' ? '#10b981' : '#ef4444' }}>
-                      {res.answer}
-                    </td>
-                    <td style={{ padding: '6px', color: '#555' }}>{res.remarks || '-'}</td>
-                  </tr>
-                ))
+                (item.subTaskResponses || []).map((res: any, idx: number) => {
+                  const taskImgs = Array.isArray(res.images) && res.images.length > 0 ? res.images : [];
+                  return (
+                    <tr key={`${item.gate.id}-${res.id || idx}`} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: '6px', fontWeight: 'bold' }}>{item.gate.name} ({item.gate.gateCode})</td>
+                      <td style={{ padding: '6px' }}>{res.gateSubTask?.taskName || 'Verification Task'}</td>
+                      <td style={{ padding: '6px', textAlign: 'center', fontWeight: 'bold', color: res.answer === 'YES' ? '#10b981' : '#ef4444' }}>
+                        {res.answer}
+                      </td>
+                      <td style={{ padding: '6px', color: '#555' }}>{res.remarks || '-'}</td>
+                      <td style={{ padding: '6px', textAlign: 'center' }}>
+                        {taskImgs.length > 0 ? (
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            {taskImgs.map((imgUrl: string, imgIdx: number) => (
+                              <img
+                                key={imgIdx}
+                                src={resolveImageUrl(imgUrl)}
+                                alt="Task evidence"
+                                style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ccc' }}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ color: '#999', fontSize: '7.5pt' }}>No Photo</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -211,26 +232,6 @@ export default function SingleReportPrintTemplate({ report }: SingleReportPrintT
               <strong>{snag.category} {snag.subCategory ? `• ${snag.subCategory}` : ''} ({snag.priority} PRIORITY - {snag.status})</strong>: {snag.description}
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Embedded Photos */}
-      {scans.some((s: any) => s.images && s.images.length > 0) && (
-        <div style={{ marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '11pt', marginBottom: '8px' }}>Inspection Photo Attachments</h3>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {scans.flatMap((s: any) => (s.images || []).map((imgUrl: string, idx: number) => {
-              const fullUrl = resolveImageUrl(imgUrl);
-              return (
-                <img
-                  key={idx}
-                  src={fullUrl}
-                  alt={`Attachment ${idx}`}
-                  style={{ width: '90px', height: '90px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ccc' }}
-                />
-              );
-            }))}
-          </div>
         </div>
       )}
 
