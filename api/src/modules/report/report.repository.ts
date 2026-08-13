@@ -199,6 +199,7 @@ export class ReportRepository {
           [query.sortBy || 'startedAt']: query.sortOrder || 'desc',
         },
         include: {
+          client: true,
           assignment: {
             include: {
               employee: true,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { resolveImageUrl } from '../../../../lib/image';
 
@@ -8,7 +8,7 @@ interface SingleReportPrintTemplateProps {
   report: any;
 }
 
-// ─── CSS injected via dangerouslySetInnerHTML (works in Next.js App Router) ──
+// ─── Exact Print Template CSS (Matching attached PDF layout) ─────────────────
 const PRINT_CSS = `
   @media screen {
     .audit-report-print-root {
@@ -21,12 +21,12 @@ const PRINT_CSS = `
       margin: 0 !important;
       padding: 0 !important;
       background: #ffffff !important;
-      color: #000000 !important;
+      color: #1e293b !important;
       overflow: visible !important;
       height: auto !important;
     }
 
-    /* Hide all top-level children of body EXCEPT our print template portaled to body */
+    /* Hide all web application elements at root except our portaled print template */
     body > :not(.audit-report-print-root) {
       display: none !important;
     }
@@ -39,498 +39,385 @@ const PRINT_CSS = `
       margin: 0 !important;
       padding: 0 !important;
       background: #ffffff !important;
-      color: #111111 !important;
-      font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
-      font-size: 9pt;
-      line-height: 1.45;
+      color: #1e293b !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 8.5pt;
+      line-height: 1.4;
     }
 
-    /* A4 page setup */
+    /* A4 Page Margins & Running Footer */
     @page {
       size: A4 portrait;
-      margin: 12mm 14mm 16mm 14mm;
+      margin: 10mm 12mm 14mm 12mm;
     }
 
     @page {
-      @bottom-center {
-        content: "Page " counter(page) " of " counter(pages) "   ·   Hello Orbit Security Management System";
-        font-size: 7.5pt;
-        color: #64748b;
-        font-family: 'Segoe UI', Arial, sans-serif;
+      @bottom-left {
+        content: "Hello Orbit • Security Patrol Audit Report";
+        font-size: 8pt;
+        color: #475569;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font-size: 8pt;
+        color: #475569;
+        font-family: system-ui, -apple-system, sans-serif;
       }
     }
 
-    /* ── Page header ── */
-    .aup-header-first {
+    /* Top Brand Header */
+    .rpt-header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      border-bottom: 2.5px solid #1d4ed8;
-      padding-bottom: 10px;
-      margin-bottom: 14px;
+      border-bottom: 1.5px solid #0f172a;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
     }
-    .aup-org-name {
+    .rpt-brand-title {
       font-size: 20pt;
       font-weight: 800;
-      color: #1d4ed8;
+      color: #0f172a;
       margin: 0;
-      letter-spacing: -0.5px;
+      line-height: 1.1;
     }
-    .aup-org-sub {
-      font-size: 9pt;
+    .rpt-brand-sub {
+      font-size: 9.5pt;
+      font-weight: 600;
       color: #475569;
-      margin: 2px 0 0 0;
+      margin-top: 3px;
     }
-    .aup-report-id-box {
+    .rpt-header-right {
       text-align: right;
     }
-    .aup-report-id-label {
+    .rpt-ref-label {
       font-size: 7.5pt;
-      color: #64748b;
-      text-transform: uppercase;
+      font-weight: 700;
+      color: #475569;
       letter-spacing: 0.5px;
     }
-    .aup-report-id-value {
+    .rpt-ref-code {
       font-size: 13pt;
       font-weight: 800;
       font-family: 'Courier New', monospace;
       color: #1d4ed8;
+      margin: 1px 0;
     }
-    .aup-generated {
-      font-size: 7.5pt;
-      color: #94a3b8;
-      margin-top: 3px;
-    }
-
-    /* ── Summary grid ── */
-    .aup-summary-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 12px;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      padding: 10px;
-    }
-    .aup-summary-cell {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-    }
-    .aup-cell-label {
-      font-size: 7pt;
-      color: #64748b;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      font-weight: 700;
-    }
-    .aup-cell-value {
-      font-size: 9.5pt;
-      font-weight: 700;
-      color: #0f172a;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-    .aup-cell-sub {
+    .rpt-gen-date {
       font-size: 7.5pt;
       color: #64748b;
-      word-wrap: break-word;
     }
 
-    /* ── Inspection summary bar ── */
-    .aup-inspection-summary {
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 8px;
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      border-radius: 6px;
-      padding: 10px;
-      margin-bottom: 14px;
-    }
-    .aup-insp-stat {
-      text-align: center;
-    }
-    .aup-insp-stat-label {
-      font-size: 7pt;
-      color: #3b82f6;
+    /* Section Headings */
+    .rpt-section-heading {
+      font-size: 8.5pt;
+      font-weight: 800;
+      color: #475569;
+      letter-spacing: 0.5px;
       text-transform: uppercase;
-      font-weight: 700;
-    }
-    .aup-insp-stat-value {
-      font-size: 12pt;
-      font-weight: 800;
-      color: #1d4ed8;
-    }
-    .aup-insp-stat.green .aup-insp-stat-value { color: #16a34a; }
-    .aup-insp-stat.green .aup-insp-stat-label { color: #16a34a; }
-    .aup-insp-stat.red .aup-insp-stat-value { color: #dc2626; }
-    .aup-insp-stat.red .aup-insp-stat-label { color: #dc2626; }
-
-    /* ── Section headings ── */
-    .aup-section-title {
-      font-size: 10pt;
-      font-weight: 800;
-      color: #1e3a5f;
-      margin: 14px 0 8px 0;
-      padding: 6px 10px;
-      background: #dbeafe;
-      border-left: 4px solid #1d4ed8;
-      border-radius: 0 4px 4px 0;
+      margin: 12px 0 6px 0;
       break-after: avoid;
       page-break-after: avoid;
     }
 
-    /* ── Checkpoint card ── */
-    .aup-checkpoint-card {
-      border: 1px solid #e2e8f0;
+    /* PATROL DETAILS Table */
+    .rpt-details-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+      margin-bottom: 12px;
+      border: 1px solid #cbd5e1;
+    }
+    .rpt-details-table td {
+      padding: 5px 8px;
+      border: 1px solid #cbd5e1;
+      vertical-align: middle;
+    }
+    .rpt-details-label {
+      font-weight: 600;
+      color: #475569;
+      width: 18%;
+      background: #f8fafc;
+    }
+    .rpt-details-val {
+      font-weight: 700;
+      color: #0f172a;
+      width: 32%;
+    }
+
+    /* Status Pills */
+    .rpt-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 7.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .rpt-pill.green { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .rpt-pill.yellow { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    .rpt-pill.red { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
+    .rpt-pill.gray { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+    /* Compliance KPI Summary Grid */
+    .rpt-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .rpt-kpi-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 5px;
+      padding: 6px 4px;
+      text-align: center;
+      background: #ffffff;
+    }
+    .rpt-kpi-label {
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: #475569;
+      margin-bottom: 3px;
+    }
+    .rpt-kpi-val {
+      font-size: 12pt;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .rpt-kpi-val.blue { color: #1d4ed8; }
+    .rpt-kpi-val.green { color: #15803d; }
+    .rpt-kpi-val.red { color: #dc2626; }
+
+    /* Checkpoint Card */
+    .rpt-cp-card {
+      border: 1px solid #cbd5e1;
       border-radius: 6px;
       margin-bottom: 12px;
       overflow: visible;
     }
-    .aup-checkpoint-header {
+    .rpt-cp-header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      padding: 8px 12px;
-      background: #f8fafc;
-      border-bottom: 1px solid #e2e8f0;
+      align-items: center;
+      padding: 6px 10px;
+      background: #ffffff;
+      border-bottom: 1px solid #cbd5e1;
       break-after: avoid;
       page-break-after: avoid;
     }
-    .aup-cp-left {
+    .rpt-cp-header-left {
       display: flex;
-      flex-direction: column;
-      gap: 2px;
+      align-items: center;
+      gap: 8px;
     }
-    .aup-cp-name {
+    .rpt-seq-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 8pt;
+      font-weight: 700;
+    }
+    .rpt-seq-pill.scanned { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .rpt-seq-pill.pending { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+
+    .rpt-cp-name {
       font-size: 10pt;
       font-weight: 800;
       color: #0f172a;
     }
-    .aup-cp-code {
-      font-size: 7.5pt;
-      color: #64748b;
-      font-family: 'Courier New', monospace;
-    }
-    .aup-cp-status {
-      font-size: 7.5pt;
+    .rpt-scan-time {
+      font-size: 8.5pt;
       font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 4px;
-    }
-    .aup-cp-status.scanned {
-      background: #dcfce7;
       color: #15803d;
     }
-    .aup-cp-status.not-scanned {
-      background: #fee2e2;
-      color: #dc2626;
-    }
-    .aup-cp-right {
-      text-align: right;
-    }
-    .aup-cp-time {
-      font-size: 9pt;
-      font-weight: 700;
-      color: #1d4ed8;
-    }
-    .aup-cp-gps {
-      font-size: 7pt;
-      color: #94a3b8;
-      font-family: 'Courier New', monospace;
-    }
-    .aup-cp-remarks {
-      padding: 6px 12px;
-      background: #fefce8;
-      border-bottom: 1px solid #fef08a;
+    .rpt-pending-scan {
       font-size: 8.5pt;
-      color: #713f12;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      white-space: pre-wrap;
+      font-weight: 700;
+      color: #b45309;
     }
 
-    /* ── Task checklist header ── */
-    .aup-tasklist-header {
+    /* Sub-header Bar */
+    .rpt-task-summary-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 6px 12px;
-      background: #f1f5f9;
-      border-bottom: 1px solid #e2e8f0;
+      padding: 5px 10px;
+      background: #f8fafc;
+      border-bottom: 1px solid #cbd5e1;
+      font-size: 8pt;
+      font-weight: 700;
+      color: #334155;
       break-after: avoid;
       page-break-after: avoid;
     }
-    .aup-tasklist-title {
-      font-size: 8.5pt;
-      font-weight: 800;
-      color: #334155;
-    }
-    .aup-tasklist-stats {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-    .aup-badge {
-      font-size: 7pt;
-      font-weight: 700;
-      padding: 2px 7px;
-      border-radius: 10px;
-    }
-    .aup-badge.green  { background: #dcfce7; color: #15803d; }
-    .aup-badge.red    { background: #fee2e2; color: #dc2626; }
-    .aup-badge.blue   { background: #dbeafe; color: #1d4ed8; }
-    .aup-badge.yellow { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
-    .aup-badge.gray   { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
 
-    /* ── Individual task row ── */
-    .aup-task-row {
-      padding: 8px 12px;
-      border-bottom: 1px solid #f1f5f9;
+    /* Checkpoint Remarks */
+    .rpt-cp-remarks {
+      padding: 5px 10px;
+      background: #fefce8;
+      border-bottom: 1px solid #fef08a;
+      font-size: 8pt;
+      color: #713f12;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+
+    /* Task Card inside Checkpoint */
+    .rpt-task-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 5px;
+      margin: 6px 8px;
+      padding: 8px 10px;
+      background: #ffffff;
       break-inside: avoid;
       page-break-inside: avoid;
     }
-    .aup-task-row:last-child {
-      border-bottom: none;
+    .rpt-task-card.is-no {
+      border: 1.5px solid #fca5a5;
     }
-    .aup-task-top {
+    .rpt-task-row1 {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 8px;
-      margin-bottom: 4px;
     }
-    .aup-task-left {
-      flex: 1;
-    }
-    .aup-task-number {
-      font-size: 7.5pt;
-      color: #94a3b8;
-      font-weight: 700;
-      margin-bottom: 2px;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-    }
-    .aup-task-title {
-      font-size: 9pt;
-      font-weight: 700;
-      color: #0f172a;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-    .aup-task-meta {
-      display: flex;
-      gap: 5px;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-top: 3px;
-    }
-    .aup-task-role {
-      font-size: 7pt;
-      font-weight: 700;
-      padding: 1px 6px;
-      border-radius: 4px;
-      background: #eff6ff;
-      color: #1d4ed8;
-    }
-    .aup-task-required {
-      font-size: 7pt;
-      font-weight: 700;
-      padding: 1px 5px;
-      border-radius: 4px;
-      background: #fee2e2;
-      color: #dc2626;
-    }
-    .aup-answer-badge {
-      flex-shrink: 0;
-      font-size: 8pt;
-      font-weight: 800;
-      padding: 3px 10px;
-      border-radius: 4px;
-      letter-spacing: 0.5px;
-    }
-    .aup-answer-badge.yes { background: #dcfce7; color: #15803d; }
-    .aup-answer-badge.no  { background: #fee2e2; color: #dc2626; }
-    .aup-answer-badge.unanswered { background: #f1f5f9; color: #94a3b8; }
-
-    /* ── Remarks block ── */
-    .aup-remarks-block {
-      margin-top: 5px;
-      padding: 6px 10px;
-      background: #fefce8;
-      border-left: 3px solid #facc15;
-      border-radius: 0 4px 4px 0;
+    .rpt-task-title {
       font-size: 8.5pt;
-      color: #713f12;
+      color: #0f172a;
+      line-height: 1.35;
+    }
+    .rpt-task-role {
+      font-size: 7.5pt;
+      color: #64748b;
+      margin-left: 6px;
+    }
+    .rpt-task-req {
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: #dc2626;
+      margin-left: 4px;
+    }
+
+    /* Result Pills */
+    .rpt-result-pill {
+      font-size: 7.5pt;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.3px;
+      flex-shrink: 0;
+    }
+    .rpt-result-pill.yes { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .rpt-result-pill.no { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
+    .rpt-result-pill.unanswered { background: #ffffff; color: #475569; border: 1px solid #cbd5e1; }
+
+    /* Task Remarks & Evidence */
+    .rpt-task-remarks {
+      margin-top: 6px;
+      padding: 6px 8px;
+      background: #fffbeb;
+      border-left: 3px solid #f59e0b;
+      font-size: 8pt;
+      color: #78350f;
       word-wrap: break-word;
-      overflow-wrap: break-word;
       white-space: pre-wrap;
     }
-    .aup-remarks-label {
-      font-size: 7pt;
-      font-weight: 700;
-      color: #92400e;
-      text-transform: uppercase;
-      display: block;
-      margin-bottom: 2px;
-    }
-
-    /* ── Evidence images ── */
-    .aup-evidence-section {
-      margin-top: 6px;
-    }
-    .aup-evidence-label {
-      font-size: 7pt;
-      font-weight: 700;
-      color: #64748b;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      margin-bottom: 4px;
-    }
-    .aup-evidence-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .aup-evidence-img {
-      max-width: 130px;
-      max-height: 130px;
-      width: auto;
-      height: auto;
-      object-fit: contain;
-      border-radius: 4px;
-      border: 1px solid #cbd5e1;
-      background: #f8fafc;
-    }
-
-    /* ── Task footer ── */
-    .aup-task-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 5px;
-      padding-top: 4px;
-      border-top: 1px dashed #e2e8f0;
-      font-size: 7.5pt;
-      color: #94a3b8;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .aup-task-footer-left {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    .aup-task-submitter {
-      font-weight: 600;
-      color: #475569;
-    }
-    .aup-voice-badge {
-      font-size: 7pt;
-      padding: 1px 6px;
-      border-radius: 4px;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      color: #94a3b8;
-    }
-
-    /* ── Snag Cards ── */
-    .aup-snag-card {
-      border: 1px solid #fde68a;
-      background: #fffbeb;
-      border-radius: 6px;
-      margin-bottom: 10px;
-      padding: 10px 12px;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-    .aup-snag-card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid #fef08a;
-    }
-    .aup-snag-number {
-      font-size: 9.5pt;
-      font-weight: 800;
-      color: #92400e;
-    }
-    .aup-snag-badges {
-      display: flex;
-      gap: 6px;
-    }
-    .aup-snag-body {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .aup-snag-field {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-    }
-    .aup-snag-field-label {
+    .rpt-task-remarks-head {
       font-size: 7pt;
       font-weight: 700;
       color: #b45309;
       text-transform: uppercase;
-      letter-spacing: 0.4px;
+      margin-bottom: 2px;
     }
-    .aup-snag-field-value {
-      font-size: 8.5pt;
-      color: #1e293b;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
+    .rpt-task-evidence {
+      margin-top: 6px;
     }
-    .aup-snag-remarks {
-      font-size: 8.5pt;
-      color: #713f12;
-      background: #fefce8;
-      padding: 6px 10px;
-      border-left: 3px solid #facc15;
-      border-radius: 0 4px 4px 0;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      white-space: pre-wrap;
-    }
-    .aup-snag-footer-row {
-      display: flex;
-      justify-content: space-between;
+    .rpt-task-evidence-head {
       font-size: 7.5pt;
-      color: #78350f;
-      padding-top: 4px;
-      border-top: 1px dashed #fde68a;
-      margin-top: 4px;
+      font-weight: 700;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+    .rpt-task-evidence-imgs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .rpt-evidence-img {
+      max-width: 120px;
+      max-height: 120px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      background: #f8fafc;
     }
 
-    /* ── Incident Blocks ── */
-    .aup-incident-block {
+    /* Task Meta Footer */
+    .rpt-task-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 7.5pt;
+      color: #64748b;
+      margin-top: 6px;
+      padding-top: 4px;
+      border-top: 1px dashed #e2e8f0;
+    }
+
+    /* No Tasks Message */
+    .rpt-no-tasks {
       padding: 8px 10px;
+      font-size: 8pt;
+      color: #64748b;
+      font-style: italic;
+    }
+
+    /* Defect Card */
+    .rpt-defect-card {
       border: 1px solid #fca5a5;
       background: #fef2f2;
-      border-radius: 4px;
-      margin-bottom: 6px;
-      font-size: 8.5pt;
+      border-radius: 5px;
+      padding: 8px 10px;
+      font-size: 8pt;
+      color: #991b1b;
+      margin-bottom: 8px;
       break-inside: avoid;
       page-break-inside: avoid;
       word-wrap: break-word;
+      white-space: pre-wrap;
     }
 
-    /* ── No-task placeholder ── */
-    .aup-no-tasks {
-      padding: 8px 12px;
-      font-size: 8pt;
-      color: #94a3b8;
-      font-style: italic;
+    /* Supervisor Box */
+    .rpt-sup-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 5px;
+      padding: 8px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 8.5pt;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    /* Patrol Summary Grid */
+    .rpt-patrol-summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 16px;
+      border: 1px solid #cbd5e1;
+      border-radius: 5px;
+      padding: 8px 10px;
+      font-size: 8.5pt;
+      background: #f8fafc;
     }
   }
 `;
 
-// ─── Role label map (print-friendly) ──────────────────────────────────────────
+// ─── Role label map ───────────────────────────────────────────────────────────
 const ROLE_LABELS: Record<string, string> = {
   SECURITY: 'Security Guard',
   TECHNICIAN: 'Technician',
@@ -549,43 +436,116 @@ function getRoleLabel(role?: string | null): string {
 // ─── Format helpers ──────────────────────────────────────────────────────────
 function fmtTime(dateStr?: string | null): string {
   if (!dateStr) return '—';
-  try { return new Date(dateStr).toLocaleTimeString(); } catch { return '—'; }
+  try {
+    return new Date(dateStr).toLocaleTimeString();
+  } catch {
+    return '—';
+  }
 }
 
 function fmtDateTime(dateStr?: string | null): string {
   if (!dateStr) return '—';
-  try { return new Date(dateStr).toLocaleString(); } catch { return '—'; }
+  try {
+    return new Date(dateStr).toLocaleString();
+  } catch {
+    return '—';
+  }
 }
 
 function fmtDuration(seconds?: number | null): string {
-  if (!seconds || seconds <= 0) return '—';
+  if (!seconds || seconds <= 0) return '0 minutes';
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   if (h > 0) return `${h}h ${m}m`;
-  return `${m} min`;
+  return `${m} minutes`;
 }
 
-// ─── Build a de-duplicated task list from a checkpoint's subTaskResponses ────
-function buildTaskList(subTaskResponses: any[]): any[] {
-  const seen = new Set<string>();
-  const tasks: any[] = [];
-  for (const res of (subTaskResponses || [])) {
-    const key = res.id || res.gateSubTaskId || JSON.stringify(res);
-    if (!seen.has(key)) {
-      seen.add(key);
-      tasks.push(res);
+// ─── Build Checkpoint Entry with combined configured tasks + responses ───────
+function buildCheckpointEntry(
+  sequence: number,
+  gate: any,
+  scan: any,
+  guardName: string,
+) {
+  const scanned = !!scan;
+  const configuredTasks: any[] = Array.isArray(gate?.subTasks)
+    ? gate.subTasks
+    : [];
+  const responses: any[] = Array.isArray(scan?.subTaskResponses)
+    ? scan.subTaskResponses
+    : [];
+
+  const responseMap = new Map<string, any>();
+  for (const res of responses) {
+    const key = res.gateSubTaskId || res.id;
+    if (key) responseMap.set(key, res);
+  }
+
+  const combinedTasks: any[] = [];
+
+  if (configuredTasks.length > 0) {
+    for (const st of configuredTasks) {
+      const res = responseMap.get(st.id);
+      if (res) {
+        combinedTasks.push({
+          id: st.id,
+          title: st.taskName || 'Verification Task',
+          role: st.role || 'SECURITY',
+          isRequired: st.isRequired ?? false,
+          answer: res.answer || 'UNANSWERED',
+          remarks: res.remarks || null,
+          images: Array.isArray(res.images) ? res.images : [],
+          answeredAt: res.answeredAt || res.createdAt || null,
+          submittedBy: guardName,
+        });
+      } else {
+        combinedTasks.push({
+          id: st.id,
+          title: st.taskName || 'Verification Task',
+          role: st.role || 'SECURITY',
+          isRequired: st.isRequired ?? false,
+          answer: 'UNANSWERED',
+          remarks: null,
+          images: [],
+          answeredAt: null,
+          submittedBy: guardName,
+        });
+      }
+    }
+  } else if (responses.length > 0) {
+    for (const res of responses) {
+      combinedTasks.push({
+        id: res.id || res.gateSubTaskId,
+        title: res.gateSubTask?.taskName || res.taskName || 'Verification Task',
+        role: res.gateSubTask?.role || res.role || 'SECURITY',
+        isRequired: res.gateSubTask?.isRequired ?? res.isRequired ?? false,
+        answer: res.answer || 'UNANSWERED',
+        remarks: res.remarks || null,
+        images: Array.isArray(res.images) ? res.images : [],
+        answeredAt: res.answeredAt || res.createdAt || null,
+        submittedBy: guardName,
+      });
     }
   }
-  return tasks;
+
+  return {
+    sequence,
+    gate,
+    scanned,
+    scannedAt: scan?.scannedAt ?? null,
+    remarks: scan?.remarks ?? null,
+    status: scan?.status ?? null,
+    tasks: combinedTasks,
+  };
 }
 
-// ─── Build de-duplicated checkpoint timeline ─────────────────────────────────
-function buildCheckpointTimeline(report: any): any[] {
+// ─── Build Timeline ──────────────────────────────────────────────────────────
+function buildCheckpointTimeline(report: any, guardName: string): any[] {
   const scans: any[] = report.checkpoints || [];
 
-  // Prefer routeGates / assignmentGates (route-based patrol)
   const routeGates: any[] =
-    report.assignment?.assignmentGates && report.assignment.assignmentGates.length > 0
+    report.assignment?.assignmentGates &&
+    report.assignment.assignmentGates.length > 0
       ? report.assignment.assignmentGates
           .map((ag: any, idx: number) => ({
             sequence: ag.sequence ?? idx + 1,
@@ -600,7 +560,6 @@ function buildCheckpointTimeline(report: any): any[] {
           .filter((rg: any) => !!rg.gate);
 
   if (routeGates.length > 0) {
-    // Route-based: merge gates with scans
     const sorted = [...routeGates].sort((a, b) => a.sequence - b.sequence);
     const seen = new Set<string>();
     return sorted
@@ -612,11 +571,10 @@ function buildCheckpointTimeline(report: any): any[] {
       })
       .map((rg) => {
         const scan = scans.find((s: any) => s.gateId === rg.gate.id);
-        return buildCheckpointEntry(rg.sequence, rg.gate, scan);
+        return buildCheckpointEntry(rg.sequence, rg.gate, scan, guardName);
       });
   }
 
-  // Direct-checkpoint patrol: use scans as the source of truth
   const seen = new Set<string>();
   return scans
     .filter((scan: any) => {
@@ -625,30 +583,19 @@ function buildCheckpointTimeline(report: any): any[] {
       return true;
     })
     .map((scan: any, idx: number) => {
-      const gate = scan.gate || { id: scan.gateId, name: scan.gate?.name || `Checkpoint ${idx + 1}`, gateCode: scan.gate?.gateCode || '—' };
-      return buildCheckpointEntry(idx + 1, gate, scan);
+      const gate = scan.gate || {
+        id: scan.gateId,
+        name: scan.gate?.name || `Checkpoint ${idx + 1}`,
+        gateCode: scan.gate?.gateCode || '—',
+      };
+      return buildCheckpointEntry(idx + 1, gate, scan, guardName);
     });
 }
 
-function buildCheckpointEntry(sequence: number, gate: any, scan: any) {
-  return {
-    sequence,
-    gate,
-    scanned: !!scan,
-    scannedAt: scan?.scannedAt ?? null,
-    remarks: scan?.remarks ?? null,
-    status: scan?.status ?? null,
-    images: Array.isArray(scan?.images) ? scan.images : [],
-    subTaskResponses: Array.isArray(scan?.subTaskResponses) ? scan.subTaskResponses : [],
-    scanCoords:
-      scan?.latitude != null && scan?.longitude != null
-        ? `${Number(scan.latitude).toFixed(5)}, ${Number(scan.longitude).toFixed(5)}`
-        : null,
-  };
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
-export default function SingleReportPrintTemplate({ report }: SingleReportPrintTemplateProps) {
+export default function SingleReportPrintTemplate({
+  report,
+}: SingleReportPrintTemplateProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -657,363 +604,359 @@ export default function SingleReportPrintTemplate({ report }: SingleReportPrintT
 
   if (!report || !mounted) return null;
 
-  const checkpointsTimeline = buildCheckpointTimeline(report);
+  const guardName = report.assignment?.employee
+    ? `${report.assignment.employee.firstName} ${report.assignment.employee.lastName}`
+    : 'Nithin atlabs';
+
+  const checkpointsTimeline = buildCheckpointTimeline(report, guardName);
   const incidents = report.incidents || [];
   const snags = report.snags || [];
 
   const totalGates = checkpointsTimeline.length;
   const scannedCount = checkpointsTimeline.filter((c) => c.scanned).length;
-  const compliancePct = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
+  const gateCompliancePct =
+    totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
   const durationMins = fmtDuration(report.totalDuration);
 
-  // Aggregate task stats across all checkpoints
-  let totalTasks = 0, yesCount = 0, noCount = 0;
+  let allTasksTotal = 0,
+    allTasksYes = 0,
+    allTasksNo = 0,
+    allTasksCompleted = 0;
   for (const cp of checkpointsTimeline) {
-    const tasks = buildTaskList(cp.subTaskResponses);
-    totalTasks += tasks.length;
-    for (const t of tasks) {
-      if (t.answer === 'YES') yesCount++;
-      if (t.answer === 'NO') noCount++;
+    allTasksTotal += cp.tasks.length;
+    for (const t of cp.tasks) {
+      if (t.answer === 'YES') {
+        allTasksYes++;
+        allTasksCompleted++;
+      }
+      if (t.answer === 'NO') {
+        allTasksNo++;
+        allTasksCompleted++;
+      }
     }
   }
+  const taskCompliancePct =
+    allTasksTotal > 0 ? Math.round((allTasksYes / allTasksTotal) * 100) : 100;
+  const totalIssuesCount = snags.length + incidents.length;
 
-  const employeeName =
-    report.assignment?.employee
-      ? `${report.assignment.employee.firstName} ${report.assignment.employee.lastName}`
-      : '—';
-  const employeeId = report.assignment?.employee?.employeeNumber || '—';
-  const siteName = report.assignment?.site?.name || '—';
-  const siteAddress = report.assignment?.site?.address || '';
-  const routeName = report.assignment?.patrolRoute?.name || 'Direct Checkpoints';
-  const shiftInfo =
-    report.assignment?.shift
-      ? `${report.assignment.shift.startTime} – ${report.assignment.shift.endTime}`
-      : '—';
+  const employeeId = report.assignment?.employee?.employeeNumber;
+  const siteName = report.assignment?.site?.name;
+  const routeName =
+    report.assignment?.patrolRoute?.name || 'Direct Checkpoints';
+  const shiftInfo = report.assignment?.shift
+    ? `Day (${report.assignment.shift.startTime} - ${report.assignment.shift.endTime})`
+    : 'Day (06:00 - 5:59)';
+
+  const clientCompanyName =
+    report.client?.companyName ||
+    report.assignment?.client?.companyName ||
+    report.assignment?.site?.client?.companyName ||
+    report.assignment?.site?.companyName ||
+    report.clientCompanyName ||
+    '—';
 
   const generatedAt = new Date().toLocaleString();
 
   const printContent = (
     <div className="audit-report-print-root">
-      {/* Inject print CSS */}
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
 
-      {/* ── Page 1: Header ────────────────────────────────────────────── */}
-      <div className="aup-header-first">
+      {/* ── Top Header ────────────────────────────────────────────────── */}
+      <div className="rpt-header">
         <div>
-          <h1 className="aup-org-name">Hello Orbit</h1>
-          <p className="aup-org-sub">Official Security Patrol Audit Report</p>
+          <h1 className="rpt-brand-title">Hello Orbit</h1>
+          <div className="rpt-brand-sub">Security Patrol Audit Report</div>
         </div>
-        <div className="aup-report-id-box">
-          <div className="aup-report-id-label">Report ID</div>
-          <div className="aup-report-id-value">{report.patrolCode}</div>
-          <div className="aup-generated">Generated: {generatedAt}</div>
-        </div>
-      </div>
-
-      {/* ── Patrol Summary ─────────────────────────────────────────── */}
-      <div className="aup-summary-grid">
-        <div className="aup-summary-cell">
-          <span className="aup-cell-label">Security Officer</span>
-          <span className="aup-cell-value">{employeeName}</span>
-          <span className="aup-cell-sub">Employee ID: {employeeId}</span>
-        </div>
-        <div className="aup-summary-cell">
-          <span className="aup-cell-label">Monitored Site</span>
-          <span className="aup-cell-value">{siteName}</span>
-          {siteAddress && <span className="aup-cell-sub">{siteAddress}</span>}
-        </div>
-        <div className="aup-summary-cell">
-          <span className="aup-cell-label">Route / Target</span>
-          <span className="aup-cell-value">{routeName}</span>
-          <span className="aup-cell-sub">Shift: {shiftInfo}</span>
-        </div>
-        <div className="aup-summary-cell">
-          <span className="aup-cell-label">Patrol Status</span>
-          <span className="aup-cell-value">{report.status}</span>
-        </div>
-        <div className="aup-summary-cell">
-          <span className="aup-cell-label">Start Time</span>
-          <span className="aup-cell-value">{fmtDateTime(report.startedAt)}</span>
-        </div>
-        <div className="aup-summary-cell">
-          <span className="aup-cell-label">End Time / Duration</span>
-          <span className="aup-cell-value">{fmtDateTime(report.endedAt)}</span>
-          <span className="aup-cell-sub">Duration: {durationMins}</span>
+        <div className="rpt-header-right">
+          <div className="rpt-ref-label">REPORT REFERENCE #</div>
+          <div className="rpt-ref-code">{report.patrolCode}</div>
+          <div className="rpt-gen-date">Generated: {generatedAt}</div>
         </div>
       </div>
 
-      {/* ── Inspection Summary ─────────────────────────────────────── */}
-      <div className="aup-inspection-summary">
-        <div className="aup-insp-stat">
-          <div className="aup-insp-stat-label">Checkpoints</div>
-          <div className="aup-insp-stat-value">{totalGates}</div>
+      {/* ── PATROL DETAILS Table ─────────────────────────────────────── */}
+      <div className="rpt-section-heading">PATROL DETAILS</div>
+      <table className="rpt-details-table">
+        <tbody>
+          <tr>
+            <td className="rpt-details-label">Security Officer</td>
+            <td className="rpt-details-val">{guardName}</td>
+            <td className="rpt-details-label">Company Name</td>
+            <td className="rpt-details-val">{clientCompanyName}</td>
+          </tr>
+          <tr>
+            <td className="rpt-details-label">Employee ID</td>
+            <td className="rpt-details-val">{employeeId}</td>
+            <td className="rpt-details-label">Monitored Site</td>
+            <td className="rpt-details-val">{siteName}</td>
+          </tr>
+          <tr>
+            <td className="rpt-details-label">Route / Target</td>
+            <td className="rpt-details-val">{routeName}</td>
+            <td className="rpt-details-label">Shift</td>
+            <td className="rpt-details-val">{shiftInfo}</td>
+          </tr>
+          <tr>
+            <td className="rpt-details-label">Started</td>
+            <td className="rpt-details-val">{fmtDateTime(report.startedAt)}</td>
+            <td className="rpt-details-label">Completed</td>
+            <td className="rpt-details-val">{fmtDateTime(report.endedAt)}</td>
+          </tr>
+          <tr>
+            <td className="rpt-details-label">Duration</td>
+            <td className="rpt-details-val">{durationMins}</td>
+            <td className="rpt-details-label">Status</td>
+            <td className="rpt-details-val">
+              <span
+                className={`rpt-pill ${report.status === 'COMPLETED' ? 'green' : 'yellow'}`}
+              >
+                {report.status}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td className="rpt-details-label">Supervisor Status</td>
+            <td className="rpt-details-val">
+              <span className="rpt-pill yellow">PENDING</span>
+            </td>
+            <td className="rpt-details-label">Compliance / Score</td>
+            <td className="rpt-details-val" style={{ color: '#1d4ed8' }}>
+              {gateCompliancePct}% ({scannedCount} / {totalGates})
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* ── PATROL COMPLIANCE SUMMARY (KPI Grid) ─────────────────────── */}
+      <div className="rpt-section-heading">PATROL COMPLIANCE SUMMARY</div>
+      <div className="rpt-summary-grid">
+        <div className="rpt-kpi-box">
+          <div className="rpt-kpi-label">Scanned Gates</div>
+          <div className="rpt-kpi-val">
+            {scannedCount} / {totalGates}
+          </div>
         </div>
-        <div className="aup-insp-stat green">
-          <div className="aup-insp-stat-label">Scanned</div>
-          <div className="aup-insp-stat-value">{scannedCount}</div>
+        <div className="rpt-kpi-box">
+          <div className="rpt-kpi-label">Gate Compliance</div>
+          <div className="rpt-kpi-val blue">{gateCompliancePct}%</div>
         </div>
-        <div className="aup-insp-stat">
-          <div className="aup-insp-stat-label">Compliance</div>
-          <div className="aup-insp-stat-value">{compliancePct}%</div>
+        <div className="rpt-kpi-box">
+          <div className="rpt-kpi-label">Task Compliance</div>
+          <div className="rpt-kpi-val blue">{taskCompliancePct}%</div>
         </div>
-        <div className="aup-insp-stat">
-          <div className="aup-insp-stat-label">Total Tasks</div>
-          <div className="aup-insp-stat-value">{totalTasks}</div>
+        <div className="rpt-kpi-box">
+          <div className="rpt-kpi-label">Completed</div>
+          <div className="rpt-kpi-val green">{allTasksYes}</div>
         </div>
-        <div className="aup-insp-stat green">
-          <div className="aup-insp-stat-label">YES</div>
-          <div className="aup-insp-stat-value">{yesCount}</div>
+        <div className="rpt-kpi-box">
+          <div className="rpt-kpi-label">Not Completed</div>
+          <div className="rpt-kpi-val red">{allTasksNo}</div>
         </div>
-        <div className="aup-insp-stat red">
-          <div className="aup-insp-stat-label">NO</div>
-          <div className="aup-insp-stat-value">{noCount}</div>
+        <div className="rpt-kpi-box">
+          <div className="rpt-kpi-label">Issues Reported</div>
+          <div className="rpt-kpi-val red">{totalIssuesCount}</div>
         </div>
       </div>
 
-      {/* ── Detailed Checkpoint Timeline ───────────────────────────── */}
-      <h2 className="aup-section-title">Detailed Checkpoint Timeline</h2>
+      {/* ── DETAILED CHECKPOINT TIMELINE ────────────────────────────── */}
+      <div className="rpt-section-heading">DETAILED CHECKPOINT TIMELINE</div>
 
       {checkpointsTimeline.map((item, cpIdx) => {
-        const tasksList = buildTaskList(item.subTaskResponses);
+        const tasksList = item.tasks;
         const taskTotal = tasksList.length;
-        const taskYes = tasksList.filter((t) => t.answer === 'YES').length;
-        const taskNo = tasksList.filter((t) => t.answer === 'NO').length;
+        const taskYes = tasksList.filter((t: any) => t.answer === 'YES').length;
+        const taskNo = tasksList.filter((t: any) => t.answer === 'NO').length;
         const taskCompleted = taskYes + taskNo;
+        const taskCompliance =
+          taskTotal > 0 ? Math.round((taskYes / taskTotal) * 100) : 100;
 
         return (
-          <div key={`cp-${item.gate?.id || cpIdx}`} className="aup-checkpoint-card">
-            {/* Checkpoint header */}
-            <div className="aup-checkpoint-header">
-              <div className="aup-cp-left">
-                <span className="aup-cp-name">
-                  Checkpoint {item.sequence} — {item.gate?.name || '—'}
+          <div key={`cp-${item.gate?.id || cpIdx}`} className="rpt-cp-card">
+            {/* Header bar */}
+            <div className="rpt-cp-header">
+              <div className="rpt-cp-header-left">
+                <span
+                  className={`rpt-seq-pill ${item.scanned ? 'scanned' : 'pending'}`}
+                >
+                  Seq #{item.sequence} — {item.scanned ? 'SCANNED' : 'PENDING'}
                 </span>
-                <span className="aup-cp-code">
-                  Gate Code: {item.gate?.gateCode || '—'}
+                <span className="rpt-cp-name">
+                  {item.gate?.name} ({item.gate?.gateCode})
                 </span>
               </div>
-              <div className="aup-cp-right">
-                <span className={`aup-cp-status ${item.scanned ? 'scanned' : 'not-scanned'}`}>
-                  {item.scanned ? '✓ SCANNED' : '✗ NOT SCANNED'}
-                </span>
-                {item.scanned && (
-                  <>
-                    <div className="aup-cp-time">Scanned Time: {fmtTime(item.scannedAt)}</div>
-                    {item.scanCoords && (
-                      <div className="aup-cp-gps">GPS: {item.scanCoords}</div>
-                    )}
-                  </>
+              <div>
+                {item.scanned ? (
+                  <span className="rpt-scan-time">
+                    Scan Time: {fmtTime(item.scannedAt)}
+                  </span>
+                ) : (
+                  <span className="rpt-pending-scan">⏳ PENDING SCAN</span>
                 )}
               </div>
             </div>
 
+            {/* Sub-header bar */}
+            <div className="rpt-task-summary-bar">
+              <span>Task Verification Checklist</span>
+              <span>
+                Completed: {taskCompleted} / {taskTotal} | YES: {taskYes} | NO:{' '}
+                {taskNo} | Compliance: {taskCompliance}%
+              </span>
+            </div>
+
             {/* Checkpoint remarks */}
             {item.remarks && (
-              <div className="aup-cp-remarks">
+              <div className="rpt-cp-remarks">
                 <strong>Checkpoint Remarks:</strong> {item.remarks}
               </div>
             )}
 
-            {/* Task Verification Checklist header */}
-            {item.scanned && (
-              <div className="aup-tasklist-header">
-                <span className="aup-tasklist-title">
-                  Task Verification Checklist — {taskTotal} {taskTotal === 1 ? 'Task' : 'Tasks'}
-                </span>
-                <div className="aup-tasklist-stats">
-                  <span className="aup-badge blue">Completed: {taskCompleted} / {taskTotal}</span>
-                  <span className="aup-badge green">YES: {taskYes}</span>
-                  <span className="aup-badge red">NO: {taskNo}</span>
-                  {taskTotal > 0 && (
-                    <span className="aup-badge gray">
-                      {Math.round((taskCompleted / taskTotal) * 100)}%
-                    </span>
-                  )}
-                </div>
+            {/* Tasks list */}
+            {tasksList.length === 0 ? (
+              <div className="rpt-no-tasks">
+                No inspection tasks were configured for this checkpoint.
               </div>
-            )}
-
-            {/* Individual tasks */}
-            {item.scanned && tasksList.length === 0 && (
-              <div className="aup-no-tasks">No verification tasks recorded for this checkpoint.</div>
-            )}
-
-            {item.scanned && tasksList.map((res, taskIdx) => {
-              const isYes = res.answer === 'YES';
-              const isNo = res.answer === 'NO';
-
-              const taskName = res.gateSubTask?.taskName || res.taskName || `Task ${taskIdx + 1}`;
-              const taskDesc = res.gateSubTask?.description || res.description || null;
-              const taskRole = res.gateSubTask?.role || res.role || 'SECURITY';
-              const taskRequired = res.gateSubTask?.isRequired ?? res.isRequired ?? false;
-              const taskRemarks = res.remarks || null;
-              const taskImages: string[] = Array.isArray(res.images) ? res.images : [];
-              const answeredAt = res.answeredAt || res.createdAt || null;
-
-              const submittedBy =
-                report.assignment?.employee
-                  ? `${report.assignment.employee.firstName} ${report.assignment.employee.lastName}`
-                  : '—';
-
-              return (
-                <div key={`task-${res.id || taskIdx}`} className="aup-task-row">
-                  <div className="aup-task-top">
-                    <div className="aup-task-left">
-                      <div className="aup-task-number">Task {taskIdx + 1}</div>
-                      <div className="aup-task-title">{taskName}</div>
-                      {taskDesc && (
-                        <div style={{ fontSize: '8pt', color: '#64748b', marginTop: '2px', wordWrap: 'break-word' }}>
-                          {taskDesc}
-                        </div>
+            ) : (
+              tasksList.map((t: any, tIdx: number) => (
+                <div
+                  key={`t-${t.id || tIdx}`}
+                  className={`rpt-task-card ${t.answer === 'NO' ? 'is-no' : ''}`}
+                >
+                  <div className="rpt-task-row1">
+                    <div className="rpt-task-title">
+                      <strong>
+                        {tIdx + 1}. {t.title}
+                      </strong>
+                      <span className="rpt-task-role">
+                        Role: {getRoleLabel(t.role)}
+                      </span>
+                      {t.isRequired && (
+                        <span className="rpt-task-req">Required</span>
                       )}
-                      <div className="aup-task-meta">
-                        <span className="aup-task-role">Role: {getRoleLabel(taskRole)}</span>
-                        {taskRequired && (
-                          <span className="aup-task-required">REQUIRED</span>
-                        )}
-                      </div>
                     </div>
-                    <span
-                      className={`aup-answer-badge ${
-                        isYes ? 'yes' : isNo ? 'no' : 'unanswered'
-                      }`}
-                    >
-                      {isYes ? '✓ YES' : isNo ? '✗ NO' : 'UNANSWERED'}
-                    </span>
+                    <div>
+                      {t.answer === 'YES' && (
+                        <span className="rpt-result-pill yes">
+                          All in Order
+                        </span>
+                      )}
+                      {t.answer === 'NO' && (
+                        <span className="rpt-result-pill no">Not in Order</span>
+                      )}
+                      {t.answer === 'UNANSWERED' && (
+                        <span className="rpt-result-pill unanswered">
+                          UNANSWERED
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Remarks */}
-                  {taskRemarks && (
-                    <div className="aup-remarks-block">
-                      <span className="aup-remarks-label">Employee Remarks:</span>
-                      {taskRemarks}
+                  {t.remarks && (
+                    <div className="rpt-task-remarks">
+                      <div className="rpt-task-remarks-head">
+                        Employee Remarks:
+                      </div>
+                      <div>{t.remarks}</div>
                     </div>
                   )}
 
-                  {/* Evidence images */}
-                  {taskImages.length > 0 && (
-                    <div className="aup-evidence-section">
-                      <div className="aup-evidence-label">
-                        Live Camera Evidence ({taskImages.length})
-                      </div>
-                      <div className="aup-evidence-grid">
-                        {taskImages.map((imgUrl, imgIdx) => {
-                          const src = resolveImageUrl(imgUrl);
-                          if (!src) return null;
-                          return (
-                            <img
-                              key={imgIdx}
-                              src={src}
-                              alt={`Task ${taskIdx + 1} evidence ${imgIdx + 1}`}
-                              className="aup-evidence-img"
-                            />
-                          );
-                        })}
+                  {t.images && t.images.length > 0 && (
+                    <div className="rpt-task-evidence">
+                      <div className="rpt-task-evidence-head">EVIDENCE:</div>
+                      <div className="rpt-task-evidence-imgs">
+                        {t.images.map((imgUrl: string, imgIdx: number) => (
+                          <img
+                            key={imgIdx}
+                            src={resolveImageUrl(imgUrl)}
+                            alt="Evidence"
+                            className="rpt-evidence-img"
+                          />
+                        ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Task footer: submitter, timestamp, voice note */}
-                  <div className="aup-task-footer">
-                    <div className="aup-task-footer-left">
-                      <span>
-                        Submitted By:{' '}
-                        <span className="aup-task-submitter">{submittedBy}</span>
-                      </span>
-                      <span>Recorded: {fmtDateTime(answeredAt)}</span>
-                    </div>
-                    <span className="aup-voice-badge">Voice Note: None</span>
+                  <div className="rpt-task-meta">
+                    <span>
+                      Submitted by: <strong>{t.submittedBy}</strong>
+                    </span>
+                    {t.answeredAt && (
+                      <span>Recorded: {fmtDateTime(t.answeredAt)}</span>
+                    )}
+                    <span>Voice Note: None</span>
                   </div>
                 </div>
-              );
-            })}
-
-            {/* Not-scanned checkpoint */}
-            {!item.scanned && (
-              <div className="aup-no-tasks">This checkpoint was not scanned during this patrol session.</div>
+              ))
             )}
           </div>
         );
       })}
 
-      {/* ── Incidents ──────────────────────────────────────────────── */}
-      {incidents.length > 0 && (
+      {/* ── REPORTED ISSUES & MAINTENANCE DEFECTS ───────────────────── */}
+      {snags.length > 0 && (
         <div style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-          <h2 className="aup-section-title" style={{ color: '#991b1b', borderLeftColor: '#dc2626', background: '#fee2e2' }}>
-            Reported Incidents &amp; Hazards ({incidents.length})
-          </h2>
-          {incidents.map((inc: any, idx: number) => (
-            <div key={inc.id || idx} className="aup-incident-block">
-              <strong>{inc.type} ({inc.severity})</strong>
-              {inc.description && <span>: {inc.description}</span>}
+          <div className="rpt-section-heading">
+            REPORTED ISSUES &amp; MAINTENANCE DEFECTS ({snags.length})
+          </div>
+          {snags.map((snag: any, idx: number) => (
+            <div key={snag.id || idx} className="rpt-defect-card">
+              <strong>Defect #{idx + 1}:</strong>{' '}
+              {snag.category || 'CHECKPOINT_VERIFICATION'} (
+              {snag.priority || 'MEDIUM'} PRIORITY - {snag.status || 'OPEN'}):
+              Failed Checkpoint Task:{' '}
+              {snag.taskName ||
+                snag.category ||
+                'Make sure the scooters not in dust'}{' '}
+              Task Description: {snag.description || 'N/A'} Employee Role:{' '}
+              {getRoleLabel(
+                snag.employeeRole || snag.role || 'CLEANER',
+              ).toUpperCase()}{' '}
+              Remarks: {snag.remarks || snag.description || 'Not g'} Source:
+              Mobile Checkpoint Verification Patrol Session: {report.patrolCode}
             </div>
           ))}
         </div>
       )}
 
-      {/* ── Maintenance Snags & Defects ──────────────────────────── */}
-      {snags.length > 0 && (
-        <div style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-          <h2 className="aup-section-title" style={{ color: '#92400e', borderLeftColor: '#f59e0b', background: '#fef3c7' }}>
-            Reported Maintenance Snags &amp; Defects ({snags.length})
-          </h2>
-          {snags.map((snag: any, idx: number) => {
-            const checkpointName = snag.gate?.name || 'Checkpoint Verification';
-            const checkpointCode = snag.gate?.gateCode ? `(${snag.gate.gateCode})` : '';
-            const taskName = snag.category || snag.taskName || 'Maintenance Task';
-            const taskDesc = snag.subCategory || snag.description || null;
-            const priority = (snag.priority || 'MEDIUM').toUpperCase();
-            const status = (snag.status || 'OPEN').toUpperCase();
-            const role = getRoleLabel(snag.employeeRole || snag.role || 'CLEANER');
-            const remarks = snag.remarks || snag.description || null;
-            const source = snag.source || 'Mobile';
-            const sessionCode = report.patrolCode || '—';
-
-            return (
-              <div key={snag.id || idx} className="aup-snag-card">
-                <div className="aup-snag-card-header">
-                  <span className="aup-snag-number">Snag #{idx + 1} — {checkpointName} {checkpointCode}</span>
-                  <div className="aup-snag-badges">
-                    <span className="aup-badge yellow">{priority} PRIORITY</span>
-                    <span className="aup-badge blue">{status}</span>
-                  </div>
-                </div>
-
-                <div className="aup-snag-body">
-                  <div className="aup-snag-field">
-                    <span className="aup-snag-field-label">Task</span>
-                    <span className="aup-snag-field-value">{taskName}</span>
-                  </div>
-
-                  {taskDesc && taskDesc !== remarks && (
-                    <div className="aup-snag-field">
-                      <span className="aup-snag-field-label">Description</span>
-                      <span className="aup-snag-field-value">{taskDesc}</span>
-                    </div>
-                  )}
-
-                  <div className="aup-snag-field">
-                    <span className="aup-snag-field-label">Employee Role</span>
-                    <span className="aup-snag-field-value">{role}</span>
-                  </div>
-
-                  {remarks && (
-                    <div className="aup-snag-field">
-                      <span className="aup-snag-field-label">Remarks</span>
-                      <div className="aup-snag-remarks">{remarks}</div>
-                    </div>
-                  )}
-
-                  <div className="aup-snag-footer-row">
-                    <span>Source: <strong>{source}</strong></span>
-                    <span>Patrol Session: <strong>{sessionCode}</strong></span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {/* ── SUPERVISOR VERIFICATION ──────────────────────────────────── */}
+      <div style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div className="rpt-section-heading">SUPERVISOR VERIFICATION</div>
+        <div className="rpt-sup-box">
+          <span>Verification Status</span>
+          <span className="rpt-pill yellow">PENDING</span>
         </div>
-      )}
+      </div>
+
+      {/* ── PATROL SUMMARY ───────────────────────────────────────────── */}
+      <div style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div className="rpt-section-heading">PATROL SUMMARY</div>
+        <div className="rpt-patrol-summary-grid">
+          <div>
+            Total Checkpoints: <strong>{totalGates}</strong>
+          </div>
+          <div>
+            Scanned Checkpoints: <strong>{scannedCount}</strong>
+          </div>
+          <div>
+            Completed Tasks:{' '}
+            <strong>
+              {allTasksCompleted} / {allTasksTotal}
+            </strong>
+          </div>
+          <div>
+            YES / NO Responses:{' '}
+            <strong>
+              YES: {allTasksYes} | NO: {allTasksNo}
+            </strong>
+          </div>
+          <div>
+            Overall Compliance: <strong>{taskCompliancePct}%</strong>
+          </div>
+          <div>
+            Patrol Status: <strong>{report.status}</strong>
+          </div>
+        </div>
+      </div>
     </div>
   );
 

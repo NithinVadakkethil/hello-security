@@ -1,18 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 
+import { exportToCsv } from '../../../lib/export';
 import { apiClient } from '../../lib/axios';
 import { ApiResponse } from '../../types/api';
-import { exportToCsv } from '../../../lib/export';
 
+import AdvancedFilterPanel, {
+  FilterState,
+} from './components/AdvancedFilterPanel';
 import AnalyticsCards, { AnalyticsData } from './components/AnalyticsCards';
-import AdvancedFilterPanel, { FilterState } from './components/AdvancedFilterPanel';
-import InspectionReportTable, { InspectionRow } from './components/InspectionReportTable';
 import DetailedReportModal from './components/DetailedReportModal';
-
+import InspectionReportTable, {
+  InspectionRow,
+} from './components/InspectionReportTable';
 
 const INITIAL_FILTERS: FilterState = {
   datePreset: 'ALL',
@@ -32,7 +35,9 @@ export default function ReportsPage() {
   const [sortBy, setSortBy] = useState('startedAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  const [selectedReport, setSelectedReport] = useState<InspectionRow | null>(null);
+  const [selectedReport, setSelectedReport] = useState<InspectionRow | null>(
+    null,
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -53,7 +58,10 @@ export default function ReportsPage() {
   // Fetch gates/checkpoints based on selected site
   const { data: gatesRes } = useQuery<ApiResponse<any[]>>({
     queryKey: ['gates', filters.siteId],
-    queryFn: () => apiClient.get(`/gates${filters.siteId ? `?siteId=${filters.siteId}` : ''}`),
+    queryFn: () =>
+      apiClient.get(
+        `/gates${filters.siteId ? `?siteId=${filters.siteId}` : ''}`,
+      ),
   });
   const checkpoints = gatesRes?.data || [];
 
@@ -74,19 +82,30 @@ export default function ReportsPage() {
   });
 
   // Query Analytics Metrics
-  const { data: analyticsRes, isLoading: isAnalyticsLoading } = useQuery<ApiResponse<AnalyticsData>>({
+  const { data: analyticsRes, isLoading: isAnalyticsLoading } = useQuery<
+    ApiResponse<AnalyticsData>
+  >({
     queryKey: ['reports-analytics', queryParams.toString()],
-    queryFn: () => apiClient.get(`/reports/analytics?${queryParams.toString()}`),
+    queryFn: () =>
+      apiClient.get(`/reports/analytics?${queryParams.toString()}`),
   });
   const analyticsData = analyticsRes?.data;
 
   // Query Inspection Logs
-  const { data: inspectionsRes, isLoading: isInspectionsLoading } = useQuery<ApiResponse<InspectionRow[]>>({
+  const { data: inspectionsRes, isLoading: isInspectionsLoading } = useQuery<
+    ApiResponse<InspectionRow[]>
+  >({
     queryKey: ['reports-inspections', queryParams.toString()],
-    queryFn: () => apiClient.get(`/reports/inspections?${queryParams.toString()}`),
+    queryFn: () =>
+      apiClient.get(`/reports/inspections?${queryParams.toString()}`),
   });
   const inspectionRows = inspectionsRes?.data || [];
-  const pagination = (inspectionsRes as any)?.pagination || { page: 1, limit: 10, total: 0, totalPages: 1 };
+  const pagination = (inspectionsRes as any)?.pagination || {
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+  };
 
   const handleFilterChange = (updated: Partial<FilterState>) => {
     setFilters((prev) => ({ ...prev, ...updated }));
@@ -110,7 +129,9 @@ export default function ReportsPage() {
   const handleExportCsv = async () => {
     try {
       setIsExporting(true);
-      const csvStr = await apiClient.get<string>(`/reports/export/csv?${queryParams.toString()}`);
+      const csvStr = await apiClient.get<string>(
+        `/reports/export/csv?${queryParams.toString()}`,
+      );
       if (typeof csvStr === 'string' && csvStr) {
         const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -127,9 +148,12 @@ export default function ReportsPage() {
           'Guard Name': `${r.assignment.employee.firstName} ${r.assignment.employee.lastName}`,
           'Employee ID': r.assignment.employee.employeeNumber,
           'Site Name': r.assignment.site.name,
-          'Route / Target': r.assignment.patrolRoute?.name || 'Direct Checkpoints',
+          'Route / Target':
+            r.assignment.patrolRoute?.name || 'Direct Checkpoints',
           Status: r.status,
-          'Duration (Mins)': r.totalDuration ? Math.round(r.totalDuration / 60) : 0,
+          'Duration (Mins)': r.totalDuration
+            ? Math.round(r.totalDuration / 60)
+            : 0,
         }));
         exportToCsv(`inspection_report_${Date.now()}.csv`, exportRows);
       }
@@ -151,10 +175,14 @@ export default function ReportsPage() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', paddingBottom: '40px' }}>
-      {/* Analytics Summary Cards */}
-      <AnalyticsCards data={analyticsData} isLoading={isAnalyticsLoading} />
-
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+        paddingBottom: '40px',
+      }}
+    >
       {/* Advanced Filter Section */}
       <AdvancedFilterPanel
         filters={filters}
@@ -184,14 +212,15 @@ export default function ReportsPage() {
         onSort={handleSort}
       />
 
+      {/* Analytics Summary Cards */}
+      <AnalyticsCards data={analyticsData} isLoading={isAnalyticsLoading} />
+
       {/* Detailed Audit Modal */}
       <DetailedReportModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         report={selectedReport}
       />
-
-
     </div>
   );
 }

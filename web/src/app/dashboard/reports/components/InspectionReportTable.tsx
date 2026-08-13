@@ -1,9 +1,8 @@
 'use client';
 
-import React from 'react';
-import { Eye, ArrowUpDown, AlertTriangle } from 'lucide-react';
-import StatusChip from '../../../components/ui/StatusChip';
+import { AlertTriangle, ArrowUpDown, Eye } from 'lucide-react';
 import Pagination from '../../../components/ui/Pagination';
+import StatusChip from '../../../components/ui/StatusChip';
 
 export interface InspectionRow {
   id: string;
@@ -63,28 +62,69 @@ export default function InspectionReportTable({
   onSort,
 }: InspectionReportTableProps) {
   const getSortIcon = (field: string) => {
-    if (sortBy !== field) return <ArrowUpDown size={13} style={{ opacity: 0.4 }} />;
-    return <ArrowUpDown size={13} style={{ color: 'var(--primary)', fontWeight: 700 }} />;
+    if (sortBy !== field)
+      return <ArrowUpDown size={13} style={{ opacity: 0.4 }} />;
+    return (
+      <ArrowUpDown
+        size={13}
+        style={{ color: 'var(--primary)', fontWeight: 700 }}
+      />
+    );
   };
 
   if (isLoading) {
     return (
-      <div className="glass-card" style={{ padding: '24px', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div
+        className="glass-card"
+        style={{
+          padding: '24px',
+          borderRadius: '14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+        }}
+      >
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} style={{ height: '48px', backgroundColor: 'var(--surface-color)', borderRadius: '8px', opacity: 0.5, animation: 'pulse 1.5s infinite' }} />
+          <div
+            key={i}
+            style={{
+              height: '48px',
+              backgroundColor: 'var(--surface-color)',
+              borderRadius: '8px',
+              opacity: 0.5,
+              animation: 'pulse 1.5s infinite',
+            }}
+          />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="glass-card" style={{ padding: '24px', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div
+      className="glass-card"
+      style={{
+        padding: '24px',
+        borderRadius: '14px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
         <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
           Inspection Log Records ({totalItems} Found)
         </h4>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Rows per page:</span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            Rows per page:
+          </span>
           <select
             value={limit}
             onChange={(e) => onLimitChange(Number(e.target.value))}
@@ -106,17 +146,39 @@ export default function InspectionReportTable({
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            textAlign: 'left',
+            fontSize: '0.85rem',
+          }}
+        >
           <thead>
-            <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
-              <th style={{ padding: '12px 16px', cursor: 'pointer' }} onClick={() => onSort('patrolCode')}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <tr
+              style={{
+                borderBottom: '2px solid var(--border-color)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <th
+                style={{ padding: '12px 16px', cursor: 'pointer' }}
+                onClick={() => onSort('patrolCode')}
+              >
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
                   <span>Report Code</span>
                   {getSortIcon('patrolCode')}
                 </div>
               </th>
-              <th style={{ padding: '12px 16px', cursor: 'pointer' }} onClick={() => onSort('startedAt')}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <th
+                style={{ padding: '12px 16px', cursor: 'pointer' }}
+                onClick={() => onSort('startedAt')}
+              >
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
                   <span>Date & Time</span>
                   {getSortIcon('startedAt')}
                 </div>
@@ -128,13 +190,22 @@ export default function InspectionReportTable({
               <th style={{ padding: '12px 16px' }}>Compliance</th>
               <th style={{ padding: '12px 16px' }}>Duration</th>
               <th style={{ padding: '12px 16px' }}>Issues</th>
-              <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+              <th style={{ padding: '12px 16px', textAlign: 'right' }}>
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--text-muted)' }}>
+                <td
+                  colSpan={10}
+                  style={{
+                    textAlign: 'center',
+                    padding: '48px 16px',
+                    color: 'var(--text-muted)',
+                  }}
+                >
                   No inspection logs match the selected filters.
                 </td>
               </tr>
@@ -145,8 +216,13 @@ export default function InspectionReportTable({
                   row.assignment?.assignmentGates?.length ||
                   0;
                 const scannedCount = row.checkpoints?.length || 0;
-                const compliancePct = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
-                const durationMins = row.totalDuration ? Math.round(row.totalDuration / 60) : 0;
+                const compliancePct =
+                  totalGates > 0
+                    ? Math.round((scannedCount / totalGates) * 100)
+                    : 100;
+                const durationMins = row.totalDuration
+                  ? Math.round(row.totalDuration / 60)
+                  : 0;
                 const issueCount = row.incidents?.length || 0;
 
                 return (
@@ -158,14 +234,31 @@ export default function InspectionReportTable({
                     }}
                     className="table-row-hover"
                   >
-                    <td style={{ padding: '14px 16px', fontWeight: 700, fontFamily: 'monospace' }}>
+                    <td
+                      style={{
+                        padding: '14px 16px',
+                        fontWeight: 700,
+                        fontFamily: 'monospace',
+                      }}
+                    >
                       {row.patrolCode}
                     </td>
-                    <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>
+                    <td
+                      style={{
+                        padding: '14px 16px',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
                       {new Date(row.startedAt).toLocaleString()}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                        }}
+                      >
                         <div
                           style={{
                             width: '32px',
@@ -183,10 +276,18 @@ export default function InspectionReportTable({
                         </div>
                         <div>
                           <div style={{ fontWeight: 600 }}>
-                            {row.assignment?.employee?.firstName} {row.assignment?.employee?.lastName}
+                            {row.assignment?.employee?.firstName}{' '}
+                            {row.assignment?.employee?.lastName}
                           </div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                            ID: {row.assignment?.employee?.employeeNumber || 'N/A'}
+                          <div
+                            style={{
+                              fontSize: '0.72rem',
+                              color: 'var(--text-muted)',
+                              fontFamily: 'monospace',
+                            }}
+                          >
+                            ID:{' '}
+                            {row.assignment?.employee?.employeeNumber || 'N/A'}
                           </div>
                         </div>
                       </div>
@@ -194,14 +295,25 @@ export default function InspectionReportTable({
                     <td style={{ padding: '14px 16px', fontWeight: 500 }}>
                       {row.assignment?.site?.name || 'N/A'}
                     </td>
-                    <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>
-                      {row.assignment?.patrolRoute?.name || '🚧 Direct Checkpoints'}
+                    <td
+                      style={{
+                        padding: '14px 16px',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      {row.assignment?.patrolRoute?.name || '🚧 Checkpoints'}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <StatusChip status={row.status} />
                     </td>
                     <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                        }}
+                      >
                         <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>
                           {scannedCount} / {totalGates} ({compliancePct}%)
                         </span>
@@ -218,14 +330,22 @@ export default function InspectionReportTable({
                             style={{
                               width: `${Math.min(100, compliancePct)}%`,
                               height: '100%',
-                              backgroundColor: compliancePct === 100 ? '#10b981' : '#3b82f6',
+                              backgroundColor:
+                                compliancePct === 100 ? '#10b981' : '#3b82f6',
                             }}
                           />
                         </div>
                       </div>
                     </td>
-                    <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>
-                      {durationMins > 0 ? `${durationMins} mins` : 'In Progress'}
+                    <td
+                      style={{
+                        padding: '14px 16px',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      {durationMins > 0
+                        ? `${durationMins} mins`
+                        : 'In Progress'}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       {issueCount > 0 ? (
@@ -246,7 +366,14 @@ export default function InspectionReportTable({
                           {issueCount} Reported
                         </span>
                       ) : (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>0 Issues</span>
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          0 Issues
+                        </span>
                       )}
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'right' }}>
@@ -254,7 +381,11 @@ export default function InspectionReportTable({
                         type="button"
                         onClick={() => onSelectRow(row)}
                         className="btn btn-secondary"
-                        style={{ fontSize: '0.78rem', padding: '6px 12px', gap: '6px' }}
+                        style={{
+                          fontSize: '0.78rem',
+                          padding: '6px 12px',
+                          gap: '6px',
+                        }}
                       >
                         <Eye size={14} />
                         <span>View Report</span>
@@ -269,7 +400,11 @@ export default function InspectionReportTable({
       </div>
 
       {totalPages > 1 && (
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={onPageChange} />
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={onPageChange}
+        />
       )}
     </div>
   );

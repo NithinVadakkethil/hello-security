@@ -32,6 +32,7 @@ interface Site {
   description?: string | null;
   isActive: boolean;
   createdAt: string;
+  client?: { id: string; companyName: string } | null;
 }
 
 interface Gate {
@@ -270,13 +271,13 @@ export default function SiteDetailPage() {
         </head>
         <body>
           <div class="qr-card">
-            <div class="logo-header">Hello Orbit</div>
+            <div class="logo-header">${(site as any)?.client?.companyName || "HELLO ORBIT"}</div>
             <div class="site-title">${site?.name || 'Monitored Facility'}</div>
             <div class="gate-title">${gate.name}</div>
             <div class="gate-code">CHECKPOINT ID: ${gate.gateCode}</div>
             <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(gate.id)}" alt="Checkpoint QR" />
             <div class="instructions">
-              <strong>OFFICIAL SECURITY PERIMETER POST</strong><br />
+              <strong>HELLO ORBIT POWERED BY ATLABS</strong><br />
               Scan this QR code using the Hello Orbit Guard mobile app to log check-in sequence status.
             </div>
           </div>

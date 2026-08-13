@@ -12,6 +12,9 @@ export class SiteRepository {
       where: {
         id,
       },
+      include: {
+        client: true,
+      },
     });
   }
 
