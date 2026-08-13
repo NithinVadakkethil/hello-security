@@ -12,7 +12,7 @@ import AnalyticsCards, { AnalyticsData } from './components/AnalyticsCards';
 import AdvancedFilterPanel, { FilterState } from './components/AdvancedFilterPanel';
 import InspectionReportTable, { InspectionRow } from './components/InspectionReportTable';
 import DetailedReportModal from './components/DetailedReportModal';
-import ReportPrintTemplate from './components/ReportPrintTemplate';
+
 
 const INITIAL_FILTERS: FilterState = {
   datePreset: 'ALL',
@@ -191,12 +191,7 @@ export default function ReportsPage() {
         report={selectedReport}
       />
 
-      {/* Hidden Print Template for Browser PDF Export */}
-      <ReportPrintTemplate
-        analytics={analyticsData}
-        sessions={inspectionRows}
-        filters={filters}
-      />
+
     </div>
   );
 }
