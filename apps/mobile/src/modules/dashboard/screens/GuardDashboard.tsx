@@ -69,11 +69,17 @@ export function GuardDashboard() {
   const handleStartAssignment = async (asg: any) => {
     try {
       if (activeSession) {
-        navigation.navigate('Dashboard', { screen: 'PatrolTab' });
+        navigation.navigate('Dashboard', {
+          screen: 'PatrolTab',
+          params: { assignmentId: activeSession.assignmentId || activeSession.assignment?.id },
+        });
         return;
       }
-      await startPatrol(asg.id);
-      navigation.navigate('Dashboard', { screen: 'PatrolTab' });
+      const startedSession = await startPatrol(asg.id);
+      navigation.navigate('Dashboard', {
+        screen: 'PatrolTab',
+        params: { assignmentId: asg.id, sessionId: startedSession?.id },
+      });
     } catch (err: any) {
       Alert.alert('Patrol Error', err.message || 'Failed to start patrol.');
     }
@@ -274,7 +280,10 @@ export function GuardDashboard() {
                       { backgroundColor: colors.success },
                     ]}
                     onPress={() =>
-                      navigation.navigate('Dashboard', { screen: 'PatrolTab' })
+                      navigation.navigate('Dashboard', {
+                        screen: 'PatrolTab',
+                        params: { assignmentId: activeSession?.assignmentId || activeSession?.assignment?.id },
+                      })
                     }
                   >
                     <RotateCcw size={16} color="#fff" />

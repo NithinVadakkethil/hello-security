@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Shield,
   ArrowLeft,
@@ -59,6 +59,7 @@ export default function EditPatrolRoutePage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -121,6 +122,8 @@ export default function EditPatrolRoutePage() {
   const updateRouteMutation = useMutation({
     mutationFn: (payload: any) => apiClient.patch(`/patrol-routes/${id}`, payload),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patrol-route', id] });
+      queryClient.invalidateQueries({ queryKey: ['patrol-routes'] });
       toast.success('Patrol route updated successfully.');
       router.push(`/dashboard/patrol-routes/${id}`);
     },

@@ -7,6 +7,49 @@ export class PatrolSessionRepository {
   create(data: any) {
     return prisma.patrolSession.create({
       data,
+      include: {
+        assignment: {
+          include: {
+            employee: true,
+            site: true,
+            shift: true,
+            patrolRoute: {
+              include: {
+                routeGates: {
+                  include: {
+                    gate: {
+                      include: {
+                        subTasks: {
+                          where: { isActive: true },
+                          orderBy: { displayOrder: "asc" },
+                        },
+                      },
+                    },
+                  },
+                  orderBy: {
+                    sequence: "asc",
+                  },
+                },
+              },
+            },
+            assignmentGates: {
+              include: {
+                gate: {
+                  include: {
+                    subTasks: {
+                      where: { isActive: true },
+                      orderBy: { displayOrder: "asc" },
+                    },
+                  },
+                },
+              },
+              orderBy: {
+                sequence: "asc",
+              },
+            },
+          },
+        },
+      },
     });
   }
 

@@ -1,4 +1,4 @@
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart2,
@@ -520,6 +520,8 @@ export function PatrolScreen() {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const navigation = useNavigation<any>();
+  const routeParams = useRoute<any>()?.params;
+  const navAssignmentId = routeParams?.assignmentId;
 
   // Atomic selectors for Zustand stores
   const isOnline = useOfflineStore(state => state.isConnected);
@@ -539,11 +541,46 @@ export function PatrolScreen() {
   const assignments = assignmentsList || [];
   const [selectedAssignmentIndex, setSelectedAssignmentIndex] = useState(0);
 
-  const activeAssignmentFromSession = activeSession?.assignment;
+  // Active assignment from active session (authoritative when patrol is in progress)
+  const activeAssignment = useMemo(() => {
+    if (activeSession) {
+      if (activeSession.assignment?.site) {
+        return activeSession.assignment;
+      }
+      if (activeSession.assignmentId && assignments.length > 0) {
+        const found = assignments.find((a: any) => a.id === activeSession.assignmentId);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, [activeSession, assignments]);
+
+  // Navigated assignment passed from Home screen
+  const navAssignment = useMemo(() => {
+    if (navAssignmentId && assignments.length > 0) {
+      const found = assignments.find((a: any) => a.id === navAssignmentId);
+      if (found) return found;
+    }
+    return null;
+  }, [navAssignmentId, assignments]);
+
+  // Authoritative assignment resolution
   const assignment =
-    activeAssignmentFromSession ||
+    activeAssignment ||
+    navAssignment ||
     assignments[selectedAssignmentIndex] ||
     assignments[0];
+
+  // Sync selectedAssignmentIndex when active session or navigation param specifies a target assignment
+  useEffect(() => {
+    const targetId = activeSession?.assignmentId || navAssignmentId;
+    if (targetId && assignments.length > 0) {
+      const idx = assignments.findIndex((a: any) => a.id === targetId);
+      if (idx !== -1 && idx !== selectedAssignmentIndex) {
+        setSelectedAssignmentIndex(idx);
+      }
+    }
+  }, [activeSession?.assignmentId, navAssignmentId, assignments]);
 
   const {
     startPatrol,
