@@ -13,15 +13,17 @@ export const createPatrolRouteSchema = z.object({
 
   name: z.string().min(2).max(100),
 
-  description: z.string().optional(),
+  description: z.string().nullable().optional(),
 
   checkpoints: z.array(checkpointSchema).min(1),
 });
 
 export const updatePatrolRouteSchema = z.object({
-  name: z.string().optional(),
+  name: z.string().min(2).max(100).optional(),
 
-  description: z.string().optional(),
+  description: z.string().nullable().optional(),
 
   isActive: z.boolean().optional(),
+
+  checkpoints: z.array(checkpointSchema).optional(),
 });

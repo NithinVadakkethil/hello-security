@@ -192,9 +192,110 @@ export class PatrolRouteService {
   }
 
   async update(id: string, dto: UpdatePatrolRouteDto) {
-    await this.get(id);
+    const route = await this.get(id);
 
-    return patrolRouteRepository.update(id, dto);
+    if (dto.name && dto.name !== route.name) {
+      const existing = await patrolRouteRepository.findByName(
+        route.siteId,
+        dto.name,
+      );
+      if (existing && existing.id !== id) {
+        throw new AppError(
+          HttpStatus.CONFLICT,
+          ErrorCodes.VALIDATION_ERROR,
+          "Route name already exists for this site.",
+        );
+      }
+    }
+
+    if (dto.checkpoints) {
+      const sequences = dto.checkpoints.map((c) => c.sequence);
+      if (new Set(sequences).size !== sequences.length) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          "Duplicate sequence found.",
+        );
+      }
+
+      const gates = dto.checkpoints.map((c) => c.gateId);
+      if (new Set(gates).size !== gates.length) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          "Duplicate gate found.",
+        );
+      }
+
+      for (const cp of dto.checkpoints) {
+        const gate = await gateRepository.findById(cp.gateId);
+        if (!gate) {
+          throw new AppError(
+            HttpStatus.NOT_FOUND,
+            ErrorCodes.NOT_FOUND,
+            "Gate not found.",
+          );
+        }
+        if (gate.siteId !== route.siteId) {
+          throw new AppError(
+            HttpStatus.BAD_REQUEST,
+            ErrorCodes.VALIDATION_ERROR,
+            `Gate "${gate.name}" belongs to another site.`,
+          );
+        }
+        if (!gate.isActive) {
+          throw new AppError(
+            HttpStatus.BAD_REQUEST,
+            ErrorCodes.VALIDATION_ERROR,
+            `Gate "${gate.name}" is inactive.`,
+          );
+        }
+      }
+    }
+
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const updateData: Prisma.PatrolRouteUpdateInput = {};
+      if (dto.name !== undefined) updateData.name = dto.name;
+      if (dto.description !== undefined) updateData.description = dto.description;
+      if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
+
+      await tx.patrolRoute.update({
+        where: { id },
+        data: updateData,
+      });
+
+      if (dto.checkpoints) {
+        await tx.patrolRouteGate.deleteMany({
+          where: { patrolRouteId: id },
+        });
+
+        if (dto.checkpoints.length > 0) {
+          await tx.patrolRouteGate.createMany({
+            data: dto.checkpoints.map((cp, idx) => ({
+              patrolRouteId: id,
+              gateId: cp.gateId,
+              sequence: idx + 1,
+              expectedDuration: cp.expectedDuration ?? 5,
+            })),
+          });
+        }
+      }
+
+      return tx.patrolRoute.findUnique({
+        where: { id },
+        include: {
+          site: true,
+          routeGates: {
+            include: {
+              gate: true,
+            },
+            orderBy: {
+              sequence: "asc",
+            },
+          },
+        },
+      });
+    });
   }
 
   async activate(id: string) {
