@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ROUTES } from './constants';
 import { ProtectedRoute } from './components/protected-route';
 
+import LoadingState from './components/ui/LoadingState';
+
 export default function IndexPage() {
   const router = useRouter();
 
@@ -16,11 +18,7 @@ export default function IndexPage() {
   return (
     <ProtectedRoute isPublic={false}>
       <div className="auth-loader-container">
-        <div className="auth-loader-card">
-          <div className="auth-spinner"></div>
-          <h2 className="auth-loader-title">Hello Orbit</h2>
-          <p className="auth-loader-subtitle">Loading security environment...</p>
-        </div>
+        <LoadingState variant="card" size="lg" message="Loading security environment..." />
       </div>
     </ProtectedRoute>
   );

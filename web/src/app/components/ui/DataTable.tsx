@@ -69,9 +69,16 @@ export default function DataTable<T extends { id: string | number }>({
           {isLoading ? (
             [...Array(5)].map((_, rowIndex) => (
               <tr key={rowIndex} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                {columns.map((col) => (
+                {columns.map((col, colIndex) => (
                   <td key={col.key} style={{ padding: '20px' }}>
-                    <div className="skeleton-loading" style={{ height: '18px', borderRadius: '4px', width: '80%' }}></div>
+                    <div
+                      className="skeleton-loading"
+                      style={{
+                        height: '18px',
+                        borderRadius: '4px',
+                        width: `${55 + ((colIndex * 13 + rowIndex * 7) % 35)}%`,
+                      }}
+                    ></div>
                   </td>
                 ))}
               </tr>

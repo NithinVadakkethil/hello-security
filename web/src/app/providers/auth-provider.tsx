@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { useAuthStore } from '../store/auth-store';
 import { getAccessToken, getUserFromToken, clearTokens, getRefreshToken, setAccessToken, setRefreshToken } from '../utils/token';
 import { authClient } from '../lib/axios';
+import LoadingState from '../components/ui/LoadingState';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setAuth, clearAuth, isLoading, setLoading } = useAuthStore();
@@ -57,14 +58,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="auth-loader-container">
-        <div className="auth-loader-card">
-          <div className="auth-spinner"></div>
-          <h2 className="auth-loader-title">Hello Orbit</h2>
-          <p className="auth-loader-subtitle">Establishing secure session...</p>
-        </div>
+        <LoadingState variant="card" size="lg" message="Establishing secure session..." />
       </div>
     );
   }
 
   return <>{children}</>;
 }
+
+export default AuthProvider;

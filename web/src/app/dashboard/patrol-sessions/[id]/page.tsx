@@ -8,7 +8,6 @@ import {
   Pause,
   Play,
   Printer,
-  RefreshCw,
   Shield,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -18,6 +17,7 @@ import toast from 'react-hot-toast';
 
 import Modal from '../../../components/ui/Modal';
 import StatusChip from '../../../components/ui/StatusChip';
+import LoadingState from '../../../components/ui/LoadingState';
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
 import TaskVerificationChecklist from '../components/TaskVerificationChecklist';
@@ -190,17 +190,7 @@ export default function PatrolSessionDetailPage() {
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   if (isLoading) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          padding: '100px 0',
-        }}
-      >
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading patrol session log..." variant="page" size="md" />;
   }
 
   if (isError || !session) {
