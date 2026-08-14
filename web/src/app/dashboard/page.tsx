@@ -73,13 +73,22 @@ export default function DashboardPage() {
   // Render client admin / supervisor portal
   if (!isSuperAdmin) {
     const counts = dashboardData as DashboardCounts;
+    const getUserDisplayName = () => {
+      if (user?.name) return user.name;
+      if (user?.companyName) return user.companyName;
+      if (user?.firstName) {
+        return `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`;
+      }
+      if (user?.email) {
+        return user.email.split('@')[0];
+      }
+      return 'User';
+    };
 
     return (
       <div>
         <div className="welcome-banner">
-          <h1>
-            Welcome Back, {user?.companyName || user?.name || 'Administrator'}
-          </h1>
+          <h1>Welcome Back, {getUserDisplayName()}</h1>
           <p>System status is secure. Active guard monitoring is online.</p>
         </div>
 
@@ -259,7 +268,7 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="welcome-banner">
-        <h1>Welcome Back, Super Admin</h1>
+        <h1>Welcome Back, {user?.name || user?.firstName || 'Super Admin'}</h1>
         <p>Enterprise subscription status, audits, and clients are healthy.</p>
       </div>
 

@@ -38,9 +38,34 @@ export const removeRefreshToken = (): void => {
   Cookies.remove(STORAGE_KEYS.REFRESH_TOKEN, { path: '/' });
 };
 
+export const getStoredUser = (): User | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.USER_INFO);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const setStoredUser = (user: User): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(user));
+  } catch {}
+};
+
+export const removeStoredUser = (): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(STORAGE_KEYS.USER_INFO);
+  } catch {}
+};
+
 export const clearTokens = (): void => {
   removeAccessToken();
   removeRefreshToken();
+  removeStoredUser();
 };
 
 export interface DecodedJwt {

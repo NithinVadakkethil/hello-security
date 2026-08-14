@@ -129,14 +129,32 @@ export default function DashboardLayout({
         {/* Sidebar */}
         <aside className="app-sidebar">
           <div className="sidebar-header">
-            <div className="logo-icon" style={{ overflow: 'hidden', padding: '2px', background: 'var(--bg-tertiary)' }}>
+            <div
+              className="logo-icon"
+              style={{
+                overflow: 'hidden',
+                padding: '2px',
+                background: 'var(--bg-tertiary)',
+              }}
+            >
               <img
                 src="/assets/hello-orbit-logo.png"
                 alt="Hello Orbit Logo"
-                style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '4px' }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  borderRadius: '4px',
+                }}
               />
             </div>
-            <span className="logo-text">Hello Orbit</span>
+            <span className="logo-text">
+              HELLO
+              <span className="text-[#2563EB]" style={{ color: '#2563EB' }}>
+                {' '}
+                ORBIT
+              </span>
+            </span>
           </div>
 
           <nav className="sidebar-menu">
