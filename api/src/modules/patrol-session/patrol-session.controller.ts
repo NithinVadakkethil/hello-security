@@ -182,6 +182,19 @@ export class PatrolSessionController {
       return next(error);
     }
   }
+
+  async cancel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await patrolSessionService.cancel(req.params.id as string);
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export const patrolSessionController = new PatrolSessionController();

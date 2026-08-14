@@ -303,6 +303,34 @@ export class PatrolSessionRepository {
     });
   }
 
+  async cancel(id: string) {
+    const session = await prisma.patrolSession.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+
+    if (!session) return null;
+
+    const checkpointCount = await prisma.patrolCheckpoint.count({
+      where: { patrolSessionId: id },
+    });
+
+    if (checkpointCount === 0) {
+      await prisma.patrolSession.delete({
+        where: { id },
+      });
+      return { success: true, message: 'Unscanned patrol session deleted.' };
+    }
+
+    return prisma.patrolSession.update({
+      where: { id },
+      data: {
+        status: PatrolStatus.CANCELLED,
+        endedAt: new Date(),
+      },
+    });
+  }
+
   async list(clientId: string, query?: ListPatrolSessionsQuery) {
     const page = query?.page && query.page > 0 ? Number(query.page) : 1;
     const limit = query?.limit && query.limit > 0 ? Number(query.limit) : 10;

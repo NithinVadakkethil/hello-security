@@ -170,6 +170,10 @@ export class PatrolSessionService {
     });
   }
 
+  async cancel(id: string) {
+    return patrolSessionRepository.cancel(id);
+  }
+
   async findById(id: string) {
     return patrolSessionRepository.findFullById(id);
   }

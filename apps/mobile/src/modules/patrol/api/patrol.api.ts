@@ -22,6 +22,11 @@ export const patrolApi = {
     return res.data;
   },
 
+  cancelPatrol: async (id: string): Promise<any> => {
+    const res = (await apiClient.post(`/patrol-sessions/${id}/cancel`, {})) as any;
+    return res.data;
+  },
+
   scanCheckpoint: async (
     gateId: string,
     remarks?: string,

@@ -109,6 +109,32 @@ router.patch(
   patrolSessionController.complete.bind(patrolSessionController),
 );
 
+router.post(
+  '/:id/cancel',
+  authenticate,
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.CLIENT_ADMIN,
+    UserRole.MANAGER,
+    UserRole.SUPERVISOR,
+    ...OPERATIONAL_ROLES,
+  ),
+  patrolSessionController.cancel.bind(patrolSessionController),
+);
+
+router.patch(
+  '/:id/cancel',
+  authenticate,
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.CLIENT_ADMIN,
+    UserRole.MANAGER,
+    UserRole.SUPERVISOR,
+    ...OPERATIONAL_ROLES,
+  ),
+  patrolSessionController.cancel.bind(patrolSessionController),
+);
+
 router.get(
   '/',
   authenticate,

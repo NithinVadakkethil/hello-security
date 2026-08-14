@@ -105,6 +105,22 @@ export function usePatrol() {
     },
   });
 
+  const cancelMutation = useMutation<any, Error, { id: string }>({
+    mutationFn: async ({ id }) => {
+      if (!isConnected) {
+        await useOfflineStore.getState().enqueue(`/patrol-sessions/${id}/cancel`, 'POST', {});
+        return { success: true };
+      }
+      return patrolApi.cancelPatrol(id);
+    },
+    onSuccess: async () => {
+      await completeSession();
+      queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
+      queryClient.invalidateQueries({ queryKey: ['patrol-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+    },
+  });
+
   return {
     startPatrol: startMutation.mutateAsync,
     isStarting: startMutation.isPending,
@@ -114,6 +130,8 @@ export function usePatrol() {
     isResuming: resumeMutation.isPending,
     completePatrol: completeMutation.mutateAsync,
     isCompleting: completeMutation.isPending,
+    cancelPatrol: cancelMutation.mutateAsync,
+    isCancelling: cancelMutation.isPending,
     scanCheckpoint: scanMutation.mutateAsync,
     isScanning: scanMutation.isPending,
   };

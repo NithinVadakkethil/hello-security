@@ -1,5 +1,9 @@
-import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import {
+  useIsFocused,
+  useNavigation,
+  useRoute,
+} from '@react-navigation/native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BarChart2,
   Camera as CameraIcon,
@@ -11,13 +15,20 @@ import {
   Unlock,
   X,
 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
   Image,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -46,23 +57,9 @@ import { usePatrolStore } from '../store/patrol-store';
 // Isolated Timer Display (Prevents full-screen 1s re-renders)
 // ==========================================
 const PatrolTimerDisplay = React.memo(() => {
-  const elapsedSeconds = usePatrolStore(state => state.elapsedSeconds);
   const { colors } = useTheme();
 
-  const hours = Math.floor(elapsedSeconds / 3600);
-  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
-  const seconds = elapsedSeconds % 60;
-  const formatted = [
-    hours.toString().padStart(2, '0'),
-    minutes.toString().padStart(2, '0'),
-    seconds.toString().padStart(2, '0'),
-  ].join(':');
-
-  return (
-    <Text style={[styles.timer, { color: colors.text }]}>
-      {formatted}
-    </Text>
-  );
+  return <Text style={[styles.timer, { color: colors.text }]}>00:00:00</Text>;
 });
 
 // ==========================================
@@ -71,7 +68,11 @@ const PatrolTimerDisplay = React.memo(() => {
 interface VerificationTaskItemProps {
   task: any;
   taskIdx: number;
-  response?: { answer: 'YES' | 'NO' | null; remarks: string; images?: string[] };
+  response?: {
+    answer: 'YES' | 'NO' | null;
+    remarks: string;
+    images?: string[];
+  };
   onAnswerChange: (taskId: string, answer: 'YES' | 'NO') => void;
   onRemarksChange: (taskId: string, remarks: string) => void;
   onRemoveImage: (taskId: string) => void;
@@ -493,7 +494,8 @@ const VerificationTaskItem = React.memo(
                 marginTop: 6,
               }}
             >
-              ⚠️ Only live camera capture is accepted. Gallery selection is disabled.
+              ⚠️ Only live camera capture is accepted. Gallery selection is
+              disabled.
             </Text>
           </View>
         )}
@@ -508,7 +510,8 @@ const VerificationTaskItem = React.memo(
       prevProps.task.description === nextProps.task.description &&
       prevProps.response?.answer === nextProps.response?.answer &&
       prevProps.response?.remarks === nextProps.response?.remarks &&
-      prevProps.response?.images?.length === nextProps.response?.images?.length &&
+      prevProps.response?.images?.length ===
+        nextProps.response?.images?.length &&
       prevProps.response?.images?.[0] === nextProps.response?.images?.[0] &&
       prevProps.colors === nextProps.colors
     );
@@ -528,13 +531,16 @@ export function PatrolScreen() {
   const isOnline = useOfflineStore(state => state.isConnected);
   const queueLength = useOfflineStore(state => state.queue.length);
 
+  const queryClient = useQueryClient();
   const activeSession = usePatrolStore(state => state.activeSession);
   const scannedGateIds = usePatrolStore(state => state.scannedGateIds);
   const unlockedGateId = usePatrolStore(state => state.unlockedGateId);
   const justScannedGateId = usePatrolStore(state => state.justScannedGateId);
-  const clearJustScannedGateId = usePatrolStore(state => state.clearJustScannedGateId);
+  const clearJustScannedGateId = usePatrolStore(
+    state => state.clearJustScannedGateId,
+  );
   const loadActiveSession = usePatrolStore(state => state.loadActiveSession);
-  const tick = usePatrolStore(state => state.tick);
+  const completeSession = usePatrolStore(state => state.completeSession);
 
   const {
     data: assignmentsList,
@@ -551,7 +557,9 @@ export function PatrolScreen() {
         return activeSession.assignment;
       }
       if (activeSession.assignmentId && assignments.length > 0) {
-        const found = assignments.find((a: any) => a.id === activeSession.assignmentId);
+        const found = assignments.find(
+          (a: any) => a.id === activeSession.assignmentId,
+        );
         if (found) return found;
       }
     }
@@ -588,12 +596,10 @@ export function PatrolScreen() {
   const {
     startPatrol,
     isStarting,
-    pausePatrol,
-    isPausing,
-    resumePatrol,
-    isResuming,
     completePatrol,
     isCompleting,
+    cancelPatrol,
+    isCancelling,
     scanCheckpoint,
     isScanning,
   } = usePatrol();
@@ -630,8 +636,6 @@ export function PatrolScreen() {
     }
   }, [activeSession?.id]);
 
-
-
   // Memoized handlers for VerificationTaskItem to prevent unnecessary re-renders
   const handleAnswerChange = useCallback(
     (taskId: string, answer: 'YES' | 'NO') => {
@@ -647,19 +651,16 @@ export function PatrolScreen() {
     [],
   );
 
-  const handleRemarksChange = useCallback(
-    (taskId: string, remarks: string) => {
-      setSubTaskResponses(prev => ({
-        ...prev,
-        [taskId]: {
-          answer: prev[taskId]?.answer || null,
-          remarks,
-          images: prev[taskId]?.images || [],
-        },
-      }));
-    },
-    [],
-  );
+  const handleRemarksChange = useCallback((taskId: string, remarks: string) => {
+    setSubTaskResponses(prev => ({
+      ...prev,
+      [taskId]: {
+        answer: prev[taskId]?.answer || null,
+        remarks,
+        images: prev[taskId]?.images || [],
+      },
+    }));
+  }, []);
 
   const handleRemoveTaskImage = useCallback((taskId: string) => {
     setSubTaskResponses(prev => ({
@@ -762,13 +763,6 @@ export function PatrolScreen() {
     loadActiveSession();
   }, [loadActiveSession]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      tick();
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [tick]);
-
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await refetchAssignment();
@@ -788,28 +782,90 @@ export function PatrolScreen() {
     }
   };
 
-  const handlePause = async () => {
-    if (!activeSession) return;
-    try {
-      await pausePatrol(activeSession.id);
-      Alert.alert('Patrol Paused', 'Patrol timer paused.');
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to pause.');
-    }
-  };
+  const hasScannedCheckpoints =
+    scannedGateIds.length > 0 || unlockedGateId !== null;
 
-  const handleResume = async () => {
-    if (!activeSession) return;
-    try {
-      await resumePatrol(activeSession.id);
-      Alert.alert('Patrol Resumed', 'Patrol timer resumed.');
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to resume.');
-    }
+  const handleQuitPatrol = () => {
+    const activeSessionId = activeSession?.id;
+    Alert.alert(
+      'Quit Patrol?',
+      "You haven't scanned any checkpoints. If you quit now, this patrol will not be recorded.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Quit Patrol',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (activeSessionId) {
+                await cancelPatrol({ id: activeSessionId });
+              }
+              await completeSession();
+              queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
+              queryClient.invalidateQueries({ queryKey: ['patrol-sessions'] });
+              queryClient.invalidateQueries({
+                queryKey: ['active-assignments'],
+              });
+              navigation.navigate('HomeTab');
+            } catch (err: any) {
+              await completeSession();
+              queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
+              queryClient.invalidateQueries({ queryKey: ['patrol-sessions'] });
+              queryClient.invalidateQueries({
+                queryKey: ['active-assignments'],
+              });
+              navigation.navigate('HomeTab');
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleComplete = async () => {
     if (!activeSession) return;
+
+    if (!hasScannedCheckpoints) {
+      const activeSessionId = activeSession.id;
+      Alert.alert(
+        'No Checkpoints Scanned',
+        'No checkpoints were scanned. This patrol will not be recorded.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Exit Patrol',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                if (activeSessionId) {
+                  await cancelPatrol({ id: activeSessionId });
+                }
+                await completeSession();
+                queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
+                queryClient.invalidateQueries({
+                  queryKey: ['patrol-sessions'],
+                });
+                queryClient.invalidateQueries({
+                  queryKey: ['active-assignments'],
+                });
+                navigation.navigate('Home');
+              } catch (err: any) {
+                await completeSession();
+                queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
+                queryClient.invalidateQueries({
+                  queryKey: ['patrol-sessions'],
+                });
+                queryClient.invalidateQueries({
+                  queryKey: ['active-assignments'],
+                });
+                navigation.navigate('Home');
+              }
+            },
+          },
+        ],
+      );
+      return;
+    }
 
     const totalGates = assignment?.patrolRoute?.routeGates?.length || 0;
     const remaining = totalGates - scannedGateIds.length;
@@ -912,7 +968,10 @@ export function PatrolScreen() {
                   gateSubTaskId: st.id,
                   answer: (val.answer || 'YES') as 'YES' | 'NO',
                   remarks: val.remarks?.trim() || undefined,
-                  images: val.images && val.images.length > 0 ? val.images : undefined,
+                  images:
+                    val.images && val.images.length > 0
+                      ? val.images
+                      : undefined,
                 };
               });
 
@@ -1021,9 +1080,18 @@ export function PatrolScreen() {
       const lastGate = routeGates[routeGates.length - 1];
       const isLastGateScanned =
         lastGate &&
-        [lastGate.gateId, lastGate.id, lastGate.gate?.id, lastGate.gate?.gateCode, lastGate.gate?.qrCode]
+        [
+          lastGate.gateId,
+          lastGate.id,
+          lastGate.gate?.id,
+          lastGate.gate?.gateCode,
+          lastGate.gate?.qrCode,
+        ]
           .filter(Boolean)
-          .some((id: string) => gateIdToScroll.includes(id) || id.includes(gateIdToScroll));
+          .some(
+            (id: string) =>
+              gateIdToScroll.includes(id) || id.includes(gateIdToScroll),
+          );
 
       if (isLastGateScanned) {
         requestAnimationFrame(() => {
@@ -1037,8 +1105,9 @@ export function PatrolScreen() {
       if (targetY === null) {
         const foundY =
           gateLayoutsRef.current[gateIdToScroll] ??
-          Object.entries(gateLayoutsRef.current).find(([key]) =>
-            gateIdToScroll.includes(key) || key.includes(gateIdToScroll),
+          Object.entries(gateLayoutsRef.current).find(
+            ([key]) =>
+              gateIdToScroll.includes(key) || key.includes(gateIdToScroll),
           )?.[1];
 
         if (foundY !== undefined) {
@@ -1090,7 +1159,13 @@ export function PatrolScreen() {
         clearTimeout(timer5);
       };
     }
-  }, [isFocused, justScannedGateId, activeSession, scrollToScannedGate, clearJustScannedGateId]);
+  }, [
+    isFocused,
+    justScannedGateId,
+    activeSession,
+    scrollToScannedGate,
+    clearJustScannedGateId,
+  ]);
 
   const activeGateId = useMemo(
     () =>
@@ -1155,536 +1230,578 @@ export function PatrolScreen() {
     (!assignment?.patrolRoute && assignment?.assignmentGates);
 
   return (
-    <ScrollView
-      ref={scrollViewRef}
-      onScroll={(e) => {
-        scrollYRef.current = e.nativeEvent.contentOffset.y;
-      }}
-      onScrollBeginDrag={() => {
-        if (justScannedGateId) {
-          clearJustScannedGateId();
-        }
-      }}
-      onContentSizeChange={() => {
-        if (justScannedGateId) {
-          scrollToScannedGate();
-        }
-      }}
-      scrollEventThrottle={16}
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.scrollContent}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={handleRefresh}
-          tintColor={colors.primary}
-        />
-      }
+    <View
+      style={[styles.mainContainer, { backgroundColor: colors.background }]}
     >
-      {/* Offline Status Alert */}
-      {!isOnline && (
-        <View
-          style={[styles.offlineBanner, { backgroundColor: colors.danger }]}
-        >
-          <Text style={styles.offlineText}>
-            OFFLINE MODE — Saving actions locally
-          </Text>
-        </View>
-      )}
-      {queueLength > 0 && (
-        <View style={[styles.syncBanner, { backgroundColor: colors.primary }]}>
-          <Text style={styles.syncText}>
-            SYNC QUEUE — {queueLength} item(s) pending upload
-          </Text>
-        </View>
-      )}
+      <ScrollView
+        ref={scrollViewRef}
+        onScroll={e => {
+          scrollYRef.current = e.nativeEvent.contentOffset.y;
+        }}
+        onScrollBeginDrag={() => {
+          if (justScannedGateId) {
+            clearJustScannedGateId();
+          }
+        }}
+        onContentSizeChange={() => {
+          if (justScannedGateId) {
+            scrollToScannedGate();
+          }
+        }}
+        scrollEventThrottle={16}
+        style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingBottom: activeSession
+              ? hasScannedCheckpoints
+                ? 90
+                : 150
+              : 40,
+          },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        {/* Offline Status Alert */}
+        {!isOnline && (
+          <View
+            style={[styles.offlineBanner, { backgroundColor: colors.danger }]}
+          >
+            <Text style={styles.offlineText}>
+              OFFLINE MODE — Saving actions locally
+            </Text>
+          </View>
+        )}
+        {queueLength > 0 && (
+          <View
+            style={[styles.syncBanner, { backgroundColor: colors.primary }]}
+          >
+            <Text style={styles.syncText}>
+              SYNC QUEUE — {queueLength} item(s) pending upload
+            </Text>
+          </View>
+        )}
 
-      {/* Screen Header */}
-      <Text style={[styles.title, { color: colors.text }]}>
-        Checkpoint Patrol
-      </Text>
+        {/* Screen Header */}
+        <Text style={[styles.title, { color: colors.text }]}>
+          Checkpoint Patrol
+        </Text>
 
-      {/* NO ACTIVE SESSION */}
-      {!activeSession && (
-        <View style={styles.startContainer}>
-          {isLoadingAssignment ? (
-            <ActivityIndicator
-              color={colors.primary}
-              size="large"
-              style={{ marginTop: 40 }}
-            />
-          ) : assignments.length > 0 ? (
-            <Card style={styles.assignmentCard}>
-              {/* ASSIGNMENT SWITCHER SELECTOR */}
-              {assignments.length > 1 && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      fontWeight: '700',
-                      color: colors.textSecondary,
-                      marginBottom: 8,
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    Select Active Assignment ({assignments.length} Active):
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ gap: 8 }}
-                  >
-                    {assignments.map((item, idx) => {
-                      const isSel = idx === selectedAssignmentIndex;
-                      const itemIsDirect =
-                        item.assignmentType === 'DIRECT_CHECKPOINTS' ||
-                        (!item.patrolRoute && item.assignmentGates);
-                      return (
-                        <TouchableOpacity
-                          key={item.id}
-                          onPress={() => setSelectedAssignmentIndex(idx)}
-                          style={{
-                            paddingHorizontal: 12,
-                            paddingVertical: 8,
-                            borderRadius: 8,
-                            borderWidth: 1.5,
-                            borderColor: isSel ? colors.primary : colors.border,
-                            backgroundColor: isSel
-                              ? 'rgba(59, 130, 246, 0.15)'
-                              : colors.surface,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 12,
-                              fontWeight: '700',
-                              color: isSel ? colors.primary : colors.text,
-                            }}
-                          >
-                            {item.site?.name || `Site #${idx + 1}`}
-                          </Text>
-                          <Text
-                            style={{
-                              fontSize: 10,
-                              color: colors.textSecondary,
-                              marginTop: 2,
-                            }}
-                          >
-                            {itemIsDirect
-                              ? '🚧 Direct Gates'
-                              : `🗺️ ${item.patrolRoute?.name || 'Route'}`}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              )}
-
-              <Text style={[styles.cardTitle, { color: colors.text }]}>
-                {isDirect
-                  ? '🚧 Direct Checkpoints Patrol'
-                  : '🗺️ Assigned Route Sweep'}
-              </Text>
-              <View
-                style={[styles.divider, { backgroundColor: colors.border }]}
+        {/* NO ACTIVE SESSION */}
+        {!activeSession && (
+          <View style={styles.startContainer}>
+            {isLoadingAssignment ? (
+              <ActivityIndicator
+                color={colors.primary}
+                size="large"
+                style={{ marginTop: 40 }}
               />
-
-              <View style={styles.metaRow}>
-                <Text
-                  style={[styles.metaLabel, { color: colors.textSecondary }]}
-                >
-                  Site Location
-                </Text>
-                <Text style={[styles.metaVal, { color: colors.text }]}>
-                  {assignment?.site?.name || 'N/A'}
-                </Text>
-              </View>
-              <View style={styles.metaRow}>
-                <Text
-                  style={[styles.metaLabel, { color: colors.textSecondary }]}
-                >
-                  {isDirect ? 'Assigned Gates' : 'Patrol Route'}
-                </Text>
-                <Text style={[styles.metaVal, { color: colors.text }]}>
-                  {isDirect
-                    ? `${totalGates} Checkpoints`
-                    : `${
-                        assignment?.patrolRoute?.name || 'N/A'
-                      } (${totalGates} Gates)`}
-                </Text>
-              </View>
-              <View style={styles.metaRow}>
-                <Text
-                  style={[styles.metaLabel, { color: colors.textSecondary }]}
-                >
-                  Active Shift
-                </Text>
-                <Text style={[styles.metaVal, { color: colors.text }]}>
-                  {assignment?.shift?.startTime} - {assignment?.shift?.endTime}
-                </Text>
-              </View>
-
-              <Button
-                title="Initiate Shift Patrol"
-                onPress={handleStart}
-                loading={isStarting}
-                style={styles.startButton}
-              />
-            </Card>
-          ) : (
-            <Card style={styles.emptyCard}>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No active assignment found for today. Cannot start a patrol
-                route sweep.
-              </Text>
-            </Card>
-          )}
-        </View>
-      )}
-
-      {/* ACTIVE SESSION */}
-      {activeSession && (
-        <View style={styles.activeContainer}>
-          {/* Progress Tracker Widget */}
-          <Card style={styles.statusCard}>
-            <View style={styles.statusRow}>
-              <View>
-                <Text
-                  style={[styles.statusLabel, { color: colors.textSecondary }]}
-                >
-                  Patrol Timer
-                </Text>
-                {/* ISOLATED MEMOIZED TIMER DISPLAY */}
-                <PatrolTimerDisplay />
-              </View>
-              <View
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor:
-                      activeSession.status === 'IN_PROGRESS'
-                        ? colors.success + '20'
-                        : colors.warning + '20',
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.badgeText,
-                    {
-                      color:
-                        activeSession.status === 'IN_PROGRESS'
-                          ? colors.success
-                          : colors.warning,
-                    },
-                  ]}
-                >
-                  {activeSession.status === 'IN_PROGRESS'
-                    ? 'IN PROGRESS'
-                    : 'PAUSED'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Progress indicators */}
-            <View style={styles.statsSummaryRow}>
-              <View style={styles.statSummaryCol}>
-                <BarChart2 size={16} color={colors.primary} />
-                <Text
-                  style={[
-                    styles.statSummaryText,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  {scannedCount} / {totalGates} Scanned
-                </Text>
-              </View>
-              <View style={styles.statSummaryCol}>
-                <Hourglass size={16} color={colors.warning} />
-                <Text
-                  style={[
-                    styles.statSummaryText,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  Est: {estRemainingTime}
-                </Text>
-              </View>
-            </View>
-
-            <View
-              style={[styles.progressBarBg, { backgroundColor: colors.border }]}
-            >
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    backgroundColor: colors.primary,
-                    width: `${
-                      totalGates > 0 ? (scannedCount / totalGates) * 100 : 0
-                    }%`,
-                  },
-                ]}
-              />
-            </View>
-          </Card>
-
-          {/* Sequential Checklist */}
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Checkpoint Sequence
-          </Text>
-
-          {routeGates.map((rg: any) => {
-            const isCompleted = isGateCompleted(rg);
-            const isUnlocked = !isCompleted && isGateUnlocked(rg);
-
-            let cardStatusColor = colors.border;
-            if (isCompleted) cardStatusColor = colors.success;
-            else if (isUnlocked) cardStatusColor = colors.primary;
-
-            return (
-              <View
-                key={rg.id}
-                onLayout={(event) => {
-                  const y = event.nativeEvent.layout.y;
-                  const ids = [rg.gateId, rg.id, rg.gate?.id, rg.gate?.gateCode, rg.gate?.qrCode].filter(Boolean);
-                  ids.forEach((id: string) => {
-                    gateLayoutsRef.current[id] = y;
-                  });
-
-                  if (isUnlocked && justScannedGateId) {
-                    scrollToScannedGate(y);
-                  }
-                }}
-              >
-                <Card
-                  style={[
-                    styles.checkpointCard,
-                    {
-                      borderColor: cardStatusColor,
-                      borderWidth: isCompleted || isUnlocked ? 1.5 : 1,
-                    },
-                  ]}
-                >
-                  <View style={styles.gateHeader}>
-                  <View
-                    style={[
-                      styles.seqBadge,
-                      {
-                        backgroundColor: isCompleted
-                          ? colors.success
-                          : isUnlocked
-                          ? colors.primary
-                          : colors.border,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.seqText}>{rg.sequence}</Text>
-                  </View>
-                  <View style={styles.gateInfo}>
-                    <Text style={[styles.gateName, { color: colors.text }]}>
-                      {rg.gate?.name}
-                    </Text>
+            ) : assignments.length > 0 ? (
+              <Card style={styles.assignmentCard}>
+                {/* ASSIGNMENT SWITCHER SELECTOR */}
+                {assignments.length > 1 && (
+                  <View style={{ marginBottom: 16 }}>
                     <Text
-                      style={[styles.gateSub, { color: colors.textSecondary }]}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: '700',
+                        color: colors.textSecondary,
+                        marginBottom: 8,
+                        textTransform: 'uppercase',
+                      }}
                     >
-                      Gate ID: {rg.gate?.gateCode}
+                      Select Active Assignment ({assignments.length} Active):
                     </Text>
-                  </View>
-                  <View style={styles.statusCol}>
-                    {isCompleted ? (
-                      <View style={styles.inlineBadge}>
-                        <CheckCircle2 size={16} color={colors.success} />
-                        <Text
-                          style={[
-                            styles.badgeTextVal,
-                            { color: colors.success },
-                          ]}
-                        >
-                          Completed
-                        </Text>
-                      </View>
-                    ) : isUnlocked ? (
-                      <View style={styles.inlineBadge}>
-                        <Unlock size={16} color={colors.primary} />
-                        <Text
-                          style={[
-                            styles.badgeTextVal,
-                            { color: colors.primary },
-                          ]}
-                        >
-                          Unlocked
-                        </Text>
-                      </View>
-                    ) : (
-                      <View style={styles.inlineBadge}>
-                        <Lock size={16} color={colors.textSecondary} />
-                        <Text
-                          style={[
-                            styles.badgeTextVal,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          Pending
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-
-                {/* UNLOCKED ACTIVE ACTIONS */}
-                {isUnlocked && (
-                  <View style={styles.unlockedPanel}>
-                    <View style={styles.innerDivider} />
-
-                    {/* Checkpoint Verification Sub-Tasks Section */}
-                    {(() => {
-                      const currentGateSubTasks = getSubTasksForGate(rg.gate);
-                      const activeTasks = currentGateSubTasks.filter(
-                        (st: any) => st.isActive !== false,
-                      );
-                      if (activeTasks.length === 0) {
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ gap: 8 }}
+                    >
+                      {assignments.map((item, idx) => {
+                        const isSel = idx === selectedAssignmentIndex;
+                        const itemIsDirect =
+                          item.assignmentType === 'DIRECT_CHECKPOINTS' ||
+                          (!item.patrolRoute && item.assignmentGates);
                         return (
-                          <View style={{ paddingVertical: 12 }}>
+                          <TouchableOpacity
+                            key={item.id}
+                            onPress={() => setSelectedAssignmentIndex(idx)}
+                            style={{
+                              paddingHorizontal: 12,
+                              paddingVertical: 8,
+                              borderRadius: 8,
+                              borderWidth: 1.5,
+                              borderColor: isSel
+                                ? colors.primary
+                                : colors.border,
+                              backgroundColor: isSel
+                                ? 'rgba(59, 130, 246, 0.15)'
+                                : colors.surface,
+                            }}
+                          >
                             <Text
                               style={{
                                 fontSize: 12,
-                                color: colors.textSecondary,
-                                fontStyle: 'italic',
+                                fontWeight: '700',
+                                color: isSel ? colors.primary : colors.text,
                               }}
                             >
-                              No verification tasks assigned for your role at
-                              this checkpoint.
+                              {item.site?.name || `Site #${idx + 1}`}
                             </Text>
-                          </View>
+                            <Text
+                              style={{
+                                fontSize: 10,
+                                color: colors.textSecondary,
+                                marginTop: 2,
+                              }}
+                            >
+                              {itemIsDirect
+                                ? '🚧 Direct Gates'
+                                : `🗺️ ${item.patrolRoute?.name || 'Route'}`}
+                            </Text>
+                          </TouchableOpacity>
                         );
-                      }
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
 
-                      return (
-                        <View style={{ marginTop: 8 }}>
-                          <Text
-                            style={[
-                              styles.panelLabel,
-                              { color: colors.text, marginBottom: 4 },
-                            ]}
-                          >
-                            Verification Tasks ({activeTasks.length})
-                          </Text>
-                          {activeTasks.map((task: any, taskIdx: number) => (
-                            <VerificationTaskItem
-                              key={task.id || taskIdx}
-                              task={task}
-                              taskIdx={taskIdx}
-                              response={subTaskResponses[task.id]}
-                              onAnswerChange={handleAnswerChange}
-                              onRemarksChange={handleRemarksChange}
-                              onRemoveImage={handleRemoveTaskImage}
-                              onOpenCamera={handleOpenCameraForSubTask}
-                              colors={colors}
-                            />
-                          ))}
-                        </View>
-                      );
-                    })()}
+                <Text style={[styles.cardTitle, { color: colors.text }]}>
+                  {isDirect
+                    ? '🚧 Direct Checkpoints Patrol'
+                    : '🗺️ Assigned Route Sweep'}
+                </Text>
+                <View
+                  style={[styles.divider, { backgroundColor: colors.border }]}
+                />
 
-                    <Text
-                      style={[
-                        styles.panelLabel,
-                        { color: colors.text, marginTop: 16 },
-                      ]}
-                    >
-                      Report Independent Issue (Optional)
-                    </Text>
-                    <TouchableOpacity
-                      style={[
-                        styles.actionBtn,
-                        {
-                          borderColor: colors.warning,
-                          backgroundColor: colors.warning + '10',
-                        },
-                      ]}
-                      onPress={() => setShowReportIssueSheet(true)}
-                    >
-                      <ShieldAlert size={16} color={colors.warning} />
-                      <Text
+                <View style={styles.metaRow}>
+                  <Text
+                    style={[styles.metaLabel, { color: colors.textSecondary }]}
+                  >
+                    Site Location
+                  </Text>
+                  <Text style={[styles.metaVal, { color: colors.text }]}>
+                    {assignment?.site?.name || 'N/A'}
+                  </Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Text
+                    style={[styles.metaLabel, { color: colors.textSecondary }]}
+                  >
+                    {isDirect ? 'Assigned Gates' : 'Patrol Route'}
+                  </Text>
+                  <Text style={[styles.metaVal, { color: colors.text }]}>
+                    {isDirect
+                      ? `${totalGates} Checkpoints`
+                      : `${
+                          assignment?.patrolRoute?.name || 'N/A'
+                        } (${totalGates} Gates)`}
+                  </Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Text
+                    style={[styles.metaLabel, { color: colors.textSecondary }]}
+                  >
+                    Active Shift
+                  </Text>
+                  <Text style={[styles.metaVal, { color: colors.text }]}>
+                    {assignment?.shift?.startTime} -{' '}
+                    {assignment?.shift?.endTime}
+                  </Text>
+                </View>
+
+                <Button
+                  title="Initiate Shift Patrol"
+                  onPress={handleStart}
+                  loading={isStarting}
+                  style={styles.startButton}
+                />
+              </Card>
+            ) : (
+              <Card style={styles.emptyCard}>
+                <Text
+                  style={[styles.emptyText, { color: colors.textSecondary }]}
+                >
+                  No active assignment found for today. Cannot start a patrol
+                  route sweep.
+                </Text>
+              </Card>
+            )}
+          </View>
+        )}
+
+        {/* ACTIVE SESSION */}
+        {activeSession && (
+          <View style={styles.activeContainer}>
+            {/* Progress Tracker Widget */}
+            <Card style={styles.statusCard}>
+              <View style={styles.statusRow}>
+                <View>
+                  <Text
+                    style={[
+                      styles.statusLabel,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Patrol Timer
+                  </Text>
+                  {/* ISOLATED MEMOIZED TIMER DISPLAY */}
+                  <PatrolTimerDisplay />
+                </View>
+                <View
+                  style={[
+                    styles.badge,
+                    {
+                      backgroundColor:
+                        activeSession.status === 'IN_PROGRESS'
+                          ? colors.success + '20'
+                          : colors.warning + '20',
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.badgeText,
+                      {
+                        color:
+                          activeSession.status === 'IN_PROGRESS'
+                            ? colors.success
+                            : colors.warning,
+                      },
+                    ]}
+                  >
+                    {activeSession.status === 'IN_PROGRESS'
+                      ? 'IN PROGRESS'
+                      : 'PAUSED'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Progress indicators */}
+              <View style={styles.statsSummaryRow}>
+                <View style={styles.statSummaryCol}>
+                  <BarChart2 size={16} color={colors.primary} />
+                  <Text
+                    style={[
+                      styles.statSummaryText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {scannedCount} / {totalGates} Scanned
+                  </Text>
+                </View>
+                <View style={styles.statSummaryCol}>
+                  <Hourglass size={16} color={colors.warning} />
+                  <Text
+                    style={[
+                      styles.statSummaryText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Est: {estRemainingTime}
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.progressBarBg,
+                  { backgroundColor: colors.border },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      backgroundColor: colors.primary,
+                      width: `${
+                        totalGates > 0 ? (scannedCount / totalGates) * 100 : 0
+                      }%`,
+                    },
+                  ]}
+                />
+              </View>
+            </Card>
+
+            {/* Sequential Checklist */}
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Checkpoint Sequence
+            </Text>
+
+            {routeGates.map((rg: any) => {
+              const isCompleted = isGateCompleted(rg);
+              const isUnlocked = !isCompleted && isGateUnlocked(rg);
+
+              let cardStatusColor = colors.border;
+              if (isCompleted) cardStatusColor = colors.success;
+              else if (isUnlocked) cardStatusColor = colors.primary;
+
+              return (
+                <View
+                  key={rg.id}
+                  onLayout={event => {
+                    const y = event.nativeEvent.layout.y;
+                    const ids = [
+                      rg.gateId,
+                      rg.id,
+                      rg.gate?.id,
+                      rg.gate?.gateCode,
+                      rg.gate?.qrCode,
+                    ].filter(Boolean);
+                    ids.forEach((id: string) => {
+                      gateLayoutsRef.current[id] = y;
+                    });
+
+                    if (isUnlocked && justScannedGateId) {
+                      scrollToScannedGate(y);
+                    }
+                  }}
+                >
+                  <Card
+                    style={[
+                      styles.checkpointCard,
+                      {
+                        borderColor: cardStatusColor,
+                        borderWidth: isCompleted || isUnlocked ? 1.5 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={styles.gateHeader}>
+                      <View
                         style={[
-                          styles.actionBtnText,
-                          { color: colors.warning },
+                          styles.seqBadge,
+                          {
+                            backgroundColor: isCompleted
+                              ? colors.success
+                              : isUnlocked
+                              ? colors.primary
+                              : colors.border,
+                          },
                         ]}
                       >
-                        Report an Issue (Incident / Snag)
-                      </Text>
-                    </TouchableOpacity>
+                        <Text style={styles.seqText}>{rg.sequence}</Text>
+                      </View>
+                      <View style={styles.gateInfo}>
+                        <Text style={[styles.gateName, { color: colors.text }]}>
+                          {rg.gate?.name}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.gateSub,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          Gate ID: {rg.gate?.gateCode}
+                        </Text>
+                      </View>
+                      <View style={styles.statusCol}>
+                        {isCompleted ? (
+                          <View style={styles.inlineBadge}>
+                            <CheckCircle2 size={16} color={colors.success} />
+                            <Text
+                              style={[
+                                styles.badgeTextVal,
+                                { color: colors.success },
+                              ]}
+                            >
+                              Completed
+                            </Text>
+                          </View>
+                        ) : isUnlocked ? (
+                          <View style={styles.inlineBadge}>
+                            <Unlock size={16} color={colors.primary} />
+                            <Text
+                              style={[
+                                styles.badgeTextVal,
+                                { color: colors.primary },
+                              ]}
+                            >
+                              Unlocked
+                            </Text>
+                          </View>
+                        ) : (
+                          <View style={styles.inlineBadge}>
+                            <Lock size={16} color={colors.textSecondary} />
+                            <Text
+                              style={[
+                                styles.badgeTextVal,
+                                { color: colors.textSecondary },
+                              ]}
+                            >
+                              Pending
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
 
-                    <Button
-                      title="Submit & Lock Checkpoint"
-                      onPress={() =>
-                        handleCheckpointSubmit(
-                          rg.gate?.id || rg.gateId || rg.id,
-                          getSubTasksForGate(rg),
-                        )
-                      }
-                      loading={isScanning}
-                      style={{ marginTop: 20 }}
-                    />
-                  </View>
-                )}
+                    {/* UNLOCKED ACTIVE ACTIONS */}
+                    {isUnlocked && (
+                      <View style={styles.unlockedPanel}>
+                        <View style={styles.innerDivider} />
 
-                {/* PENDING ACTIVE TRIGGER BUTTON */}
-                {!isCompleted && !isUnlocked && (
-                  <View style={styles.lockedPanel}>
-                    <View style={styles.innerDivider} />
-                    <TouchableOpacity
-                      style={[
-                        styles.scanTriggerButton,
-                        { backgroundColor: colors.primary },
-                      ]}
-                      onPress={() => navigation.navigate('Scanner')}
-                      disabled={activeSession.status !== 'IN_PROGRESS'}
-                    >
-                      <Unlock
-                        size={16}
-                        color="#ffffff"
-                        style={{ marginRight: 6 }}
-                      />
-                      <Text style={styles.scanTriggerText}>
-                        Scan QR Code to Unlock
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </Card>
-            </View>
-          );
-        })}
+                        {/* Checkpoint Verification Sub-Tasks Section */}
+                        {(() => {
+                          const currentGateSubTasks = getSubTasksForGate(
+                            rg.gate,
+                          );
+                          const activeTasks = currentGateSubTasks.filter(
+                            (st: any) => st.isActive !== false,
+                          );
+                          if (activeTasks.length === 0) {
+                            return (
+                              <View style={{ paddingVertical: 12 }}>
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    color: colors.textSecondary,
+                                    fontStyle: 'italic',
+                                  }}
+                                >
+                                  No verification tasks assigned for your role
+                                  at this checkpoint.
+                                </Text>
+                              </View>
+                            );
+                          }
 
-          {/* Active Patrol Action Controls */}
-          <View style={styles.controlRow}>
-            {activeSession.status === 'IN_PROGRESS' ? (
-              <Button
-                title="Pause Timer"
-                variant="outline"
-                onPress={handlePause}
-                loading={isPausing}
-                style={styles.controlButton}
-              />
-            ) : (
-              <Button
-                title="Resume Timer"
-                onPress={handleResume}
-                loading={isResuming}
-                style={styles.controlButton}
-              />
-            )}
-            <Button
-              title="Finish Sweep"
-              variant="danger"
-              onPress={handleComplete}
-              loading={isCompleting}
-              style={styles.controlButton}
-            />
+                          return (
+                            <View style={{ marginTop: 8 }}>
+                              <Text
+                                style={[
+                                  styles.panelLabel,
+                                  { color: colors.text, marginBottom: 4 },
+                                ]}
+                              >
+                                Verification Tasks ({activeTasks.length})
+                              </Text>
+                              {activeTasks.map((task: any, taskIdx: number) => (
+                                <VerificationTaskItem
+                                  key={task.id || taskIdx}
+                                  task={task}
+                                  taskIdx={taskIdx}
+                                  response={subTaskResponses[task.id]}
+                                  onAnswerChange={handleAnswerChange}
+                                  onRemarksChange={handleRemarksChange}
+                                  onRemoveImage={handleRemoveTaskImage}
+                                  onOpenCamera={handleOpenCameraForSubTask}
+                                  colors={colors}
+                                />
+                              ))}
+                            </View>
+                          );
+                        })()}
+
+                        <Text
+                          style={[
+                            styles.panelLabel,
+                            { color: colors.text, marginTop: 16 },
+                          ]}
+                        >
+                          Report Independent Issue (Optional)
+                        </Text>
+                        <TouchableOpacity
+                          style={[
+                            styles.actionBtn,
+                            {
+                              borderColor: colors.warning,
+                              backgroundColor: colors.warning + '10',
+                            },
+                          ]}
+                          onPress={() => setShowReportIssueSheet(true)}
+                        >
+                          <ShieldAlert size={16} color={colors.warning} />
+                          <Text
+                            style={[
+                              styles.actionBtnText,
+                              { color: colors.warning },
+                            ]}
+                          >
+                            Report an Issue (Incident / Snag)
+                          </Text>
+                        </TouchableOpacity>
+
+                        <Button
+                          title="Submit & Lock Checkpoint"
+                          onPress={() =>
+                            handleCheckpointSubmit(
+                              rg.gate?.id || rg.gateId || rg.id,
+                              getSubTasksForGate(rg),
+                            )
+                          }
+                          loading={isScanning}
+                          style={{ marginTop: 20 }}
+                        />
+                      </View>
+                    )}
+
+                    {/* PENDING ACTIVE TRIGGER BUTTON */}
+                    {!isCompleted && !isUnlocked && (
+                      <View style={styles.lockedPanel}>
+                        <View style={styles.innerDivider} />
+                        <TouchableOpacity
+                          style={[
+                            styles.scanTriggerButton,
+                            { backgroundColor: colors.primary },
+                          ]}
+                          onPress={() => navigation.navigate('Scanner')}
+                          disabled={activeSession.status !== 'IN_PROGRESS'}
+                        >
+                          <Unlock
+                            size={16}
+                            color="#ffffff"
+                            style={{ marginRight: 6 }}
+                          />
+                          <Text style={styles.scanTriggerText}>
+                            Scan QR Code to Unlock
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </Card>
+                </View>
+              );
+            })}
           </View>
+        )}
+      </ScrollView>
+
+      {/* FIXED BOTTOM ACTION BAR */}
+      {activeSession && (
+        <View
+          style={[
+            styles.fixedBottomBar,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          {hasScannedCheckpoints ? (
+            <View style={styles.controlRow}>
+              <Button
+                title="Finish Sweep"
+                variant="danger"
+                onPress={handleComplete}
+                loading={isCompleting}
+                style={styles.controlButton}
+              />
+            </View>
+          ) : (
+            <View style={{ gap: 10 }}>
+              <Button
+                title="Quit Patrol"
+                variant="outline"
+                onPress={handleQuitPatrol}
+                style={{ borderColor: colors.danger, borderWidth: 1 }}
+                textStyle={{ color: colors.danger, fontWeight: '700' }}
+              />
+            </View>
+          )}
         </View>
       )}
 
@@ -1790,17 +1907,31 @@ export function PatrolScreen() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mainContainer: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
+  },
+  fixedBottomBar: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+    borderTopWidth: 1,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
   },
   offlineBanner: {
     padding: 8,
