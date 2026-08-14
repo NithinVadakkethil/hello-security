@@ -1,4 +1,4 @@
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart2,
@@ -516,6 +516,7 @@ const VerificationTaskItem = React.memo(
 );
 
 export function PatrolScreen() {
+  const isFocused = useIsFocused();
   const { colors } = useTheme();
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
@@ -530,6 +531,8 @@ export function PatrolScreen() {
   const activeSession = usePatrolStore(state => state.activeSession);
   const scannedGateIds = usePatrolStore(state => state.scannedGateIds);
   const unlockedGateId = usePatrolStore(state => state.unlockedGateId);
+  const justScannedGateId = usePatrolStore(state => state.justScannedGateId);
+  const clearJustScannedGateId = usePatrolStore(state => state.clearJustScannedGateId);
   const loadActiveSession = usePatrolStore(state => state.loadActiveSession);
   const tick = usePatrolStore(state => state.tick);
 
@@ -611,6 +614,23 @@ export function PatrolScreen() {
   const [isCompressing, setIsCompressing] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const flashAnim = useRef(new Animated.Value(0)).current;
+
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollYRef = useRef<number>(0);
+  const gateLayoutsRef = useRef<Record<string, number>>({});
+  const prevSessionIdRef = useRef<string | null>(null);
+
+  // Initial patrol start: Reset scroll position to top (y = 0)
+  useEffect(() => {
+    if (activeSession?.id && activeSession.id !== prevSessionIdRef.current) {
+      prevSessionIdRef.current = activeSession.id;
+      requestAnimationFrame(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      });
+    }
+  }, [activeSession?.id]);
+
+
 
   // Memoized handlers for VerificationTaskItem to prevent unnecessary re-renders
   const handleAnswerChange = useCallback(
@@ -991,6 +1011,87 @@ export function PatrolScreen() {
     [routeGates, isGateUnlocked],
   );
 
+  // Programmatic scroll ONLY after a successful QR scan (when justScannedGateId is set)
+  const scrollToScannedGate = useCallback(
+    (overrideY?: number) => {
+      const gateIdToScroll = justScannedGateId;
+      if (!gateIdToScroll) return;
+
+      // Check if the scanned checkpoint is the last one in the route list
+      const lastGate = routeGates[routeGates.length - 1];
+      const isLastGateScanned =
+        lastGate &&
+        [lastGate.gateId, lastGate.id, lastGate.gate?.id, lastGate.gate?.gateCode, lastGate.gate?.qrCode]
+          .filter(Boolean)
+          .some((id: string) => gateIdToScroll.includes(id) || id.includes(gateIdToScroll));
+
+      if (isLastGateScanned) {
+        requestAnimationFrame(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: false });
+        });
+        return;
+      }
+
+      let targetY: number | null = overrideY !== undefined ? overrideY : null;
+
+      if (targetY === null) {
+        const foundY =
+          gateLayoutsRef.current[gateIdToScroll] ??
+          Object.entries(gateLayoutsRef.current).find(([key]) =>
+            gateIdToScroll.includes(key) || key.includes(gateIdToScroll),
+          )?.[1];
+
+        if (foundY !== undefined) {
+          targetY = foundY;
+        }
+      }
+
+      if (targetY !== null && targetY >= 0) {
+        const scrollPos = Math.max(0, targetY - 20);
+        requestAnimationFrame(() => {
+          scrollViewRef.current?.scrollTo({ y: scrollPos, animated: false });
+        });
+      }
+    },
+    [justScannedGateId, routeGates],
+  );
+
+  // Trigger scroll to checkpoint ONLY after a successful QR scan
+  useEffect(() => {
+    if (isFocused && activeSession && justScannedGateId) {
+      scrollToScannedGate();
+
+      const timer1 = setTimeout(() => {
+        scrollToScannedGate();
+      }, 50);
+
+      const timer2 = setTimeout(() => {
+        scrollToScannedGate();
+      }, 150);
+
+      const timer3 = setTimeout(() => {
+        scrollToScannedGate();
+      }, 400);
+
+      const timer4 = setTimeout(() => {
+        scrollToScannedGate();
+      }, 800);
+
+      const timer5 = setTimeout(() => {
+        scrollToScannedGate();
+        clearJustScannedGateId();
+      }, 1500);
+
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        clearTimeout(timer3);
+        clearTimeout(timer4);
+        clearTimeout(timer5);
+      };
+    }
+  }, [isFocused, justScannedGateId, activeSession, scrollToScannedGate, clearJustScannedGateId]);
+
   const activeGateId = useMemo(
     () =>
       unlockedGateObj?.gateId ||
@@ -1055,6 +1156,21 @@ export function PatrolScreen() {
 
   return (
     <ScrollView
+      ref={scrollViewRef}
+      onScroll={(e) => {
+        scrollYRef.current = e.nativeEvent.contentOffset.y;
+      }}
+      onScrollBeginDrag={() => {
+        if (justScannedGateId) {
+          clearJustScannedGateId();
+        }
+      }}
+      onContentSizeChange={() => {
+        if (justScannedGateId) {
+          scrollToScannedGate();
+        }
+      }}
+      scrollEventThrottle={16}
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
       refreshControl={
@@ -1328,17 +1444,30 @@ export function PatrolScreen() {
             else if (isUnlocked) cardStatusColor = colors.primary;
 
             return (
-              <Card
+              <View
                 key={rg.id}
-                style={[
-                  styles.checkpointCard,
-                  {
-                    borderColor: cardStatusColor,
-                    borderWidth: isCompleted || isUnlocked ? 1.5 : 1,
-                  },
-                ]}
+                onLayout={(event) => {
+                  const y = event.nativeEvent.layout.y;
+                  const ids = [rg.gateId, rg.id, rg.gate?.id, rg.gate?.gateCode, rg.gate?.qrCode].filter(Boolean);
+                  ids.forEach((id: string) => {
+                    gateLayoutsRef.current[id] = y;
+                  });
+
+                  if (isUnlocked && justScannedGateId) {
+                    scrollToScannedGate(y);
+                  }
+                }}
               >
-                <View style={styles.gateHeader}>
+                <Card
+                  style={[
+                    styles.checkpointCard,
+                    {
+                      borderColor: cardStatusColor,
+                      borderWidth: isCompleted || isUnlocked ? 1.5 : 1,
+                    },
+                  ]}
+                >
+                  <View style={styles.gateHeader}>
                   <View
                     style={[
                       styles.seqBadge,
@@ -1526,8 +1655,9 @@ export function PatrolScreen() {
                   </View>
                 )}
               </Card>
-            );
-          })}
+            </View>
+          );
+        })}
 
           {/* Active Patrol Action Controls */}
           <View style={styles.controlRow}>
