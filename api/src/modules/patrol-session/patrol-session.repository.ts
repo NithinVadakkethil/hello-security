@@ -106,7 +106,7 @@ export class PatrolSessionRepository {
     return prisma.patrolSession.findFirst({
       where: {
         assignmentId,
-        status: PatrolStatus.IN_PROGRESS,
+        status: { in: [PatrolStatus.IN_PROGRESS, PatrolStatus.PAUSED] },
       },
     });
   }
@@ -114,7 +114,7 @@ export class PatrolSessionRepository {
   findActiveByEmployee(employeeId: string) {
     return prisma.patrolSession.findFirst({
       where: {
-        status: PatrolStatus.IN_PROGRESS,
+        status: { in: [PatrolStatus.IN_PROGRESS, PatrolStatus.PAUSED] },
         assignment: { employeeId },
       },
       include: {
@@ -309,16 +309,35 @@ export class PatrolSessionRepository {
       select: { id: true, status: true },
     });
 
-    if (!session) return null;
+    if (!session) {
+      return { success: true, message: 'Patrol session already cleared or cancelled.' };
+    }
 
     const checkpointCount = await prisma.patrolCheckpoint.count({
       where: { patrolSessionId: id },
     });
 
     if (checkpointCount === 0) {
-      await prisma.patrolSession.delete({
-        where: { id },
+      await prisma.$transaction(async (tx) => {
+        await tx.snag.updateMany({
+          where: { patrolSessionId: id },
+          data: { patrolSessionId: null },
+        });
+
+        await tx.incident.updateMany({
+          where: { patrolSessionId: id },
+          data: { patrolSessionId: null },
+        });
+
+        await tx.patrolCheckpoint.deleteMany({
+          where: { patrolSessionId: id },
+        });
+
+        await tx.patrolSession.delete({
+          where: { id },
+        });
       });
+
       return { success: true, message: 'Unscanned patrol session deleted.' };
     }
 

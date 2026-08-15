@@ -10,6 +10,8 @@ import { PREFIX } from '../../common/constants/prefixes';
 import { counterService } from '../../common/counter/counter.service';
 import { generateCode } from '../../common/utils/code-generator';
 
+import { prisma } from '../../database/prisma';
+
 import { assignmentRepository } from '../assignment/assignment.repository';
 import { patrolSessionRepository } from './patrol-session.repository';
 import { ListPatrolSessionsQuery } from './patrol-session.types';
@@ -52,11 +54,20 @@ export class PatrolSessionService {
     );
 
     if (running) {
-      throw new AppError(
-        HttpStatus.CONFLICT,
-        ErrorCodes.VALIDATION_ERROR,
-        'Patrol already in progress.',
-      );
+      const scannedCount = await prisma.patrolCheckpoint.count({
+        where: { patrolSessionId: running.id },
+      });
+
+      if (scannedCount === 0) {
+        // Abandoned zero-checkpoint session — auto-clear it so starting a new patrol succeeds cleanly
+        await patrolSessionRepository.cancel(running.id);
+      } else {
+        throw new AppError(
+          HttpStatus.CONFLICT,
+          ErrorCodes.VALIDATION_ERROR,
+          'Patrol already in progress.',
+        );
+      }
     }
 
     // Generate Patrol Code
@@ -148,12 +159,20 @@ export class PatrolSessionService {
       );
     }
 
-    if (patrol.status !== PatrolStatus.IN_PROGRESS) {
+    if (patrol.status !== PatrolStatus.IN_PROGRESS && patrol.status !== PatrolStatus.PAUSED) {
       throw new AppError(
         HttpStatus.BAD_REQUEST,
         ErrorCodes.VALIDATION_ERROR,
         'Patrol is not in progress.',
       );
+    }
+
+    const checkpointCount = await prisma.patrolCheckpoint.count({
+      where: { patrolSessionId: id },
+    });
+
+    if (checkpointCount === 0) {
+      return patrolSessionRepository.cancel(id);
     }
 
     const endedAt = new Date();
