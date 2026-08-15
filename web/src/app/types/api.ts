@@ -8,6 +8,15 @@ export interface User {
   lastName?: string | null;
   name?: string | null;
   companyName?: string | null;
+  client?: {
+    id: string;
+    companyName: string;
+    clientCode?: string;
+  } | null;
+  employee?: {
+    firstName: string;
+    lastName: string;
+  } | null;
 }
 
 export interface AuthData {

@@ -172,7 +172,21 @@ export class AuthService {
       );
     }
     const { password, ...safeUser } = user;
-    return safeUser;
+    return {
+      ...safeUser,
+      tenantId: user.clientId,
+      employeeId: user.employeeId,
+      email: user.email,
+      role: user.role,
+      firstName: (user as any).employee?.firstName || null,
+      lastName: (user as any).employee?.lastName || null,
+      companyName: (user as any).client?.companyName || null,
+      name:
+        (user as any).client?.companyName ||
+        ((user as any).employee
+          ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
+          : user.email.split('@')[0]),
+    };
   }
 
   async updateProfile(userId: string, data: { email: string }) {

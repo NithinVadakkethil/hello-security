@@ -74,15 +74,16 @@ export default function DashboardPage() {
   if (!isSuperAdmin) {
     const counts = dashboardData as DashboardCounts;
     const getUserDisplayName = () => {
-      if (user?.name) return user.name;
       if (user?.companyName) return user.companyName;
+      if (user?.client?.companyName) return user.client.companyName;
+      if (user?.name) return user.name;
       if (user?.firstName) {
         return `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`;
       }
       if (user?.email) {
         return user.email.split('@')[0];
       }
-      return 'User';
+      return 'Company';
     };
 
     return (
