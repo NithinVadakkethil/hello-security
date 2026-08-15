@@ -313,32 +313,8 @@ export class PatrolSessionRepository {
       return { success: true, message: 'Patrol session already cleared or cancelled.' };
     }
 
-    const checkpointCount = await prisma.patrolCheckpoint.count({
-      where: { patrolSessionId: id },
-    });
-
-    if (checkpointCount === 0) {
-      await prisma.$transaction(async (tx) => {
-        await tx.snag.updateMany({
-          where: { patrolSessionId: id },
-          data: { patrolSessionId: null },
-        });
-
-        await tx.incident.updateMany({
-          where: { patrolSessionId: id },
-          data: { patrolSessionId: null },
-        });
-
-        await tx.patrolCheckpoint.deleteMany({
-          where: { patrolSessionId: id },
-        });
-
-        await tx.patrolSession.delete({
-          where: { id },
-        });
-      });
-
-      return { success: true, message: 'Unscanned patrol session deleted.' };
+    if (session.status === PatrolStatus.CANCELLED) {
+      return { success: true, message: 'Patrol session is already cancelled.' };
     }
 
     return prisma.patrolSession.update({
@@ -360,9 +336,13 @@ export class PatrolSessionRepository {
     if (query?.tab === 'live') {
       where.status = { in: [PatrolStatus.IN_PROGRESS, PatrolStatus.PAUSED] };
     } else if (query?.tab === 'history') {
-      where.status = {
-        in: [PatrolStatus.COMPLETED, PatrolStatus.CANCELLED, PatrolStatus.NOT_STARTED],
-      };
+      where.OR = [
+        { status: PatrolStatus.COMPLETED },
+        {
+          status: PatrolStatus.CANCELLED,
+          checkpoints: { some: {} },
+        },
+      ];
     } else if (query?.status) {
       where.status = query.status as PatrolStatus;
     }
