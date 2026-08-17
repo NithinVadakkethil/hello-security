@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { AnalyticsResult, ReportQueryDto } from './report.types';
+import { isRoleMatching } from '../../common/utils/role-matching';
 
 export class ReportRepository {
   private buildWhereClause(clientId: string | undefined, query: ReportQueryDto): Prisma.PatrolSessionWhereInput {
@@ -286,8 +287,59 @@ export class ReportRepository {
     const enrichedData = data.map((session) => {
       const sessionIncidents = incidents.filter((i) => i.patrolSessionId === session.id);
       const sessionSnags = snags.filter((s) => s.patrolSessionId === session.id);
+      const officerRole = session.assignment?.employee?.role || 'SECURITY';
+
+      const filterSubTasks = (subTasks: any[]) => {
+        if (!Array.isArray(subTasks)) return [];
+        return subTasks.filter((st) => isRoleMatching(st.role, officerRole));
+      };
+
+      const filteredCheckpoints = (session.checkpoints || []).map((cp) => ({
+        ...cp,
+        gate: cp.gate
+          ? {
+              ...cp.gate,
+              subTasks: filterSubTasks(cp.gate.subTasks),
+            }
+          : cp.gate,
+        subTaskResponses: (cp.subTaskResponses || []).filter((res) =>
+          isRoleMatching(res.gateSubTask?.role || (res as any).role, officerRole),
+        ),
+      }));
+
+      const filteredAssignment = session.assignment
+        ? {
+            ...session.assignment,
+            patrolRoute: session.assignment.patrolRoute
+              ? {
+                  ...session.assignment.patrolRoute,
+                  routeGates: (session.assignment.patrolRoute.routeGates || []).map((rg) => ({
+                    ...rg,
+                    gate: rg.gate
+                      ? {
+                          ...rg.gate,
+                          subTasks: filterSubTasks(rg.gate.subTasks),
+                        }
+                      : rg.gate,
+                  })),
+                }
+              : session.assignment.patrolRoute,
+            assignmentGates: (session.assignment.assignmentGates || []).map((ag) => ({
+              ...ag,
+              gate: ag.gate
+                ? {
+                    ...ag.gate,
+                    subTasks: filterSubTasks(ag.gate.subTasks),
+                  }
+                : ag.gate,
+            })),
+          }
+        : session.assignment;
+
       return {
         ...session,
+        assignment: filteredAssignment,
+        checkpoints: filteredCheckpoints,
         incidents: sessionIncidents,
         snags: sessionSnags,
       };

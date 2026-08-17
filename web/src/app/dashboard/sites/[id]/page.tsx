@@ -18,6 +18,7 @@ import ConfirmationDialog from '../../../components/ui/ConfirmationDialog';
 import { FormInput } from '../../../components/ui/FormControls';
 import StatusChip from '../../../components/ui/StatusChip';
 import GateSubTasksModal from '../components/GateSubTasksModal';
+import CheckpointQrModal from '../components/CheckpointQrModal';
 
 interface Site {
   id: string;
@@ -85,6 +86,14 @@ export default function SiteDetailPage() {
     isOpen: false,
     gateId: '',
     gateName: '',
+  });
+
+  const [qrModal, setQrModal] = useState<{
+    isOpen: boolean;
+    gate: Gate | null;
+  }>({
+    isOpen: false,
+    gate: null,
   });
 
   // Fetch Site Details
@@ -193,104 +202,8 @@ export default function SiteDetailPage() {
     setIsGateModalOpen(true);
   };
 
-  const handlePrintQr = (gate: Gate) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Print Checkpoint QR - ${gate.name}</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              height: 90vh;
-              margin: 0;
-              background-color: #fff;
-              color: #000;
-            }
-            .qr-card {
-              border: 3px double #000;
-              padding: 40px;
-              text-align: center;
-              max-width: 360px;
-              width: 100%;
-              border-radius: 12px;
-            }
-            .logo-header {
-              font-size: 1.6rem;
-              font-weight: 800;
-              text-transform: uppercase;
-              letter-spacing: 0.05em;
-              margin-bottom: 4px;
-              color: #000;
-            }
-            .site-title {
-              font-size: 1.05rem;
-              font-weight: 600;
-              margin-bottom: 20px;
-              color: #555;
-            }
-            .qr-img {
-              width: 240px;
-              height: 240px;
-              margin: 15px auto;
-              display: block;
-            }
-            .gate-title {
-              font-size: 1.25rem;
-              font-weight: 700;
-              margin-top: 15px;
-              margin-bottom: 4px;
-            }
-            .gate-code {
-              font-size: 0.85rem;
-              font-family: monospace;
-              color: #555;
-              margin-bottom: 20px;
-            }
-            .instructions {
-              font-size: 0.75rem;
-              color: #666;
-              line-height: 1.4;
-              border-top: 1px solid #ddd;
-              padding-top: 15px;
-            }
-            @media print {
-              body {
-                height: auto;
-              }
-              .qr-card {
-                border: 3px double #000 !important;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="qr-card">
-            <div class="logo-header">${(site as any)?.client?.companyName || "HELLO ORBIT"}</div>
-            <div class="site-title">${site?.name || 'Monitored Facility'}</div>
-            <div class="gate-title">${gate.name}</div>
-            <div class="gate-code">CHECKPOINT ID: ${gate.gateCode}</div>
-            <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(gate.id)}" alt="Checkpoint QR" />
-            <div class="instructions">
-              <strong>HELLO ORBIT POWERED BY ATLABS</strong><br />
-              Scan this QR code using the Hello Orbit Guard mobile app to log check-in sequence status.
-            </div>
-          </div>
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+  const handleOpenQrModal = (gate: Gate) => {
+    setQrModal({ isOpen: true, gate });
   };
 
   const onSubmitGate = (values: GateValues) => {
@@ -335,12 +248,13 @@ export default function SiteDetailPage() {
       render: (row: Gate) => (
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
-            onClick={() => handlePrintQr(row)}
+            onClick={() => handleOpenQrModal(row)}
             className="btn btn-secondary"
             style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px', color: 'var(--primary)' }}
+            title="Print or Download Checkpoint QR"
           >
             <QrCode size={14} />
-            <span>Print QR</span>
+            <span>QR Code</span>
           </button>
           <button
             onClick={() => setSubTaskModal({ isOpen: true, gateId: row.id, gateName: row.name })}
@@ -636,6 +550,14 @@ export default function SiteDetailPage() {
         onClose={() => setSubTaskModal((prev) => ({ ...prev, isOpen: false }))}
         gateId={subTaskModal.gateId}
         gateName={subTaskModal.gateName}
+      />
+
+      <CheckpointQrModal
+        isOpen={qrModal.isOpen}
+        onClose={() => setQrModal({ isOpen: false, gate: null })}
+        gate={qrModal.gate}
+        siteName={site?.name || ''}
+        companyName={(site as any)?.client?.companyName || 'HELLO ORBIT'}
       />
     </div>
   );

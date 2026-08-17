@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { resolveImageUrl } from '../../../../lib/image';
+import { isRoleMatching } from '../../../utils/role-matching';
 
 export interface SubTaskResult {
   id: string;
@@ -107,17 +108,14 @@ export default function TaskVerificationChecklist({
     configuredSubTasks.forEach((st: any) => {
       if (st.isActive !== false) {
         const stRole = st.role || 'SECURITY';
-        const hasResponse = responseMap.has(st.id);
 
         let shouldInclude = false;
         if (roleFilter === 'ALL') {
           shouldInclude = true;
         } else if (roleFilter === 'EMPLOYEE') {
-          // Include if role matches employee role OR if a response was submitted for this task
-          shouldInclude = stRole === employeeRole || hasResponse;
+          shouldInclude = isRoleMatching(stRole, employeeRole);
         } else {
-          // Specific role selected
-          shouldInclude = stRole === roleFilter || hasResponse;
+          shouldInclude = isRoleMatching(stRole, roleFilter);
         }
 
         if (shouldInclude) {
@@ -156,10 +154,8 @@ export default function TaskVerificationChecklist({
         existing.role = stRole || existing.role;
         existing.completedAt = res.answeredAt || res.createdAt;
       } else {
-        const shouldInclude =
-          roleFilter === 'ALL' ||
-          roleFilter === 'EMPLOYEE' ||
-          roleFilter === stRole;
+        const targetRole = roleFilter === 'EMPLOYEE' ? employeeRole : roleFilter;
+        const shouldInclude = roleFilter === 'ALL' || isRoleMatching(stRole, targetRole);
 
         if (shouldInclude) {
           taskMap.set(subTaskId, {

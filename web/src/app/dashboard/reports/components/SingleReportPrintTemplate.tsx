@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { resolveImageUrl } from '../../../../lib/image';
+import { isRoleMatching } from '../../../utils/role-matching';
 
 interface SingleReportPrintTemplateProps {
   report: any;
@@ -452,12 +453,21 @@ function fmtDateTime(dateStr?: string | null): string {
   }
 }
 
-function fmtDuration(seconds?: number | null): string {
-  if (!seconds || seconds <= 0) return '0 minutes';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m} minutes`;
+
+
+function getVerificationStatus(report: any): string {
+  const status =
+    report?.verificationStatus ||
+    report?.verification_status ||
+    report?.supervisorVerificationStatus ||
+    'PENDING';
+  return String(status).toUpperCase();
+}
+
+function getVerificationStatusPillClass(status: string): string {
+  if (status === 'VERIFIED') return 'green';
+  if (status === 'REJECTED' || status === 'NOT_VERIFIED') return 'red';
+  return 'yellow';
 }
 
 // ─── Build Checkpoint Entry with combined configured tasks + responses ───────
@@ -466,13 +476,16 @@ function buildCheckpointEntry(
   gate: any,
   scan: any,
   guardName: string,
+  officerRole: string,
 ) {
   const scanned = !!scan;
   const configuredTasks: any[] = Array.isArray(gate?.subTasks)
-    ? gate.subTasks
+    ? gate.subTasks.filter((st: any) => isRoleMatching(st.role, officerRole))
     : [];
   const responses: any[] = Array.isArray(scan?.subTaskResponses)
-    ? scan.subTaskResponses
+    ? scan.subTaskResponses.filter((res: any) =>
+        isRoleMatching(res.gateSubTask?.role || res.role, officerRole),
+      )
     : [];
 
   const responseMap = new Map<string, any>();
@@ -540,7 +553,11 @@ function buildCheckpointEntry(
 }
 
 // ─── Build Timeline ──────────────────────────────────────────────────────────
-function buildCheckpointTimeline(report: any, guardName: string): any[] {
+function buildCheckpointTimeline(
+  report: any,
+  guardName: string,
+  officerRole: string,
+): any[] {
   const scans: any[] = report.checkpoints || [];
 
   const routeGates: any[] =
@@ -571,7 +588,13 @@ function buildCheckpointTimeline(report: any, guardName: string): any[] {
       })
       .map((rg) => {
         const scan = scans.find((s: any) => s.gateId === rg.gate.id);
-        return buildCheckpointEntry(rg.sequence, rg.gate, scan, guardName);
+        return buildCheckpointEntry(
+          rg.sequence,
+          rg.gate,
+          scan,
+          guardName,
+          officerRole,
+        );
       });
   }
 
@@ -588,7 +611,7 @@ function buildCheckpointTimeline(report: any, guardName: string): any[] {
         name: scan.gate?.name || `Checkpoint ${idx + 1}`,
         gateCode: scan.gate?.gateCode || '—',
       };
-      return buildCheckpointEntry(idx + 1, gate, scan, guardName);
+      return buildCheckpointEntry(idx + 1, gate, scan, guardName, officerRole);
     });
 }
 
@@ -606,9 +629,16 @@ export default function SingleReportPrintTemplate({
 
   const guardName = report.assignment?.employee
     ? `${report.assignment.employee.firstName} ${report.assignment.employee.lastName}`
-    : 'Nithin atlabs';
+    : '';
 
-  const checkpointsTimeline = buildCheckpointTimeline(report, guardName);
+  const officerRole =
+    report.assignment?.employee?.role || report.employeeRole || 'SECURITY';
+
+  const checkpointsTimeline = buildCheckpointTimeline(
+    report,
+    guardName,
+    officerRole,
+  );
   const incidents = report.incidents || [];
   const snags = report.snags || [];
 
@@ -616,7 +646,6 @@ export default function SingleReportPrintTemplate({
   const scannedCount = checkpointsTimeline.filter((c) => c.scanned).length;
   const gateCompliancePct =
     totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
-  const durationMins = fmtDuration(report.totalDuration);
 
   let allTasksTotal = 0,
     allTasksYes = 0,
@@ -657,6 +686,9 @@ export default function SingleReportPrintTemplate({
 
   const generatedAt = new Date().toLocaleString();
 
+  const verificationStatus = getVerificationStatus(report);
+  const verificationPillClass = getVerificationStatusPillClass(verificationStatus);
+
   const printContent = (
     <div className="audit-report-print-root">
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
@@ -691,21 +723,27 @@ export default function SingleReportPrintTemplate({
             <td className="rpt-details-val">{siteName}</td>
           </tr>
           <tr>
-            <td className="rpt-details-label">Route / Target</td>
-            <td className="rpt-details-val">{routeName}</td>
+            <td className="rpt-details-label">Role</td>
+            <td className="rpt-details-val">
+              {officerRole === 'CLEANER' ? 'House Keeper' : officerRole}
+            </td>
             <td className="rpt-details-label">Shift</td>
             <td className="rpt-details-val">{shiftInfo}</td>
           </tr>
           <tr>
-            <td className="rpt-details-label">Started</td>
-            <td className="rpt-details-val">{fmtDateTime(report.startedAt)}</td>
-            <td className="rpt-details-label">Completed</td>
-            <td className="rpt-details-val">{fmtDateTime(report.endedAt)}</td>
+            <td className="rpt-details-label">Route / Target</td>
+            <td className="rpt-details-val">{routeName}</td>
+            <td className="rpt-details-label">Supervisor Status</td>
+            <td className="rpt-details-val">
+              <span className={`rpt-pill ${verificationPillClass}`}>
+                {verificationStatus}
+              </span>
+            </td>
           </tr>
           <tr>
-            <td className="rpt-details-label">Duration</td>
-            <td className="rpt-details-val">{durationMins}</td>
-            <td className="rpt-details-label">Status</td>
+            <td className="rpt-details-label">Started</td>
+            <td className="rpt-details-val">{fmtDateTime(report.startedAt)}</td>
+            <td className="rpt-details-label">Patrol Status</td>
             <td className="rpt-details-val">
               <span
                 className={`rpt-pill ${report.status === 'COMPLETED' ? 'green' : 'yellow'}`}
@@ -715,10 +753,8 @@ export default function SingleReportPrintTemplate({
             </td>
           </tr>
           <tr>
-            <td className="rpt-details-label">Supervisor Status</td>
-            <td className="rpt-details-val">
-              <span className="rpt-pill yellow">PENDING</span>
-            </td>
+            <td className="rpt-details-label">Completed</td>
+            <td className="rpt-details-val">{fmtDateTime(report.endedAt)}</td>
             <td className="rpt-details-label">Compliance / Score</td>
             <td className="rpt-details-val" style={{ color: '#1d4ed8' }}>
               {gateCompliancePct}% ({scannedCount} / {totalGates})
@@ -827,12 +863,12 @@ export default function SingleReportPrintTemplate({
                       <strong>
                         {tIdx + 1}. {t.title}
                       </strong>
-                      <span className="rpt-task-role">
+                      {/* <span className="rpt-task-role">
                         Role: {getRoleLabel(t.role)}
                       </span>
                       {t.isRequired && (
                         <span className="rpt-task-req">Required</span>
-                      )}
+                      )} */}
                     </div>
                     <div>
                       {t.answer === 'YES' && (
@@ -877,9 +913,9 @@ export default function SingleReportPrintTemplate({
                   )}
 
                   <div className="rpt-task-meta">
-                    <span>
+                    {/* <span>
                       Submitted by: <strong>{t.submittedBy}</strong>
-                    </span>
+                    </span> */}
                     {t.answeredAt && (
                       <span>Recorded: {fmtDateTime(t.answeredAt)}</span>
                     )}
@@ -923,8 +959,15 @@ export default function SingleReportPrintTemplate({
         <div className="rpt-section-heading">SUPERVISOR VERIFICATION</div>
         <div className="rpt-sup-box">
           <span>Verification Status</span>
-          <span className="rpt-pill yellow">PENDING</span>
+          <span className={`rpt-pill ${verificationPillClass}`}>
+            {verificationStatus}
+          </span>
         </div>
+        {report.supervisorRemarks && (
+          <div style={{ marginTop: '6px', fontSize: '8pt', color: '#475569' }}>
+            <strong>Supervisor Remarks:</strong> {report.supervisorRemarks}
+          </div>
+        )}
       </div>
 
       {/* ── PATROL SUMMARY ───────────────────────────────────────────── */}
