@@ -49,7 +49,7 @@ export class PatrolSessionController {
   async history(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const { page, limit, search, status, tab, siteId, employeeId } = req.query;
+      const { page, limit, search, status, tab, filter, siteId, employeeId } = req.query;
 
       const result = await patrolSessionService.history(user.tenantId!, {
         page: page ? parseInt(page as string, 10) : 1,
@@ -57,6 +57,7 @@ export class PatrolSessionController {
         search: search as string,
         status: status as string,
         tab: tab as string,
+        filter: filter as string,
         siteId: siteId as string,
         employeeId: employeeId as string,
       });
@@ -118,7 +119,7 @@ export class PatrolSessionController {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const { page, limit, search, status, tab, siteId, employeeId } = req.query;
+      const { page, limit, search, status, tab, filter, siteId, employeeId } = req.query;
 
       const result = await patrolSessionService.history(user.tenantId!, {
         page: page ? parseInt(page as string, 10) : 1,
@@ -126,6 +127,7 @@ export class PatrolSessionController {
         search: search as string,
         status: status as string,
         tab: tab as string,
+        filter: filter as string,
         siteId: siteId as string,
         employeeId: employeeId as string,
       });

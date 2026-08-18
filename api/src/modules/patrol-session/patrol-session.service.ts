@@ -3,13 +3,6 @@ import { PatrolStatus } from '@prisma/client';
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
-
-import { ENTITY } from '../../common/constants/entities';
-import { PREFIX } from '../../common/constants/prefixes';
-
-import { counterService } from '../../common/counter/counter.service';
-import { generateCode } from '../../common/utils/code-generator';
-
 import { prisma } from '../../database/prisma';
 
 import { assignmentRepository } from '../assignment/assignment.repository';
@@ -70,10 +63,8 @@ export class PatrolSessionService {
       }
     }
 
-    // Generate Patrol Code
-    const sequence = await counterService.next(ENTITY.PATROL_SESSION, clientId);
-
-    const patrolCode = generateCode(PREFIX.PATROL_SESSION, sequence);
+    // Generate Patrol Code based on highest existing valid DB record
+    const patrolCode = await patrolSessionRepository.getNextPatrolCode(clientId);
 
     return patrolSessionRepository.create({
       clientId,

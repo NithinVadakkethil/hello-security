@@ -38,4 +38,22 @@ export const dashboardApi = {
     const res = (await apiClient.patch(`/patrol-checkpoints/${checkpointId}/remarks`, { remarks })) as any;
     return res.data;
   },
+  getPatrolReviews: async (params?: {
+    filter?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ items: any[]; total: number; totalPages: number }> => {
+    const res = (await apiClient.get('/patrol-sessions', { params })) as any;
+    const items = res.data?.items || res.data || [];
+    const pagination = res.pagination || {
+      total: items.length,
+      page: params?.page || 1,
+      totalPages: 1,
+    };
+    return {
+      items,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+    };
+  },
 };

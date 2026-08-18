@@ -12,6 +12,7 @@ export interface ListPatrolSessionsQuery {
   search?: string;
   status?: string;
   tab?: 'live' | 'history' | string;
+  filter?: 'all' | 'pending' | 'today' | 'yesterday' | 'completed' | string;
   siteId?: string;
   employeeId?: string;
 }

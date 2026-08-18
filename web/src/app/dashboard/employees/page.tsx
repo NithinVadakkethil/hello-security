@@ -18,7 +18,7 @@ interface Employee {
   id: string;
   employeeNumber: string;
   firstName: string;
-  lastName: string;
+  lastName?: string | null;
   email?: string | null;
   phone?: string | null;
   designation?: string | null;
@@ -97,7 +97,7 @@ export default function EmployeesPage() {
     setConfirmDialog({
       isOpen: true,
       employeeId: employee.id,
-      name: `${employee.firstName} ${employee.lastName}`,
+      name: [employee.firstName, employee.lastName].filter(Boolean).join(' '),
       targetStatus,
     });
   };
@@ -116,9 +116,9 @@ export default function EmployeesPage() {
     const s = search.toLowerCase();
     employees = employees.filter(
       (c) =>
-        c.firstName.toLowerCase().includes(s) ||
-        c.lastName.toLowerCase().includes(s) ||
-        c.employeeNumber.toLowerCase().includes(s) ||
+        (c.firstName && c.firstName.toLowerCase().includes(s)) ||
+        (c.lastName && c.lastName.toLowerCase().includes(s)) ||
+        (c.employeeNumber && c.employeeNumber.toLowerCase().includes(s)) ||
         (c.email && c.email.toLowerCase().includes(s))
     );
   }
@@ -165,7 +165,7 @@ export default function EmployeesPage() {
       sortable: true,
       render: (row: Employee) => (
         <span style={{ fontWeight: 600 }}>
-          {row.firstName} {row.lastName}
+          {[row.firstName, row.lastName].filter(Boolean).join(' ')}
         </span>
       ),
     },

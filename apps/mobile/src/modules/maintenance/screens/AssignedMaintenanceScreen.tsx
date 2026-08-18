@@ -10,7 +10,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react-native';
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +29,7 @@ import {
   Camera,
   useCameraDevice,
   useCameraPermission,
+  useCodeScanner,
 } from 'react-native-vision-camera';
 import { apiClient } from '../../../app/api/api-client';
 import { useTheme } from '../../../app/hooks/useTheme';
@@ -55,6 +56,7 @@ export function AssignedMaintenanceScreen() {
   >('RESOLVED');
   const [remarks, setRemarks] = useState('');
   const [afterImage, setAfterImage] = useState<string | null>(null);
+  const [showManualInput, setShowManualInput] = useState(false);
 
   // Vision Camera setup
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -64,6 +66,10 @@ export function AssignedMaintenanceScreen() {
   const [isCompressing, setIsCompressing] = useState(false);
   const flashAnim = useRef(new Animated.Value(0)).current;
 
+  // Scanner ref lock to avoid duplicate frame processing
+  const isProcessingScanRef = useRef(false);
+  const laserTranslateY = useRef(new Animated.Value(0)).current;
+
   const triggerCameraFlash = () => {
     flashAnim.setValue(1);
     Animated.timing(flashAnim, {
@@ -72,6 +78,104 @@ export function AssignedMaintenanceScreen() {
       useNativeDriver: true,
     }).start();
   };
+
+  // Laser animation loop for Step 1 scanner
+  useEffect(() => {
+    if (selectedSnag && step === 'VERIFY_QR' && hasPermission) {
+      laserTranslateY.setValue(0);
+      const animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(laserTranslateY, {
+            toValue: 140,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(laserTranslateY, {
+            toValue: 0,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      animation.start();
+      return () => animation.stop();
+    }
+  }, [selectedSnag, step, hasPermission, laserTranslateY]);
+
+  // Request camera permission on Step 1 open
+  useEffect(() => {
+    if (selectedSnag && step === 'VERIFY_QR' && !hasPermission) {
+      requestPermission();
+    }
+  }, [selectedSnag, step, hasPermission, requestPermission]);
+
+  // Process scanned QR code against API
+  const handleProcessScannedCode = useCallback(
+    async (code: string) => {
+      const cleanCode = code.trim();
+      if (!cleanCode || isProcessingScanRef.current || !selectedSnag) return;
+
+      isProcessingScanRef.current = true;
+      setIsVerifyingQr(true);
+
+      try {
+        const res = (await apiClient.post(
+          `/snags/${selectedSnag.id}/verify-qr`,
+          {
+            qrCode: cleanCode,
+          },
+        )) as any;
+
+        if (res.success && res.data) {
+          setQrCodeInput(cleanCode);
+          setReportedIssueData(res.data.reportedIssue || selectedSnag);
+          setStep('TECHNICIAN_FORM');
+        } else {
+          Alert.alert(
+            'QR Verification Failed',
+            `Scanned QR code "${cleanCode}" does not match the checkpoint for this job.`,
+            [
+              {
+                text: 'Try Again',
+                onPress: () => {
+                  isProcessingScanRef.current = false;
+                },
+              },
+            ],
+          );
+        }
+      } catch (err: any) {
+        Alert.alert(
+          'Invalid Checkpoint QR',
+          err.response?.data?.message ||
+            `Scanned QR code "${cleanCode}" does not match checkpoint "${selectedSnag.gate?.name}" (${selectedSnag.gate?.gateCode}).`,
+          [
+            {
+              text: 'Try Again',
+              onPress: () => {
+                isProcessingScanRef.current = false;
+              },
+            },
+          ],
+        );
+      } finally {
+        setIsVerifyingQr(false);
+      }
+    },
+    [selectedSnag],
+  );
+
+  // Vision Camera Code Scanner Hook
+  const codeScanner = useCodeScanner({
+    codeTypes: ['qr', 'code-128', 'code-39', 'ean-13'],
+    onCodeScanned: codes => {
+      if (isProcessingScanRef.current || step !== 'VERIFY_QR' || !selectedSnag)
+        return;
+      if (codes.length > 0 && codes[0].value) {
+        handleProcessScannedCode(codes[0].value);
+      }
+    },
+  });
 
   // 1. Fetch ONLY Assigned Maintenance Snags for authenticated user
   const {
@@ -94,6 +198,7 @@ export function AssignedMaintenanceScreen() {
 
   // Handle Init Complete Flow
   const handleOpenCompleteFlow = (snag: any) => {
+    isProcessingScanRef.current = false;
     setSelectedSnag(snag);
     setStep('VERIFY_QR');
     setQrCodeInput(snag.gate?.gateCode || '');
@@ -101,9 +206,11 @@ export function AssignedMaintenanceScreen() {
     setResolutionStatus('RESOLVED');
     setRemarks('');
     setAfterImage(null);
+    setShowManualInput(false);
   };
 
   const handleCloseModal = () => {
+    isProcessingScanRef.current = false;
     setSelectedSnag(null);
     setStep('VERIFY_QR');
     setQrCodeInput('');
@@ -112,41 +219,19 @@ export function AssignedMaintenanceScreen() {
     setRemarks('');
     setAfterImage(null);
     setShowCameraModal(false);
+    setShowManualInput(false);
   };
 
-  // Verify Checkpoint QR Action
+  // Verify Checkpoint QR Action (manual fallback button)
   const handleVerifyQr = async () => {
     if (!qrCodeInput.trim()) {
       Alert.alert(
         'Checkpoint QR Required',
-        'Please enter or scan the checkpoint QR code.',
+        'Please scan or enter the checkpoint QR code.',
       );
       return;
     }
-    setIsVerifyingQr(true);
-    try {
-      const res = (await apiClient.post(`/snags/${selectedSnag.id}/verify-qr`, {
-        qrCode: qrCodeInput.trim(),
-      })) as any;
-
-      if (res.success && res.data) {
-        setReportedIssueData(res.data.reportedIssue || selectedSnag);
-        setStep('TECHNICIAN_FORM');
-      } else {
-        Alert.alert(
-          'QR Verification Failed',
-          'Scanned QR code does not match the checkpoint for this job.',
-        );
-      }
-    } catch (err: any) {
-      Alert.alert(
-        'Invalid Checkpoint QR',
-        err.response?.data?.message ||
-          `Scanned QR code "${qrCodeInput}" does not match checkpoint for this snag.`,
-      );
-    } finally {
-      setIsVerifyingQr(false);
-    }
+    handleProcessScannedCode(qrCodeInput.trim());
   };
 
   // Complete Job Mutation
@@ -408,7 +493,7 @@ export function AssignedMaintenanceScreen() {
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>
                   {step === 'VERIFY_QR'
-                    ? 'Step 1: Checkpoint QR Validation'
+                    ? 'Step 1: Checkpoint QR Scanner'
                     : 'Technician Repair Verification'}
                 </Text>
                 <TouchableOpacity onPress={handleCloseModal}>
@@ -418,7 +503,7 @@ export function AssignedMaintenanceScreen() {
 
               <ScrollView style={{ paddingVertical: 12 }}>
                 {step === 'VERIFY_QR' ? (
-                  /* STEP 1: QR Verification */
+                  /* STEP 1: LIVE VISION CAMERA QR SCANNER */
                   <View style={{ gap: 14 }}>
                     <View style={styles.infoBanner}>
                       <QrCode size={24} color={colors.primary} />
@@ -429,7 +514,7 @@ export function AssignedMaintenanceScreen() {
                             { color: colors.text },
                           ]}
                         >
-                          Scan Associated Checkpoint QR
+                          Scan Checkpoint QR Code
                         </Text>
                         <Text
                           style={[
@@ -437,49 +522,130 @@ export function AssignedMaintenanceScreen() {
                             { color: colors.textSecondary },
                           ]}
                         >
-                          Scan or enter QR code for{' '}
-                          {selectedSnag.gate?.name
-                            ? `"${selectedSnag.gate.name}" (${selectedSnag.gate.gateCode})`
-                            : 'associated checkpoint'}{' '}
-                          to verify physical arrival at snag location.
+                          Target:{' '}
+                          <Text
+                            style={{ fontWeight: '700', color: colors.text }}
+                          >
+                            {selectedSnag.gate?.name
+                              ? `${selectedSnag.gate.name} (${selectedSnag.gate.gateCode})`
+                              : 'Associated Checkpoint'}
+                          </Text>
+                          . Point camera at QR to verify physical location.
                         </Text>
                       </View>
                     </View>
 
-                    <Text
-                      style={[
-                        styles.sectionLabel,
-                        { color: colors.text, marginTop: 6 },
-                      ]}
-                    >
-                      Checkpoint QR Code *
-                    </Text>
-                    <TextInput
-                      placeholder="e.g. GATE-000004"
-                      placeholderTextColor={colors.textSecondary}
-                      value={qrCodeInput}
-                      onChangeText={setQrCodeInput}
-                      autoCapitalize="characters"
-                      style={[
-                        styles.input,
-                        {
-                          color: colors.text,
-                          borderColor: colors.border,
-                          backgroundColor: colors.background,
-                        },
-                      ]}
-                    />
+                    {/* LIVE CAMERA VIEWFINDER BOX */}
+                    {hasPermission && device ? (
+                      <View style={styles.scannerBox}>
+                        <Camera
+                          style={StyleSheet.absoluteFill}
+                          device={device}
+                          isActive={step === 'VERIFY_QR' && !!selectedSnag}
+                          codeScanner={codeScanner}
+                        />
 
-                    <Button
-                      title={
-                        isVerifyingQr
-                          ? 'Verifying Checkpoint QR...'
-                          : 'Verify QR & Access Job Form'
-                      }
-                      onPress={handleVerifyQr}
-                      loading={isVerifyingQr}
-                      style={{ marginTop: 10 }}
-                    />
+                        {/* Scanner Laser & Target Overlay */}
+                        <View style={styles.targetFrame}>
+                          <Animated.View
+                            style={[
+                              styles.scannerLaser,
+                              { transform: [{ translateY: laserTranslateY }] },
+                            ]}
+                          />
+                        </View>
+
+                        {isVerifyingQr && (
+                          <View style={styles.scannerVerifyingOverlay}>
+                            <ActivityIndicator size="large" color="#fff" />
+                            <Text style={styles.scannerVerifyingText}>
+                              Verifying Checkpoint QR...
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.permissionBox}
+                        onPress={requestPermission}
+                      >
+                        <CameraIcon size={32} color={colors.primary} />
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontWeight: '700',
+                            marginTop: 6,
+                          }}
+                        >
+                          Camera Access Required
+                        </Text>
+                        <Text
+                          style={{
+                            color: colors.textSecondary,
+                            fontSize: 11,
+                            marginTop: 2,
+                          }}
+                        >
+                          Tap to grant camera permissions for QR scanning.
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* <TouchableOpacity
+                      onPress={() => setShowManualInput(prev => !prev)}
+                      style={{ alignSelf: 'center', marginVertical: 2 }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: '700',
+                          color: colors.primary,
+                        }}
+                      >
+                        {showManualInput
+                          ? 'Hide Manual Code Entry'
+                          : 'Having trouble? Enter Checkpoint Code Manually'}
+                      </Text>
+                    </TouchableOpacity> */}
+
+                    {/* {showManualInput && (
+                      <View style={{ gap: 8, marginTop: 4 }}>
+                        <Text
+                          style={[
+                            styles.sectionLabel,
+                            { color: colors.text },
+                          ]}
+                        >
+                          Manual Checkpoint Code *
+                        </Text>
+                        <TextInput
+                          placeholder="e.g. GATE-000004"
+                          placeholderTextColor={colors.textSecondary}
+                          value={qrCodeInput}
+                          onChangeText={setQrCodeInput}
+                          autoCapitalize="characters"
+                          style={[
+                            styles.input,
+                            {
+                              color: colors.text,
+                              borderColor: colors.border,
+                              backgroundColor: colors.background,
+                            },
+                          ]}
+                        />
+
+                        <Button
+                          title={
+                            isVerifyingQr
+                              ? 'Verifying Checkpoint QR...'
+                              : 'Verify QR & Access Job Form'
+                          }
+                          onPress={handleVerifyQr}
+                          loading={isVerifyingQr}
+                          style={{ marginTop: 6 }}
+                        />
+                      </View>
+                    )} */}
                   </View>
                 ) : (
                   /* STEP 2: TECHNICIAN REPAIR VERIFICATION */
@@ -506,7 +672,7 @@ export function AssignedMaintenanceScreen() {
                       </Text>
                     </View>
 
-                    {/* 1. BEFORE REPAIR PHOTO (Original Guard Evidence) */}
+                    {/* 1. BEFORE REPAIR PHOTO (Original Guard Report) */}
                     <View
                       style={[
                         styles.originalReportCard,
@@ -840,7 +1006,7 @@ export function AssignedMaintenanceScreen() {
         </Modal>
       )}
 
-      {/* Vision Camera Viewfinder Modal */}
+      {/* Vision Camera Viewfinder Modal for After Repair Photo */}
       {showCameraModal && device && (
         <Modal visible animationType="fade" transparent={false}>
           <View style={{ flex: 1, backgroundColor: '#000' }}>
@@ -1023,6 +1189,51 @@ const styles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 15,
   },
+  scannerBox: {
+    height: 200,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  targetFrame: {
+    width: 160,
+    height: 160,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.6)',
+    borderRadius: 12,
+    overflow: 'hidden',
+    justifyContent: 'flex-start',
+  },
+  scannerLaser: {
+    height: 3,
+    width: '100%',
+    backgroundColor: '#3b82f6',
+    boxShadow: '0 0 8px #3b82f6',
+  },
+  scannerVerifyingOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  scannerVerifyingText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  permissionBox: {
+    padding: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+    alignItems: 'center',
+    backgroundColor: '#111',
+  },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1115,7 +1326,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   flashOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#fff',
   },
   cameraHeader: {

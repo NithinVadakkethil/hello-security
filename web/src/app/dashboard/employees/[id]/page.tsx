@@ -17,7 +17,7 @@ interface Employee {
   id: string;
   employeeNumber: string;
   firstName: string;
-  lastName: string;
+  lastName?: string | null;
   email?: string | null;
   phone?: string | null;
   designation?: string | null;
@@ -96,7 +96,9 @@ export default function EmployeeDetailPage() {
   }
 
   const getInitials = () => {
-    return (employee.firstName[0] + employee.lastName[0]).toUpperCase();
+    const first = employee.firstName?.[0] || '';
+    const last = employee.lastName?.[0] || '';
+    return (first + last).toUpperCase() || 'E';
   };
 
   return (
@@ -140,7 +142,7 @@ export default function EmployeeDetailPage() {
                 STAFF ID: {employee.employeeNumber}
               </span>
               <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '4px 0 8px 0' }}>
-                {employee.firstName} {employee.lastName}
+                {[employee.firstName, employee.lastName].filter(Boolean).join(' ')}
               </h2>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <StatusChip status={employee.status} />
