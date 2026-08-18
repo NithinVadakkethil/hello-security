@@ -27,11 +27,26 @@ export interface AssignSnagDto {
   dueDate?: string;
 }
 
+export interface CompleteSnagJobDto {
+  notes?: string;
+  images?: string[];
+  subTaskResponses?: {
+    gateSubTaskId: string;
+    answer: 'YES' | 'NO';
+    remarks?: string;
+    images?: string[];
+  }[];
+  scannedGateCode?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
 export interface SnagFilterDto {
   siteId?: string;
   gateId?: string;
   patrolSessionId?: string;
   employeeId?: string;
+  assignedToId?: string;
   status?: string;
   priority?: string;
   category?: string;

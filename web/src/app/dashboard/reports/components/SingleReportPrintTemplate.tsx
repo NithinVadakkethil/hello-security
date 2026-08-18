@@ -930,27 +930,251 @@ export default function SingleReportPrintTemplate({
 
       {/* ── REPORTED ISSUES & MAINTENANCE DEFECTS ───────────────────── */}
       {snags.length > 0 && (
-        <div style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div style={{ breakInside: 'avoid', pageBreakInside: 'avoid', marginTop: '14px' }}>
           <div className="rpt-section-heading">
-            REPORTED ISSUES &amp; MAINTENANCE DEFECTS ({snags.length})
+            REPORTED ISSUES &amp; MAINTENANCE SNAG LIFECYCLE ({snags.length})
           </div>
-          {snags.map((snag: any, idx: number) => (
-            <div key={snag.id || idx} className="rpt-defect-card">
-              <strong>Defect #{idx + 1}:</strong>{' '}
-              {snag.category || 'CHECKPOINT_VERIFICATION'} (
-              {snag.priority || 'MEDIUM'} PRIORITY - {snag.status || 'OPEN'}):
-              Failed Checkpoint Task:{' '}
-              {snag.taskName ||
-                snag.category ||
-                'Make sure the scooters not in dust'}{' '}
-              Task Description: {snag.description || 'N/A'} Employee Role:{' '}
-              {getRoleLabel(
-                snag.employeeRole || snag.role || 'CLEANER',
-              ).toUpperCase()}{' '}
-              Remarks: {snag.remarks || snag.description || 'Not g'} Source:
-              Mobile Checkpoint Verification Patrol Session: {report.patrolCode}
-            </div>
-          ))}
+          {snags.map((snag: any, idx: number) => {
+            const snagIdDisplay = `SNAG-${snag.id.slice(-6).toUpperCase()}`;
+            const reporterName = snag.employee
+              ? `${snag.employee.firstName} ${snag.employee.lastName || ''}`.trim()
+              : 'Security Officer';
+            const reporterEmpId = snag.employee?.employeeNumber || '—';
+            const beforeImages = Array.isArray(snag.images) ? snag.images : [];
+
+            // Assignment details
+            const latestAssignment = Array.isArray(snag.assignments) && snag.assignments.length > 0 ? snag.assignments[0] : null;
+            const assignedTechName = latestAssignment?.assignedTo?.employee
+              ? `${latestAssignment.assignedTo.employee.firstName} ${latestAssignment.assignedTo.employee.lastName || ''}`.trim()
+              : latestAssignment?.assignedTo?.email || null;
+            const assignedTechEmpId = latestAssignment?.assignedTo?.employee?.employeeNumber || '—';
+            const assignedTechRole = getRoleLabel(latestAssignment?.assignedTo?.role || latestAssignment?.assignedTo?.employee?.role || 'TECHNICIAN');
+            const assignedByAdmin = latestAssignment?.assignedBy?.employee
+              ? `${latestAssignment.assignedBy.employee.firstName} ${latestAssignment.assignedBy.employee.lastName || ''}`.trim()
+              : 'Admin';
+            const assignedAtTime = latestAssignment?.createdAt ? fmtDateTime(latestAssignment.createdAt) : null;
+
+            // Technician resolution history
+            const completionEntry = Array.isArray(snag.history)
+              ? snag.history.find((h: any) => h.action === 'RESOLVED' || h.newState === 'RESOLVED')
+              : null;
+            const techUser = completionEntry?.user;
+            const completedTechName = techUser?.employee
+              ? `${techUser.employee.firstName} ${techUser.employee.lastName || ''}`.trim()
+              : techUser?.email || assignedTechName;
+            const completedTechEmpId = techUser?.employee?.employeeNumber || assignedTechEmpId;
+
+            const repairResult =
+              snag.status === 'RESOLVED' || snag.status === 'CLOSED'
+                ? 'PASS'
+                : snag.status === 'REJECTED'
+                ? 'FAIL'
+                : 'PENDING';
+
+            const techRemarks = completionEntry?.notes || (snag.status === 'RESOLVED' ? 'Technician completed repair job and verified checkpoint QR.' : null);
+            const afterImages = completionEntry?.images || [];
+
+            return (
+              <div
+                key={snag.id || idx}
+                style={{
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '10px 12px',
+                  marginBottom: '12px',
+                  background: '#ffffff',
+                  breakInside: 'avoid',
+                  pageBreakInside: 'avoid',
+                }}
+              >
+                {/* Header Bar */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderBottom: '1px solid #e2e8f0',
+                    paddingBottom: '6px',
+                    marginBottom: '8px',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontSize: '8pt', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase' }}>
+                      SNAG REPORT #{snagIdDisplay}
+                    </span>
+                    <span style={{ fontSize: '7.5pt', color: '#64748b', marginLeft: '8px' }}>
+                      Checkpoint: <strong>{snag.gate?.name || 'Gate'} ({snag.gate?.gateCode || '—'})</strong>
+                    </span>
+                  </div>
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '7pt',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: snag.priority === 'HIGH' ? '#fee2e2' : '#fef3c7',
+                        color: snag.priority === 'HIGH' ? '#dc2626' : '#d97706',
+                        border: `1px solid ${snag.priority === 'HIGH' ? '#fca5a5' : '#fde68a'}`,
+                      }}
+                    >
+                      {snag.priority || 'NORMAL'} PRIORITY
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '7pt',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        marginLeft: '6px',
+                        backgroundColor:
+                          snag.status === 'RESOLVED' || snag.status === 'CLOSED'
+                            ? '#dcfce7'
+                            : snag.status === 'ASSIGNED'
+                            ? '#dbeafe'
+                            : '#f1f5f9',
+                        color:
+                          snag.status === 'RESOLVED' || snag.status === 'CLOSED'
+                            ? '#15803d'
+                            : snag.status === 'ASSIGNED'
+                            ? '#1d4ed8'
+                            : '#475569',
+                        border: `1px solid ${
+                          snag.status === 'RESOLVED' || snag.status === 'CLOSED'
+                            ? '#86efac'
+                            : snag.status === 'ASSIGNED'
+                            ? '#93c5fd'
+                            : '#cbd5e1'
+                        }`,
+                      }}
+                    >
+                      FINAL STATUS: {snag.status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* SECTION 1: ORIGINAL SNAG REPORT */}
+                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '8px 10px', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '7.5pt', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', marginBottom: '4px' }}>
+                    1. ORIGINAL GUARD INSPECTION REPORT
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: '7.5pt', color: '#334155', marginBottom: '6px' }}>
+                    <div>Reported By: <strong>{reporterName}</strong> (ID: {reporterEmpId})</div>
+                    <div>Reported At: <strong>{fmtDateTime(snag.createdAt)}</strong></div>
+                    <div>Category: <strong>{snag.category}</strong> {snag.subCategory ? `• ${snag.subCategory}` : ''}</div>
+                    <div>Initial Status: <strong>{snag.status}</strong></div>
+                  </div>
+                  <div style={{ fontSize: '7.5pt', color: '#1e293b', fontStyle: 'italic', marginBottom: '6px' }}>
+                    "{snag.description}"
+                  </div>
+
+                  {/* BEFORE REPAIR PHOTO */}
+                  <div style={{ marginTop: '6px' }}>
+                    <div style={{ fontSize: '7pt', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      BEFORE REPAIR PHOTO (Original Guard Evidence):
+                    </div>
+                    {beforeImages.length > 0 ? (
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {beforeImages.map((imgUrl: string, imgIdx: number) => (
+                          <div key={imgIdx} style={{ textAlign: 'center' }}>
+                            <img src={resolveImageUrl(imgUrl)} alt="Before Repair" style={{ width: '70px', height: '70px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                            <div style={{ fontSize: '6.5pt', color: '#64748b', marginTop: '2px' }}>Reported by {reporterName}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '7.5pt', fontStyle: 'italic', color: '#94a3b8' }}>No before-repair photo available</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* SECTION 2: SNAG ASSIGNMENT (If assigned) */}
+                {latestAssignment ? (
+                  <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '4px', padding: '8px 10px', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '7.5pt', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      2. SNAG ASSIGNMENT
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: '7.5pt', color: '#1e3a8a' }}>
+                      <div>Assigned To: <strong>{assignedTechName}</strong> (ID: {assignedTechEmpId})</div>
+                      <div>Assigned Role: <strong>{assignedTechRole}</strong></div>
+                      <div>Assigned By: <strong>{assignedByAdmin}</strong></div>
+                      <div>Assigned At: <strong>{assignedAtTime}</strong></div>
+                      <div>Assignment Status: <strong>{latestAssignment.status || 'ASSIGNED'}</strong></div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '4px', padding: '6px 10px', marginBottom: '8px', fontSize: '7.5pt', color: '#64748b', fontStyle: 'italic' }}>
+                    Snag Assignment: Unassigned (Pending Admin Assignment)
+                  </div>
+                )}
+
+                {/* SECTION 3: TECHNICIAN REPAIR VERIFICATION */}
+                <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '4px', padding: '8px 10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '7.5pt', fontWeight: 800, color: '#15803d', textTransform: 'uppercase' }}>
+                      3. TECHNICIAN REPAIR VERIFICATION & RESOLUTION
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '7pt',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: repairResult === 'PASS' ? '#dcfce7' : repairResult === 'FAIL' ? '#fee2e2' : '#fef3c7',
+                        color: repairResult === 'PASS' ? '#15803d' : repairResult === 'FAIL' ? '#dc2626' : '#d97706',
+                        border: `1px solid ${repairResult === 'PASS' ? '#86efac' : repairResult === 'FAIL' ? '#fca5a5' : '#fde68a'}`,
+                      }}
+                    >
+                      REPAIR RESULT: {repairResult}
+                    </span>
+                  </div>
+
+                  {repairResult !== 'PENDING' ? (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: '7.5pt', color: '#14532d', marginBottom: '6px' }}>
+                        <div>Technician: <strong>{completedTechName}</strong> (ID: {completedTechEmpId})</div>
+                        <div>Verified At: <strong>{fmtDateTime(completionEntry?.createdAt || snag.updatedAt)}</strong></div>
+                      </div>
+
+                      {techRemarks && (
+                        <div style={{ marginTop: '4px', marginBottom: '6px' }}>
+                          <div style={{ fontSize: '7pt', fontWeight: 700, color: '#166534', textTransform: 'uppercase', marginBottom: '2px' }}>
+                            TECHNICIAN ACTION & REMARKS:
+                          </div>
+                          <div style={{ fontSize: '7.5pt', color: '#14532d', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '6px 8px', whiteSpace: 'pre-wrap' }}>
+                            {techRemarks}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* AFTER REPAIR PHOTO */}
+                      <div style={{ marginTop: '6px' }}>
+                        <div style={{ fontSize: '7pt', fontWeight: 700, color: '#166534', textTransform: 'uppercase', marginBottom: '4px' }}>
+                          AFTER REPAIR PHOTO (Technician Completion Evidence):
+                        </div>
+                        {afterImages.length > 0 ? (
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {afterImages.map((imgUrl: string, imgIdx: number) => (
+                              <div key={imgIdx} style={{ textAlign: 'center' }}>
+                                <img src={resolveImageUrl(imgUrl)} alt="After Repair" style={{ width: '70px', height: '70px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #86efac' }} />
+                                <div style={{ fontSize: '6.5pt', color: '#15803d', marginTop: '2px' }}>Uploaded by {completedTechName}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '7.5pt', fontStyle: 'italic', color: '#64748b' }}>No after-repair photo attached</div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: '7.5pt', fontStyle: 'italic', color: '#64748b' }}>
+                      Repair Verification: PENDING (Technician repair verification not yet submitted)
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

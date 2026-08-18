@@ -3,7 +3,6 @@ import { UserRole } from '@prisma/client';
 import { authenticate } from '../../common/auth/auth.middleware';
 import { authorize } from '../../common/auth/authorize';
 import { snagController } from './snag.controller';
-
 import { OPERATIONAL_ROLES } from '../../common/auth/constants';
 
 const router: Router = Router();
@@ -32,6 +31,18 @@ router.get(
   '/:id',
   authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, ...OPERATIONAL_ROLES),
   (req, res, next) => snagController.get(req, res).catch(next)
+);
+
+router.post(
+  '/:id/verify-qr',
+  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, ...OPERATIONAL_ROLES),
+  (req, res, next) => snagController.verifyQr(req, res).catch(next)
+);
+
+router.post(
+  '/:id/complete',
+  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, ...OPERATIONAL_ROLES),
+  (req, res, next) => snagController.completeJob(req, res).catch(next)
 );
 
 router.patch(

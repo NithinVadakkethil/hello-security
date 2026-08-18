@@ -28,3 +28,25 @@ export const assignSnagSchema = z.object({
   assignedToId: z.string().min(1, 'Assigned user ID is required'),
   dueDate: z.string().optional(),
 });
+
+export const verifyQrSchema = z.object({
+  qrCode: z.string().min(1, 'QR code is required'),
+});
+
+export const completeSnagSchema = z.object({
+  notes: z.string().optional(),
+  images: z.array(z.string()).optional().default([]),
+  subTaskResponses: z
+    .array(
+      z.object({
+        gateSubTaskId: z.string().min(1),
+        answer: z.enum(['YES', 'NO']),
+        remarks: z.string().optional(),
+        images: z.array(z.string()).optional().default([]),
+      }),
+    )
+    .optional(),
+  scannedGateCode: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+});

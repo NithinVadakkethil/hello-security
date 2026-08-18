@@ -417,6 +417,54 @@ export default function SnagDetailPage() {
               <span>Assign Maintenance Staff</span>
             </h3>
 
+            {snag.assignments && snag.assignments.length > 0 && snag.assignments[0]?.assignedTo && (
+              <div
+                style={{
+                  padding: '12px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--primary)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  {(snag.assignments[0].assignedTo.employee?.firstName || snag.assignments[0].assignedTo.email || 'A')
+                    .charAt(0)
+                    .toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                    Currently Assigned Staff
+                  </div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    {snag.assignments[0].assignedTo.employee
+                      ? `${snag.assignments[0].assignedTo.employee.firstName} ${snag.assignments[0].assignedTo.employee.lastName || ''}`
+                      : snag.assignments[0].assignedTo.email}
+                  </div>
+                  {snag.assignments[0].dueDate && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Target Due Date: {new Date(snag.assignments[0].dueDate).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div>
               <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Search Maintenance Staff:

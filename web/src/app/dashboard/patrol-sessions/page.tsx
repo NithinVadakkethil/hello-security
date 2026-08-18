@@ -158,29 +158,7 @@ export default function PatrolSessionsPage() {
     {
       key: 'status',
       label: 'Status',
-      render: (row: PatrolSession) => {
-        const totalGates =
-          row.totalCheckpointCount ??
-          (row.assignment?.patrolRoute?.routeGates?.length ||
-            row.assignment?.assignmentGates?.length ||
-            0);
-
-        const uniqueScannedGates = new Set(
-          (row.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean),
-        );
-        const scannedCount =
-          row.scannedCount ?? (row.checkpoints ? uniqueScannedGates.size : 0);
-        return (
-          <StatusChip
-            // status={row.status}
-            status={
-              activeTab === 'history' && scannedCount !== totalGates
-                ? 'SUSPENDED'
-                : row.status
-            }
-          />
-        );
-      },
+      render: (row: PatrolSession) => <StatusChip status={row.status} />,
     },
     {
       key: 'verification',

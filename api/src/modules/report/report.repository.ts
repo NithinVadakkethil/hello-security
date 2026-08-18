@@ -279,7 +279,70 @@ export class ReportRepository {
           patrolSessionId: { in: sessionIds },
         },
         include: {
+          site: { select: { id: true, name: true } },
           gate: { select: { id: true, name: true, gateCode: true } },
+          employee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeNumber: true,
+              role: true,
+            },
+          },
+          assignments: {
+            orderBy: { createdAt: 'desc' },
+            include: {
+              assignedTo: {
+                select: {
+                  id: true,
+                  email: true,
+                  role: true,
+                  employee: {
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                      employeeNumber: true,
+                      role: true,
+                    },
+                  },
+                },
+              },
+              assignedBy: {
+                select: {
+                  id: true,
+                  email: true,
+                  role: true,
+                  employee: {
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                      employeeNumber: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          history: {
+            orderBy: { createdAt: 'desc' },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  role: true,
+                  employee: {
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                      employeeNumber: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       }),
     ]);

@@ -71,7 +71,10 @@ export function GuardDashboard() {
       if (activeSession) {
         navigation.navigate('Dashboard', {
           screen: 'PatrolTab',
-          params: { assignmentId: activeSession.assignmentId || activeSession.assignment?.id },
+          params: {
+            assignmentId:
+              activeSession.assignmentId || activeSession.assignment?.id,
+          },
         });
         return;
       }
@@ -282,7 +285,11 @@ export function GuardDashboard() {
                     onPress={() =>
                       navigation.navigate('Dashboard', {
                         screen: 'PatrolTab',
-                        params: { assignmentId: activeSession?.assignmentId || activeSession?.assignment?.id },
+                        params: {
+                          assignmentId:
+                            activeSession?.assignmentId ||
+                            activeSession?.assignment?.id,
+                        },
                       })
                     }
                   >
@@ -291,10 +298,7 @@ export function GuardDashboard() {
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity
-                    style={[
-                      styles.actionBtn,
-                      { backgroundColor: colors.primary },
-                    ]}
+                    style={[styles.actionBtn, { backgroundColor: '#34D399' }]}
                     onPress={() => handleStartAssignment(asg)}
                     disabled={isStarting}
                   >

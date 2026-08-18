@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../database/prisma';
-import { AssignSnagDto, CreateSnagDto, SnagFilterDto } from './snag.types';
+import { AssignSnagDto, CompleteSnagJobDto, CreateSnagDto, SnagFilterDto } from './snag.types';
 
 export class SnagRepository {
   create(clientId: string, employeeId: string, data: CreateSnagDto) {
@@ -35,7 +35,27 @@ export class SnagRepository {
       include: {
         client: { select: { id: true, companyName: true } },
         site: { select: { id: true, name: true, siteCode: true, latitude: true, longitude: true } },
-        gate: { select: { id: true, name: true, gateCode: true, latitude: true, longitude: true } },
+        gate: {
+          select: {
+            id: true,
+            name: true,
+            gateCode: true,
+            latitude: true,
+            longitude: true,
+            subTasks: {
+              where: { isActive: true },
+              orderBy: { displayOrder: 'asc' },
+              select: {
+                id: true,
+                taskName: true,
+                description: true,
+                role: true,
+                isRequired: true,
+                displayOrder: true,
+              },
+            },
+          },
+        },
         employee: {
           select: {
             id: true,
@@ -82,6 +102,7 @@ export class SnagRepository {
       ...(filters.gateId && { gateId: filters.gateId }),
       ...(filters.patrolSessionId && { patrolSessionId: filters.patrolSessionId }),
       ...(filters.employeeId && { employeeId: filters.employeeId }),
+      ...(filters.assignedToId && { assignments: { some: { assignedToId: filters.assignedToId } } }),
       ...(filters.status && { status: filters.status }),
       ...(filters.priority && { priority: filters.priority }),
       ...(filters.category && { category: { contains: filters.category, mode: 'insensitive' } }),
@@ -195,8 +216,8 @@ export class SnagRepository {
     });
   }
 
-  assign(snagId: string, assignedById: string, dto: AssignSnagDto) {
-    return prisma.snagAssignment.create({
+  async assign(snagId: string, assignedById: string, dto: AssignSnagDto) {
+    const assignment = await prisma.snagAssignment.create({
       data: {
         snagId,
         assignedById,
@@ -208,6 +229,48 @@ export class SnagRepository {
         assignedBy: { select: { id: true, email: true, role: true, employee: { select: { firstName: true, lastName: true } } } },
       },
     });
+
+    const snag = await prisma.snag.findUnique({ where: { id: snagId }, select: { status: true } });
+    if (snag && (snag.status === 'OPEN' || snag.status === 'UNASSIGNED')) {
+      await prisma.snag.update({
+        where: { id: snagId },
+        data: { status: 'ASSIGNED' },
+      });
+    }
+
+    return assignment;
+  }
+
+  async completeJob(snagId: string, userId: string, data: CompleteSnagJobDto) {
+    const existing = await prisma.snag.findUnique({ where: { id: snagId } });
+    if (!existing) return null;
+
+    const mergedImages = Array.from(new Set([...(existing.images || []), ...(data.images || [])]));
+    const updateData: Prisma.SnagUpdateInput = {
+      status: 'RESOLVED',
+      images: mergedImages,
+    };
+    if (data.latitude) updateData.latitude = data.latitude;
+    if (data.longitude) updateData.longitude = data.longitude;
+
+    const updatedSnag = await prisma.snag.update({
+      where: { id: snagId },
+      data: updateData,
+      include: {
+        site: { select: { id: true, name: true } },
+        gate: { select: { id: true, name: true, gateCode: true } },
+        employee: { select: { id: true, firstName: true, lastName: true, employeeNumber: true } },
+        assignments: {
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            assignedTo: { select: { id: true, email: true, employee: { select: { firstName: true, lastName: true } } } },
+          },
+        },
+      },
+    });
+
+    return updatedSnag;
   }
 }
 
