@@ -19,6 +19,7 @@ import toast from 'react-hot-toast';
 import { apiClient } from '../../../../lib/axios';
 import { resolveImageUrl } from '../../../../../lib/image';
 import { ApiResponse } from '../../../../types/api';
+import LoadingState from '../../../../components/ui/LoadingState';
 
 export default function SnagDetailPage() {
   const params = useParams();
@@ -114,11 +115,7 @@ export default function SnagDetailPage() {
   });
 
   if (isLoading) {
-    return (
-      <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-        Loading maintenance snag ticket data...
-      </div>
-    );
+    return <LoadingState message="Loading maintenance snag ticket data..." variant="page" />;
   }
 
   if (!snag) {

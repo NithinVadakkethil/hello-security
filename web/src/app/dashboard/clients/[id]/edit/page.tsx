@@ -6,12 +6,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Shield, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { apiClient } from '../../../../lib/axios';
 import { ApiResponse } from '../../../../types/api';
 import { FormInput, Select, Switch } from '../../../../components/ui/FormControls';
+import LoadingState from '../../../../components/ui/LoadingState';
 
 const schema = z.object({
   companyName: z.string().min(2, 'Company name is required (min 2 characters)'),
@@ -96,11 +97,7 @@ export default function EditClientPage() {
   };
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading client details..." variant="page" />;
   }
 
   if (isError || !client) {

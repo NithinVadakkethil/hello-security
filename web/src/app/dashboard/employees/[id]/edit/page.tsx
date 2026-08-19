@@ -6,13 +6,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Shield, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
 import { apiClient } from '../../../../lib/axios';
 import { ApiResponse } from '../../../../types/api';
 import { FormInput, Select } from '../../../../components/ui/FormControls';
+import LoadingState from '../../../../components/ui/LoadingState';
 
 const schema = z.object({
   firstName: z.string().min(2, 'First name is required (min 2 characters)'),
@@ -104,11 +105,7 @@ export default function EditEmployeePage() {
   };
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading employee profile..." variant="page" />;
   }
 
   return (

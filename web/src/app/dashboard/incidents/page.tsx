@@ -7,7 +7,6 @@ import {
   Clock,
   Eye,
   MapPin,
-  RefreshCw,
   Shield,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -16,6 +15,7 @@ import { useState } from 'react';
 import { resolveImageUrl } from '../../../lib/image';
 import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
+import LoadingState from '../../components/ui/LoadingState';
 import { apiClient } from '../../lib/axios';
 import { ApiResponse } from '../../types/api';
 
@@ -107,17 +107,7 @@ export default function IncidentsPage() {
   };
 
   if (isLoading) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          padding: '100px 0',
-        }}
-      >
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading observation reports..." variant="page" />;
   }
 
   return (

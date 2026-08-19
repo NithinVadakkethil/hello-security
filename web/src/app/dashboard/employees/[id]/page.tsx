@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Edit, Key, Shield, User, Mail, Phone, RefreshCw, Check, Copy } from 'lucide-react';
+import { ArrowLeft, Edit, Key, Shield, User, Mail, Phone, Check, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -12,6 +12,7 @@ import { ApiResponse } from '../../../types/api';
 import StatusChip from '../../../components/ui/StatusChip';
 import Modal from '../../../components/ui/Modal';
 import ConfirmationDialog from '../../../components/ui/ConfirmationDialog';
+import LoadingState from '../../../components/ui/LoadingState';
 
 interface Employee {
   id: string;
@@ -76,11 +77,7 @@ export default function EmployeeDetailPage() {
   };
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading employee profile..." variant="page" />;
   }
 
   if (isError || !employee) {

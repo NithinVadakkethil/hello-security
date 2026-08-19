@@ -3,12 +3,13 @@
 import React from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Edit, MapPin, Clock, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Edit, MapPin, Clock } from 'lucide-react';
 import Link from 'next/link';
 
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
 import StatusChip from '../../../components/ui/StatusChip';
+import LoadingState from '../../../components/ui/LoadingState';
 
 interface Gate {
   id: string;
@@ -54,11 +55,7 @@ export default function PatrolRouteDetailPage() {
   const route = routeRes?.data;
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading route details..." variant="page" />;
   }
 
   if (isError || !route) {

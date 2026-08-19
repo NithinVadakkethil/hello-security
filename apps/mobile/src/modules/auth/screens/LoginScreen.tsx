@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Image, Alert } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTheme } from '../../../app/hooks/useTheme';
@@ -31,8 +31,21 @@ export function LoginScreen() {
       await login(data);
     } catch (err: any) {
       console.error('[LoginScreen] Login failed:', err);
+      const errorCode = err.response?.data?.error?.code || err.response?.data?.code;
       const errorMessage =
-        err.response?.data?.message || err.message || 'An unexpected error occurred. Please try again.';
+        err.response?.data?.error?.message ||
+        err.response?.data?.message ||
+        err.message ||
+        'An unexpected error occurred. Please try again.';
+
+      if (errorCode === 'USER_ALREADY_LOGGED_IN') {
+        Alert.alert(
+          'Account Already Logged In',
+          'Your account is currently active on another device. Please log out from that device before trying again.',
+          [{ text: 'OK' }]
+        );
+      }
+
       setApiError(errorMessage);
     }
   };

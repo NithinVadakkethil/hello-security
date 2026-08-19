@@ -397,8 +397,10 @@ export function AssignedMaintenanceScreen() {
               >
                 <View style={styles.cardHeader}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.snagCode, { color: colors.primary }]}>
-                      #{snag.id.slice(-8).toUpperCase()}
+                    <Text style={[styles.title, { color: colors.primary }]}>
+                      {snag.gate?.name
+                        ? `${snag.gate.name} (${snag.gate.gateCode})`
+                        : 'Checkpoint'}
                     </Text>
                     <Text style={[styles.title, { color: colors.text }]}>
                       {snag.category} • {snag.subCategory || 'Reported Issue'}
@@ -431,10 +433,7 @@ export function AssignedMaintenanceScreen() {
                   <Text
                     style={[styles.metaText, { color: colors.textSecondary }]}
                   >
-                    {snag.site?.name || 'Site'} •{' '}
-                    {snag.gate?.name
-                      ? `${snag.gate.name} (${snag.gate.gateCode})`
-                      : 'Checkpoint'}
+                    {snag.site?.name || 'Site'}
                   </Text>
                 </View>
 

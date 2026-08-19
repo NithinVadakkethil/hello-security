@@ -90,24 +90,54 @@ export class GateRepository {
     });
   }
 
-  list(siteId?: string, isActive?: boolean, clientId?: string) {
-    return prisma.gate.findMany({
-      where: {
-        ...(siteId && { siteId }),
-        ...(isActive !== undefined && { isActive }),
-        ...(clientId && !siteId && { site: { clientId } }),
-      },
-      include: {
-        subTasks: {
-          orderBy: {
-            displayOrder: 'asc',
-          },
+  async list(siteId?: string, isActive?: boolean, clientId?: string, page?: number, limit?: number) {
+    const where = {
+      ...(siteId && { siteId }),
+      ...(isActive !== undefined && { isActive }),
+      ...(clientId && !siteId && { site: { clientId } }),
+    };
+
+    const include = {
+      subTasks: {
+        orderBy: {
+          displayOrder: 'asc' as const,
         },
       },
-      orderBy: [
-        { isActive: 'desc' },
-        { sequence: 'asc' },
-      ],
+    };
+
+    const orderBy = [
+      { isActive: 'desc' as const },
+      { sequence: 'asc' as const },
+    ];
+
+    if (page !== undefined && limit !== undefined) {
+      const skip = (page - 1) * limit;
+      const [items, total] = await Promise.all([
+        prisma.gate.findMany({
+          where,
+          include,
+          orderBy,
+          skip,
+          take: limit,
+        }),
+        prisma.gate.count({ where }),
+      ]);
+
+      return {
+        items,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      };
+    }
+
+    return prisma.gate.findMany({
+      where,
+      include,
+      orderBy,
     });
   }
 

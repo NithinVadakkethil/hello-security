@@ -3,13 +3,14 @@
 import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Clock, Shield, AlertTriangle, Download, ChevronLeft, ChevronRight, RefreshCw, X, MapPin, Building2 } from 'lucide-react';
+import { ArrowLeft, Clock, Shield, AlertTriangle, Download, ChevronLeft, ChevronRight, X, MapPin, Building2 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
 import { resolveImageUrl } from '../../../../lib/image';
+import LoadingState from '../../../components/ui/LoadingState';
 
 interface Employee {
   id: string;
@@ -101,11 +102,7 @@ export default function IncidentDetailPage() {
   };
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading incident report details..." variant="page" />;
   }
 
   if (isError || !incident) {

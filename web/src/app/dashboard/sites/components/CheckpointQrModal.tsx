@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
-import { Download, Printer } from 'lucide-react';
+import { toJpeg, toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
+import { Download, FileText, Printer } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { toJpeg } from 'html-to-image';
 import Modal from '../../../components/ui/Modal';
 
 interface Gate {
@@ -32,6 +33,8 @@ export default function CheckpointQrModal({
 }: CheckpointQrModalProps) {
   const checkpointPrintRef = useRef<HTMLDivElement>(null);
   const [isGeneratingJpg, setIsGeneratingJpg] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [paperFormat, setPaperFormat] = useState<'52x40' | '40x52'>('52x40');
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
   useEffect(() => {
@@ -70,7 +73,47 @@ export default function CheckpointQrModal({
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 
-  const downloadFilename = `checkpoint-${sanitizedGateName ? sanitizedGateName + '-' : ''}${gate.gateCode}.jpg`;
+  const fileBaseName = `checkpoint-${sanitizedGateName ? sanitizedGateName + '-' : ''}${gate.gateCode}`;
+  const downloadJpgFilename = `${fileBaseName}.jpg`;
+  const downloadPdfFilename = `${fileBaseName}-${paperFormat}.pdf`;
+
+  // Helper to generate a jsPDF document based on selected paper size format
+  const createPdf = async (): Promise<jsPDF> => {
+    if (!checkpointPrintRef.current) {
+      throw new Error('Print container reference not ready');
+    }
+
+    const isLandscape = paperFormat === '52x40';
+    const dimensions: [number, number] = isLandscape ? [52, 40] : [40, 52];
+
+    // High resolution capture (4x pixel ratio for sharp thermal scanning)
+    const imgData = await toPng(checkpointPrintRef.current, {
+      quality: 1.0,
+      pixelRatio: 4,
+      backgroundColor: '#ffffff',
+      cacheBust: true,
+    });
+
+    const pdf = new jsPDF({
+      orientation: isLandscape ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: dimensions,
+      compress: true,
+    });
+
+    // Render captured image to cover full page with 0 margins
+    pdf.addImage(
+      imgData,
+      'PNG',
+      0,
+      0,
+      dimensions[0],
+      dimensions[1],
+      undefined,
+      'FAST',
+    );
+    return pdf;
+  };
 
   const handleDownloadJpg = async () => {
     if (!checkpointPrintRef.current || isGeneratingJpg) return;
@@ -80,17 +123,17 @@ export default function CheckpointQrModal({
 
       const dataUrl = await toJpeg(checkpointPrintRef.current, {
         quality: 0.98,
-        pixelRatio: 3, // High resolution rendering for sharp QR scanning
+        pixelRatio: 4, // High resolution rendering for sharp QR scanning
         backgroundColor: '#ffffff',
         cacheBust: true,
       });
 
       const link = document.createElement('a');
-      link.download = downloadFilename;
+      link.download = downloadJpgFilename;
       link.href = dataUrl;
       link.click();
 
-      toast.success(`Downloaded ${downloadFilename}`);
+      toast.success(`Downloaded ${downloadJpgFilename}`);
     } catch (err: any) {
       console.error('Failed to generate JPG:', err);
       toast.error('Failed to generate JPG image. Please try again.');
@@ -99,280 +142,581 @@ export default function CheckpointQrModal({
     }
   };
 
-  const handlePrint = () => {
-    if (!gate) return;
+  const handleDownloadPdf = async () => {
+    if (!checkpointPrintRef.current || isGeneratingPdf) return;
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Please allow popups to print checkpoint.');
-      return;
+    try {
+      setIsGeneratingPdf(true);
+      toast.loading(
+        `Generating ${paperFormat === '52x40' ? '52mm × 40mm' : '40mm × 52mm'} PDF...`,
+        { id: 'qr-pdf' },
+      );
+
+      const pdf = await createPdf();
+      pdf.save(downloadPdfFilename);
+
+      toast.dismiss('qr-pdf');
+      toast.success(`Downloaded ${downloadPdfFilename}`);
+    } catch (err: any) {
+      console.error('Failed to generate PDF:', err);
+      toast.dismiss('qr-pdf');
+      toast.error('Failed to generate PDF.');
+    } finally {
+      setIsGeneratingPdf(false);
     }
+  };
 
-    const qrImageSrc = qrDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(gate.id)}`;
+  const handlePrint = async () => {
+    if (!gate || !checkpointPrintRef.current || isGeneratingPdf) return;
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Checkpoint QR - ${gate.gateCode}</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              margin: 0;
-              padding: 0;
-              background-color: #ffffff;
-              color: #0f172a;
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              min-height: 100vh;
-            }
-            .qr-card-container {
-              width: 360px;
-              padding: 32px 28px;
-              background-color: #ffffff;
-              border: 3px double #0f172a;
-              border-radius: 16px;
-              text-align: center;
-              box-shadow: none;
-            }
-            .company-name {
-              font-size: 1.35rem;
-              font-weight: 800;
-              text-transform: uppercase;
-              letter-spacing: 0.06em;
-              color: #0f172a;
-              margin-bottom: 4px;
-            }
-            .site-name {
-              font-size: 0.95rem;
-              font-weight: 600;
-              color: #475569;
-              margin-bottom: 20px;
-            }
-            .qr-wrapper {
-              background-color: #ffffff;
-              padding: 16px;
-              display: inline-block;
-              border-radius: 12px;
-              border: 1px solid #e2e8f0;
-              margin-bottom: 20px;
-            }
-            .qr-img {
-              width: 220px;
-              height: 220px;
-              display: block;
-            }
-            .gate-name {
-              font-size: 1.2rem;
-              font-weight: 700;
-              color: #0f172a;
-              margin-bottom: 4px;
-            }
-            .gate-code-badge {
-              display: inline-block;
-              font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-              font-size: 0.85rem;
-              font-weight: 700;
-              color: #2563eb;
-              background-color: #eff6ff;
-              padding: 4px 12px;
-              border-radius: 6px;
-              margin-bottom: 20px;
-            }
-            .card-footer {
-              border-top: 1px dashed #cbd5e1;
-              padding-top: 16px;
-            }
-            .footer-brand {
-              font-size: 0.75rem;
-              font-weight: 800;
-              color: #0f172a;
-              letter-spacing: 0.05em;
-              margin-bottom: 4px;
-            }
-            .footer-instructions {
-              font-size: 0.72rem;
-              color: #64748b;
-              line-height: 1.4;
-              margin: 0;
-            }
-            @media print {
-              body {
-                min-height: auto;
-              }
+    try {
+      setIsGeneratingPdf(true);
+      toast.loading('Preparing label for printer...', { id: 'qr-print' });
+
+      // Generate ultra high DPI PNG data URL (pixelRatio: 4 for crisp thermal QR scanning)
+      const imgDataUrl = await toPng(checkpointPrintRef.current, {
+        quality: 1.0,
+        pixelRatio: 4,
+        backgroundColor: '#ffffff',
+        cacheBust: true,
+      });
+
+      toast.dismiss('qr-print');
+
+      const isLandscape = paperFormat === '52x40';
+      const widthMm = isLandscape ? '52mm' : '40mm';
+      const heightMm = isLandscape ? '40mm' : '52mm';
+
+      // Create cross-platform compatible hidden iframe for printing
+      // Overrides Windows default print margins with @page { margin: 0 !important; }
+      const printIframe = document.createElement('iframe');
+      printIframe.style.position = 'fixed';
+      printIframe.style.right = '0';
+      printIframe.style.bottom = '0';
+      printIframe.style.width = '0';
+      printIframe.style.height = '0';
+      printIframe.style.border = '0';
+      printIframe.style.visibility = 'hidden';
+
+      document.body.appendChild(printIframe);
+
+      const iframeDoc = printIframe.contentWindow?.document;
+      if (!iframeDoc) {
+        throw new Error('Failed to open iframe document');
+      }
+
+      iframeDoc.open();
+      iframeDoc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Checkpoint QR - ${gate.gateCode}</title>
+            <style>
               @page {
-                margin: 0.5cm;
+                size: ${widthMm} ${heightMm};
+                margin: 0 !important;
               }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="qr-card-container">
-            <div class="company-name">${companyName || 'HELLO ORBIT'}</div>
-            <div class="site-name">${siteName || 'Monitored Site'}</div>
-            <div class="qr-wrapper">
-              <img class="qr-img" src="${qrImageSrc}" alt="Checkpoint QR Code" />
-            </div>
-            <div class="gate-name">${gate.name}</div>
-            <div class="gate-code-badge">CHECKPOINT ID: ${gate.gateCode}</div>
-            <div class="card-footer">
-              <div class="footer-brand">HELLO ORBIT • POWERED BY ATLABS</div>
-              <p class="footer-instructions">
-                Scan this QR code using the Hello Orbit Guard mobile app to log check-in sequence status.
-              </p>
-            </div>
-          </div>
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+              * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+              }
+              html, body {
+                width: ${widthMm};
+                height: ${heightMm};
+                overflow: hidden;
+                background: #ffffff;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              }
+              .label-img {
+                width: ${widthMm};
+                height: ${heightMm};
+                display: block;
+                object-fit: contain;
+              }
+            </style>
+          </head>
+          <body>
+            <img class="label-img" src="${imgDataUrl}" alt="QR Label" />
+          </body>
+        </html>
+      `);
+      iframeDoc.close();
+
+      const img = iframeDoc.querySelector('img');
+      const triggerPrint = () => {
+        setTimeout(() => {
+          try {
+            printIframe.contentWindow?.focus();
+            printIframe.contentWindow?.print();
+          } catch (e) {
+            console.error('Print trigger error:', e);
+          } finally {
+            setTimeout(() => {
+              if (document.body.contains(printIframe)) {
+                document.body.removeChild(printIframe);
+              }
+            }, 2000);
+          }
+        }, 150);
+      };
+
+      if (img?.complete) {
+        triggerPrint();
+      } else if (img) {
+        img.onload = triggerPrint;
+        img.onerror = () => {
+          if (document.body.contains(printIframe)) {
+            document.body.removeChild(printIframe);
+          }
+          toast.error('Failed to load print image');
+        };
+      }
+    } catch (err: any) {
+      console.error('Failed to print label:', err);
+      toast.dismiss('qr-print');
+      toast.error('Failed to prepare label for printing.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Checkpoint QR: ${gate.name}`}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center' }}>
-        {/* Bordered Checkpoint QR Card - Single Source of Truth for Capture & Display */}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Checkpoint QR: ${gate.name}`}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+          alignItems: 'center',
+        }}
+      >
+        {/* Paper Size / Format Selector */}
         <div
-          ref={checkpointPrintRef}
           style={{
-            width: '360px',
-            padding: '32px 28px',
-            backgroundColor: '#ffffff',
-            border: '3px double #0f172a',
-            borderRadius: '16px',
-            textAlign: 'center',
-            boxSizing: 'border-box',
-            color: '#0f172a',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            backgroundColor: 'var(--surface-color)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '8px',
+            padding: '4px 8px',
+            fontSize: '0.78rem',
           }}
         >
-          <div
+          <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>
+            Printer Media Size:
+          </span>
+          <button
+            type="button"
+            onClick={() => setPaperFormat('52x40')}
             style={{
-              fontSize: '1.35rem',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              color: '#0f172a',
-              marginBottom: '4px',
-            }}
-          >
-            {companyName || 'HELLO ORBIT'}
-          </div>
-
-          <div
-            style={{
-              fontSize: '0.95rem',
-              fontWeight: 600,
-              color: '#475569',
-              marginBottom: '20px',
-            }}
-          >
-            {siteName || 'Monitored Site'}
-          </div>
-
-          <div
-            style={{
-              backgroundColor: '#ffffff',
-              padding: '16px',
-              display: 'inline-block',
-              borderRadius: '12px',
-              border: '1px solid #e2e8f0',
-              marginBottom: '20px',
-            }}
-          >
-            {qrDataUrl ? (
-              <img
-                src={qrDataUrl}
-                alt={`QR Code for ${gate.name}`}
-                style={{ width: '220px', height: '220px', display: 'block' }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: '220px',
-                  height: '220px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#64748b',
-                  fontSize: '0.85rem',
-                }}
-              >
-                Loading QR...
-              </div>
-            )}
-          </div>
-
-          <div
-            style={{
-              fontSize: '1.2rem',
-              fontWeight: 700,
-              color: '#0f172a',
-              marginBottom: '4px',
-            }}
-          >
-            {gate.name}
-          </div>
-
-          <div
-            style={{
-              display: 'inline-block',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-              fontSize: '0.85rem',
-              fontWeight: 700,
-              color: '#2563eb',
-              backgroundColor: '#eff6ff',
-              padding: '4px 12px',
+              padding: '4px 10px',
               borderRadius: '6px',
-              marginBottom: '20px',
+              border:
+                paperFormat === '52x40'
+                  ? '1px solid #000000'
+                  : '1px solid transparent',
+              backgroundColor:
+                paperFormat === '52x40' ? '#f1f5f9' : 'transparent',
+              color: '#000000',
+              fontWeight: 800,
+              cursor: 'pointer',
+              fontSize: '0.78rem',
             }}
           >
-            CHECKPOINT ID: {gate.gateCode}
-          </div>
-
-          <div
+            52 × 40 mm (2.05" × 1.57") [Box P]
+          </button>
+          <button
+            type="button"
+            onClick={() => setPaperFormat('40x52')}
             style={{
-              borderTop: '1px dashed #cbd5e1',
-              paddingTop: '16px',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              border:
+                paperFormat === '40x52'
+                  ? '1px solid #000000'
+                  : '1px solid transparent',
+              backgroundColor:
+                paperFormat === '40x52' ? '#f1f5f9' : 'transparent',
+              color: '#000000',
+              fontWeight: 800,
+              cursor: 'pointer',
+              fontSize: '0.78rem',
             }}
           >
+            40 × 52 mm (1.57" × 2.05")
+          </button>
+        </div>
+
+        {/*
+          Bordered Checkpoint QR Card - Single Source of Truth for Capture & Display
+          Format 52x40: 364px Width x 280px Height (Optimized 185px QR size for clean text alignment)
+          Format 40x52: 280px Width x 364px Height (Vertical / Portrait)
+        */}
+        {paperFormat === '52x40' ? (
+          <div
+            ref={checkpointPrintRef}
+            style={{
+              width: '384px',
+              height: '280px',
+              padding: '8px 10px',
+              backgroundColor: '#ffffff',
+              border: '2px solid #000000',
+              borderRadius: '6px',
+              boxSizing: 'border-box',
+              color: '#000000',
+              fontFamily:
+                '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '6px',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            {/* Left Column: Vertical Text (Company & Site Name) */}
             <div
               style={{
-                fontSize: '0.75rem',
-                fontWeight: 800,
-                color: '#0f172a',
-                letterSpacing: '0.05em',
-                marginBottom: '4px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                writingMode: 'vertical-rl',
+                transform: 'rotate(180deg)',
+                whiteSpace: 'nowrap',
+                gap: '6px',
+                height: '100%',
+                padding: '0 4px',
               }}
             >
-              HELLO ORBIT • POWERED BY ATLABS
+              <div
+                style={{
+                  fontSize: '0.88rem',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  color: '#000000',
+                }}
+              >
+                {companyName || 'HELLO ORBIT'}
+              </div>
+              <div
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  color: '#000000',
+                }}
+              >
+                {siteName || 'Monitored Site'}
+              </div>
             </div>
-            <p
+
+            {/* Center Column: Perfectly Proportioned Square QR Code (185px) */}
+            <div
               style={{
-                fontSize: '0.72rem',
-                color: '#64748b',
-                lineHeight: 1.4,
-                margin: 0,
+                backgroundColor: '#ffffff',
+                padding: '4px',
+                borderRadius: '10px',
+                border: '2px solid #000000',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto',
               }}
             >
-              Scan this QR code using the Hello Orbit Guard mobile app to log check-in sequence status.
-            </p>
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt={`QR Code for ${gate.name}`}
+                  style={{
+                    width: '185px',
+                    height: '185px',
+                    display: 'block',
+                    borderRadius: '6px',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '185px',
+                    height: '185px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#000000',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                  }}
+                >
+                  Loading QR...
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Gate Name & Monospace ID Badge */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                writingMode: 'vertical-rl',
+                transform: 'rotate(180deg)',
+                whiteSpace: 'nowrap',
+                gap: '8px',
+                height: '100%',
+                padding: '0 4px',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.86rem',
+                  fontWeight: 800,
+                  color: '#000000',
+                }}
+              >
+                {gate.name}
+              </div>
+
+              <div
+                style={{
+                  display: 'inline-block',
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                  fontSize: '0.70rem',
+                  fontWeight: 800,
+                  color: '#000000',
+                  backgroundColor: '#f1f5f9',
+                  border: '1.5px solid #000000',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                }}
+              >
+                CHECKPOINT ID: {gate.gateCode}
+              </div>
+            </div>
+
+            {/* Vertical Dashed Line Divider */}
+            <div
+              style={{
+                height: '100%',
+                borderLeft: '1.5px dashed #000000',
+                margin: '0 3px',
+              }}
+            />
+
+            {/* Far-Right Column: Footer Brand & Instructions */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                writingMode: 'vertical-rl',
+                transform: 'rotate(180deg)',
+                whiteSpace: 'nowrap',
+                gap: '6px',
+                height: '100%',
+                padding: '0 4px',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.58rem',
+                  fontWeight: 800,
+                  color: '#000000',
+                  letterSpacing: '0.03em',
+                }}
+              >
+                HELLO ORBIT • POWERED BY ATLABS
+              </div>
+              {/* <p
+                style={{
+                  fontSize: '0.52rem',
+                  fontWeight: 700,
+                  color: '#000000',
+                  lineHeight: 1.15,
+                  margin: 0,
+                }}
+              >
+                Scan this QR code using the Hello Orbit Guard mobile app to log
+                check-in sequence status.
+              </p> */}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div
+            ref={checkpointPrintRef}
+            style={{
+              width: '280px',
+              height: '364px',
+              padding: '8px 10px',
+              backgroundColor: '#ffffff',
+              border: '2px solid #000000',
+              borderRadius: '6px',
+              textAlign: 'center',
+              boxSizing: 'border-box',
+              color: '#000000',
+              fontFamily:
+                '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Header */}
+            <div style={{ width: '100%', marginTop: '4px' }}>
+              <div
+                style={{
+                  fontSize: '0.92rem',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  color: '#000000',
+                  lineHeight: 1.15,
+                  marginBottom: '1px',
+                }}
+              >
+                {companyName || 'HELLO ORBIT'}
+              </div>
+
+              <div
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  color: '#000000',
+                  lineHeight: 1.15,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {siteName || 'Monitored Site'}
+              </div>
+            </div>
+
+            {/* QR Code Container */}
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                padding: '6px',
+                display: 'inline-block',
+                borderRadius: '8px',
+                border: '1.5px solid #000000',
+                margin: '8px 0',
+              }}
+            >
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt={`QR Code for ${gate.name}`}
+                  style={{ width: '165px', height: '165px', display: 'block' }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '165px',
+                    height: '165px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#000000',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                  }}
+                >
+                  Loading QR...
+                </div>
+              )}
+            </div>
+
+            {/* Checkpoint Name & ID */}
+            <div style={{ width: '100%' }}>
+              <div
+                style={{
+                  fontSize: '0.84rem',
+                  fontWeight: 800,
+                  color: '#000000',
+                  lineHeight: 1.2,
+                  marginBottom: '3px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {gate.name}
+              </div>
+
+              <div
+                style={{
+                  display: 'inline-block',
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  color: '#000000',
+                  backgroundColor: '#f1f5f9',
+                  border: '1.5px solid #000000',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                }}
+              >
+                CHECKPOINT ID: {gate.gateCode}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                borderTop: '1.5px dashed #000000',
+                paddingTop: '5px',
+                width: '100%',
+                marginTop: '6px',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.62rem',
+                  fontWeight: 800,
+                  color: '#000000',
+                  letterSpacing: '0.03em',
+                  marginBottom: '2px',
+                }}
+              >
+                HELLO ORBIT • POWERED BY ATLABS
+              </div>
+              <p
+                style={{
+                  fontSize: '0.58rem',
+                  fontWeight: 700,
+                  color: '#000000',
+                  lineHeight: 1.2,
+                  margin: 0,
+                }}
+              >
+                Scan this QR code using the Hello Orbit Guard mobile app to log
+                check-in sequence status.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div
           style={{
             display: 'flex',
-            gap: '12px',
+            gap: '10px',
             width: '100%',
             justifyContent: 'center',
             flexWrap: 'wrap',
@@ -381,34 +725,57 @@ export default function CheckpointQrModal({
           <button
             type="button"
             onClick={handlePrint}
+            disabled={isGeneratingPdf}
+            className="btn btn-primary"
+            style={{
+              flex: 1,
+              minWidth: '130px',
+              gap: '6px',
+              justifyContent: 'center',
+              padding: '10px 14px',
+              fontSize: '0.85rem',
+            }}
+          >
+            <Printer size={16} />
+            <span>
+              {isGeneratingPdf ? 'Preparing...' : 'Print Check Point'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={isGeneratingPdf}
             className="btn btn-secondary"
             style={{
               flex: 1,
-              minWidth: '150px',
-              gap: '8px',
+              minWidth: '130px',
+              gap: '6px',
               justifyContent: 'center',
-              padding: '10px 16px',
+              padding: '10px 14px',
+              fontSize: '0.85rem',
             }}
           >
-            <Printer size={18} />
-            <span>Print Checkpoint</span>
+            <FileText size={16} />
+            <span>Download PDF</span>
           </button>
 
           <button
             type="button"
             onClick={handleDownloadJpg}
             disabled={isGeneratingJpg}
-            className="btn btn-primary"
+            className="btn btn-secondary"
             style={{
               flex: 1,
-              minWidth: '150px',
-              gap: '8px',
+              minWidth: '130px',
+              gap: '6px',
               justifyContent: 'center',
-              padding: '10px 16px',
+              padding: '10px 14px',
+              fontSize: '0.85rem',
             }}
           >
-            <Download size={18} />
-            <span>{isGeneratingJpg ? 'Generating JPG...' : 'Download as JPG'}</span>
+            <Download size={16} />
+            <span>{isGeneratingJpg ? 'Saving JPG...' : 'Download as JPG'}</span>
           </button>
         </div>
       </div>

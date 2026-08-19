@@ -6,13 +6,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Shield, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Shield, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
 import { apiClient } from '../../../../lib/axios';
 import { ApiResponse } from '../../../../types/api';
 import { FormInput } from '../../../../components/ui/FormControls';
+import LoadingState from '../../../../components/ui/LoadingState';
 
 const schema = z.object({
   name: z.string().min(3, 'Site name must be at least 3 characters'),
@@ -80,11 +81,7 @@ export default function EditSitePage() {
   };
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading site configuration..." variant="page" />;
   }
 
   return (

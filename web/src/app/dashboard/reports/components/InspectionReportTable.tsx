@@ -30,6 +30,7 @@ export interface InspectionRow {
   };
   checkpoints?: any[];
   incidents?: any[];
+  snags?: any[];
 }
 
 interface InspectionReportTableProps {
@@ -71,34 +72,6 @@ export default function InspectionReportTable({
       />
     );
   };
-
-  if (isLoading) {
-    return (
-      <div
-        className="glass-card"
-        style={{
-          padding: '24px',
-          borderRadius: '14px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-        }}
-      >
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              height: '48px',
-              backgroundColor: 'var(--surface-color)',
-              borderRadius: '8px',
-              opacity: 0.5,
-              animation: 'pulse 1.5s infinite',
-            }}
-          />
-        ))}
-      </div>
-    );
-  }
 
   return (
     <div
@@ -188,7 +161,7 @@ export default function InspectionReportTable({
               <th style={{ padding: '12px 16px' }}>Route / Target</th>
               <th style={{ padding: '12px 16px' }}>Status</th>
               <th style={{ padding: '12px 16px' }}>Compliance</th>
-              <th style={{ padding: '12px 16px' }}>Duration</th>
+              {/* <th style={{ padding: '12px 16px' }}>Duration</th> */}
               <th style={{ padding: '12px 16px' }}>Issues</th>
               <th style={{ padding: '12px 16px', textAlign: 'right' }}>
                 Actions
@@ -196,7 +169,27 @@ export default function InspectionReportTable({
             </tr>
           </thead>
           <tbody>
-            {data.length === 0 ? (
+            {isLoading ? (
+              [...Array(5)].map((_, rowIndex) => (
+                <tr
+                  key={rowIndex}
+                  style={{ borderBottom: '1px solid var(--border-color)' }}
+                >
+                  {[...Array(10)].map((_, colIndex) => (
+                    <td key={colIndex} style={{ padding: '16px' }}>
+                      <div
+                        className="skeleton-loading"
+                        style={{
+                          height: '18px',
+                          borderRadius: '4px',
+                          width: `${50 + ((colIndex * 11 + rowIndex * 13) % 40)}%`,
+                        }}
+                      ></div>
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : data.length === 0 ? (
               <tr>
                 <td
                   colSpan={10}
@@ -220,10 +213,11 @@ export default function InspectionReportTable({
                   totalGates > 0
                     ? Math.round((scannedCount / totalGates) * 100)
                     : 100;
-                const durationMins = row.totalDuration
-                  ? Math.round(row.totalDuration / 60)
-                  : 0;
-                const issueCount = row.incidents?.length || 0;
+                // const durationMins = row.totalDuration
+                //   ? Math.round(row.totalDuration / 60)
+                //   : 0;
+                const issueCount =
+                  (row.incidents?.length || 0) + (row.snags?.length || 0);
 
                 return (
                   <tr
@@ -337,7 +331,7 @@ export default function InspectionReportTable({
                         </div>
                       </div>
                     </td>
-                    <td
+                    {/* <td
                       style={{
                         padding: '14px 16px',
                         color: 'var(--text-secondary)',
@@ -346,7 +340,7 @@ export default function InspectionReportTable({
                       {durationMins > 0
                         ? `${durationMins} mins`
                         : 'In Progress'}
-                    </td>
+                    </td> */}
                     <td style={{ padding: '14px 16px' }}>
                       {issueCount > 0 ? (
                         <span
@@ -388,7 +382,7 @@ export default function InspectionReportTable({
                         }}
                       >
                         <Eye size={14} />
-                        <span>View Report</span>
+                        <span>Report</span>
                       </button>
                     </td>
                   </tr>

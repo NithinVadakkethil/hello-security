@@ -109,12 +109,12 @@ export default function AnalyticsCards({ data, isLoading }: AnalyticsCardsProps)
 
   if (isLoading) {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px' }}>
         {Array.from({ length: 9 }).map((_, i) => (
           <div
             key={i}
-            className="glass-card spin-placeholder"
-            style={{ height: '110px', borderRadius: '12px', opacity: 0.5, animation: 'pulse 1.5s infinite' }}
+            className="glass-card stat-card skeleton-loading"
+            style={{ height: '110px', borderRadius: '12px' }}
           />
         ))}
       </div>

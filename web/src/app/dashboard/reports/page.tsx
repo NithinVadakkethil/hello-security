@@ -151,6 +151,8 @@ export default function ReportsPage() {
           'Route / Target':
             r.assignment.patrolRoute?.name || 'Direct Checkpoints',
           Status: r.status,
+          'Issues Reported':
+            (r.incidents?.length || 0) + (r.snags?.length || 0),
           'Duration (Mins)': r.totalDuration
             ? Math.round(r.totalDuration / 60)
             : 0,

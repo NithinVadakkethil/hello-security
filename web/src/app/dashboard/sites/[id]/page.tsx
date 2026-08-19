@@ -6,13 +6,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Edit, Plus, MapPin, RefreshCw, ToggleLeft, ToggleRight, QrCode, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Edit, Plus, MapPin, ToggleLeft, ToggleRight, QrCode, CheckSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
 import DataTable from '../../../components/ui/DataTable';
+import LoadingState from '../../../components/ui/LoadingState';
+import Pagination from '../../../components/ui/Pagination';
 import Modal from '../../../components/ui/Modal';
 import ConfirmationDialog from '../../../components/ui/ConfirmationDialog';
 import { FormInput } from '../../../components/ui/FormControls';
@@ -96,20 +98,33 @@ export default function SiteDetailPage() {
     gate: null,
   });
 
+  // Pagination state for gates
+  const [gatePage, setGatePage] = useState(1);
+
   // Fetch Site Details
   const { data: siteRes, isLoading: isSiteLoading } = useQuery<ApiResponse<Site>>({
     queryKey: ['site', id],
     queryFn: () => apiClient.get(`/sites/${id}`),
   });
 
-  // Fetch Site Gates
-  const { data: gatesRes, isLoading: isGatesLoading } = useQuery<ApiResponse<Gate[]>>({
-    queryKey: ['gates', id],
-    queryFn: () => apiClient.get('/gates', { params: { siteId: id } }),
+  // Fetch Site Gates (Paginated)
+  const { data: gatesRes, isLoading: isGatesLoading } = useQuery<ApiResponse<Gate[]> & { pagination?: any }>({
+    queryKey: ['gates', id, gatePage],
+    queryFn: () => apiClient.get('/gates', { params: { siteId: id, page: gatePage, limit: 10 } }),
   });
 
   const site = siteRes?.data;
-  const gates = gatesRes?.data || [];
+  const gates = Array.isArray(gatesRes?.data)
+    ? gatesRes.data
+    : (gatesRes?.data as any)?.items || [];
+  const gatePagination =
+    gatesRes?.pagination ||
+    (gatesRes as any)?.pagination || {
+      page: 1,
+      limit: 10,
+      total: gates.length,
+      totalPages: 1,
+    };
 
   // Query Resource Limits for Client
   const { data: limitsRes } = useQuery<ApiResponse<any>>({
@@ -299,11 +314,7 @@ export default function SiteDetailPage() {
   ];
 
   if (isSiteLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading site & gates details..." variant="page" />;
   }
 
   if (!site) {
@@ -452,6 +463,12 @@ export default function SiteDetailPage() {
           data={gates}
           isLoading={isGatesLoading}
           emptyMessage="No gate checkpoints registered for this site yet. Click 'Add Checkpoint' to create one."
+        />
+
+        <Pagination
+          currentPage={gatePage}
+          totalPages={gatePagination.totalPages}
+          onPageChange={(newPage) => setGatePage(newPage)}
         />
       </div>
 

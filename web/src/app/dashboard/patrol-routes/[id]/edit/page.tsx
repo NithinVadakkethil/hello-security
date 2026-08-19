@@ -6,7 +6,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Shield,
   ArrowLeft,
-  RefreshCw,
   Plus,
   Trash2,
   ChevronUp,
@@ -20,6 +19,7 @@ import Link from 'next/link';
 import { apiClient } from '../../../../lib/axios';
 import { ApiResponse } from '../../../../types/api';
 import { Switch } from '../../../../components/ui/FormControls';
+import LoadingState from '../../../../components/ui/LoadingState';
 import Modal from '../../../../components/ui/Modal';
 import ConfirmationDialog from '../../../../components/ui/ConfirmationDialog';
 
@@ -215,11 +215,7 @@ export default function EditPatrolRoutePage() {
   );
 
   if (isRouteLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading route configuration..." variant="page" />;
   }
 
   return (

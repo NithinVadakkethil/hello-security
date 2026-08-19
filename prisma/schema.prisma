@@ -501,11 +501,17 @@ model RefreshToken {
 
   tokenHash String
 
+  deviceId String?
+
+  deviceInfo String?
+
   expiresAt DateTime
 
   revokedAt DateTime?
 
   createdAt DateTime @default(now())
+
+  @@index([userId, deviceId])
 }
 
 model AuditLog {

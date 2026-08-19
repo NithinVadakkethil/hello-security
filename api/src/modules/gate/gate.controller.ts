@@ -34,14 +34,25 @@ export class GateController {
           ? undefined
           : req.query.isActive === 'true';
 
+      const page = req.query.page ? Number(req.query.page) : undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : undefined;
+
       const isSuperAdmin = user.role === 'SUPER_ADMIN';
       const clientId = isSuperAdmin || !user.tenantId ? undefined : user.tenantId;
 
-      const result = await gateService.list(siteId, isActive, clientId);
+      const result = await gateService.list(siteId, isActive, clientId, page, limit);
+
+      if (Array.isArray(result)) {
+        return res.status(HttpStatus.OK).json({
+          success: true,
+          data: result,
+        });
+      }
 
       return res.status(HttpStatus.OK).json({
         success: true,
-        data: result,
+        data: result.items,
+        pagination: result.pagination,
       });
     } catch (error) {
       return next(error);
