@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -15,6 +15,7 @@ import { ApiResponse } from '../../../types/api';
 import DataTable from '../../../components/ui/DataTable';
 import LoadingState from '../../../components/ui/LoadingState';
 import Pagination from '../../../components/ui/Pagination';
+import SearchBar from '../../../components/ui/SearchBar';
 import Modal from '../../../components/ui/Modal';
 import ConfirmationDialog from '../../../components/ui/ConfirmationDialog';
 import { FormInput } from '../../../components/ui/FormControls';
@@ -62,6 +63,9 @@ type GateValues = z.infer<typeof gateSchema>;
 export default function SiteDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
 
   // Dialog / Modal state
@@ -98,8 +102,36 @@ export default function SiteDetailPage() {
     gate: null,
   });
 
-  // Pagination state for gates
-  const [gatePage, setGatePage] = useState(1);
+  // Dynamic Pagination & Search state for gates synced via URL
+  const gatePage = searchParams.get('gatePage') ? Number(searchParams.get('gatePage')) : 1;
+  const gateSearch = searchParams.get('gateSearch') || '';
+
+  const updateUrlParams = (newPage: number, newSearch: string) => {
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+
+    if (newPage > 1) {
+      current.set('gatePage', String(newPage));
+    } else {
+      current.delete('gatePage');
+    }
+
+    if (newSearch.trim()) {
+      current.set('gateSearch', newSearch.trim());
+    } else {
+      current.delete('gateSearch');
+    }
+
+    const query = current.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  const handleGateSearchChange = (val: string) => {
+    updateUrlParams(1, val);
+  };
+
+  const handleGatePageChange = (newPage: number) => {
+    updateUrlParams(newPage, gateSearch);
+  };
 
   // Fetch Site Details
   const { data: siteRes, isLoading: isSiteLoading } = useQuery<ApiResponse<Site>>({
@@ -107,10 +139,19 @@ export default function SiteDetailPage() {
     queryFn: () => apiClient.get(`/sites/${id}`),
   });
 
-  // Fetch Site Gates (Paginated)
+  // Fetch Site Gates (Paginated & Searched)
   const { data: gatesRes, isLoading: isGatesLoading } = useQuery<ApiResponse<Gate[]> & { pagination?: any }>({
-    queryKey: ['gates', id, gatePage],
-    queryFn: () => apiClient.get('/gates', { params: { siteId: id, page: gatePage, limit: 10 } }),
+    queryKey: ['gates', id, gatePage, gateSearch],
+    queryFn: () =>
+      apiClient.get('/gates', {
+        params: {
+          siteId: id,
+          page: gatePage,
+          limit: 10,
+          search: gateSearch.trim() || undefined,
+        },
+      }),
+    placeholderData: (previousData) => previousData,
   });
 
   const site = siteRes?.data;
@@ -444,7 +485,7 @@ export default function SiteDetailPage() {
           </div>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h3 style={{ fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>Security Gates & Patrol Checkpoints</h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
@@ -452,23 +493,34 @@ export default function SiteDetailPage() {
             </p>
           </div>
 
-          <button onClick={handleOpenAddGate} className="btn btn-primary" style={{ gap: '8px' }}>
-            <Plus size={16} />
-            <span>Add Checkpoint</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <SearchBar
+              value={gateSearch}
+              onChange={handleGateSearchChange}
+              placeholder="Search checkpoints by name or ID..."
+            />
+            <button onClick={handleOpenAddGate} className="btn btn-primary" style={{ gap: '8px' }}>
+              <Plus size={16} />
+              <span>Add Checkpoint</span>
+            </button>
+          </div>
         </div>
 
         <DataTable
           columns={gateColumns}
           data={gates}
           isLoading={isGatesLoading}
-          emptyMessage="No gate checkpoints registered for this site yet. Click 'Add Checkpoint' to create one."
+          emptyMessage={
+            gateSearch
+              ? 'No security gate checkpoints found matching your search.'
+              : "No gate checkpoints registered for this site yet. Click 'Add Checkpoint' to create one."
+          }
         />
 
         <Pagination
           currentPage={gatePage}
           totalPages={gatePagination.totalPages}
-          onPageChange={(newPage) => setGatePage(newPage)}
+          onPageChange={handleGatePageChange}
         />
       </div>
 

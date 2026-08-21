@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   Wrench,
@@ -44,13 +45,75 @@ interface SnagStats {
 }
 
 export default function SnagsListPage() {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('');
-  const [siteFilter, setSiteFilter] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const page = searchParams.get('page') ? Number(searchParams.get('page')) : 1;
+  const search = searchParams.get('search') || '';
+  const statusFilter = searchParams.get('status') || '';
+  const priorityFilter = searchParams.get('priority') || '';
+  const siteFilter = searchParams.get('siteId') || '';
+  const startDate = searchParams.get('startDate') || '';
+  const endDate = searchParams.get('endDate') || '';
+
+  const updateUrlParams = (updates: Record<string, string | number | undefined>) => {
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+    const merged = {
+      page: updates.page !== undefined ? updates.page : page,
+      search: updates.search !== undefined ? updates.search : search,
+      status: updates.status !== undefined ? updates.status : statusFilter,
+      priority: updates.priority !== undefined ? updates.priority : priorityFilter,
+      siteId: updates.siteId !== undefined ? updates.siteId : siteFilter,
+      startDate: updates.startDate !== undefined ? updates.startDate : startDate,
+      endDate: updates.endDate !== undefined ? updates.endDate : endDate,
+    };
+
+    if (Number(merged.page) > 1) {
+      current.set('page', String(merged.page));
+    } else {
+      current.delete('page');
+    }
+
+    if (String(merged.search).trim()) {
+      current.set('search', String(merged.search).trim());
+    } else {
+      current.delete('search');
+    }
+
+    if (merged.status) {
+      current.set('status', String(merged.status));
+    } else {
+      current.delete('status');
+    }
+
+    if (merged.priority) {
+      current.set('priority', String(merged.priority));
+    } else {
+      current.delete('priority');
+    }
+
+    if (merged.siteId) {
+      current.set('siteId', String(merged.siteId));
+    } else {
+      current.delete('siteId');
+    }
+
+    if (merged.startDate) {
+      current.set('startDate', String(merged.startDate));
+    } else {
+      current.delete('startDate');
+    }
+
+    if (merged.endDate) {
+      current.set('endDate', String(merged.endDate));
+    } else {
+      current.delete('endDate');
+    }
+
+    const query = current.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
   // 1. Fetch Stats
   const { data: statsRes } = useQuery<ApiResponse<SnagStats>>({
@@ -98,13 +161,7 @@ export default function SnagsListPage() {
   const pagination = (snagsRes as any)?.pagination || { total: 0, totalPages: 1 };
 
   const handleClearFilters = () => {
-    setSearch('');
-    setStatusFilter('');
-    setPriorityFilter('');
-    setSiteFilter('');
-    setStartDate('');
-    setEndDate('');
-    setPage(1);
+    router.replace(pathname, { scroll: false });
   };
 
   const handleExportCSV = () => {
@@ -545,10 +602,7 @@ export default function SnagsListPage() {
               type="text"
               placeholder="Search description, category, site..."
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => updateUrlParams({ page: 1, search: e.target.value })}
               style={{
                 width: '100%',
                 padding: '8px 0',
@@ -564,10 +618,7 @@ export default function SnagsListPage() {
           {/* Status Dropdown */}
           <select
             value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => updateUrlParams({ page: 1, status: e.target.value })}
             className="form-input"
             style={{ fontSize: '0.82rem', padding: '8px' }}
           >
@@ -577,38 +628,34 @@ export default function SnagsListPage() {
             <option value="WAITING">Waiting for Parts</option>
             <option value="RESOLVED">Resolved</option>
             <option value="CLOSED">Closed</option>
-            <option value="REJECTED">Rejected</option>
           </select>
 
           {/* Priority Dropdown */}
           <select
             value={priorityFilter}
-            onChange={(e) => {
-              setPriorityFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => updateUrlParams({ page: 1, priority: e.target.value })}
             className="form-input"
             style={{ fontSize: '0.82rem', padding: '8px' }}
           >
             <option value="">All Priorities</option>
-            <option value="HIGH">High Priority</option>
-            <option value="MEDIUM">Medium Priority</option>
-            <option value="LOW">Low Priority</option>
+            <option value="LOW">Low</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="HIGH">High</option>
+            <option value="URGENT">Urgent</option>
           </select>
 
-          {/* Site Dropdown */}
+          {/* Site Filter Dropdown */}
           <select
             value={siteFilter}
-            onChange={(e) => {
-              setSiteFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => updateUrlParams({ page: 1, siteId: e.target.value })}
             className="form-input"
             style={{ fontSize: '0.82rem', padding: '8px' }}
           >
             <option value="">All Sites</option>
-            {sites.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
+            {sites.map((site: any) => (
+              <option key={site.id} value={site.id}>
+                {site.name}
+              </option>
             ))}
           </select>
 
@@ -616,10 +663,7 @@ export default function SnagsListPage() {
           <input
             type="date"
             value={startDate}
-            onChange={(e) => {
-              setStartDate(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => updateUrlParams({ page: 1, startDate: e.target.value })}
             className="form-input"
             style={{ fontSize: '0.82rem', padding: '8px' }}
           />
@@ -628,10 +672,7 @@ export default function SnagsListPage() {
           <input
             type="date"
             value={endDate}
-            onChange={(e) => {
-              setEndDate(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => updateUrlParams({ page: 1, endDate: e.target.value })}
             className="form-input"
             style={{ fontSize: '0.82rem', padding: '8px' }}
           />
@@ -651,7 +692,7 @@ export default function SnagsListPage() {
         <Pagination
           currentPage={page}
           totalPages={pagination.totalPages}
-          onPageChange={(p) => setPage(p)}
+          onPageChange={(p) => updateUrlParams({ page: p })}
         />
       )}
     </div>

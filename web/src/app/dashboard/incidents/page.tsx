@@ -10,12 +10,12 @@ import {
   Shield,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { resolveImageUrl } from '../../../lib/image';
+import LoadingState from '../../components/ui/LoadingState';
 import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
-import LoadingState from '../../components/ui/LoadingState';
 import { apiClient } from '../../lib/axios';
 import { ApiResponse } from '../../types/api';
 
@@ -53,6 +53,7 @@ interface Incident {
   id: string;
   type: string;
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status?: string;
   description: string;
   images: string[];
   createdAt: string;
@@ -62,8 +63,52 @@ interface Incident {
 }
 
 export default function IncidentsPage() {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const page = searchParams.get('page') ? Number(searchParams.get('page')) : 1;
+  const search = searchParams.get('search') || '';
+  const statusFilter = searchParams.get('status') || 'ALL';
+
+  const updateUrlParams = (
+    newPage: number,
+    newSearch: string,
+    newStatus: string,
+  ) => {
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+    if (newPage > 1) {
+      current.set('page', String(newPage));
+    } else {
+      current.delete('page');
+    }
+    if (newSearch.trim()) {
+      current.set('search', newSearch.trim());
+    } else {
+      current.delete('search');
+    }
+    if (newStatus !== 'ALL') {
+      current.set('status', newStatus);
+    } else {
+      current.delete('status');
+    }
+    const query = current.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  };
+
+  const handlePageChange = (p: number) => {
+    updateUrlParams(p, search, statusFilter);
+  };
+
+  const handleSearchChange = (s: string) => {
+    updateUrlParams(1, s, statusFilter);
+  };
+
+  const handleStatusFilterChange = (st: string) => {
+    updateUrlParams(1, search, st);
+  };
 
   // Fetch Incident logs from API
   const { data: incidentsRes, isLoading } = useQuery<ApiResponse<Incident[]>>({
@@ -73,14 +118,20 @@ export default function IncidentsPage() {
 
   const allIncidents = incidentsRes?.data || [];
 
-  // Filter based on search query
+  // Filter based on search query & status filter
   let incidents = allIncidents;
+  if (statusFilter !== 'ALL') {
+    incidents = incidents.filter(
+      (inc) => (inc.status || 'OPEN').toUpperCase() === statusFilter,
+    );
+  }
   if (search) {
     const s = search.toLowerCase();
-    incidents = allIncidents.filter(
+    incidents = incidents.filter(
       (inc) =>
         inc.type.toLowerCase().includes(s) ||
         inc.severity.toLowerCase().includes(s) ||
+        (inc.status || 'OPEN').toLowerCase().includes(s) ||
         inc.description.toLowerCase().includes(s) ||
         `${inc.employee.firstName} ${inc.employee.lastName}`
           .toLowerCase()
@@ -91,7 +142,10 @@ export default function IncidentsPage() {
   const limit = 6;
   const totalPages = Math.max(1, Math.ceil(incidents.length / limit));
   const safePage = Math.min(page, totalPages);
-  const paginatedIncidents = incidents.slice((safePage - 1) * limit, safePage * limit);
+  const paginatedIncidents = incidents.slice(
+    (safePage - 1) * limit,
+    safePage * limit,
+  );
 
   const getSeverityColor = (sev: string) => {
     switch (sev) {
@@ -106,8 +160,24 @@ export default function IncidentsPage() {
     }
   };
 
+  const getStatusColor = (st?: string) => {
+    switch (st?.toUpperCase()) {
+      case 'REVIEWED':
+        return { bg: '#fef9c3', text: '#854d0e', border: '#fef08a' };
+      case 'RESOLVED':
+        return { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0' };
+      case 'CLOSED':
+        return { bg: '#f3f4f6', text: '#374151', border: '#e5e7eb' };
+      case 'OPEN':
+      default:
+        return { bg: '#eff6ff', text: '#1e40af', border: '#bfdbfe' };
+    }
+  };
+
   if (isLoading) {
-    return <LoadingState message="Loading observation reports..." variant="page" />;
+    return (
+      <LoadingState message="Loading observation reports..." variant="page" />
+    );
   }
 
   return (
@@ -131,8 +201,8 @@ export default function IncidentsPage() {
               margin: '4px 0 0 0',
             }}
           >
-            Browse and review safety & security incidents logged by on-site
-            officers.
+            Browse and review safety, security, and checkpoint observations
+            logged by officers.
           </p>
         </div>
       </div>
@@ -145,14 +215,46 @@ export default function IncidentsPage() {
           display: 'flex',
           gap: '16px',
           alignItems: 'center',
+          flexWrap: 'wrap',
         }}
       >
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: '240px' }}>
           <SearchBar
             value={search}
-            onChange={setSearch}
-            placeholder="Search by type, severity, description or officer..."
+            onChange={handleSearchChange}
+            placeholder="Search by type, status, description or officer..."
           />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span
+            style={{
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              color: 'var(--text-muted)',
+            }}
+          >
+            Status:
+          </span>
+          <select
+            value={statusFilter}
+            onChange={(e) => handleStatusFilterChange(e.target.value)}
+            className="input"
+            style={{
+              padding: '6px 12px',
+              fontSize: '0.85rem',
+              borderRadius: '6px',
+              border: '1px solid var(--border-color)',
+              background: 'var(--bg-secondary)',
+              color: 'var(--text-color)',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="OPEN">Open</option>
+            <option value="REVIEWED">Reviewed</option>
+            <option value="RESOLVED">Resolved</option>
+            <option value="CLOSED">Closed</option>
+          </select>
         </div>
       </div>
 
@@ -167,6 +269,7 @@ export default function IncidentsPage() {
         >
           {paginatedIncidents.map((incident) => {
             const sevColors = getSeverityColor(incident.severity);
+            const stColors = getStatusColor(incident.status);
 
             return (
               <div
@@ -180,7 +283,7 @@ export default function IncidentsPage() {
                   borderRadius: '12px',
                 }}
               >
-                {/* Header: Type and Severity */}
+                {/* Header: Type, Status and Severity */}
                 <div
                   style={{
                     display: 'flex',
@@ -204,19 +307,34 @@ export default function IncidentsPage() {
                       {incident.type}
                     </span>
                   </div>
-                  <span
-                    style={{
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      backgroundColor: sevColors.bg,
-                      color: sevColors.text,
-                      border: `1px solid ${sevColors.border}`,
-                    }}
-                  >
-                    {incident.severity}
-                  </span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: stColors.bg,
+                        color: stColors.text,
+                        border: `1px solid ${stColors.border}`,
+                      }}
+                    >
+                      {incident.status || 'OPEN'}
+                    </span>
+                    {/* <span
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: sevColors.bg,
+                        color: sevColors.text,
+                        border: `1px solid ${sevColors.border}`,
+                      }}
+                    >
+                      {incident.severity}
+                    </span> */}
+                  </div>
                 </div>
 
                 {/* Site & Checkpoint Context */}
@@ -444,7 +562,7 @@ export default function IncidentsPage() {
           <Pagination
             currentPage={safePage}
             totalPages={totalPages}
-            onPageChange={setPage}
+            onPageChange={handlePageChange}
           />
         </div>
       )}

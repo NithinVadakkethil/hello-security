@@ -690,26 +690,37 @@ export function SupervisorDashboard() {
             </Card>
           )}
 
-          {/* Open Incidents */}
+          {/* Open Incidents & Observations */}
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Recent Incidents
+            Recent Observations & Incidents
           </Text>
           {incidents && incidents.length > 0 ? (
-            incidents.slice(0, 3).map((inc: any) => (
+            incidents.slice(0, 5).map((inc: any) => (
               <Card
                 key={inc.id}
                 style={[
                   styles.activityCard,
-                  { borderLeftWidth: 4, borderLeftColor: colors.danger },
+                  { borderLeftWidth: 4, borderLeftColor: inc.status === 'RESOLVED' ? colors.success : colors.danger },
                 ]}
               >
                 <View style={styles.activityHeader}>
                   <Text style={[styles.guardName, { color: colors.text }]}>
-                    {inc.type} — Severity: {inc.severity}
+                    {inc.type}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontWeight: '800',
+                      color: inc.status === 'RESOLVED' ? colors.success : colors.warning,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {inc.status || 'OPEN'}
                   </Text>
                 </View>
                 <Text
                   style={[styles.activityText, { color: colors.textSecondary }]}
+                  numberOfLines={2}
                 >
                   {inc.description}
                 </Text>
@@ -718,7 +729,7 @@ export function SupervisorDashboard() {
           ) : (
             <Card style={styles.emptyCard}>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No incidents reported
+                No observations reported
               </Text>
             </Card>
           )}

@@ -48,6 +48,7 @@ interface Incident {
   id: string;
   type: string;
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status?: string;
   description: string;
   images: string[];
   createdAt: string;
@@ -62,14 +63,28 @@ export default function IncidentDetailPage() {
   const router = useRouter();
 
   const [activeImageIdx, setActiveImageIdx] = useState<number | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   // Fetch Incident Details
-  const { data: incidentRes, isLoading, isError } = useQuery<ApiResponse<Incident>>({
+  const { data: incidentRes, isLoading, isError, refetch } = useQuery<ApiResponse<Incident>>({
     queryKey: ['incident-details', id],
     queryFn: () => apiClient.get(`/incidents/${id}`),
   });
 
   const incident = incidentRes?.data;
+
+  const handleStatusChange = async (newStatus: string) => {
+    try {
+      setIsUpdatingStatus(true);
+      await apiClient.patch(`/incidents/${id}/status`, { status: newStatus });
+      toast.success(`Observation status updated to ${newStatus}`);
+      await refetch();
+    } catch {
+      toast.error('Failed to update observation status.');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   const handleDownload = async (imgUrl: string) => {
     try {
@@ -101,38 +116,81 @@ export default function IncidentDetailPage() {
     }
   };
 
+  const getStatusColors = (st?: string) => {
+    switch (st?.toUpperCase()) {
+      case 'REVIEWED':
+        return { bg: '#fef9c3', text: '#854d0e', border: '#fef08a' };
+      case 'RESOLVED':
+        return { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0' };
+      case 'CLOSED':
+        return { bg: '#f3f4f6', text: '#374151', border: '#e5e7eb' };
+      case 'OPEN':
+      default:
+        return { bg: '#eff6ff', text: '#1e40af', border: '#bfdbfe' };
+    }
+  };
+
   if (isLoading) {
-    return <LoadingState message="Loading incident report details..." variant="page" />;
+    return <LoadingState message="Loading observation report details..." variant="page" />;
   }
 
   if (isError || !incident) {
     return (
       <div className="error-panel glass-card" style={{ maxWidth: '600px', margin: '50px auto', padding: '30px', textAlign: 'center' }}>
         <AlertTriangle size={48} style={{ color: 'var(--text-danger)', marginBottom: '16px', display: 'inline-block' }} />
-        <h3>Incident Log Not Found</h3>
-        <p>The requested incident report could not be loaded.</p>
+        <h3>Observation Report Not Found</h3>
+        <p>The requested observation report could not be loaded.</p>
         <Link href="/dashboard/incidents" className="btn btn-primary" style={{ marginTop: '16px', textDecoration: 'none', display: 'inline-block' }}>
-          Back to Reports
+          Back to Observation Reports
         </Link>
       </div>
     );
   }
 
   const sevColors = getSeverityColors(incident.severity);
+  const stColors = getStatusColors(incident.status);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       
       {/* Back Button and Title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <button onClick={() => router.back()} className="btn btn-outline" style={{ padding: '8px', minWidth: 'auto' }}>
-          <ArrowLeft size={16} />
-        </button>
-        <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Incident Details</h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-            Review full details and visual evidence for logged report #{incident.id.substring(0, 8)}.
-          </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button onClick={() => router.back()} className="btn btn-outline" style={{ padding: '8px', minWidth: 'auto' }}>
+            <ArrowLeft size={16} />
+          </button>
+          <div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Observation Details</h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+              Review full details, checkpoint context, and visual evidence for report #{incident.id.substring(0, 8)}.
+            </p>
+          </div>
+        </div>
+
+        {/* Status Action Dropdown */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>Status:</span>
+          <select
+            value={incident.status || 'OPEN'}
+            disabled={isUpdatingStatus}
+            onChange={(e) => handleStatusChange(e.target.value)}
+            className="input"
+            style={{
+              padding: '8px 16px',
+              fontSize: '0.88rem',
+              fontWeight: 700,
+              borderRadius: '8px',
+              border: `1px solid ${stColors.border}`,
+              backgroundColor: stColors.bg,
+              color: stColors.text,
+              cursor: isUpdatingStatus ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <option value="OPEN">OPEN</option>
+            <option value="REVIEWED">REVIEWED</option>
+            <option value="RESOLVED">RESOLVED</option>
+            <option value="CLOSED">CLOSED</option>
+          </select>
         </div>
       </div>
 
@@ -148,22 +206,37 @@ export default function IncidentDetailPage() {
                 <AlertTriangle size={24} style={{ color: sevColors.text }} />
                 <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>{incident.type}</h3>
               </div>
-              <span
-                style={{
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  backgroundColor: sevColors.bg,
-                  color: sevColors.text,
-                  border: `1px solid ${sevColors.border}`,
-                }}
-              >
-                {incident.severity} SEVERITY
-              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    backgroundColor: stColors.bg,
+                    color: stColors.text,
+                    border: `1px solid ${stColors.border}`,
+                  }}
+                >
+                  STATUS: {incident.status || 'OPEN'}
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    backgroundColor: sevColors.bg,
+                    color: sevColors.text,
+                    border: `1px solid ${sevColors.border}`,
+                  }}
+                >
+                  {incident.severity} SEVERITY
+                </span>
+              </div>
             </div>
 
-            <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '8px', color: 'var(--text-muted)' }}>INCIDENT DESCRIPTION</h4>
+            <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '8px', color: 'var(--text-muted)' }}>OBSERVATION DETAILS</h4>
             <p style={{ fontSize: '0.95rem', lineHeight: '1.6', margin: 0, whiteSpace: 'pre-wrap' }}>
               {incident.description}
             </p>
@@ -196,7 +269,7 @@ export default function IncidentDetailPage() {
             ) : (
               <div style={{ padding: '40px', textAlign: 'center', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
                 <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  No photos were attached to this incident report.
+                  No photos were attached to this observation report.
                 </p>
               </div>
             )}
@@ -259,7 +332,16 @@ export default function IncidentDetailPage() {
               </h4>
               <span style={{ fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Building2 size={16} style={{ color: 'var(--text-muted)' }} />
-                {incident.gate ? `${incident.gate.name} (${incident.gate.gateCode})` : 'Direct Incident'}
+                {incident.gate ? `${incident.gate.name} (${incident.gate.gateCode})` : 'Direct Observation'}
+              </span>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Patrol Session Reference
+              </h4>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                {incident.patrolSession?.patrolCode || 'Direct Verification'}
               </span>
             </div>
 

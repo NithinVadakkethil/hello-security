@@ -562,6 +562,7 @@ model Incident {
   employee       Employee @relation(fields: [employeeId], references: [id])
   type           String
   severity       String
+  status         String   @default("OPEN") // "OPEN" | "REVIEWED" | "RESOLVED" | "CLOSED"
   description    String
   images         String[] @default([])
   patrolSessionId String?

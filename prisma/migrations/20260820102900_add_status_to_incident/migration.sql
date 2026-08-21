@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Incident" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'OPEN';

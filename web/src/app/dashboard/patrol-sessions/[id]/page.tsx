@@ -11,7 +11,7 @@ import {
   Shield,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
@@ -108,8 +108,14 @@ interface PatrolSession {
 
 export default function PatrolSessionDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
   const queryClient = useQueryClient();
+
+  const queryStr = searchParams.toString();
+  const backHref = queryStr
+    ? `/dashboard/patrol-sessions?${queryStr}`
+    : '/dashboard/patrol-sessions';
 
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
   const [completeRemarks, setCompleteRemarks] = useState('');
@@ -202,7 +208,7 @@ export default function PatrolSessionDetailPage() {
         <h3>Patrol Session Log Not Found</h3>
         <p>The requested patrol log could not be loaded.</p>
         <Link
-          href="/dashboard/patrol-sessions"
+          href={backHref}
           className="btn btn-primary"
           style={{ marginTop: '16px', textDecoration: 'none' }}
         >
@@ -257,7 +263,7 @@ export default function PatrolSessionDetailPage() {
       {/* Back button */}
       <div>
         <Link
-          href="/dashboard/patrol-sessions"
+          href={backHref}
           style={{
             display: 'flex',
             alignItems: 'center',

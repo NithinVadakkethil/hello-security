@@ -36,11 +36,12 @@ export class GateController {
 
       const page = req.query.page ? Number(req.query.page) : undefined;
       const limit = req.query.limit ? Number(req.query.limit) : undefined;
+      const search = req.query.search as string | undefined;
 
       const isSuperAdmin = user.role === 'SUPER_ADMIN';
       const clientId = isSuperAdmin || !user.tenantId ? undefined : user.tenantId;
 
-      const result = await gateService.list(siteId, isActive, clientId, page, limit);
+      const result = await gateService.list(siteId, isActive, clientId, page, limit, search);
 
       if (Array.isArray(result)) {
         return res.status(HttpStatus.OK).json({

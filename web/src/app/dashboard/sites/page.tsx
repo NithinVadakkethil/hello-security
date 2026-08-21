@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit2, Eye, ToggleLeft, ToggleRight } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -35,9 +36,46 @@ interface Site {
 
 export default function SitesPage() {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const page = searchParams.get('page') ? Number(searchParams.get('page')) : 1;
+  const search = searchParams.get('search') || '';
+  const statusFilter = searchParams.get('status') || 'ALL';
+
+  const updateUrlParams = (newPage: number, newSearch: string, newStatus: string) => {
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+    if (newPage > 1) {
+      current.set('page', String(newPage));
+    } else {
+      current.delete('page');
+    }
+    if (newSearch.trim()) {
+      current.set('search', newSearch.trim());
+    } else {
+      current.delete('search');
+    }
+    if (newStatus !== 'ALL') {
+      current.set('status', newStatus);
+    } else {
+      current.delete('status');
+    }
+    const query = current.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  const handlePageChange = (p: number) => {
+    updateUrlParams(p, search, statusFilter);
+  };
+
+  const handleSearchChange = (s: string) => {
+    updateUrlParams(1, s, statusFilter);
+  };
+
+  const handleStatusFilterChange = (st: string) => {
+    updateUrlParams(1, search, st);
+  };
 
   // Sort State
   const [sortBy, setSortBy] = useState<string>('createdAt');
@@ -222,19 +260,13 @@ export default function SitesPage() {
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', width: '100%', maxWidth: '640px' }}>
           <SearchBar
             value={search}
-            onChange={(val) => {
-              setSearch(val);
-              setPage(1);
-            }}
+            onChange={handleSearchChange}
             placeholder="Search sites by name, code or address..."
           />
 
           <select
             value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => handleStatusFilterChange(e.target.value)}
             className="form-input"
             style={{ maxWidth: '180px' }}
           >
@@ -267,7 +299,7 @@ export default function SitesPage() {
       <Pagination
         currentPage={safePage}
         totalPages={totalPages}
-        onPageChange={(p) => setPage(p)}
+        onPageChange={handlePageChange}
       />
 
       <ConfirmationDialog

@@ -3,8 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Activity, Clock, Eye } from 'lucide-react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
 import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
@@ -66,11 +65,49 @@ interface PatrolSession {
 
 export default function PatrolSessionsPage() {
   const searchParams = useSearchParams();
-  const defaultTab = searchParams.get('tab') === 'live' ? 'live' : 'history';
+  const router = useRouter();
+  const pathname = usePathname();
 
-  const [activeTab, setActiveTab] = useState<'live' | 'history'>(defaultTab);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
+  const activeTab = searchParams.get('tab') === 'live' ? 'live' : 'history';
+  const page = searchParams.get('page') ? Number(searchParams.get('page')) : 1;
+  const search = searchParams.get('search') || '';
+
+  const updateUrlParams = (newTab: 'live' | 'history', newPage: number, newSearch: string) => {
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+
+    if (newTab === 'live') {
+      current.set('tab', 'live');
+    } else {
+      current.delete('tab');
+    }
+
+    if (newPage > 1) {
+      current.set('page', String(newPage));
+    } else {
+      current.delete('page');
+    }
+
+    if (newSearch.trim()) {
+      current.set('search', newSearch.trim());
+    } else {
+      current.delete('search');
+    }
+
+    const query = current.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  const handleTabChange = (t: 'live' | 'history') => {
+    updateUrlParams(t, 1, search);
+  };
+
+  const handleSearchChange = (s: string) => {
+    updateUrlParams(activeTab, 1, s);
+  };
+
+  const handlePageChange = (p: number) => {
+    updateUrlParams(activeTab, p, search);
+  };
 
   // Query Patrol Sessions with backend pagination & search
   const { data: responseRes, isLoading } = useQuery<{
@@ -206,21 +243,28 @@ export default function PatrolSessionsPage() {
     {
       key: 'actions',
       label: 'Details',
-      render: (row: PatrolSession) => (
-        <Link
-          href={`/dashboard/patrol-sessions/${row.id}`}
-          className="btn btn-secondary"
-          style={{
-            padding: '6px 10px',
-            fontSize: '0.8rem',
-            gap: '4px',
-            textDecoration: 'none',
-          }}
-        >
-          <Eye size={14} />
-          <span>Logs</span>
-        </Link>
-      ),
+      render: (row: PatrolSession) => {
+        const queryStr = searchParams.toString();
+        const detailsHref = queryStr
+          ? `/dashboard/patrol-sessions/${row.id}?${queryStr}`
+          : `/dashboard/patrol-sessions/${row.id}`;
+
+        return (
+          <Link
+            href={detailsHref}
+            className="btn btn-secondary"
+            style={{
+              padding: '6px 10px',
+              fontSize: '0.8rem',
+              gap: '4px',
+              textDecoration: 'none',
+            }}
+          >
+            <Eye size={14} />
+            <span>Logs</span>
+          </Link>
+        );
+      },
     },
   ];
 
@@ -235,10 +279,7 @@ export default function PatrolSessionsPage() {
         }}
       >
         <button
-          onClick={() => {
-            setActiveTab('history');
-            setPage(1);
-          }}
+          onClick={() => handleTabChange('history')}
           style={{
             background: 'none',
             border: 'none',
@@ -267,10 +308,7 @@ export default function PatrolSessionsPage() {
         </button>
 
         <button
-          onClick={() => {
-            setActiveTab('live');
-            setPage(1);
-          }}
+          onClick={() => handleTabChange('live')}
           style={{
             background: 'none',
             border: 'none',
@@ -308,10 +346,7 @@ export default function PatrolSessionsPage() {
       >
         <SearchBar
           value={search}
-          onChange={(val) => {
-            setSearch(val);
-            setPage(1);
-          }}
+          onChange={handleSearchChange}
           placeholder="Search logs by code, guard name or site..."
         />
       </div>
@@ -330,7 +365,7 @@ export default function PatrolSessionsPage() {
       <Pagination
         currentPage={pagination.page}
         totalPages={pagination.totalPages}
-        onPageChange={(p) => setPage(p)}
+        onPageChange={handlePageChange}
       />
     </div>
   );

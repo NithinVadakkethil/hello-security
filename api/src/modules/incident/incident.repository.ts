@@ -81,6 +81,30 @@ export class IncidentRepository {
       },
     });
   }
+
+  updateStatus(id: string, status: string) {
+    return prisma.incident.update({
+      where: { id },
+      data: { status },
+      include: {
+        employee: true,
+        gate: {
+          include: {
+            site: true,
+          },
+        },
+        patrolSession: {
+          include: {
+            assignment: {
+              include: {
+                site: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
 }
 
 export const incidentRepository = new IncidentRepository();

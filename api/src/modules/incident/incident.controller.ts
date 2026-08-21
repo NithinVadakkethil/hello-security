@@ -117,6 +117,22 @@ export class IncidentController {
       return next(error);
     }
   }
+
+  async updateStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const result = await incidentService.updateStatus(id as string, status as string);
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export const incidentController = new IncidentController();

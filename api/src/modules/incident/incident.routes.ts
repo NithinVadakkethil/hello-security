@@ -30,4 +30,10 @@ router.get(
   incidentController.getById.bind(incidentController)
 );
 
+router.patch(
+  '/:id/status',
+  authorize(UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.SUPER_ADMIN),
+  incidentController.updateStatus.bind(incidentController)
+);
+
 export default router;

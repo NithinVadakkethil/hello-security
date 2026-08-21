@@ -27,7 +27,7 @@ export class PatrolCheckpointService {
     let patrol = await patrolSessionRepository.findActiveByEmployee(employeeId);
 
     if (!patrol) {
-      patrol = await prisma.patrolSession.findFirst({
+      patrol = (await prisma.patrolSession.findFirst({
         where: {
           status: 'IN_PROGRESS',
         },
@@ -71,7 +71,7 @@ export class PatrolCheckpointService {
         orderBy: {
           createdAt: 'desc',
         },
-      }) as any;
+      })) as any;
     }
 
     if (!patrol) {
@@ -139,9 +139,13 @@ export class PatrolCheckpointService {
         gateRecord = fallbackGate;
         targetGateId = fallbackGate.id;
       } else {
-        const assignedGateId = assignment?.assignmentGates?.[0]?.gateId || assignment?.patrolRoute?.routeGates?.[0]?.gateId;
+        const assignedGateId =
+          assignment?.assignmentGates?.[0]?.gateId ||
+          assignment?.patrolRoute?.routeGates?.[0]?.gateId;
         if (assignedGateId) {
-          const agGate = await prisma.gate.findUnique({ where: { id: assignedGateId } });
+          const agGate = await prisma.gate.findUnique({
+            where: { id: assignedGateId },
+          });
           if (agGate) {
             gateRecord = agGate;
             targetGateId = agGate.id;
@@ -178,13 +182,17 @@ export class PatrolCheckpointService {
       },
     });
 
-    const subTaskMap = new Map((dto.subTaskResponses || []).map((r) => [r.gateSubTaskId, r]));
+    const subTaskMap = new Map(
+      (dto.subTaskResponses || []).map((r) => [r.gateSubTaskId, r]),
+    );
     const missingRequiredTasks = activeSubTasks.filter(
       (st) => st.isRequired && !subTaskMap.has(st.id),
     );
 
     if (missingRequiredTasks.length > 0) {
-      const missingNames = missingRequiredTasks.map((st) => `"${st.taskName}"`).join(', ');
+      const missingNames = missingRequiredTasks
+        .map((st) => `"${st.taskName}"`)
+        .join(', ');
       throw new AppError(
         HttpStatus.BAD_REQUEST,
         ErrorCodes.VALIDATION_ERROR,
@@ -264,7 +272,10 @@ export class PatrolCheckpointService {
             });
           }
 
-          if (processedSubTaskResponses && processedSubTaskResponses.length > 0) {
+          if (
+            processedSubTaskResponses &&
+            processedSubTaskResponses.length > 0
+          ) {
             for (const resp of processedSubTaskResponses) {
               await tx.patrolSubTaskResponse.upsert({
                 where: {
@@ -288,26 +299,26 @@ export class PatrolCheckpointService {
                 },
               });
 
-              // AUTOMATIC MAINTENANCE SNAG GENERATION IF TASK ANSWER IS NO
+              // AUTOMATIC OBSERVATION REPORT (INCIDENT) GENERATION IF TASK ANSWER IS NO
               if (resp.answer === 'NO') {
                 const subTaskInfo = await tx.gateSubTask.findUnique({
                   where: { id: resp.gateSubTaskId },
                 });
 
-                const taskTitle = subTaskInfo?.taskName || 'Verification Sub-Task';
+                const taskTitle =
+                  subTaskInfo?.taskName || 'Verification Sub-Task';
                 const taskDesc = subTaskInfo?.description || '';
                 const subTaskImages =
                   resp.images && resp.images.length > 0
                     ? resp.images
                     : processedDtoImages;
 
-                const snagDescription = `Failed Checkpoint Task: ${taskTitle}\n\nTask Description: ${taskDesc || 'N/A'}\nEmployee Role: ${userRole}\nRemarks: ${resp.remarks?.trim() || 'No remarks provided'}\nSource: Mobile Checkpoint Verification\nPatrol Session: ${patrol.patrolCode || patrol.id}`;
+                const observationDescription = `Sub-Task Answer: NO (${taskTitle})\nTask Description: ${taskDesc || 'N/A'}\nOfficer Role: ${userRole}\nRemarks: ${resp.remarks?.trim() || 'No remarks provided'}\nCheckpoint: ${gateRecord?.name || 'Gate'} (${gateRecord?.gateCode || targetGateId})\nPatrol Session: ${patrol.patrolCode || patrol.id}`;
 
-                const activeSiteId = assignment?.siteId || gateRecord?.siteId;
                 const activeClientId = assignment?.clientId || patrol.clientId;
 
-                if (activeSiteId && activeClientId) {
-                  const existingSnag = await tx.snag.findFirst({
+                if (activeClientId) {
+                  const existingIncident = await tx.incident.findFirst({
                     where: {
                       patrolSessionId: patrol.id,
                       gateId: targetGateId,
@@ -315,20 +326,18 @@ export class PatrolCheckpointService {
                     },
                   });
 
-                  if (!existingSnag) {
-                    await tx.snag.create({
+                  if (!existingIncident) {
+                    await tx.incident.create({
                       data: {
                         clientId: activeClientId,
-                        siteId: activeSiteId,
-                        gateId: targetGateId,
-                        patrolSessionId: patrol.id,
                         employeeId: employeeId,
-                        category: 'CHECKPOINT_VERIFICATION',
-                        subCategory: taskTitle,
-                        description: snagDescription,
-                        priority: 'MEDIUM',
+                        type: taskTitle,
+                        severity: 'MEDIUM',
                         status: 'OPEN',
+                        description: observationDescription,
                         images: subTaskImages,
+                        patrolSessionId: patrol.id,
+                        gateId: targetGateId,
                         latitude: dto.latitude || null,
                         longitude: dto.longitude || null,
                       },
@@ -392,8 +401,8 @@ export class PatrolCheckpointService {
     const total = assignment.patrolRoute
       ? assignment.patrolRoute.routeGates.length
       : assignment.assignmentGates
-      ? assignment.assignmentGates.length
-      : 0;
+        ? assignment.assignmentGates.length
+        : 0;
 
     const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
 

@@ -90,11 +90,18 @@ export class GateRepository {
     });
   }
 
-  async list(siteId?: string, isActive?: boolean, clientId?: string, page?: number, limit?: number) {
+  async list(siteId?: string, isActive?: boolean, clientId?: string, page?: number, limit?: number, search?: string) {
     const where = {
       ...(siteId && { siteId }),
       ...(isActive !== undefined && { isActive }),
       ...(clientId && !siteId && { site: { clientId } }),
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' as const } },
+          { gateCode: { contains: search, mode: 'insensitive' as const } },
+          { description: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }),
     };
 
     const include = {
