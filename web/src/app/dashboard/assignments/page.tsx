@@ -1,22 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Plus, Edit2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
+import { z } from 'zod';
 
-import { apiClient } from '../../lib/axios';
-import { ApiResponse } from '../../types/api';
+import ConfirmationDialog from '../../components/ui/ConfirmationDialog';
 import DataTable from '../../components/ui/DataTable';
+import { FormInput, Select } from '../../components/ui/FormControls';
+import Modal from '../../components/ui/Modal';
 import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
-import Modal from '../../components/ui/Modal';
-import ConfirmationDialog from '../../components/ui/ConfirmationDialog';
-import { FormInput, Select } from '../../components/ui/FormControls';
+import { apiClient } from '../../lib/axios';
+import { ApiResponse } from '../../types/api';
 
 interface Employee {
   id: string;
@@ -24,6 +24,42 @@ interface Employee {
   lastName: string;
   employeeNumber: string;
   status: string;
+  designation?: string | null;
+  user?: {
+    role: string;
+  } | null;
+}
+
+function getRoleLabel(emp: {
+  designation?: string | null;
+  user?: { role: string } | null;
+}): string {
+  const rawRole = (
+    emp.user?.role ||
+    emp.designation ||
+    'SECURITY'
+  ).toUpperCase();
+  switch (rawRole) {
+    case 'CLEANER':
+      return 'House Keeping';
+    case 'TECHNICIAN':
+      return 'Technician';
+    case 'SERVICE_ENGINEER':
+      return 'Service Engineer';
+    case 'PLUMBER':
+      return 'Plumber';
+    case 'LIFE_GUARD':
+    case 'LIFEGUARD':
+      return 'Lifeguard';
+    case 'SUPERVISOR':
+      return 'Supervisor';
+    case 'MANAGER':
+      return 'Manager';
+    case 'SECURITY':
+    case 'SECURITY_GUARD':
+    default:
+      return 'Security Guard';
+  }
 }
 
 interface Site {
@@ -47,12 +83,20 @@ interface PatrolRoute {
   isActive: boolean;
 }
 
+interface GateItem {
+  id: string;
+  gateCode: string;
+  name: string;
+  siteId: string;
+}
+
 interface Assignment {
   id: string;
   employeeId: string;
   siteId: string;
   shiftId: string;
-  patrolRouteId: string;
+  assignmentType?: string | null;
+  patrolRouteId?: string | null;
   effectiveFrom: string;
   effectiveTo?: string | null;
   isActive: boolean;
@@ -62,6 +106,10 @@ interface Assignment {
     firstName: string;
     lastName: string;
     employeeNumber: string;
+    designation?: string | null;
+    user?: {
+      role: string;
+    } | null;
   };
   site: {
     id: string;
@@ -73,17 +121,21 @@ interface Assignment {
     startTime: string;
     endTime: string;
   };
-  patrolRoute: {
+  patrolRoute?: {
     id: string;
     name: string;
-  };
+  } | null;
+  assignmentGates?: {
+    id: string;
+    gate: GateItem;
+  }[];
 }
 
 const assignmentSchema = z.object({
-  employeeId: z.string().cuid('Please select an employee'),
-  siteId: z.string().cuid('Please select a site location'),
-  shiftId: z.string().cuid('Please select a shift slot'),
-  patrolRouteId: z.string().cuid('Please select a patrol route'),
+  employeeId: z.string().optional(),
+  siteId: z.string().min(1, 'Please select a site location'),
+  shiftId: z.string().min(1, 'Please select a shift slot'),
+  patrolRouteId: z.string().optional(),
   effectiveFrom: z.string().min(1, 'Effective from date is required'),
   effectiveTo: z.string().optional().or(z.literal('')),
 });
@@ -98,7 +150,16 @@ export default function AssignmentsPage() {
 
   // Dialog / Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(
+    null,
+  );
+
+  // New assignment states
+  const [assignmentType, setAssignmentType] = useState<
+    'ROUTE' | 'DIRECT_CHECKPOINTS'
+  >('ROUTE');
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [selectedGateIds, setSelectedGateIds] = useState<string[]>([]);
 
   const [confirmStatus, setConfirmStatus] = useState<{
     isOpen: boolean;
@@ -113,7 +174,9 @@ export default function AssignmentsPage() {
   });
 
   // Query Guard Assignments
-  const { data: assignmentsRes, isLoading } = useQuery<ApiResponse<Assignment[]>>({
+  const { data: assignmentsRes, isLoading } = useQuery<
+    ApiResponse<Assignment[]>
+  >({
     queryKey: ['assignments'],
     queryFn: () => apiClient.get('/assignments'),
   });
@@ -139,15 +202,18 @@ export default function AssignmentsPage() {
     queryFn: () => apiClient.get('/patrol-routes'),
   });
 
-  const activeEmployees = (employeesRes?.data || []).filter((e) => e.status === 'ACTIVE' || e.id === editingAssignment?.employeeId);
-  const activeSites = (sitesRes?.data || []).filter((s) => s.isActive || s.id === editingAssignment?.siteId);
-  const activeShifts = (shiftsRes?.data || []).filter((s) => s.isActive || s.id === editingAssignment?.shiftId);
-  const activeRoutes = (routesRes?.data || []).filter((r) => r.isActive || r.id === editingAssignment?.patrolRouteId);
-
-  const employeeOptions = [
-    { value: '', label: '-- Select Guard Staff --' },
-    ...activeEmployees.map((e) => ({ value: e.id, label: `${e.firstName} ${e.lastName} (${e.employeeNumber})` })),
-  ];
+  const activeEmployees = (employeesRes?.data || []).filter(
+    (e) => e.status === 'ACTIVE' || e.id === editingAssignment?.employeeId,
+  );
+  const activeSites = (sitesRes?.data || []).filter(
+    (s) => s.isActive || s.id === editingAssignment?.siteId,
+  );
+  const activeShifts = (shiftsRes?.data || []).filter(
+    (s) => s.isActive || s.id === editingAssignment?.shiftId,
+  );
+  const activeRoutes = (routesRes?.data || []).filter(
+    (r) => r.isActive || r.id === editingAssignment?.patrolRouteId,
+  );
 
   const siteOptions = [
     { value: '', label: '-- Select Monitored Site --' },
@@ -156,10 +222,13 @@ export default function AssignmentsPage() {
 
   const shiftOptions = [
     { value: '', label: '-- Select Shift Slot --' },
-    ...activeShifts.map((s) => ({ value: s.id, label: `${s.name} (${s.startTime} - ${s.endTime})` })),
+    ...activeShifts.map((s) => ({
+      value: s.id,
+      label: `${s.name} (${s.startTime} - ${s.endTime})`,
+    })),
   ];
 
-  // Dynamic route selection based on selected site in react-hook-form
+  // Dynamic route & gates selection based on selected site in react-hook-form
   const {
     register,
     handleSubmit,
@@ -171,6 +240,16 @@ export default function AssignmentsPage() {
   });
 
   const selectedFormSiteId = watch('siteId');
+
+  const { data: gatesRes } = useQuery<ApiResponse<GateItem[]>>({
+    queryKey: ['gates-by-site', selectedFormSiteId],
+    queryFn: () =>
+      apiClient.get('/gates', { params: { siteId: selectedFormSiteId } }),
+    enabled: !!selectedFormSiteId,
+  });
+
+  const siteGates = gatesRes?.data || [];
+
   const filteredRouteOptions = [
     { value: '', label: '-- Select Patrol Route --' },
     ...activeRoutes
@@ -182,24 +261,42 @@ export default function AssignmentsPage() {
   const createAssignmentMutation = useMutation({
     mutationFn: (values: AssignmentValues) => {
       const payload: any = {
-        ...values,
+        siteId: values.siteId,
+        shiftId: values.shiftId,
+        assignmentType,
         effectiveFrom: new Date(values.effectiveFrom).toISOString(),
       };
+
+      if (selectedEmployeeIds.length > 0) {
+        payload.employeeIds = selectedEmployeeIds;
+      } else if (values.employeeId) {
+        payload.employeeId = values.employeeId;
+      }
+
+      if (assignmentType === 'ROUTE') {
+        payload.patrolRouteId = values.patrolRouteId;
+      } else {
+        payload.gateIds = selectedGateIds;
+      }
+
       if (values.effectiveTo) {
         payload.effectiveTo = new Date(values.effectiveTo).toISOString();
-      } else {
-        delete payload.effectiveTo;
       }
+
       return apiClient.post('/assignments', payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      toast.success('Guard assigned successfully!');
+      toast.success('Guard assignment(s) created successfully!');
       setIsModalOpen(false);
       reset();
+      setSelectedEmployeeIds([]);
+      setSelectedGateIds([]);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Failed to create assignment.');
+      toast.error(
+        err.response?.data?.message || 'Failed to create assignment.',
+      );
     },
   });
 
@@ -209,9 +306,14 @@ export default function AssignmentsPage() {
       const payload: any = {
         siteId: values.siteId,
         shiftId: values.shiftId,
-        patrolRouteId: values.patrolRouteId,
+        assignmentType,
         effectiveFrom: new Date(values.effectiveFrom).toISOString(),
       };
+      if (assignmentType === 'ROUTE') {
+        payload.patrolRouteId = values.patrolRouteId;
+      } else {
+        payload.gateIds = selectedGateIds;
+      }
       if (values.effectiveTo) {
         payload.effectiveTo = new Date(values.effectiveTo).toISOString();
       } else {
@@ -227,27 +329,38 @@ export default function AssignmentsPage() {
       reset();
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Failed to update assignment.');
+      toast.error(
+        err.response?.data?.message || 'Failed to update assignment.',
+      );
     },
   });
 
   // Toggle Status mutation
   const toggleStatusMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
-      apiClient.patch(`/assignments/${id}/${isActive ? 'activate' : 'deactivate'}`),
+      apiClient.patch(
+        `/assignments/${id}/${isActive ? 'activate' : 'deactivate'}`,
+      ),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      toast.success(`Assignment successfully ${vars.isActive ? 'activated' : 'deactivated'}.`);
+      toast.success(
+        `Assignment successfully ${vars.isActive ? 'activated' : 'deactivated'}.`,
+      );
       setConfirmStatus((prev) => ({ ...prev, isOpen: false }));
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Failed to toggle assignment status.');
+      toast.error(
+        err.response?.data?.message || 'Failed to toggle assignment status.',
+      );
       setConfirmStatus((prev) => ({ ...prev, isOpen: false }));
     },
   });
 
   const handleOpenAdd = () => {
     setEditingAssignment(null);
+    setAssignmentType('ROUTE');
+    setSelectedEmployeeIds([]);
+    setSelectedGateIds([]);
     reset({
       employeeId: '',
       siteId: '',
@@ -261,18 +374,53 @@ export default function AssignmentsPage() {
 
   const handleOpenEdit = (assignment: Assignment) => {
     setEditingAssignment(assignment);
+    setAssignmentType(
+      assignment.assignmentType === 'DIRECT_CHECKPOINTS'
+        ? 'DIRECT_CHECKPOINTS'
+        : 'ROUTE',
+    );
+    setSelectedEmployeeIds([assignment.employeeId]);
+    setSelectedGateIds(
+      assignment.assignmentGates?.map((ag) => ag.gate.id) || [],
+    );
     reset({
       employeeId: assignment.employeeId,
       siteId: assignment.siteId,
       shiftId: assignment.shiftId,
-      patrolRouteId: assignment.patrolRouteId,
-      effectiveFrom: new Date(assignment.effectiveFrom).toISOString().split('T')[0],
-      effectiveTo: assignment.effectiveTo ? new Date(assignment.effectiveTo).toISOString().split('T')[0] : '',
+      patrolRouteId: assignment.patrolRouteId || '',
+      effectiveFrom: new Date(assignment.effectiveFrom)
+        .toISOString()
+        .split('T')[0],
+      effectiveTo: assignment.effectiveTo
+        ? new Date(assignment.effectiveTo).toISOString().split('T')[0]
+        : '',
     });
     setIsModalOpen(true);
   };
 
   const onSubmit = (values: AssignmentValues) => {
+    if (
+      !editingAssignment &&
+      selectedEmployeeIds.length === 0 &&
+      !values.employeeId
+    ) {
+      toast.error('Please select at least one security guard employee.');
+      return;
+    }
+    if (assignmentType === 'ROUTE' && !values.patrolRouteId) {
+      toast.error('Please select a patrol route.');
+      return;
+    }
+    if (
+      assignmentType === 'DIRECT_CHECKPOINTS' &&
+      selectedGateIds.length === 0
+    ) {
+      toast.error(
+        'Please select at least one checkpoint for direct assignment.',
+      );
+      return;
+    }
+
     if (editingAssignment) {
       updateAssignmentMutation.mutate({ id: editingAssignment.id, values });
     } else {
@@ -297,7 +445,7 @@ export default function AssignmentsPage() {
         c.employee.firstName.toLowerCase().includes(s) ||
         c.employee.lastName.toLowerCase().includes(s) ||
         c.site.name.toLowerCase().includes(s) ||
-        c.shift.name.toLowerCase().includes(s)
+        c.shift.name.toLowerCase().includes(s),
     );
   }
 
@@ -308,7 +456,10 @@ export default function AssignmentsPage() {
 
   const limit = 10;
   const totalPages = Math.max(1, Math.ceil(assignments.length / limit));
-  const paginatedAssignments = assignments.slice((page - 1) * limit, page * limit);
+  const paginatedAssignments = assignments.slice(
+    (page - 1) * limit,
+    page * limit,
+  );
 
   const columns = [
     {
@@ -319,33 +470,108 @@ export default function AssignmentsPage() {
           <p style={{ fontWeight: 600, margin: 0 }}>
             {row.employee.firstName} {row.employee.lastName}
           </p>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+          <span
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--text-muted)',
+              fontFamily: 'monospace',
+            }}
+          >
             ID: {row.employee.employeeNumber}
           </span>
         </div>
       ),
     },
-    { key: 'site', label: 'Monitored Site', render: (row: Assignment) => row.site.name },
+    {
+      key: 'site',
+      label: 'Monitored Site',
+      render: (row: Assignment) => row.site.name,
+    },
     {
       key: 'shift',
       label: 'Shift slot',
       render: (row: Assignment) => (
         <div>
           <p style={{ margin: 0, fontWeight: 500 }}>{row.shift.name}</p>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+          <span
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--text-muted)',
+              fontFamily: 'monospace',
+            }}
+          >
             {row.shift.startTime} - {row.shift.endTime}
           </span>
         </div>
       ),
     },
-    { key: 'patrolRoute', label: 'Patrol Path', render: (row: Assignment) => row.patrolRoute.name },
+    {
+      key: 'type',
+      label: 'Assignment Workflow',
+      render: (row: Assignment) => (
+        <span
+          style={{
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            padding: '3px 8px',
+            borderRadius: '4px',
+            background:
+              row.assignmentType === 'DIRECT_CHECKPOINTS'
+                ? 'rgba(59, 130, 246, 0.15)'
+                : 'rgba(16, 185, 129, 0.15)',
+            color:
+              row.assignmentType === 'DIRECT_CHECKPOINTS'
+                ? 'var(--primary)'
+                : 'var(--success)',
+          }}
+        >
+          {row.assignmentType === 'DIRECT_CHECKPOINTS'
+            ? '🚧 Checkpoints'
+            : '🗺️ Patrol Route'}
+        </span>
+      ),
+    },
+    {
+      key: 'patrolRoute',
+      label: 'Assigned Target',
+      render: (row: Assignment) => {
+        if (row.assignmentType === 'DIRECT_CHECKPOINTS') {
+          const count = row.assignmentGates?.length || 0;
+          return (
+            <div>
+              <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem' }}>
+                {count} Checkpoint{count === 1 ? '' : 's'}
+              </p>
+              {row.assignmentGates && row.assignmentGates.length > 0 && (
+                <span
+                  style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}
+                >
+                  {row.assignmentGates
+                    .map((ag) => ag.gate.name)
+                    .slice(0, 2)
+                    .join(', ')}
+                  {row.assignmentGates.length > 2 ? '...' : ''}
+                </span>
+              )}
+            </div>
+          );
+        }
+        return (
+          <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>
+            {row.patrolRoute?.name || 'N/A'}
+          </span>
+        );
+      },
+    },
     {
       key: 'dates',
       label: 'Effective Period',
       render: (row: Assignment) => (
         <span style={{ fontSize: '0.85rem' }}>
           {new Date(row.effectiveFrom).toLocaleDateString()} -{' '}
-          {row.effectiveTo ? new Date(row.effectiveTo).toLocaleDateString() : 'Continuous'}
+          {row.effectiveTo
+            ? new Date(row.effectiveTo).toLocaleDateString()
+            : 'Continuous'}
         </span>
       ),
     },
@@ -384,7 +610,11 @@ export default function AssignmentsPage() {
               color: row.isActive ? 'var(--danger)' : 'var(--success)',
             }}
           >
-            {row.isActive ? <ToggleLeft size={16} /> : <ToggleRight size={16} />}
+            {row.isActive ? (
+              <ToggleLeft size={16} />
+            ) : (
+              <ToggleRight size={16} />
+            )}
             <span>{row.isActive ? 'Deactivate' : 'Activate'}</span>
           </button>
         </div>
@@ -402,7 +632,15 @@ export default function AssignmentsPage() {
           marginBottom: '24px',
         }}
       >
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', width: '100%', maxWidth: '640px' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '12px',
+            flexWrap: 'wrap',
+            width: '100%',
+            maxWidth: '640px',
+          }}
+        >
           <SearchBar
             value={search}
             onChange={(val) => {
@@ -427,7 +665,11 @@ export default function AssignmentsPage() {
           </select>
         </div>
 
-        <button onClick={handleOpenAdd} className="btn btn-primary" style={{ gap: '8px' }}>
+        <button
+          onClick={handleOpenAdd}
+          className="btn btn-primary"
+          style={{ gap: '8px' }}
+        >
           <Plus size={16} />
           <span>Assign Guard Staff</span>
         </button>
@@ -450,16 +692,116 @@ export default function AssignmentsPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingAssignment ? 'Modify Active Guard Assignment' : 'Assign Guard Staff to Patrol'}
+        title={
+          editingAssignment
+            ? 'Modify Active Guard Assignment'
+            : 'Assign Guard Staff'
+        }
       >
-        <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+        >
+          {/* WORKFLOW TYPE SELECTOR */}
+          <div>
+            <label className="form-label">Assignment Model</label>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '10px',
+              }}
+            >
+              <button
+                type="button"
+                className={`btn ${assignmentType === 'ROUTE' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '8px 12px', fontSize: '0.85rem' }}
+                onClick={() => setAssignmentType('ROUTE')}
+              >
+                🗺️ Patrol Route
+              </button>
+              <button
+                type="button"
+                className={`btn ${assignmentType === 'DIRECT_CHECKPOINTS' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '8px 12px', fontSize: '0.85rem' }}
+                onClick={() => setAssignmentType('DIRECT_CHECKPOINTS')}
+              >
+                🚧 Checkpoints
+              </button>
+            </div>
+          </div>
+
+          {/* GUARD EMPLOYEE SELECTION */}
           {!editingAssignment ? (
-            <Select
-              label="Select Guard Employee"
-              options={employeeOptions}
-              error={errors.employeeId?.message}
-              {...register('employeeId')}
-            />
+            <div>
+              <label className="form-label">
+                Select Security Guard Staff (Multiple allowed)
+              </label>
+              <div
+                style={{
+                  maxHeight: '130px',
+                  overflowY: 'auto',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  padding: '8px',
+                  background: 'var(--surface-color)',
+                }}
+              >
+                {activeEmployees.length === 0 ? (
+                  <p
+                    style={{
+                      fontSize: '0.8rem',
+                      color: 'var(--text-muted)',
+                      margin: 0,
+                    }}
+                  >
+                    No active guards available.
+                  </p>
+                ) : (
+                  activeEmployees.map((emp) => {
+                    const isSelected = selectedEmployeeIds.includes(emp.id);
+                    return (
+                      <label
+                        key={emp.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '4px 6px',
+                          cursor: 'pointer',
+                          borderRadius: '4px',
+                          fontSize: '0.85rem',
+                          background: isSelected
+                            ? 'rgba(59, 130, 246, 0.1)'
+                            : 'transparent',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedEmployeeIds((prev) => [
+                                ...prev,
+                                emp.id,
+                              ]);
+                            } else {
+                              setSelectedEmployeeIds((prev) =>
+                                prev.filter((id) => id !== emp.id),
+                              );
+                            }
+                          }}
+                        />
+                        <span>
+                          {emp.firstName} {emp.lastName} &mdash;{' '}
+                          {getRoleLabel(emp)} ({emp.employeeNumber})
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           ) : (
             <div>
               <label className="form-label">Assigned Employee</label>
@@ -468,12 +810,18 @@ export default function AssignmentsPage() {
                 className="form-input"
                 disabled
                 style={{ opacity: 0.7 }}
-                value={`${editingAssignment.employee.firstName} ${editingAssignment.employee.lastName} (${editingAssignment.employee.employeeNumber})`}
+                value={`${editingAssignment.employee.firstName} ${editingAssignment.employee.lastName} \u2014 ${getRoleLabel(editingAssignment.employee)} (${editingAssignment.employee.employeeNumber})`}
               />
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px',
+            }}
+          >
             <Select
               label="Select Monitored Site"
               options={siteOptions}
@@ -489,15 +837,88 @@ export default function AssignmentsPage() {
             />
           </div>
 
-          <Select
-            label="Select Patrol Path"
-            options={filteredRouteOptions}
-            error={errors.patrolRouteId?.message}
-            {...register('patrolRouteId')}
-            disabled={!selectedFormSiteId}
-          />
+          {/* TARGET SELECTION: ROUTE OR DIRECT GATES */}
+          {assignmentType === 'ROUTE' ? (
+            <Select
+              label="Select Patrol Route"
+              options={filteredRouteOptions}
+              error={errors.patrolRouteId?.message}
+              {...register('patrolRouteId')}
+              disabled={!selectedFormSiteId}
+            />
+          ) : (
+            <div>
+              <label className="form-label">
+                Select Direct Checkpoints (Multiple allowed)
+              </label>
+              {!selectedFormSiteId ? (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Please select a site first to load checkpoints.
+                </p>
+              ) : siteGates.length === 0 ? (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  No checkpoints registered at this site.
+                </p>
+              ) : (
+                <div
+                  style={{
+                    maxHeight: '140px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    padding: '8px',
+                    background: 'var(--surface-color)',
+                  }}
+                >
+                  {siteGates.map((gate) => {
+                    const isChecked = selectedGateIds.includes(gate.id);
+                    return (
+                      <label
+                        key={gate.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '4px 6px',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          borderRadius: '4px',
+                          background: isChecked
+                            ? 'rgba(59, 130, 246, 0.1)'
+                            : 'transparent',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedGateIds((prev) => [...prev, gate.id]);
+                            } else {
+                              setSelectedGateIds((prev) =>
+                                prev.filter((id) => id !== gate.id),
+                              );
+                            }
+                          }}
+                        />
+                        <span>
+                          🚧 {gate.name} ({gate.gateCode})
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px',
+            }}
+          >
             <FormInput
               label="Effective From"
               type="date"
@@ -516,14 +937,18 @@ export default function AssignmentsPage() {
           <button
             type="submit"
             className="btn btn-primary"
-            style={{ width: '100%', marginTop: '16px' }}
-            disabled={createAssignmentMutation.isPending || updateAssignmentMutation.isPending}
+            style={{ width: '100%', marginTop: '12px' }}
+            disabled={
+              createAssignmentMutation.isPending ||
+              updateAssignmentMutation.isPending
+            }
           >
-            {createAssignmentMutation.isPending || updateAssignmentMutation.isPending
+            {createAssignmentMutation.isPending ||
+            updateAssignmentMutation.isPending
               ? 'Saving assignments...'
               : editingAssignment
-              ? 'Save Assignment'
-              : 'Add Assignment'}
+                ? 'Save Assignment'
+                : 'Add Assignment'}
           </button>
         </form>
       </Modal>
@@ -533,7 +958,11 @@ export default function AssignmentsPage() {
         isOpen={confirmStatus.isOpen}
         onClose={() => setConfirmStatus((prev) => ({ ...prev, isOpen: false }))}
         onConfirm={handleConfirmStatusChange}
-        title={confirmStatus.targetStatus ? 'Activate Assignment' : 'Deactivate Assignment'}
+        title={
+          confirmStatus.targetStatus
+            ? 'Activate Assignment'
+            : 'Deactivate Assignment'
+        }
         description={`Are you sure you want to ${
           confirmStatus.targetStatus ? 'activate' : 'deactivate'
         } assignment for guard "${confirmStatus.guardName}"?`}

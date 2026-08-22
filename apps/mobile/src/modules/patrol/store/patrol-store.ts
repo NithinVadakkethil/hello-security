@@ -7,6 +7,7 @@ interface PatrolState {
   scannedGateIds: string[];
   elapsedSeconds: number;
   unlockedGateId: string | null; // Currently unlocked gate ID (QR code scanned successfully)
+  justScannedGateId: string | null; // Set ONLY after a fresh QR scan success, cleared after scroll
   
   loadActiveSession: () => Promise<void>;
   startSession: (session: PatrolSession) => Promise<void>;
@@ -16,6 +17,7 @@ interface PatrolState {
   completeSession: () => Promise<void>;
   unlockCheckpoint: (gateId: string) => void;
   lockCheckpoint: () => void;
+  clearJustScannedGateId: () => void;
   tick: () => void;
 }
 
@@ -24,6 +26,7 @@ export const usePatrolStore = create<PatrolState>((set, get) => ({
   scannedGateIds: [],
   elapsedSeconds: 0,
   unlockedGateId: null,
+  justScannedGateId: null,
 
   loadActiveSession: async () => {
     const cachedSession = await sqliteDb.get<PatrolSession>('patrols', 'current');
@@ -36,10 +39,11 @@ export const usePatrolStore = create<PatrolState>((set, get) => ({
         activeSession: cachedSession,
         scannedGateIds: cachedScanned || [],
         unlockedGateId: cachedUnlocked || null,
+        justScannedGateId: null,
         elapsedSeconds: elapsed > 0 ? elapsed : 0,
       });
     } else {
-      set({ activeSession: null, scannedGateIds: [], unlockedGateId: null, elapsedSeconds: 0 });
+      set({ activeSession: null, scannedGateIds: [], unlockedGateId: null, justScannedGateId: null, elapsedSeconds: 0 });
     }
   },
 
@@ -47,7 +51,7 @@ export const usePatrolStore = create<PatrolState>((set, get) => ({
     await sqliteDb.insert('patrols', 'current', session);
     await sqliteDb.insert('checkpoints', 'current_scanned', []);
     await sqliteDb.insert('checkpoints', 'current_unlocked', null);
-    set({ activeSession: session, scannedGateIds: [], unlockedGateId: null, elapsedSeconds: 0 });
+    set({ activeSession: session, scannedGateIds: [], unlockedGateId: null, justScannedGateId: null, elapsedSeconds: 0 });
   },
 
   pauseSession: async () => {
@@ -82,24 +86,28 @@ export const usePatrolStore = create<PatrolState>((set, get) => ({
     const updated = [...scannedGateIds, gateId];
     await sqliteDb.insert('checkpoints', 'current_scanned', updated);
     await sqliteDb.insert('checkpoints', 'current_unlocked', null);
-    set({ scannedGateIds: updated, unlockedGateId: null }); // Locks checkpoint immediately after successful scan submission
+    set({ scannedGateIds: updated, unlockedGateId: null, justScannedGateId: null }); // Locks checkpoint immediately after successful scan submission
   },
 
   completeSession: async () => {
     await sqliteDb.delete('patrols', 'current');
     await sqliteDb.delete('checkpoints', 'current_scanned');
     await sqliteDb.delete('checkpoints', 'current_unlocked');
-    set({ activeSession: null, scannedGateIds: [], unlockedGateId: null, elapsedSeconds: 0 });
+    set({ activeSession: null, scannedGateIds: [], unlockedGateId: null, justScannedGateId: null, elapsedSeconds: 0 });
   },
 
   unlockCheckpoint: async (gateId) => {
     await sqliteDb.insert('checkpoints', 'current_unlocked', gateId);
-    set({ unlockedGateId: gateId });
+    set({ unlockedGateId: gateId, justScannedGateId: gateId });
   },
 
   lockCheckpoint: async () => {
     await sqliteDb.insert('checkpoints', 'current_unlocked', null);
-    set({ unlockedGateId: null });
+    set({ unlockedGateId: null, justScannedGateId: null });
+  },
+
+  clearJustScannedGateId: () => {
+    set({ justScannedGateId: null });
   },
 
   tick: () => {

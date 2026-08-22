@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Edit, Key, Shield, User, Mail, Phone, RefreshCw, Check, Copy } from 'lucide-react';
+import { ArrowLeft, Edit, Key, Shield, User, Mail, Phone, Check, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -12,12 +12,13 @@ import { ApiResponse } from '../../../types/api';
 import StatusChip from '../../../components/ui/StatusChip';
 import Modal from '../../../components/ui/Modal';
 import ConfirmationDialog from '../../../components/ui/ConfirmationDialog';
+import LoadingState from '../../../components/ui/LoadingState';
 
 interface Employee {
   id: string;
   employeeNumber: string;
   firstName: string;
-  lastName: string;
+  lastName?: string | null;
   email?: string | null;
   phone?: string | null;
   designation?: string | null;
@@ -76,11 +77,7 @@ export default function EmployeeDetailPage() {
   };
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading employee profile..." variant="page" />;
   }
 
   if (isError || !employee) {
@@ -96,7 +93,9 @@ export default function EmployeeDetailPage() {
   }
 
   const getInitials = () => {
-    return (employee.firstName[0] + employee.lastName[0]).toUpperCase();
+    const first = employee.firstName?.[0] || '';
+    const last = employee.lastName?.[0] || '';
+    return (first + last).toUpperCase() || 'E';
   };
 
   return (
@@ -140,7 +139,7 @@ export default function EmployeeDetailPage() {
                 STAFF ID: {employee.employeeNumber}
               </span>
               <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '4px 0 8px 0' }}>
-                {employee.firstName} {employee.lastName}
+                {[employee.firstName, employee.lastName].filter(Boolean).join(' ')}
               </h2>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <StatusChip status={employee.status} />

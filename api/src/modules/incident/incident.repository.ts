@@ -36,6 +36,20 @@ export class IncidentRepository {
       },
       include: {
         employee: true,
+        gate: {
+          include: {
+            site: true,
+          },
+        },
+        patrolSession: {
+          include: {
+            assignment: {
+              include: {
+                site: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -50,6 +64,44 @@ export class IncidentRepository {
       },
       include: {
         employee: true,
+        gate: {
+          include: {
+            site: true,
+          },
+        },
+        patrolSession: {
+          include: {
+            assignment: {
+              include: {
+                site: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  updateStatus(id: string, status: string) {
+    return prisma.incident.update({
+      where: { id },
+      data: { status },
+      include: {
+        employee: true,
+        gate: {
+          include: {
+            site: true,
+          },
+        },
+        patrolSession: {
+          include: {
+            assignment: {
+              include: {
+                site: true,
+              },
+            },
+          },
+        },
       },
     });
   }

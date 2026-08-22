@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Image, Alert } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTheme } from '../../../app/hooks/useTheme';
@@ -31,8 +31,21 @@ export function LoginScreen() {
       await login(data);
     } catch (err: any) {
       console.error('[LoginScreen] Login failed:', err);
+      const errorCode = err.response?.data?.error?.code || err.response?.data?.code;
       const errorMessage =
-        err.response?.data?.message || err.message || 'An unexpected error occurred. Please try again.';
+        err.response?.data?.error?.message ||
+        err.response?.data?.message ||
+        err.message ||
+        'An unexpected error occurred. Please try again.';
+
+      if (errorCode === 'USER_ALREADY_LOGGED_IN') {
+        Alert.alert(
+          'Account Already Logged In',
+          'Your account is currently active on another device. Please log out from that device before trying again.',
+          [{ text: 'OK' }]
+        );
+      }
+
       setApiError(errorMessage);
     }
   };
@@ -45,7 +58,17 @@ export function LoginScreen() {
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           
-          <Text style={[styles.title, { color: colors.text }]}>Hello Security</Text>
+          <View style={styles.logoContainer}>
+            <View style={[styles.logoBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Image
+                source={require('../../../assets/hello-orbit-logo.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </View>
+          </View>
+
+          <Text style={[styles.title, { color: colors.text }]}>Hello Orbit</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Secure Guardian Management System
           </Text>
@@ -119,6 +142,29 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 4,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  logoBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 1,
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 4,
   },
   title: {
     fontSize: 28,

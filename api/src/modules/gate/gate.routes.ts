@@ -5,8 +5,11 @@ import { authenticate } from '../../common/auth/auth.middleware';
 import { authorize } from '../../common/auth/authorize';
 
 import { gateController } from './gate.controller';
+import gateSubTaskRoutes from '../gate-sub-task/gate-sub-task.routes';
 
 const router: Router = Router();
+
+router.use('/:gateId/sub-tasks', gateSubTaskRoutes);
 
 router.post(
   '/',
@@ -20,6 +23,13 @@ router.get(
   authenticate,
   authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN),
   gateController.list.bind(gateController),
+);
+
+router.get(
+  '/next-sequence',
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN),
+  gateController.getNextSequence.bind(gateController),
 );
 
 router.get(

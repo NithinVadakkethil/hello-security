@@ -12,13 +12,13 @@ export function usePatrol() {
 
   const { startSession, pauseSession, resumeSession, scanGate, completeSession } = usePatrolStore();
 
-  const startMutation = useMutation<PatrolSession, Error>({
-    mutationFn: async () => {
+  const startMutation = useMutation<PatrolSession, Error, string | undefined>({
+    mutationFn: async (assignmentId?: string) => {
       if (!isConnected) {
         const tempSession: PatrolSession = {
           id: 'temp-active-session',
           clientId: assignment?.clientId || 'offline-client',
-          assignmentId: assignment?.id || 'offline-assignment',
+          assignmentId: assignmentId || assignment?.id || 'offline-assignment',
           patrolCode: `PTS-${Math.floor(Math.random() * 90000) + 10000}`,
           status: 'IN_PROGRESS',
           startedAt: new Date().toISOString(),
@@ -28,10 +28,10 @@ export function usePatrol() {
           remarks: null,
           assignment: assignment || undefined,
         };
-        await useOfflineStore.getState().enqueue('/patrol-sessions/start', 'POST', {});
+        await useOfflineStore.getState().enqueue('/patrol-sessions/start', 'POST', { assignmentId });
         return tempSession;
       }
-      return patrolApi.startPatrol();
+      return patrolApi.startPatrol(assignmentId);
     },
     onSuccess: async (data) => {
       await startSession(data);
@@ -82,21 +82,42 @@ export function usePatrol() {
     },
   });
 
-  const scanMutation = useMutation<any, Error, { gateId: string; remarks?: string; latitude?: number; longitude?: number }>({
-    mutationFn: async ({ gateId, remarks, latitude, longitude }) => {
+  const scanMutation = useMutation<any, Error, { gateId: string; remarks?: string; status?: string; images?: string[]; latitude?: number; longitude?: number; subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string; images?: string[] }> }>({
+    mutationFn: async ({ gateId, remarks, status, images, latitude, longitude, subTaskResponses }) => {
       if (!isConnected) {
         await useOfflineStore.getState().enqueue('/patrol-checkpoints/scan', 'POST', {
           gateId,
           remarks,
+          status,
+          images,
           latitude,
           longitude,
+          subTaskResponses,
         });
         return { success: true };
       }
-      return patrolApi.scanCheckpoint(gateId, remarks, latitude, longitude);
+      return patrolApi.scanCheckpoint(gateId, remarks, status, images, latitude, longitude, subTaskResponses);
     },
     onSuccess: async (_, variables) => {
       await scanGate(variables.gateId);
+      queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
+      queryClient.invalidateQueries({ queryKey: ['patrol-sessions'] });
+    },
+  });
+
+  const cancelMutation = useMutation<any, Error, { id: string }>({
+    mutationFn: async ({ id }) => {
+      if (!isConnected) {
+        await useOfflineStore.getState().enqueue(`/patrol-sessions/${id}/cancel`, 'POST', {});
+        return { success: true };
+      }
+      return patrolApi.cancelPatrol(id);
+    },
+    onSuccess: async () => {
+      await completeSession();
+      queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
+      queryClient.invalidateQueries({ queryKey: ['patrol-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
     },
   });
 
@@ -109,6 +130,8 @@ export function usePatrol() {
     isResuming: resumeMutation.isPending,
     completePatrol: completeMutation.mutateAsync,
     isCompleting: completeMutation.isPending,
+    cancelPatrol: cancelMutation.mutateAsync,
+    isCancelling: cancelMutation.isPending,
     scanCheckpoint: scanMutation.mutateAsync,
     isScanning: scanMutation.isPending,
   };

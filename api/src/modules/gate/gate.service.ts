@@ -10,6 +10,7 @@ import { generateCode } from '../../common/utils/code-generator';
 
 import { siteRepository } from '../site/site.repository';
 import { gateRepository } from './gate.repository';
+import { prisma } from '../../database/prisma';
 
 import { CreateGateDto, UpdateGateDto } from './gate.types';
 
@@ -25,6 +26,30 @@ export class GateService {
       );
     }
 
+    // Validate Checkpoint Creation Limit
+    const client = await prisma.client.findUnique({
+      where: { id: site.clientId },
+      select: { maxCheckpoints: true },
+    });
+
+    if (client && client.maxCheckpoints !== null && client.maxCheckpoints !== undefined) {
+      const currentGateCount = await prisma.gate.count({
+        where: {
+          site: {
+            clientId: site.clientId,
+          },
+        },
+      });
+
+      if (currentGateCount >= client.maxCheckpoints) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          `Checkpoint creation limit reached. Maximum allowed: ${client.maxCheckpoints}. Current count: ${currentGateCount}.`,
+        );
+      }
+    }
+
     const existingGate = await gateRepository.findByName(dto.siteId, dto.name);
 
     if (existingGate) {
@@ -33,6 +58,10 @@ export class GateService {
         ErrorCodes.VALIDATION_ERROR,
         'Gate name already exists.',
       );
+    }
+
+    if (!dto.sequence || Number(dto.sequence) <= 0) {
+      dto.sequence = await gateRepository.getNextSequence(dto.siteId);
     }
 
     const existingSequence = await gateRepository.findBySequence(
@@ -48,9 +77,37 @@ export class GateService {
       );
     }
 
-    const sequence = await counterService.next(ENTITY.GATE);
+    const gateCount = await prisma.gate.count({
+      where: { siteId: dto.siteId },
+    });
 
-    const gateCode = generateCode(PREFIX.GATE, sequence);
+    if (gateCount === 0) {
+      await prisma.counter.upsert({
+        where: {
+          entity_clientId: {
+            entity: ENTITY.GATE,
+            clientId: dto.siteId,
+          },
+        },
+        update: { value: 0 },
+        create: {
+          entity: ENTITY.GATE,
+          clientId: dto.siteId,
+          value: 0,
+        },
+      });
+    }
+
+    let sequence = await counterService.next(ENTITY.GATE, dto.siteId);
+    let gateCode = generateCode(PREFIX.GATE, sequence);
+
+    let existingCode = await gateRepository.findByUniqueCode(dto.siteId, gateCode);
+
+    while (existingCode) {
+      sequence = await counterService.next(ENTITY.GATE, dto.siteId);
+      gateCode = generateCode(PREFIX.GATE, sequence);
+      existingCode = await gateRepository.findByUniqueCode(dto.siteId, gateCode);
+    }
 
     return gateRepository.create({
       ...dto,
@@ -58,8 +115,13 @@ export class GateService {
     });
   }
 
-  async list(siteId: string, isActive?: boolean) {
-    return gateRepository.list(siteId, isActive);
+  async list(siteId?: string, isActive?: boolean, clientId?: string, page?: number, limit?: number, search?: string) {
+    return gateRepository.list(siteId, isActive, clientId, page, limit, search);
+  }
+
+  async getNextSequence(siteId: string) {
+    const nextSequence = await gateRepository.getNextSequence(siteId);
+    return { nextSequence };
   }
 
   async get(id: string) {
@@ -127,6 +189,27 @@ export class GateService {
     return {
       message: 'Gate deactivated successfully.',
     };
+  }
+
+  async delete(id: string) {
+    await this.get(id);
+
+    const activeSubTasksCount = await prisma.gateSubTask.count({
+      where: {
+        gateId: id,
+        isActive: true,
+      },
+    });
+
+    if (activeSubTasksCount > 0) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        `Cannot delete gate while ${activeSubTasksCount} active sub-task(s) exist. Please delete or deactivate the sub-tasks first.`,
+      );
+    }
+
+    return gateRepository.delete(id);
   }
 }
 

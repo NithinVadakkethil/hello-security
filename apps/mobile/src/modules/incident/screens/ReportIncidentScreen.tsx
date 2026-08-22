@@ -1,19 +1,36 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, Alert, Modal, ActivityIndicator, Animated } from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { AlertCircle } from 'lucide-react-native';
+import React from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import {
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { z } from 'zod';
 import { useTheme } from '../../../app/hooks/useTheme';
-import { useCreateIncident } from '../hooks/useIncident';
 import { useOfflineStore } from '../../../app/store/offline-store';
-import { Card } from '../../dashboard/components/WidgetCard';
 import { Button } from '../../../components/Button';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { usePatrolStore } from '../../patrol/store/patrol-store';
 import { useActiveAssignment } from '../../assignment/hooks/useAssignment';
-import { AlertCircle } from 'lucide-react-native';
+import { Card } from '../../dashboard/components/WidgetCard';
+import { usePatrolStore } from '../../patrol/store/patrol-store';
+import { useCreateIncident } from '../hooks/useIncident';
 
-const INCIDENT_TYPES = ['FIRE', 'THEFT', 'HAZARD', 'INTRUSION', 'OTHER'] as const;
+const INCIDENT_TYPES = [
+  'FIRE',
+  'THEFT',
+  'HAZARD',
+  'INTRUSION',
+  'MEDICAL',
+  'VIOLENCE',
+  'EQUIPMENT_FAILURE',
+  'OTHER',
+] as const;
 const SEVERITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 
 const incidentFormSchema = z.object({
@@ -23,34 +40,12 @@ const incidentFormSchema = z.object({
   severity: z.enum(SEVERITIES, {
     error: 'Please select severity level',
   }),
-  description: z.string().min(10, 'Description must be at least 10 characters long'),
+  description: z
+    .string()
+    .min(10, 'Description must be at least 10 characters long'),
 });
 
 type IncidentFormData = z.infer<typeof incidentFormSchema>;
-
-// Static high-quality mock base64 placeholders representing site photos
-const MOCK_PHOTOS = [
-  {
-    id: '1',
-    name: 'Warehouse Gate',
-    uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAPklEQVR42mNk6GCoZyAAMxIURmDJ/p8ZcArCFLAisAowE0g2ECcZKAwZkBVAWnDKwCrAxEAcw2kCSiEWBhQCAP3iDT629Z7CAAAAAElFTkSuQmCC',
-  },
-  {
-    id: '2',
-    name: 'Broken Perimeter Fence',
-    uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAO0lEQVR42mNkYPj/nwEDMCOJMILK/p8ZMArCFLAisAowE0g2ECcZKAwZkBVAWnDKwCrAxEAcw2kCSiEWBgCSew55l9VbVQAAAABJRU5ErkJggg==',
-  },
-  {
-    id: '3',
-    name: 'Corridor Smoke Detector',
-    uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAOklEQVR42mNkYPj/fwEDAxgjMcAIKvv/n4EpCFLAisAowE0g2ECcZKAwZkBVAWnDKwCrAxEAcw2kCSiEWAAMuQ17d3+V6QAAAABJRU5ErkJggg==',
-  },
-  {
-    id: '4',
-    name: 'Main Entrance Lock',
-    uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAOUlEQVR42mNkYPj/nwECMCPhAENk9n8GpCFLAisAowE0g2ECcZKAwZkBVAWnDKwCrAxEAcw2kCSiEWAAoH8Oe6W0zOAAAAAASRU5ErkJggg==',
-  },
-];
 
 export function ReportIncidentScreen() {
   const { colors } = useTheme();
@@ -58,7 +53,7 @@ export function ReportIncidentScreen() {
   const route = useRoute<any>();
   const routeParams = route.params || {};
 
-  const isOnline = useOfflineStore((state) => state.isConnected);
+  const isOnline = useOfflineStore(state => state.isConnected);
   const { mutateAsync: reportIncident, isPending } = useCreateIncident();
   const { activeSession, unlockedGateId } = usePatrolStore();
   const { data: assignment } = useActiveAssignment();
@@ -70,81 +65,34 @@ export function ReportIncidentScreen() {
   const routeGates = assignment?.patrolRoute?.routeGates || [];
   const targetGate = routeGates.find((rg: any) => rg.gateId === gateId)?.gate;
 
-  const [images, setImages] = useState<string[]>([]);
-  const [showPickerMenu, setShowPickerMenu] = useState(false);
-  const [showCameraModal, setShowCameraModal] = useState(false);
-  const [showGalleryModal, setShowGalleryModal] = useState(false);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [isCompressing, setIsCompressing] = useState(false);
-
-  const flashAnim = useRef(new Animated.Value(0)).current;
-
-  const { control, handleSubmit, formState: { errors } } = useForm<IncidentFormData>({
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<IncidentFormData>({
     resolver: zodResolver(incidentFormSchema),
     defaultValues: {
       description: '',
     },
   });
 
-  const triggerCameraFlash = () => {
-    flashAnim.setValue(1);
-    Animated.timing(flashAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleCapturePhoto = () => {
-    setIsCompressing(true);
-    triggerCameraFlash();
-
-    setTimeout(() => {
-      // Generate a mock base64 compressed camera photo
-      const mockImage = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAPklEQVR42mNk6GCoZyAAMxIURmDJ/p8ZcArCFLAisAowE0g2ECcZKAwZkBVAWnDKwCrAxEAcw2kCSiEWBhQCAP3iDT629Z7CAAAAAElFTkSuQmCC`;
-      setImages((prev) => [...prev, mockImage]);
-      setIsCompressing(false);
-      setShowCameraModal(false);
-      Alert.alert('Compressed Photo Added', 'Captured image compressed by 85% before attachment.');
-    }, 1200);
-  };
-
-  const handleSelectGalleryPhoto = (uri: string) => {
-    if (images.includes(uri)) {
-      Alert.alert('Duplicate Attachment', 'This photo is already attached.');
-      return;
-    }
-    setIsCompressing(true);
-    setTimeout(() => {
-      setImages((prev) => [...prev, uri]);
-      setIsCompressing(false);
-      setShowGalleryModal(false);
-      Alert.alert('Compressed Photo Added', 'Gallery image compressed (Quality: 80%) successfully.');
-    }, 800);
-  };
-
-  const handleRemovePhoto = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
-    setPreviewImage(null);
-  };
-
   const onSubmit = async (data: IncidentFormData) => {
     try {
       await reportIncident({
         ...data,
-        images,
+        images: [],
         gateId: gateId || undefined,
         patrolSessionId: patrolSessionId || undefined,
         latitude: assignment?.site?.latitude || undefined,
         longitude: assignment?.site?.longitude || undefined,
       });
 
-      const message = isOnline 
+      const message = isOnline
         ? 'Your incident report has been submitted to the operations desk.'
         : 'Offline mode: incident report saved locally and queued for background sync.';
 
       Alert.alert('Report Saved', message, [
-        { text: 'OK', onPress: () => navigation.goBack() }
+        { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (err: any) {
       Alert.alert('Submission failed', err.message || 'Please try again.');
@@ -153,40 +101,102 @@ export function ReportIncidentScreen() {
 
   if (!gateId || !patrolSessionId) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', padding: 24 }]}>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+            justifyContent: 'center',
+            padding: 24,
+          },
+        ]}
+      >
         <View style={{ alignItems: 'center', marginBottom: 20 }}>
           <AlertCircle size={48} color={colors.danger} />
         </View>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text, textAlign: 'center', marginBottom: 12 }}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: '800',
+            color: colors.text,
+            textAlign: 'center',
+            marginBottom: 12,
+          }}
+        >
           Incident Reporting Locked
         </Text>
-        <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
-          Under Hello Security protocol, you cannot report incidents manually. You must first scan a checkpoint QR code during a patrol route sweep to unlock reporting.
+        <Text
+          style={{
+            fontSize: 13,
+            color: colors.textSecondary,
+            textAlign: 'center',
+            lineHeight: 18,
+            marginBottom: 24,
+          }}
+        >
+          Under Hello Orbit protocol, you cannot report incidents manually. You
+          must first scan a checkpoint QR code during a patrol route sweep to
+          unlock reporting.
         </Text>
-        <Button title="Go to Patrol Screen" onPress={() => navigation.navigate('Patrol')} />
+        <Button
+          title="Go to Patrol Screen"
+          onPress={() => navigation.navigate('Patrol')}
+        />
       </View>
     );
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
-      
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.scrollContent}
+    >
       {!isOnline && (
-        <View style={[styles.offlineBanner, { backgroundColor: colors.danger }]}>
-          <Text style={styles.offlineText}>OFFLINE MODE — Report will be queued</Text>
+        <View
+          style={[styles.offlineBanner, { backgroundColor: colors.danger }]}
+        >
+          <Text style={styles.offlineText}>
+            OFFLINE MODE — Report will be queued
+          </Text>
         </View>
       )}
 
-      <Text style={[styles.title, { color: colors.text }]}>Report Incident</Text>
+      <Text style={[styles.title, { color: colors.text }]}>
+        Report Incident
+      </Text>
 
-      <Card style={{ padding: 14, marginBottom: 20, borderColor: colors.primary, borderWidth: 1 }}>
-        <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <Card
+        style={{
+          padding: 14,
+          marginBottom: 20,
+          borderColor: colors.primary,
+          borderWidth: 1,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 10,
+            color: colors.textSecondary,
+            fontWeight: '700',
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}
+        >
           Reporting Incident For Checkpoint:
         </Text>
-        <Text style={{ fontSize: 16, color: colors.text, fontWeight: '800', marginTop: 4 }}>
+        <Text
+          style={{
+            fontSize: 16,
+            color: colors.text,
+            fontWeight: '800',
+            marginTop: 4,
+          }}
+        >
           {targetGate?.name || 'Active Unlocked Gate'}
         </Text>
-        <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
+        <Text
+          style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}
+        >
           Gate ID Code: {targetGate?.gateCode || gateId}
         </Text>
       </Card>
@@ -197,19 +207,25 @@ export function ReportIncidentScreen() {
         control={control}
         render={({ field: { value, onChange } }) => (
           <View style={styles.optionRow}>
-            {INCIDENT_TYPES.map((t) => (
+            {INCIDENT_TYPES.map(t => (
               <TouchableOpacity
                 key={t}
                 style={[
                   styles.optionButton,
                   {
                     borderColor: value === t ? colors.primary : colors.border,
-                    backgroundColor: value === t ? colors.primary + '15' : colors.surface,
+                    backgroundColor:
+                      value === t ? colors.primary + '15' : colors.surface,
                   },
                 ]}
                 onPress={() => onChange(t)}
               >
-                <Text style={[styles.optionText, { color: value === t ? colors.primary : colors.text }]}>
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: value === t ? colors.primary : colors.text },
+                  ]}
+                >
                   {t}
                 </Text>
               </TouchableOpacity>
@@ -217,7 +233,11 @@ export function ReportIncidentScreen() {
           </View>
         )}
       />
-      {errors.type && <Text style={[styles.errorText, { color: colors.danger }]}>{errors.type.message}</Text>}
+      {errors.type && (
+        <Text style={[styles.errorText, { color: colors.danger }]}>
+          {errors.type.message}
+        </Text>
+      )}
 
       <Text style={[styles.label, { color: colors.text }]}>Severity Level</Text>
       <Controller
@@ -225,19 +245,25 @@ export function ReportIncidentScreen() {
         control={control}
         render={({ field: { value, onChange } }) => (
           <View style={styles.optionRow}>
-            {SEVERITIES.map((s) => (
+            {SEVERITIES.map(s => (
               <TouchableOpacity
                 key={s}
                 style={[
                   styles.optionButton,
                   {
                     borderColor: value === s ? colors.primary : colors.border,
-                    backgroundColor: value === s ? colors.primary + '15' : colors.surface,
+                    backgroundColor:
+                      value === s ? colors.primary + '15' : colors.surface,
                   },
                 ]}
                 onPress={() => onChange(s)}
               >
-                <Text style={[styles.optionText, { color: value === s ? colors.primary : colors.text }]}>
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: value === s ? colors.primary : colors.text },
+                  ]}
+                >
                   {s}
                 </Text>
               </TouchableOpacity>
@@ -245,15 +271,28 @@ export function ReportIncidentScreen() {
           </View>
         )}
       />
-      {errors.severity && <Text style={[styles.errorText, { color: colors.danger }]}>{errors.severity.message}</Text>}
+      {errors.severity && (
+        <Text style={[styles.errorText, { color: colors.danger }]}>
+          {errors.severity.message}
+        </Text>
+      )}
 
-      <Text style={[styles.label, { color: colors.text }]}>Incident Description</Text>
+      <Text style={[styles.label, { color: colors.text }]}>
+        Incident Description
+      </Text>
       <Controller
         name="description"
         control={control}
         render={({ field: { value, onChange, onBlur } }) => (
           <TextInput
-            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+            style={[
+              styles.input,
+              {
+                color: colors.text,
+                borderColor: colors.border,
+                backgroundColor: colors.surface,
+              },
+            ]}
             placeholder="Provide a detailed description of the incident..."
             placeholderTextColor={colors.textSecondary}
             value={value}
@@ -264,27 +303,11 @@ export function ReportIncidentScreen() {
           />
         )}
       />
-      {errors.description && <Text style={[styles.errorText, { color: colors.danger }]}>{errors.description.message}</Text>}
-
-      <Text style={[styles.label, { color: colors.text }]}>Attach Photos ({images.length}/4)</Text>
-      <View style={styles.photoContainer}>
-        {images.map((img, idx) => (
-          <View key={idx} style={styles.thumbnailWrapper}>
-            <TouchableOpacity onPress={() => setPreviewImage(img)}>
-              <Image source={{ uri: img }} style={styles.thumbnail} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.removeButton, { backgroundColor: colors.danger }]} onPress={() => handleRemovePhoto(idx)}>
-              <Text style={styles.removeButtonText}>×</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-        {images.length < 4 && (
-          <TouchableOpacity style={[styles.addPhotoSlot, { borderColor: colors.border, backgroundColor: colors.surface }]} onPress={() => setShowPickerMenu(true)}>
-            <Text style={[styles.addPhotoPlus, { color: colors.textSecondary }]}>+</Text>
-            <Text style={[styles.addPhotoLabel, { color: colors.textSecondary }]}>Attach</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      {errors.description && (
+        <Text style={[styles.errorText, { color: colors.danger }]}>
+          {errors.description.message}
+        </Text>
+      )}
 
       <Button
         title="Submit Incident Report"
@@ -292,99 +315,6 @@ export function ReportIncidentScreen() {
         loading={isPending}
         style={styles.submitButton}
       />
-
-      {/* PHOTO SOURCE SELECTION DIALOG */}
-      <Modal visible={showPickerMenu} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <Card style={styles.pickerDialog}>
-            <Text style={[styles.pickerTitle, { color: colors.text }]}>Attach Photo</Text>
-            <TouchableOpacity style={[styles.pickerOption, { borderColor: colors.border }]} onPress={() => { setShowPickerMenu(false); setShowCameraModal(true); }}>
-              <Text style={[styles.pickerOptionText, { color: colors.text }]}>📷 Take Photo (Camera)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.pickerOption, { borderColor: colors.border }]} onPress={() => { setShowPickerMenu(false); setShowGalleryModal(true); }}>
-              <Text style={[styles.pickerOptionText, { color: colors.text }]}>🖼️ Choose from Gallery</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelPicker} onPress={() => setShowPickerMenu(false)}>
-              <Text style={{ color: colors.danger, fontWeight: '700' }}>Cancel</Text>
-            </TouchableOpacity>
-          </Card>
-        </View>
-      </Modal>
-
-      {/* CAMERA VIEWFINDER MODAL */}
-      <Modal visible={showCameraModal} animationType="slide">
-        <View style={[styles.cameraContainer, { backgroundColor: '#121214' }]}>
-          <Text style={styles.cameraTitle}>Mock Camera Viewfinder</Text>
-          <View style={styles.viewfinder}>
-            <View style={styles.crosshair} />
-            {isCompressing && (
-              <View style={styles.compressLoader}>
-                <ActivityIndicator color={colors.primary} size="large" />
-                <Text style={styles.compressLabel}>Compressing Photo (85%)...</Text>
-              </View>
-            )}
-            <Animated.View style={[styles.flashOverlay, { opacity: flashAnim }]} />
-          </View>
-          <View style={styles.cameraControls}>
-            <TouchableOpacity style={[styles.cameraCancel, { borderColor: '#ffffff' }]} onPress={() => setShowCameraModal(false)}>
-              <Text style={{ color: '#ffffff' }}>Close</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.shutterButton} onPress={handleCapturePhoto} disabled={isCompressing}>
-              <View style={styles.shutterInner} />
-            </TouchableOpacity>
-            <View style={{ width: 60 }} />
-          </View>
-        </View>
-      </Modal>
-
-      {/* GALLERY GRID PICKER MODAL */}
-      <Modal visible={showGalleryModal} animationType="slide">
-        <View style={[styles.galleryContainer, { backgroundColor: colors.background, padding: 20 }]}>
-          <Text style={[styles.galleryTitle, { color: colors.text }]}>Select Mock Gallery Photo</Text>
-          {isCompressing ? (
-            <View style={styles.compressLoader}>
-              <ActivityIndicator color={colors.primary} size="large" />
-              <Text style={[styles.compressLabel, { color: colors.text }]}>Compressing & Converting to Base64...</Text>
-            </View>
-          ) : (
-            <ScrollView contentContainerStyle={styles.galleryGrid}>
-              {MOCK_PHOTOS.map((p) => (
-                <TouchableOpacity key={p.id} style={styles.galleryItem} onPress={() => handleSelectGalleryPhoto(p.uri)}>
-                  <Image source={{ uri: p.uri }} style={styles.galleryImage} />
-                  <Text style={[styles.galleryItemLabel, { color: colors.textSecondary }]}>{p.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-          <Button title="Close Gallery" variant="outline" onPress={() => setShowGalleryModal(false)} />
-        </View>
-      </Modal>
-
-      {/* IMAGE PREVIEW LIGHTBOX */}
-      <Modal visible={previewImage !== null} transparent animationType="fade">
-        <View style={styles.lightboxOverlay}>
-          <View style={styles.lightboxContainer}>
-            {previewImage && <Image source={{ uri: previewImage }} style={styles.lightboxImage} />}
-            <View style={styles.lightboxButtons}>
-              <TouchableOpacity style={[styles.lightboxClose, { backgroundColor: colors.surface }]} onPress={() => setPreviewImage(null)}>
-                <Text style={{ color: colors.text, fontWeight: '700' }}>Close</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.lightboxRemove, { backgroundColor: colors.danger }]}
-                onPress={() => {
-                  if (previewImage) {
-                    const idx = images.indexOf(previewImage);
-                    if (idx !== -1) handleRemovePhoto(idx);
-                  }
-                }}
-              >
-                <Text style={{ color: '#ffffff', fontWeight: '700' }}>Remove Photo</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
     </ScrollView>
   );
 }

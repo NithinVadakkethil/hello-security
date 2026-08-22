@@ -1,10 +1,15 @@
 import { prisma } from '../../database/prisma';
 
 export class CounterRepository {
-  async getNext(entity: string) {
+  async getNext(entity: string, clientId?: string) {
+    const targetClientId = clientId || 'GLOBAL';
+
     return prisma.counter.upsert({
       where: {
-        entity,
+        entity_clientId: {
+          entity,
+          clientId: targetClientId,
+        },
       },
       update: {
         value: {
@@ -13,6 +18,7 @@ export class CounterRepository {
       },
       create: {
         entity,
+        clientId: targetClientId,
         value: 1,
       },
     });

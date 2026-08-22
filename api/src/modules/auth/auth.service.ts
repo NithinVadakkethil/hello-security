@@ -1,5 +1,6 @@
 import { addDays } from 'date-fns';
 import { authRepository } from './auth.repository';
+import { prisma } from '../../database/prisma';
 
 import { comparePassword, hashPassword } from '../../common/auth/bcrypt';
 import {
@@ -14,7 +15,12 @@ import { HttpStatus } from '../../common/errors/HttpStatus';
 import { LoginResponse } from './auth.types';
 
 export class AuthService {
-  async login(email: string, password: string): Promise<LoginResponse> {
+  async login(
+    email: string,
+    password: string,
+    deviceId?: string,
+    deviceInfo?: string,
+  ): Promise<LoginResponse> {
     const user = await authRepository.findUserByEmail(email);
 
     if (!user) {
@@ -52,21 +58,57 @@ export class AuthService {
     };
 
     const accessToken = signAccessToken(payload);
-
     const refreshToken = signRefreshToken(payload);
-
     const hashedRefreshToken = await hashPassword(refreshToken);
 
-    await authRepository.revokeAllRefreshTokens(user.id);
+    await prisma.$transaction(async (tx) => {
+      // Lock user row to prevent concurrent race conditions
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
 
-    await authRepository.createRefreshToken({
-      clientId: user.clientId,
-      userId: user.id,
-      tokenHash: hashedRefreshToken,
-      expiresAt: addDays(new Date(), 7),
+      if (deviceId) {
+        // Single Mobile Device restriction logic
+        const activeMobileSessions = await authRepository.findActiveMobileSessions(user.id, tx);
+        const otherDeviceSession = activeMobileSessions.find((s: any) => s.deviceId !== deviceId);
+
+        if (otherDeviceSession) {
+          throw new AppError(
+            HttpStatus.CONFLICT,
+            ErrorCodes.USER_ALREADY_LOGGED_IN,
+            'Your account is already logged in on another device. Please log out from the other device before trying again.',
+          );
+        }
+
+        // Revoke any previous token for this same device
+        await authRepository.revokeMobileSession(user.id, deviceId, tx);
+
+        // Create new active mobile refresh token
+        await authRepository.createRefreshToken(
+          {
+            clientId: user.clientId,
+            userId: user.id,
+            tokenHash: hashedRefreshToken,
+            deviceId,
+            deviceInfo,
+            expiresAt: addDays(new Date(), 7),
+          },
+          tx,
+        );
+      } else {
+        // Web / Non-mobile login flow
+        await authRepository.revokeAllRefreshTokens(user.id, tx);
+        await authRepository.createRefreshToken(
+          {
+            clientId: user.clientId,
+            userId: user.id,
+            tokenHash: hashedRefreshToken,
+            expiresAt: addDays(new Date(), 7),
+          },
+          tx,
+        );
+      }
+
+      await authRepository.updateLastLogin(user.id, tx);
     });
-
-    await authRepository.updateLastLogin(user.id);
 
     return {
       accessToken,
@@ -77,8 +119,25 @@ export class AuthService {
         employeeId: user.employeeId,
         email: user.email,
         role: user.role,
+        firstName: (user as any).employee?.firstName || null,
+        lastName: (user as any).employee?.lastName || null,
+        companyName: (user as any).client?.companyName || null,
+        name:
+          (user as any).client?.companyName ||
+          ((user as any).employee
+            ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
+            : user.email.split('@')[0]),
       },
     };
+  }
+
+  async logout(userId: string, deviceId?: string): Promise<{ success: boolean }> {
+    if (deviceId) {
+      await authRepository.revokeMobileSession(userId, deviceId);
+    } else {
+      await authRepository.revokeAllRefreshTokens(userId);
+    }
+    return { success: true };
   }
   async refresh(refreshToken: string): Promise<LoginResponse> {
     const payload = verifyRefreshToken(refreshToken);
@@ -144,6 +203,13 @@ export class AuthService {
         employeeId: user.employeeId,
         email: user.email,
         role: user.role,
+        firstName: (user as any).employee?.firstName || null,
+        lastName: (user as any).employee?.lastName || null,
+        companyName: (user as any).client?.companyName || null,
+        name: (user as any).client?.companyName ||
+          ((user as any).employee
+            ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
+            : user.email.split('@')[0]),
       },
     };
   }
@@ -158,7 +224,21 @@ export class AuthService {
       );
     }
     const { password, ...safeUser } = user;
-    return safeUser;
+    return {
+      ...safeUser,
+      tenantId: user.clientId,
+      employeeId: user.employeeId,
+      email: user.email,
+      role: user.role,
+      firstName: (user as any).employee?.firstName || null,
+      lastName: (user as any).employee?.lastName || null,
+      companyName: (user as any).client?.companyName || null,
+      name:
+        (user as any).client?.companyName ||
+        ((user as any).employee
+          ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
+          : user.email.split('@')[0]),
+    };
   }
 
   async updateProfile(userId: string, data: { email: string }) {

@@ -3,6 +3,8 @@ import { NextFunction, Request, Response } from 'express';
 import { currentUser } from '../../common/auth/current-user';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 
+import { resolveEmployeeId } from '../../common/auth/resolve-employee';
+
 import {
   createAssignmentSchema,
   updateAssignmentSchema,
@@ -109,7 +111,38 @@ export class AssignmentController {
   async getActive(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const result = await assignmentService.getActive(user.employeeId!);
+      const employeeId = await resolveEmployeeId(user);
+      const result = await assignmentService.getActive(employeeId);
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getActiveList(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
+      const result = await assignmentService.getActiveList(employeeId);
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getMyAssignments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
+      const result = await assignmentService.getEmployeeAllAssignments(employeeId);
 
       return res.json({
         success: true,

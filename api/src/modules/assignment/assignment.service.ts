@@ -13,22 +13,18 @@ import { CreateAssignmentDto, UpdateAssignmentDto } from './assignment.types';
 
 export class AssignmentService {
   async create(clientId: string, dto: CreateAssignmentDto) {
-    // Employee
-    const employee = await employeeRepository.findById(dto.employeeId);
+    const targetEmployeeIds =
+      dto.employeeIds && dto.employeeIds.length > 0
+        ? dto.employeeIds
+        : dto.employeeId
+        ? [dto.employeeId]
+        : [];
 
-    if (!employee || employee.clientId !== clientId) {
-      throw new AppError(
-        HttpStatus.NOT_FOUND,
-        ErrorCodes.NOT_FOUND,
-        'Employee not found.',
-      );
-    }
-
-    if (employee.status !== 'ACTIVE') {
+    if (targetEmployeeIds.length === 0) {
       throw new AppError(
         HttpStatus.BAD_REQUEST,
         ErrorCodes.VALIDATION_ERROR,
-        'Employee is inactive.',
+        'At least one guard employee must be selected.',
       );
     }
 
@@ -70,32 +66,50 @@ export class AssignmentService {
       );
     }
 
-    // Patrol Route
-    const patrolRoute = await patrolRouteRepository.findById(dto.patrolRouteId);
+    const assignmentType =
+      dto.assignmentType || (dto.patrolRouteId ? 'ROUTE' : 'DIRECT_CHECKPOINTS');
 
-    if (!patrolRoute || patrolRoute.clientId !== clientId) {
-      throw new AppError(
-        HttpStatus.NOT_FOUND,
-        ErrorCodes.NOT_FOUND,
-        'Patrol route not found.',
-      );
-    }
+    if (assignmentType === 'ROUTE') {
+      if (!dto.patrolRouteId) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          'Patrol route is required for route assignments.',
+        );
+      }
+      const patrolRoute = await patrolRouteRepository.findById(dto.patrolRouteId);
 
-    if (!patrolRoute.isActive) {
-      throw new AppError(
-        HttpStatus.BAD_REQUEST,
-        ErrorCodes.VALIDATION_ERROR,
-        'Patrol route is inactive.',
-      );
-    }
+      if (!patrolRoute || patrolRoute.clientId !== clientId) {
+        throw new AppError(
+          HttpStatus.NOT_FOUND,
+          ErrorCodes.NOT_FOUND,
+          'Patrol route not found.',
+        );
+      }
 
-    // Route must belong to selected site
-    if (patrolRoute.siteId !== dto.siteId) {
-      throw new AppError(
-        HttpStatus.BAD_REQUEST,
-        ErrorCodes.VALIDATION_ERROR,
-        'Selected patrol route does not belong to the selected site.',
-      );
+      if (!patrolRoute.isActive) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          'Patrol route is inactive.',
+        );
+      }
+
+      if (patrolRoute.siteId !== dto.siteId) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          'Selected patrol route does not belong to the selected site.',
+        );
+      }
+    } else if (assignmentType === 'DIRECT_CHECKPOINTS') {
+      if (!dto.gateIds || dto.gateIds.length === 0) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          'At least one checkpoint must be selected for direct assignment.',
+        );
+      }
     }
 
     // Date validation
@@ -107,28 +121,31 @@ export class AssignmentService {
       );
     }
 
-    // Employee can have only one active assignment
-    const existing = await assignmentRepository.findEmployeeActiveAssignment(
-      dto.employeeId,
-    );
+    const createdAssignments = [];
 
-    if (existing) {
-      throw new AppError(
-        HttpStatus.CONFLICT,
-        ErrorCodes.VALIDATION_ERROR,
-        'Employee already has an active assignment.',
-      );
+    for (const empId of targetEmployeeIds) {
+      const employee = await employeeRepository.findById(empId);
+
+      if (!employee || employee.clientId !== clientId || employee.status !== 'ACTIVE') {
+        continue;
+      }
+
+      const created = await assignmentRepository.create({
+        clientId,
+        employeeId: empId,
+        siteId: dto.siteId,
+        shiftId: dto.shiftId,
+        assignmentType,
+        patrolRouteId: assignmentType === 'ROUTE' ? dto.patrolRouteId : null,
+        gateIds: assignmentType === 'DIRECT_CHECKPOINTS' ? dto.gateIds : undefined,
+        effectiveFrom: dto.effectiveFrom,
+        effectiveTo: dto.effectiveTo,
+      });
+
+      createdAssignments.push(created);
     }
 
-    return assignmentRepository.create({
-      clientId,
-      employeeId: dto.employeeId,
-      siteId: dto.siteId,
-      shiftId: dto.shiftId,
-      patrolRouteId: dto.patrolRouteId,
-      effectiveFrom: dto.effectiveFrom,
-      effectiveTo: dto.effectiveTo,
-    });
+    return createdAssignments.length === 1 ? createdAssignments[0] : createdAssignments;
   }
 
   async list(clientId: string, isActive?: boolean) {
@@ -183,15 +200,41 @@ export class AssignmentService {
         'Employee ID is required.',
       );
     }
-    const assignment = await assignmentRepository.findEmployeeActiveAssignment(employeeId);
-    if (!assignment) {
+    const assignments = await assignmentRepository.findEmployeeActiveAssignments(employeeId);
+
+    if (!assignments || assignments.length === 0) {
       throw new AppError(
         HttpStatus.NOT_FOUND,
         ErrorCodes.NOT_FOUND,
         'No active assignment found for this employee.',
       );
     }
-    return assignment;
+
+    return assignments[0];
+  }
+
+  async getActiveList(employeeId: string) {
+    if (!employeeId) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Employee ID is required.',
+      );
+    }
+
+    return assignmentRepository.findEmployeeActiveAssignments(employeeId);
+  }
+
+  async getEmployeeAllAssignments(employeeId: string) {
+    if (!employeeId) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Employee ID is required.',
+      );
+    }
+
+    return assignmentRepository.findEmployeeAllAssignments(employeeId);
   }
 }
 

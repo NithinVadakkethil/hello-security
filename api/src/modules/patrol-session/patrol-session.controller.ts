@@ -3,6 +3,8 @@ import { NextFunction, Request, Response } from 'express';
 import { currentUser } from '../../common/auth/current-user';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 
+import { resolveEmployeeId } from '../../common/auth/resolve-employee';
+
 import { completePatrolSchema } from './patrol-session.schema';
 import { patrolSessionService } from './patrol-session.service';
 
@@ -10,10 +12,13 @@ export class PatrolSessionController {
   async start(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
+      const assignmentId = req.body?.assignmentId || (req.query?.assignmentId as string | undefined);
 
       const result = await patrolSessionService.start(
         user.tenantId!,
-        user.employeeId!,
+        employeeId,
+        assignmentId,
       );
 
       return res.status(HttpStatus.CREATED).json({
@@ -28,8 +33,9 @@ export class PatrolSessionController {
   async current(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
 
-      const result = await patrolSessionService.current(user.employeeId!);
+      const result = await patrolSessionService.current(employeeId);
 
       return res.json({
         success: true,
@@ -43,12 +49,23 @@ export class PatrolSessionController {
   async history(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
+      const { page, limit, search, status, tab, filter, siteId, employeeId } = req.query;
 
-      const result = await patrolSessionService.history(user.tenantId!);
+      const result = await patrolSessionService.history(user.tenantId!, {
+        page: page ? parseInt(page as string, 10) : 1,
+        limit: limit ? parseInt(limit as string, 10) : 10,
+        search: search as string,
+        status: status as string,
+        tab: tab as string,
+        filter: filter as string,
+        siteId: siteId as string,
+        employeeId: employeeId as string,
+      });
 
       return res.json({
         success: true,
-        data: result,
+        data: result.sessions,
+        pagination: result.pagination,
       });
     } catch (error) {
       return next(error);
@@ -102,11 +119,23 @@ export class PatrolSessionController {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const result = await patrolSessionService.history(user.tenantId!);
+      const { page, limit, search, status, tab, filter, siteId, employeeId } = req.query;
+
+      const result = await patrolSessionService.history(user.tenantId!, {
+        page: page ? parseInt(page as string, 10) : 1,
+        limit: limit ? parseInt(limit as string, 10) : 10,
+        search: search as string,
+        status: status as string,
+        tab: tab as string,
+        filter: filter as string,
+        siteId: siteId as string,
+        employeeId: employeeId as string,
+      });
 
       return res.json({
         success: true,
-        data: result,
+        data: result.sessions,
+        pagination: result.pagination,
       });
     } catch (error) {
       return next(error);
@@ -123,6 +152,42 @@ export class PatrolSessionController {
           message: 'Patrol session not found.',
         });
       }
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async verify(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const { verificationStatus, supervisorRemarks } = req.body;
+
+      const result = await patrolSessionService.verify(
+        req.params.id as string,
+        user.id,
+        {
+          verificationStatus,
+          supervisorRemarks,
+        },
+      );
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async cancel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await patrolSessionService.cancel(req.params.id as string);
 
       return res.json({
         success: true,

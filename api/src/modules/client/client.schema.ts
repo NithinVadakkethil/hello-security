@@ -5,13 +5,17 @@ export const createClientSchema = z.object({
 
   email: z.string().email(),
 
+  authorizedPerson: z.string().optional(),
+
   phone: z.string().optional(),
 
   address: z.string().optional(),
 
   identificationMethod: z.enum(['QR', 'RFID']).default('QR'),
 
-  maxEmployees: z.number().int().positive(),
+  maxEmployees: z.coerce.number().int().positive(),
+
+  maxCheckpoints: z.coerce.number().int().positive().optional(),
 
   isActive: z.boolean().optional(),
 

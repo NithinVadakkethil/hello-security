@@ -6,6 +6,10 @@ export interface AuthUser {
   employeeId: string | null;
   email: string;
   role: UserRole;
+  firstName?: string | null;
+  lastName?: string | null;
+  name?: string | null;
+  companyName?: string | null;
 }
 
 export interface LoginResponse {

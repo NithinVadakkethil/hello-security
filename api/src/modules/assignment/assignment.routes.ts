@@ -4,6 +4,8 @@ import { Router } from 'express';
 import { authenticate } from '../../common/auth/auth.middleware';
 import { authorize } from '../../common/auth/authorize';
 
+import { OPERATIONAL_ROLES } from '../../common/auth/constants';
+
 import { assignmentController } from './assignment.controller';
 
 const router: Router = Router();
@@ -25,8 +27,22 @@ router.get(
 router.get(
   '/active',
   authenticate,
-  authorize(UserRole.SECURITY, UserRole.SUPERVISOR),
+  authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR),
   assignmentController.getActive.bind(assignmentController),
+);
+
+router.get(
+  '/active-list',
+  authenticate,
+  authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR),
+  assignmentController.getActiveList.bind(assignmentController),
+);
+
+router.get(
+  '/my-assignments',
+  authenticate,
+  authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR),
+  assignmentController.getMyAssignments.bind(assignmentController),
 );
 
 router.get(

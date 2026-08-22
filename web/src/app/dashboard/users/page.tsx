@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   Check,
   Copy,
@@ -51,6 +51,11 @@ const createSchema = z.object({
     'MANAGER',
     'SUPERVISOR',
     'SECURITY',
+    'CLEANER',
+    'SERVICE_ENGINEER',
+    'TECHNICIAN',
+    'LIFE_GUARD',
+    'PLUMBER',
   ]),
   clientId: z.string().optional(),
   password: z.string().optional(),
@@ -64,6 +69,11 @@ const editSchema = z.object({
     'MANAGER',
     'SUPERVISOR',
     'SECURITY',
+    'CLEANER',
+    'SERVICE_ENGINEER',
+    'TECHNICIAN',
+    'LIFE_GUARD',
+    'PLUMBER',
   ]),
   clientId: z.string().optional(),
 });
@@ -150,6 +160,7 @@ export default function UsersPage() {
           role: roleFilter !== 'ALL' ? roleFilter : undefined,
         },
       }),
+    placeholderData: keepPreviousData,
   });
 
   // Fetch Clients (for dropdown)
@@ -168,6 +179,15 @@ export default function UsersPage() {
   ];
 
   // Role options (filter CLIENT_ADMIN permissions if applicable)
+  const operationalRoles = [
+    { value: 'SECURITY', label: 'Security Guard' },
+    { value: 'CLEANER', label: 'House Keeping' },
+    { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+    { value: 'TECHNICIAN', label: 'Technician' },
+    { value: 'LIFE_GUARD', label: 'Life Guard' },
+    { value: 'PLUMBER', label: 'Plumber' },
+  ];
+
   const roleOptions =
     currentUser?.role === 'SUPER_ADMIN'
       ? [
@@ -175,12 +195,12 @@ export default function UsersPage() {
           { value: 'CLIENT_ADMIN', label: 'Client Admin' },
           { value: 'MANAGER', label: 'Manager' },
           { value: 'SUPERVISOR', label: 'Supervisor' },
-          { value: 'SECURITY', label: 'Security Guard' },
+          ...operationalRoles,
         ]
       : [
           { value: 'MANAGER', label: 'Manager' },
           { value: 'SUPERVISOR', label: 'Supervisor' },
-          { value: 'SECURITY', label: 'Security Guard' },
+          ...operationalRoles,
         ];
 
   // User Actions Mutations
@@ -277,7 +297,7 @@ export default function UsersPage() {
             fontWeight: 500,
           }}
         >
-          {row.role.replace('_', ' ')}
+          {row.role === 'CLEANER' ? 'HOUSE KEEPING' : row.role.replace('_', ' ')}
         </span>
       ),
     },
@@ -398,13 +418,17 @@ export default function UsersPage() {
             style={{ maxWidth: '180px' }}
           >
             <option value="ALL">All Roles</option>
-            {/* <option value="SUPER_ADMIN">Super Admin</option> */}
             {currentUser?.role === 'SUPER_ADMIN' && (
               <option value="CLIENT_ADMIN">Client Admin</option>
             )}
             <option value="MANAGER">Manager</option>
             <option value="SUPERVISOR">Supervisor</option>
             <option value="SECURITY">Security Guard</option>
+            <option value="CLEANER">House Keeping</option>
+            <option value="SERVICE_ENGINEER">Service Engineer</option>
+            <option value="TECHNICIAN">Technician</option>
+            <option value="LIFE_GUARD">Life Guard</option>
+            <option value="PLUMBER">Plumber</option>
           </select>
         </div>
 

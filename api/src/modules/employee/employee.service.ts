@@ -18,6 +18,26 @@ import { CreateEmployeeDto, UpdateEmployeeDto } from './employee.types';
 
 export class EmployeeService {
   async create(clientId: string, dto: CreateEmployeeDto) {
+    // Validate Employee Creation Limit
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { maxEmployees: true },
+    });
+
+    if (client && client.maxEmployees !== null && client.maxEmployees !== undefined) {
+      const currentCount = await prisma.employee.count({
+        where: { clientId },
+      });
+
+      if (currentCount >= client.maxEmployees) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          `Employee creation limit reached. Maximum allowed: ${client.maxEmployees}. Current count: ${currentCount}.`,
+        );
+      }
+    }
+
     // Check duplicate employee email
     if (dto.email) {
       const existingEmployee = await employeeRepository.findByEmail(dto.email);
@@ -46,9 +66,34 @@ export class EmployeeService {
     }
 
     // Generate employee number
-    const sequence = await counterService.next(ENTITY.EMPLOYEE);
+    const empCount = await prisma.employee.count({ where: { clientId } });
+    if (empCount === 0) {
+      await prisma.counter.upsert({
+        where: {
+          entity_clientId: {
+            entity: ENTITY.EMPLOYEE,
+            clientId,
+          },
+        },
+        update: { value: 0 },
+        create: {
+          entity: ENTITY.EMPLOYEE,
+          clientId,
+          value: 0,
+        },
+      });
+    }
 
-    const employeeNumber = generateCode(PREFIX.EMPLOYEE, sequence);
+    let sequence = await counterService.next(ENTITY.EMPLOYEE, clientId);
+    let employeeNumber = generateCode(PREFIX.EMPLOYEE, sequence);
+
+    let existingEmpCode = await prisma.employee.findFirst({ where: { clientId, employeeNumber } });
+
+    while (existingEmpCode) {
+      sequence = await counterService.next(ENTITY.EMPLOYEE, clientId);
+      employeeNumber = generateCode(PREFIX.EMPLOYEE, sequence);
+      existingEmpCode = await prisma.employee.findFirst({ where: { clientId, employeeNumber } });
+    }
 
     // Generate temporary password
     const temporaryPassword = randomBytes(6).toString('hex');
@@ -63,12 +108,13 @@ export class EmployeeService {
             employeeNumber,
 
             firstName: dto.firstName,
-            lastName: dto.lastName,
+            lastName: dto.lastName || null,
 
             email: dto.email,
             phone: dto.phone,
 
             designation: dto.designation,
+            role: dto.role,
 
             joiningDate: dto.joiningDate,
 

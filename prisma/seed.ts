@@ -13,7 +13,7 @@ async function main() {
   // Create or update Super Admin
   const superAdmin = await prisma.user.upsert({
     where: {
-      email: 'admin@hellosecurity.com',
+      email: 'admin@helloorbit.com',
     },
     update: {
       password: superAdminPassword,
@@ -21,7 +21,7 @@ async function main() {
       isActive: true,
     },
     create: {
-      email: 'admin@hellosecurity.com',
+      email: 'admin@helloorbit.com',
       password: superAdminPassword,
       role: UserRole.SUPER_ADMIN,
       isActive: true,

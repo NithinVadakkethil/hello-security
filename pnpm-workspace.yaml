@@ -10,6 +10,7 @@ allowBuilds:
   '@prisma/engines': true
   '@swc/core': true
   bcrypt: true
+  core-js: true
   esbuild: true
   less: true
   nx: true

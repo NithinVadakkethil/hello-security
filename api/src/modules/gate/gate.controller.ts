@@ -26,23 +26,47 @@ export class GateController {
 
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      const siteId = req.query.siteId as string;
-
-      if (!siteId) {
-        return res.status(HttpStatus.BAD_REQUEST).json({
-          success: false,
-          message: 'siteId is required.',
-        });
-      }
+      const user = currentUser(req);
+      const siteId = req.query.siteId as string | undefined;
 
       const isActive =
         req.query.isActive === undefined
           ? undefined
           : req.query.isActive === 'true';
 
-      const result = await gateService.list(siteId, isActive);
+      const page = req.query.page ? Number(req.query.page) : undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : undefined;
+      const search = req.query.search as string | undefined;
 
-      return res.json({
+      const isSuperAdmin = user.role === 'SUPER_ADMIN';
+      const clientId = isSuperAdmin || !user.tenantId ? undefined : user.tenantId;
+
+      const result = await gateService.list(siteId, isActive, clientId, page, limit, search);
+
+      if (Array.isArray(result)) {
+        return res.status(HttpStatus.OK).json({
+          success: true,
+          data: result,
+        });
+      }
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data: result.items,
+        pagination: result.pagination,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getNextSequence(req: Request, res: Response, next: NextFunction) {
+    try {
+      const siteId = req.query.siteId as string;
+
+      const result = await gateService.getNextSequence(siteId);
+
+      return res.status(HttpStatus.OK).json({
         success: true,
         data: result,
       });

@@ -12,8 +12,10 @@ import {
   Settings,
   Shield,
   Sun,
+  Tag,
   User,
   Users,
+  Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -74,7 +76,7 @@ export default function DashboardLayout({
         },
         {
           href: '/dashboard/assignments',
-          label: 'Guard Assignments',
+          label: 'Assignments',
           icon: FileText,
         },
         {
@@ -89,8 +91,18 @@ export default function DashboardLayout({
         // },
         {
           href: '/dashboard/incidents',
-          label: 'Incident Reports',
+          label: 'Observation Reports',
           icon: AlertTriangle,
+        },
+        {
+          href: '/dashboard/maintenance/snags',
+          label: 'Snag List',
+          icon: Wrench,
+        },
+        {
+          href: '/dashboard/maintenance/categories',
+          label: 'Snag Categories',
+          icon: Tag,
         },
         {
           href: '/dashboard/reports',
@@ -117,10 +129,32 @@ export default function DashboardLayout({
         {/* Sidebar */}
         <aside className="app-sidebar">
           <div className="sidebar-header">
-            <div className="logo-icon">
-              <Shield size={18} fill="currentColor" />
+            <div
+              className="logo-icon"
+              style={{
+                overflow: 'hidden',
+                padding: '2px',
+                background: 'var(--bg-tertiary)',
+              }}
+            >
+              <img
+                src="/assets/hello-orbit-logo.png"
+                alt="Hello Orbit Logo"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  borderRadius: '4px',
+                }}
+              />
             </div>
-            <span className="logo-text">Hello Security</span>
+            <span className="logo-text">
+              HELLO
+              <span className="text-[#2563EB]" style={{ color: '#2563EB' }}>
+                {' '}
+                ORBIT
+              </span>
+            </span>
           </div>
 
           <nav className="sidebar-menu">

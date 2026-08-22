@@ -1,12 +1,17 @@
-import './global.css';
 import { Toaster } from 'react-hot-toast';
+import './global.css';
+import { AuthProvider } from './providers/auth-provider';
 import QueryProvider from './providers/query-provider';
 import { ThemeProvider } from './providers/theme-provider';
-import { AuthProvider } from './providers/auth-provider';
 
 export const metadata = {
-  title: 'Hello Security - Guard Assignments & Patrol Management',
+  title: 'Hello Orbit - Inspection Report',
   description: 'Enterprise patrol tracking and shift assignments platform.',
+  icons: {
+    icon: '/assets/hello-orbit-logo.png',
+    shortcut: '/assets/hello-orbit-logo.png',
+    apple: '/assets/hello-orbit-logo.png',
+  },
 };
 
 export default function RootLayout({

@@ -10,6 +10,8 @@ import { generateCode } from '../../common/utils/code-generator';
 import { siteRepository } from './site.repository';
 import { CreateSiteDto, UpdateSiteDto } from './site.types';
 
+import { prisma } from '../../database/prisma';
+
 export class SiteService {
   async create(clientId: string, dto: CreateSiteDto) {
     const existingSite = await siteRepository.findByName(clientId, dto.name);
@@ -22,9 +24,34 @@ export class SiteService {
       );
     }
 
-    const sequence = await counterService.next(ENTITY.SITE);
+    const siteCount = await prisma.site.count({ where: { clientId } });
+    if (siteCount === 0) {
+      await prisma.counter.upsert({
+        where: {
+          entity_clientId: {
+            entity: ENTITY.SITE,
+            clientId,
+          },
+        },
+        update: { value: 0 },
+        create: {
+          entity: ENTITY.SITE,
+          clientId,
+          value: 0,
+        },
+      });
+    }
 
-    const siteCode = generateCode(PREFIX.SITE, sequence);
+    let sequence = await counterService.next(ENTITY.SITE, clientId);
+    let siteCode = generateCode(PREFIX.SITE, sequence);
+
+    let existingCode = await siteRepository.findByCode(clientId, siteCode);
+
+    while (existingCode) {
+      sequence = await counterService.next(ENTITY.SITE, clientId);
+      siteCode = generateCode(PREFIX.SITE, sequence);
+      existingCode = await siteRepository.findByCode(clientId, siteCode);
+    }
 
     return siteRepository.create({
       clientId,

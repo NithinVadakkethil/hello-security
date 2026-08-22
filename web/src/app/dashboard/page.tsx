@@ -1,26 +1,25 @@
 'use client';
 
-import React from 'react';
-import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Shield,
-  Users,
-  Calendar,
-  MapPin,
-  Route,
   Activity,
-  Plus,
+  ArrowRight,
+  Calendar,
+  Clock,
   FileText,
   Lock,
-  Clock,
-  ArrowRight,
+  MapPin,
+  Plus,
+  Route,
+  Shield,
+  Users,
 } from 'lucide-react';
+import Link from 'next/link';
 
-import { useAuthStore } from '../store/auth-store';
-import { apiClient } from '../lib/axios';
-import { ApiResponse } from '../types/api';
 import StatusChip from '../components/ui/StatusChip';
+import { apiClient } from '../lib/axios';
+import { useAuthStore } from '../store/auth-store';
+import { ApiResponse } from '../types/api';
 
 interface DashboardCounts {
   employees: number;
@@ -61,7 +60,10 @@ export default function DashboardPage() {
   const { user } = useAuthStore();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
-  const { data, isLoading, isError, refetch } = useQuery<ApiResponse<any>, Error>({
+  const { data, isLoading, isError, refetch } = useQuery<
+    ApiResponse<any>,
+    Error
+  >({
     queryKey: ['dashboardData', user?.id],
     queryFn: () => apiClient.get('/dashboard'),
   });
@@ -71,18 +73,33 @@ export default function DashboardPage() {
   // Render client admin / supervisor portal
   if (!isSuperAdmin) {
     const counts = dashboardData as DashboardCounts;
+    const getUserDisplayName = () => {
+      if (user?.companyName) return user.companyName;
+      if (user?.client?.companyName) return user.client.companyName;
+      if (user?.name) return user.name;
+      if (user?.firstName) {
+        return `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`;
+      }
+      if (user?.email) {
+        return user.email.split('@')[0];
+      }
+      return 'Company';
+    };
 
     return (
       <div>
         <div className="welcome-banner">
-          <h1>Welcome Back, Supervisor</h1>
+          <h1>Welcome Back, {getUserDisplayName()}</h1>
           <p>System status is secure. Active guard monitoring is online.</p>
         </div>
 
         {isLoading ? (
           <div className="dashboard-grid">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="glass-card stat-card skeleton-loading"></div>
+              <div
+                key={i}
+                className="glass-card stat-card skeleton-loading"
+              ></div>
             ))}
           </div>
         ) : isError ? (
@@ -90,7 +107,11 @@ export default function DashboardPage() {
             <Lock size={48} className="error-icon" />
             <h3>Failed to load dashboard data</h3>
             <p>There was an error communicating with the security api.</p>
-            <button onClick={() => refetch()} className="btn btn-primary" style={{ marginTop: '16px' }}>
+            <button
+              onClick={() => refetch()}
+              className="btn btn-primary"
+              style={{ marginTop: '16px' }}
+            >
               Retry Request
             </button>
           </div>
@@ -166,7 +187,11 @@ export default function DashboardPage() {
           }
           .welcome-banner {
             padding: 32px;
-            background: linear-gradient(135deg, var(--primary) 0%, #06b6d4 100%);
+            background: linear-gradient(
+              135deg,
+              var(--primary) 0%,
+              #06b6d4 100%
+            );
             border-radius: var(--radius-lg);
             color: #ffffff;
             box-shadow: 0 10px 30px var(--primary-glow);
@@ -196,14 +221,28 @@ export default function DashboardPage() {
             justify-content: center;
             color: #ffffff;
           }
-          .stat-icon-wrapper.blue { background: #3b82f6; }
-          .stat-icon-wrapper.green { background: #10b981; }
-          .stat-icon-wrapper.cyan { background: #06b6d4; }
-          .stat-icon-wrapper.orange { background: #f59e0b; }
-          .stat-icon-wrapper.red { background: #ef4444; }
-          .stat-icon-wrapper.purple { background: #8b5cf6; }
-          .stat-icon-wrapper.gold { background: #eab308; }
-          
+          .stat-icon-wrapper.blue {
+            background: #3b82f6;
+          }
+          .stat-icon-wrapper.green {
+            background: #10b981;
+          }
+          .stat-icon-wrapper.cyan {
+            background: #06b6d4;
+          }
+          .stat-icon-wrapper.orange {
+            background: #f59e0b;
+          }
+          .stat-icon-wrapper.red {
+            background: #ef4444;
+          }
+          .stat-icon-wrapper.purple {
+            background: #8b5cf6;
+          }
+          .stat-icon-wrapper.gold {
+            background: #eab308;
+          }
+
           .stat-info {
             display: flex;
             flex-direction: column;
@@ -230,14 +269,17 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="welcome-banner">
-        <h1>Welcome Back, Super Admin</h1>
+        <h1>Welcome Back, {user?.name || user?.firstName || 'Super Admin'}</h1>
         <p>Enterprise subscription status, audits, and clients are healthy.</p>
       </div>
 
       {isLoading ? (
         <div className="dashboard-grid">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="glass-card stat-card skeleton-loading"></div>
+            <div
+              key={i}
+              className="glass-card stat-card skeleton-loading"
+            ></div>
           ))}
         </div>
       ) : isError ? (
@@ -245,7 +287,11 @@ export default function DashboardPage() {
           <Lock size={48} className="error-icon" />
           <h3>Failed to load administrator statistics</h3>
           <p>There was an error communicating with the administration api.</p>
-          <button onClick={() => refetch()} className="btn btn-primary" style={{ marginTop: '16px' }}>
+          <button
+            onClick={() => refetch()}
+            className="btn btn-primary"
+            style={{ marginTop: '16px' }}
+          >
             Retry Request
           </button>
         </div>
@@ -306,63 +352,207 @@ export default function DashboardPage() {
 
           {/* Quick Actions */}
           <div style={{ marginTop: '32px' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px' }}>Quick Actions</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-              <Link href="/dashboard/clients/new" className="glass-card hover-effect action-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '20px', textDecoration: 'none', color: 'inherit' }}>
-                <div style={{ padding: '10px', background: 'var(--primary-glow)', color: 'var(--primary)', borderRadius: '8px' }}>
+            <h3
+              style={{
+                fontSize: '1.1rem',
+                fontWeight: 600,
+                marginBottom: '16px',
+              }}
+            >
+              Quick Actions
+            </h3>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '20px',
+              }}
+            >
+              <Link
+                href="/dashboard/clients/new"
+                className="glass-card hover-effect action-card"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  padding: '20px',
+                  textDecoration: 'none',
+                  color: 'inherit',
+                }}
+              >
+                <div
+                  style={{
+                    padding: '10px',
+                    background: 'var(--primary-glow)',
+                    color: 'var(--primary)',
+                    borderRadius: '8px',
+                  }}
+                >
                   <Plus size={20} />
                 </div>
                 <div>
-                  <h4 style={{ fontWeight: 600, fontSize: '0.95rem' }}>Create Client</h4>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Provision new company</p>
+                  <h4 style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                    Create Client
+                  </h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Provision new company
+                  </p>
                 </div>
               </Link>
 
-              <Link href="/dashboard/users" className="glass-card hover-effect action-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '20px', textDecoration: 'none', color: 'inherit' }}>
-                <div style={{ padding: '10px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)', borderRadius: '8px' }}>
+              <Link
+                href="/dashboard/users"
+                className="glass-card hover-effect action-card"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  padding: '20px',
+                  textDecoration: 'none',
+                  color: 'inherit',
+                }}
+              >
+                <div
+                  style={{
+                    padding: '10px',
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    color: 'var(--success)',
+                    borderRadius: '8px',
+                  }}
+                >
                   <Users size={20} />
                 </div>
                 <div>
-                  <h4 style={{ fontWeight: 600, fontSize: '0.95rem' }}>Manage Users</h4>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Manage logins & roles</p>
+                  <h4 style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                    Manage Users
+                  </h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Manage logins & roles
+                  </p>
                 </div>
               </Link>
 
-              <Link href="/dashboard/audit-logs" className="glass-card hover-effect action-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '20px', textDecoration: 'none', color: 'inherit' }}>
-                <div style={{ padding: '10px', background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)', borderRadius: '8px' }}>
+              <Link
+                href="/dashboard/audit-logs"
+                className="glass-card hover-effect action-card"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  padding: '20px',
+                  textDecoration: 'none',
+                  color: 'inherit',
+                }}
+              >
+                <div
+                  style={{
+                    padding: '10px',
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    color: 'var(--warning)',
+                    borderRadius: '8px',
+                  }}
+                >
                   <FileText size={20} />
                 </div>
                 <div>
-                  <h4 style={{ fontWeight: 600, fontSize: '0.95rem' }}>Audit Logs</h4>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>View system activities</p>
+                  <h4 style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                    Audit Logs
+                  </h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    View system activities
+                  </p>
                 </div>
               </Link>
             </div>
           </div>
 
           {/* Recent Lists Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '32px', marginTop: '32px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+              gap: '32px',
+              marginTop: '32px',
+            }}
+          >
             {/* Recent Clients */}
             <div className="glass-card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Recent Clients</h3>
-                <Link href="/dashboard/clients" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', fontWeight: 500 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '20px',
+                }}
+              >
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>
+                  Recent Clients
+                </h3>
+                <Link
+                  href="/dashboard/clients"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                  }}
+                >
                   <span>View All</span>
                   <ArrowRight size={14} />
                 </Link>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                }}
+              >
                 {saData?.recentClients?.length === 0 ? (
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '20px 0' }}>No recent clients found.</p>
+                  <p
+                    style={{
+                      color: 'var(--text-muted)',
+                      fontSize: '0.9rem',
+                      textAlign: 'center',
+                      padding: '20px 0',
+                    }}
+                  >
+                    No recent clients found.
+                  </p>
                 ) : (
                   saData?.recentClients?.map((client) => (
-                    <div key={client.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                    <div
+                      key={client.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingBottom: '12px',
+                        borderBottom: '1px solid var(--border-color)',
+                      }}
+                    >
                       <div>
-                        <h4 style={{ fontSize: '0.95rem', fontWeight: 600 }}>{client.companyName}</h4>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{client.email} • {client.clientCode}</p>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+                          {client.companyName}
+                        </h4>
+                        <p
+                          style={{
+                            fontSize: '0.8rem',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          {client.email} • {client.clientCode}
+                        </p>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                        }}
+                      >
                         <StatusChip status={client.subscriptionStatus} />
                         <StatusChip status={client.isActive} />
                       </div>
@@ -374,30 +564,101 @@ export default function DashboardPage() {
 
             {/* Latest Activity Logs */}
             <div className="glass-card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Recent Audit Activity</h3>
-                <Link href="/dashboard/audit-logs" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', fontWeight: 500 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '20px',
+                }}
+              >
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>
+                  Recent Audit Activity
+                </h3>
+                <Link
+                  href="/dashboard/audit-logs"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                  }}
+                >
                   <span>View All</span>
                   <ArrowRight size={14} />
                 </Link>
               </div>
 
-              <div className="timeline" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div
+                className="timeline"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                }}
+              >
                 {saData?.latestLogs?.length === 0 ? (
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '20px 0' }}>No activity logs available.</p>
+                  <p
+                    style={{
+                      color: 'var(--text-muted)',
+                      fontSize: '0.9rem',
+                      textAlign: 'center',
+                      padding: '20px 0',
+                    }}
+                  >
+                    No activity logs available.
+                  </p>
                 ) : (
                   saData?.latestLogs?.map((log) => (
                     <div key={log.id} style={{ display: 'flex', gap: '12px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--primary)', marginTop: '6px' }}></div>
-                        <div style={{ width: '1px', flex: 1, background: 'var(--border-color)', marginTop: '4px' }}></div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: 'var(--primary)',
+                            marginTop: '6px',
+                          }}
+                        ></div>
+                        <div
+                          style={{
+                            width: '1px',
+                            flex: 1,
+                            background: 'var(--border-color)',
+                            marginTop: '4px',
+                          }}
+                        ></div>
                       </div>
                       <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', margin: 0 }}>
-                          <strong>{log.user.email}</strong> performed <strong>{log.action}</strong> on <em>{log.entity}</em>
+                        <p
+                          style={{
+                            fontSize: '0.9rem',
+                            color: 'var(--text-primary)',
+                            margin: 0,
+                          }}
+                        >
+                          <strong>{log.user.email}</strong> performed{' '}
+                          <strong>{log.action}</strong> on <em>{log.entity}</em>
                         </p>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                          {new Date(log.createdAt).toLocaleString()} {log.client ? `• Client: ${log.client.companyName}` : ''}
+                        <p
+                          style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--text-muted)',
+                            margin: '4px 0 0 0',
+                          }}
+                        >
+                          {new Date(log.createdAt).toLocaleString()}{' '}
+                          {log.client
+                            ? `• Client: ${log.client.companyName}`
+                            : ''}
                         </p>
                       </div>
                     </div>
@@ -448,14 +709,28 @@ export default function DashboardPage() {
           justify-content: center;
           color: #ffffff;
         }
-        .stat-icon-wrapper.blue { background: #3b82f6; }
-        .stat-icon-wrapper.green { background: #10b981; }
-        .stat-icon-wrapper.cyan { background: #06b6d4; }
-        .stat-icon-wrapper.orange { background: #f59e0b; }
-        .stat-icon-wrapper.red { background: #ef4444; }
-        .stat-icon-wrapper.purple { background: #8b5cf6; }
-        .stat-icon-wrapper.gold { background: #eab308; }
-        
+        .stat-icon-wrapper.blue {
+          background: #3b82f6;
+        }
+        .stat-icon-wrapper.green {
+          background: #10b981;
+        }
+        .stat-icon-wrapper.cyan {
+          background: #06b6d4;
+        }
+        .stat-icon-wrapper.orange {
+          background: #f59e0b;
+        }
+        .stat-icon-wrapper.red {
+          background: #ef4444;
+        }
+        .stat-icon-wrapper.purple {
+          background: #8b5cf6;
+        }
+        .stat-icon-wrapper.gold {
+          background: #eab308;
+        }
+
         .stat-info {
           display: flex;
           flex-direction: column;

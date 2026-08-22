@@ -15,6 +15,15 @@ export class ShiftRepository {
     });
   }
 
+  findByShiftCode(clientId: string, shiftCode: string) {
+    return prisma.shift.findFirst({
+      where: {
+        clientId,
+        shiftCode,
+      },
+    });
+  }
+
   findByName(clientId: string, name: string) {
     return prisma.shift.findFirst({
       where: {

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Shield, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -26,6 +26,7 @@ interface SelectedCheckpoint {
 
 export default function NewPatrolRoutePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -101,6 +102,7 @@ export default function NewPatrolRoutePage() {
   const createRouteMutation = useMutation({
     mutationFn: (payload: any) => apiClient.post('/patrol-routes', payload),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patrol-routes'] });
       toast.success('Patrol route successfully configured!');
       router.push('/dashboard/patrol-routes');
     },

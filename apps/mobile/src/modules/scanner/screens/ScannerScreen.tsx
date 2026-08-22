@@ -1,19 +1,61 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
-import { useTheme } from '../../../app/hooks/useTheme';
-import { usePatrolStore } from '../../patrol/store/patrol-store';
-import { useActiveAssignment } from '../../assignment/hooks/useAssignment';
-import { Card } from '../../dashboard/components/WidgetCard';
-import { Button } from '../../../components/Button';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { Zap, ZapOff } from 'lucide-react-native';
-import { Camera, useCameraDevice, useCameraPermission, useCodeScanner } from 'react-native-vision-camera';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  Alert,
+  Animated,
+  AppState,
+  AppStateStatus,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  useCodeScanner,
+} from 'react-native-vision-camera';
+import { useTheme } from '../../../app/hooks/useTheme';
+import { Button } from '../../../components/Button';
+import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
+import { Card } from '../../dashboard/components/WidgetCard';
+import { patrolApi } from '../../patrol/api/patrol.api';
+import { usePatrolStore } from '../../patrol/store/patrol-store';
 
 export function ScannerScreen() {
   const { colors } = useTheme();
-  const navigation = useNavigation();
-  const { data: assignment } = useActiveAssignment();
-  const { scannedGateIds } = usePatrolStore();
+  const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
+
+  // AppState to pause camera when app is backgrounded
+  const [appState, setAppState] = useState<AppStateStatus>(
+    AppState.currentState,
+  );
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextState => {
+      setAppState(nextState);
+    });
+    return () => subscription.remove();
+  }, []);
+
+  const isCameraActive = isFocused && appState === 'active';
+
+  const { data: assignmentsList } = useActiveAssignments();
+  const activeAssignments = useMemo(
+    () => assignmentsList || [],
+    [assignmentsList],
+  );
+  const scannedGateIds = usePatrolStore(state => state.scannedGateIds);
 
   const { hasPermission, requestPermission } = useCameraPermission();
   const [manualCode, setManualCode] = useState('');
@@ -22,150 +64,283 @@ export function ScannerScreen() {
   const [flashEnabled, setFlashEnabled] = useState(false);
   const [isProcessingCode, setIsProcessingCode] = useState(false);
 
+  // Synchronous scan lock ref to block 30-60 fps duplicate camera frames
+  const isProcessingScanRef = useRef(false);
+  const lastScannedCodeRef = useRef<string | null>(null);
+  const lastScanTimeRef = useRef<number>(0);
+
   const laserTranslateY = useRef(new Animated.Value(0)).current;
   const device = useCameraDevice('back');
 
   useEffect(() => {
-    if (!hasPermission) {
+    if (!hasPermission && isFocused) {
       requestPermission();
     }
-  }, [hasPermission]);
+  }, [hasPermission, isFocused, requestPermission]);
+
+  // Reset scan locks when screen gains focus
+  useEffect(() => {
+    if (isFocused) {
+      isProcessingScanRef.current = false;
+      lastScannedCodeRef.current = null;
+      setIsProcessingCode(false);
+    }
+  }, [isFocused]);
 
   useEffect(() => {
-    if (hasPermission) {
-      const startLaserAnimation = () => {
-        laserTranslateY.setValue(0);
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(laserTranslateY, {
-              toValue: 180,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(laserTranslateY, {
-              toValue: 0,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
-      };
-      startLaserAnimation();
+    if (hasPermission && isFocused) {
+      laserTranslateY.setValue(0);
+      const animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(laserTranslateY, {
+            toValue: 180,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(laserTranslateY, {
+            toValue: 0,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      animation.start();
+      return () => animation.stop();
     }
-  }, [hasPermission, laserTranslateY]);
+  }, [hasPermission, isFocused, laserTranslateY]);
 
   const handleGrantPermission = async () => {
     const granted = await requestPermission();
     if (!granted) {
-      Alert.alert('Permission Required', 'Hello Security requires Camera permission to scan physical QRs.');
-    }
-  };
-
-  const handleProcessScan = async (code: string) => {
-    // Avoid double trigger scans in same tick
-    if (isProcessingCode) return;
-    setIsProcessingCode(true);
-
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    const cleanCode = code.trim();
-    if (!cleanCode) {
-      setIsProcessingCode(false);
-      return;
-    }
-
-    const routeGates = assignment?.patrolRoute?.routeGates || [];
-    
-    // Find the next incomplete checkpoint in sequence
-    const nextGate = routeGates.find(
-      (rg: any) => !scannedGateIds.includes(rg.gateId)
-    );
-
-    if (!nextGate) {
-      setErrorMessage("All checkpoints on this route have already been completed.");
-      setIsProcessingCode(false);
-      return;
-    }
-
-    // Verify code matches nextGate
-    const isMatch = 
-      cleanCode === nextGate.gate?.gateCode || 
-      cleanCode === nextGate.gateId || 
-      cleanCode === nextGate.gate?.qrCode;
-
-    if (!isMatch) {
-      // Find if the code belongs to another checkpoint in the route to give specific errors
-      const belongingGate = routeGates.find(
-        (rg: any) => rg.gate?.gateCode === cleanCode || rg.gateId === cleanCode || rg.gate?.qrCode === cleanCode
+      Alert.alert(
+        'Permission Required',
+        'Hello Orbit requires Camera permission to scan physical QRs.',
       );
-
-      if (belongingGate) {
-        if (scannedGateIds.includes(belongingGate.gateId)) {
-          setErrorMessage(`Scan Blocked: Checkpoint "${belongingGate.gate?.name}" is already completed.`);
-        } else {
-          setErrorMessage(`Sequence Violation: You must scan "${nextGate.gate?.name}" next. Skipping checkpoints is prohibited.`);
-        }
-      } else {
-        setErrorMessage(`Invalid QR Code: Scanned code is not registered on this patrol route.`);
-      }
-      setIsProcessingCode(false);
-      return;
-    }
-
-    const gateId = nextGate.gateId;
-    const gateName = nextGate.gate?.name || 'Gate';
-
-    try {
-      // Set the checkpoint state to Unlocked
-      usePatrolStore.getState().unlockCheckpoint(gateId);
-
-      setSuccessMessage(`✓ Checkpoint Unlocked: "${gateName}"`);
-      setManualCode('');
-      
-      // Auto close after successful scan
-      setTimeout(() => {
-        navigation.goBack();
-        setIsProcessingCode(false);
-      }, 1500);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to unlock checkpoint.');
-      setIsProcessingCode(false);
     }
   };
+
+  const handleProcessScan = useCallback(
+    async (code: string) => {
+      const cleanCode = code.trim();
+      if (!cleanCode) {
+        isProcessingScanRef.current = false;
+        setIsProcessingCode(false);
+        return;
+      }
+
+      setIsProcessingCode(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+
+      let matchedGate: any = null;
+      let matchedAssignment: any = null;
+
+      // Search across employee active assignments (supports Security, House Keeping, Technician, Service Engineer, Plumber, Lifeguard)
+      for (const ass of activeAssignments) {
+        const routeGates =
+          ass.assignmentGates && ass.assignmentGates.length > 0
+            ? ass.assignmentGates.map((ag: any, idx: number) => ({
+                id: ag.id,
+                gateId: ag.gateId,
+                gate: ag.gate,
+                sequence: ag.sequence || idx + 1,
+              }))
+            : ass.patrolRoute?.routeGates || [];
+
+        const found = routeGates.find(
+          (rg: any) =>
+            cleanCode === rg.gate?.gateCode ||
+            cleanCode === rg.gateId ||
+            cleanCode === rg.gate?.qrCode ||
+            cleanCode === rg.gate?.nfcTag,
+        );
+
+        if (found) {
+          matchedGate = found;
+          matchedAssignment = ass;
+          break;
+        }
+      }
+
+      // Workflow Rule 1: If checkpoint is NOT assigned to logged-in employee, DO NOT unlock and REMAIN on scanner screen
+      if (!matchedGate) {
+        const errorMsg = 'You are not assigned to this checkpoint.';
+        setErrorMessage(errorMsg);
+        Alert.alert('Access Blocked', errorMsg, [
+          {
+            text: 'OK',
+            onPress: () => {
+              setTimeout(() => {
+                isProcessingScanRef.current = false;
+                setIsProcessingCode(false);
+              }, 1000);
+            },
+          },
+        ]);
+        setTimeout(() => {
+          isProcessingScanRef.current = false;
+          setIsProcessingCode(false);
+        }, 2000);
+        return;
+      }
+
+      // Workflow Rule 2: If checkpoint is already verified and locked
+      if (scannedGateIds.includes(matchedGate.gateId)) {
+        const gateName = matchedGate.gate?.name || cleanCode;
+        const completedMsg = `Checkpoint "${gateName}" is already completed.`;
+        setErrorMessage(completedMsg);
+        Alert.alert('Checkpoint Already Completed', completedMsg, [
+          {
+            text: 'OK',
+            onPress: () => {
+              setTimeout(() => {
+                isProcessingScanRef.current = false;
+                setIsProcessingCode(false);
+              }, 1000);
+            },
+          },
+        ]);
+        setTimeout(() => {
+          isProcessingScanRef.current = false;
+          setIsProcessingCode(false);
+        }, 2000);
+        return;
+      }
+
+      const gateId =
+        matchedGate.gateId || matchedGate.gate?.id || matchedGate.id;
+      const gateName = matchedGate.gate?.name || cleanCode;
+
+      try {
+        // Auto-start patrol session if not yet active
+        const currentActiveSession = usePatrolStore.getState().activeSession;
+        if (!currentActiveSession && matchedAssignment?.id) {
+          try {
+            const startedSession = await patrolApi.startPatrol(
+              matchedAssignment.id,
+            );
+            await usePatrolStore.getState().startSession(startedSession);
+          } catch (e) {
+            // Auto start session fallback handled silently
+          }
+        }
+
+        // Unlock checkpoint immediately
+        await usePatrolStore.getState().unlockCheckpoint(gateId);
+
+        setSuccessMessage(`✓ Checkpoint Unlocked: "${gateName}"`);
+        setManualCode('');
+
+        // Workflow Rule 3: Navigate directly to Checkpoint Verification screen (PatrolTab)
+        setTimeout(() => {
+          navigation.navigate('Dashboard', { screen: 'PatrolTab' });
+          isProcessingScanRef.current = false;
+          setIsProcessingCode(false);
+        }, 150);
+      } catch (err: any) {
+        setErrorMessage(err.message || 'Failed to unlock checkpoint.');
+        isProcessingScanRef.current = false;
+        setIsProcessingCode(false);
+      }
+    },
+    [activeAssignments, scannedGateIds, navigation],
+  );
 
   // Configure Code Scanner Hook for Camera View (Vision Camera v4)
   const codeScanner = useCodeScanner({
     codeTypes: ['qr'],
-    onCodeScanned: (codes) => {
-      const scannedValue = codes[0]?.value;
-      if (scannedValue) {
+    onCodeScanned: useCallback(
+      (codes: any[]) => {
+        const scannedValue = codes[0]?.value;
+        if (!scannedValue) return;
+
+        const now = Date.now();
+        // Synchronous lock check - 0ms delay, instant block for duplicate 30-60fps camera frames!
+        if (
+          isProcessingScanRef.current ||
+          (lastScannedCodeRef.current === scannedValue &&
+            now - lastScanTimeRef.current < 3000)
+        ) {
+          return;
+        }
+
+        // Immediately lock synchronously BEFORE async React state updates
+        isProcessingScanRef.current = true;
+        lastScannedCodeRef.current = scannedValue;
+        lastScanTimeRef.current = now;
+
         handleProcessScan(scannedValue);
-      }
-    },
+      },
+      [handleProcessScan],
+    ),
   });
+
+  const routeGates = useMemo(() => {
+    const primaryAssignment = activeAssignments[0];
+    if (
+      primaryAssignment?.assignmentGates &&
+      primaryAssignment.assignmentGates.length > 0
+    ) {
+      return primaryAssignment.assignmentGates.map((ag: any, idx: number) => ({
+        id: ag.id,
+        gateId: ag.gateId,
+        gate: ag.gate,
+        sequence: ag.sequence || idx + 1,
+      }));
+    }
+    return primaryAssignment?.patrolRoute?.routeGates || [];
+  }, [activeAssignments]);
+
+  const nextGateToScan = useMemo(
+    () => routeGates.find((rg: any) => !scannedGateIds.includes(rg.gateId)),
+    [routeGates, scannedGateIds],
+  );
 
   if (!hasPermission) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', padding: 24 }]}>
-        <Text style={[styles.permTitle, { color: colors.text }]}>Camera Permission Required</Text>
-        <Text style={[styles.permDesc, { color: colors.textSecondary }]}>
-          Hello Security requires camera access to scan QR check-points located at gates and stations.
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+            justifyContent: 'center',
+            padding: 24,
+          },
+        ]}
+      >
+        <Text style={[styles.permTitle, { color: colors.text }]}>
+          Camera Permission Required
         </Text>
-        <Button title="Authorize Camera Access" onPress={handleGrantPermission} />
+        <Text style={[styles.permDesc, { color: colors.textSecondary }]}>
+          Hello Orbit requires camera access to scan QR check-points located at
+          gates and stations.
+        </Text>
+        <Button
+          title="Authorize Camera Access"
+          onPress={handleGrantPermission}
+        />
       </View>
     );
   }
 
-  const routeGates = assignment?.patrolRoute?.routeGates || [];
-  const nextGateToScan = routeGates.find((rg: any) => !scannedGateIds.includes(rg.gateId));
-
   return (
-    <ScrollView style={[styles.container, { backgroundColor: '#121214' }]} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: '#121214' }]}
+      contentContainerStyle={styles.scrollContent}
+    >
       <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: '#ffffff' }]}>Scan Checkpoint QR</Text>
-        <TouchableOpacity style={styles.flashButton} onPress={() => setFlashEnabled(!flashEnabled)}>
-          {flashEnabled ? <Zap size={22} color="#f59e0b" /> : <ZapOff size={22} color="#8e8e9a" />}
+        <Text style={[styles.title, { color: '#ffffff' }]}>
+          Scan Checkpoint QR
+        </Text>
+        <TouchableOpacity
+          style={styles.flashButton}
+          onPress={() => setFlashEnabled(prev => !prev)}
+        >
+          {flashEnabled ? (
+            <Zap size={22} color="#f59e0b" />
+          ) : (
+            <ZapOff size={22} color="#8e8e9a" />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -173,7 +348,9 @@ export function ScannerScreen() {
         <View style={styles.targetBanner}>
           <Text style={styles.targetLabel}>Target Checkpoint:</Text>
           <Text style={styles.targetName}>{nextGateToScan.gate?.name}</Text>
-          <Text style={styles.targetSub}>Sequence Order: {nextGateToScan.sequence}</Text>
+          <Text style={styles.targetSub}>
+            Sequence Order: {nextGateToScan.sequence}
+          </Text>
         </View>
       )}
 
@@ -183,21 +360,56 @@ export function ScannerScreen() {
             <Camera
               style={StyleSheet.absoluteFill}
               device={device}
-              isActive={true}
+              isActive={isCameraActive && !isProcessingCode}
               codeScanner={codeScanner}
               torch={flashEnabled ? 'on' : 'off'}
             />
           ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={{ color: '#8e8e9a', fontSize: 11 }}>Camera Feed Unavailable</Text>
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor: '#000000',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                },
+              ]}
+            >
+              <Text style={{ color: '#8e8e9a', fontSize: 11 }}>
+                Camera Feed Unavailable
+              </Text>
             </View>
           )}
 
-          <View style={[styles.corner, styles.topLeft, { borderColor: colors.primary }]} />
-          <View style={[styles.corner, styles.topRight, { borderColor: colors.primary }]} />
-          <View style={[styles.corner, styles.bottomLeft, { borderColor: colors.primary }]} />
-          <View style={[styles.corner, styles.bottomRight, { borderColor: colors.primary }]} />
-          
+          <View
+            style={[
+              styles.corner,
+              styles.topLeft,
+              { borderColor: colors.primary },
+            ]}
+          />
+          <View
+            style={[
+              styles.corner,
+              styles.topRight,
+              { borderColor: colors.primary },
+            ]}
+          />
+          <View
+            style={[
+              styles.corner,
+              styles.bottomLeft,
+              { borderColor: colors.primary },
+            ]}
+          />
+          <View
+            style={[
+              styles.corner,
+              styles.bottomRight,
+              { borderColor: colors.primary },
+            ]}
+          />
+
           <Animated.View
             style={[
               styles.laser,
@@ -211,20 +423,47 @@ export function ScannerScreen() {
       </View>
 
       {errorMessage && (
-        <Card style={[styles.feedbackCard, { borderColor: colors.danger, backgroundColor: colors.danger + '10' }]}>
-          <Text style={[styles.feedbackText, { color: colors.danger }]}>⚠️ {errorMessage}</Text>
+        <Card
+          style={[
+            styles.feedbackCard,
+            {
+              borderColor: colors.danger,
+              backgroundColor: colors.danger + '10',
+            },
+          ]}
+        >
+          <Text style={[styles.feedbackText, { color: colors.danger }]}>
+            ⚠️ {errorMessage}
+          </Text>
         </Card>
       )}
 
       {successMessage && (
-        <Card style={[styles.feedbackCard, { borderColor: colors.success, backgroundColor: colors.success + '10' }]}>
-          <Text style={[styles.feedbackText, { color: colors.success }]}>{successMessage}</Text>
+        <Card
+          style={[
+            styles.feedbackCard,
+            {
+              borderColor: colors.success,
+              backgroundColor: colors.success + '10',
+            },
+          ]}
+        >
+          <Text style={[styles.feedbackText, { color: colors.success }]}>
+            {successMessage}
+          </Text>
         </Card>
       )}
 
-      <Card style={[styles.quickScanCard, { backgroundColor: '#1a1a1e', borderColor: '#2d2d34' }]}>
+      <Card
+        style={[
+          styles.quickScanCard,
+          { backgroundColor: '#1a1a1e', borderColor: '#2d2d34' },
+        ]}
+      >
         <Text style={styles.cardTitle}>Simulate QR Check-in</Text>
-        <Text style={styles.cardDesc}>Select a route checkpoint to simulate scanning its QR code:</Text>
+        <Text style={styles.cardDesc}>
+          Select a route checkpoint to simulate scanning its QR code:
+        </Text>
 
         <View style={styles.buttonList}>
           {routeGates.map((rg: any) => {
@@ -237,14 +476,39 @@ export function ScannerScreen() {
                 style={[
                   styles.scanOption,
                   {
-                    backgroundColor: isScanned ? '#2d2d34' : isNext ? colors.primary + '25' : '#121214',
-                    borderColor: isScanned ? '#3e3e4a' : isNext ? colors.primary : '#2d2d34',
+                    backgroundColor: isScanned
+                      ? '#2d2d34'
+                      : isNext
+                      ? colors.primary + '25'
+                      : '#121214',
+                    borderColor: isScanned
+                      ? '#3e3e4a'
+                      : isNext
+                      ? colors.primary
+                      : '#2d2d34',
                   },
                 ]}
-                onPress={() => handleProcessScan(rg.gate?.gateCode || rg.gateId)}
+                onPress={() => {
+                  if (!isProcessingScanRef.current) {
+                    isProcessingScanRef.current = true;
+                    handleProcessScan(rg.gate?.gateCode || rg.gateId);
+                  }
+                }}
               >
-                <Text style={[styles.optionText, { color: isScanned ? '#8e8e9a' : isNext ? '#ffffff' : '#b3b3c2' }]}>
-                  {rg.gate?.name} {isScanned ? '(Completed)' : isNext ? '★ (Next Target)' : ''}
+                <Text
+                  style={[
+                    styles.optionText,
+                    {
+                      color: isScanned
+                        ? '#8e8e9a'
+                        : isNext
+                        ? '#ffffff'
+                        : '#b3b3c2',
+                    },
+                  ]}
+                >
+                  {rg.gate?.name}{' '}
+                  {isScanned ? '(Completed)' : isNext ? '★ (Next Target)' : ''}
                 </Text>
               </TouchableOpacity>
             );
@@ -256,7 +520,14 @@ export function ScannerScreen() {
         <Text style={styles.inputLabel}>Or Enter Manual Code Payload:</Text>
         <View style={styles.inputRow}>
           <TextInput
-            style={[styles.input, { borderColor: '#2d2d34', color: '#ffffff', backgroundColor: '#121214' }]}
+            style={[
+              styles.input,
+              {
+                borderColor: '#2d2d34',
+                color: '#ffffff',
+                backgroundColor: '#121214',
+              },
+            ]}
             placeholder="e.g. GATE-001"
             placeholderTextColor="#8e8e9a"
             value={manualCode}
@@ -265,7 +536,12 @@ export function ScannerScreen() {
           />
           <TouchableOpacity
             style={[styles.inputButton, { backgroundColor: colors.primary }]}
-            onPress={() => handleProcessScan(manualCode)}
+            onPress={() => {
+              if (!isProcessingScanRef.current) {
+                isProcessingScanRef.current = true;
+                handleProcessScan(manualCode);
+              }
+            }}
           >
             <Text style={styles.inputButtonText}>Verify</Text>
           </TouchableOpacity>
@@ -292,6 +568,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '800',
+    letterSpacing: -0.3,
   },
   flashButton: {
     padding: 8,
@@ -302,102 +579,92 @@ const styles = StyleSheet.create({
   },
   targetBanner: {
     backgroundColor: '#1a1a1e',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#2d2d34',
-    marginBottom: 20,
   },
   targetLabel: {
-    color: '#8e8e9a',
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: '#f59e0b',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   targetName: {
-    color: '#ffffff',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
+    color: '#ffffff',
     marginTop: 2,
   },
   targetSub: {
-    color: '#8e8e9a',
     fontSize: 11,
+    color: '#8e8e9a',
     marginTop: 2,
   },
-  permTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  permDesc: {
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 24,
-  },
   viewfinderContainer: {
-    height: 220,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginVertical: 12,
   },
   reticle: {
-    width: 200,
-    height: 200,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    position: 'relative',
+    width: 240,
+    height: 240,
+    borderRadius: 20,
     overflow: 'hidden',
+    position: 'relative',
     backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: '#2d2d34',
   },
   reticleFlash: {
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    shadowColor: '#ffffff',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
+    borderColor: '#f59e0b',
   },
   corner: {
-    width: 20,
-    height: 20,
     position: 'absolute',
-    borderWidth: 3,
+    width: 24,
+    height: 24,
   },
   topLeft: {
-    top: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
+    top: 12,
+    left: 12,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
   },
   topRight: {
-    top: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderBottomWidth: 0,
+    top: 12,
+    right: 12,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
   },
   bottomLeft: {
-    bottom: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
+    bottom: 12,
+    left: 12,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
   },
   bottomRight: {
-    bottom: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
+    bottom: 12,
+    right: 12,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
   },
   laser: {
-    height: 2,
-    width: '100%',
     position: 'absolute',
+    left: 20,
+    right: 20,
+    height: 2,
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
   },
   feedbackCard: {
-    padding: 12,
+    padding: 14,
+    borderRadius: 12,
+    marginVertical: 10,
     borderWidth: 1,
-    marginBottom: 20,
-    alignItems: 'center',
   },
   feedbackText: {
     fontSize: 13,
@@ -405,28 +672,29 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   quickScanCard: {
-    padding: 18,
+    padding: 16,
+    borderRadius: 16,
+    marginTop: 16,
+    borderWidth: 1,
   },
   cardTitle: {
-    color: '#ffffff',
     fontSize: 15,
     fontWeight: '800',
+    color: '#ffffff',
     marginBottom: 4,
   },
   cardDesc: {
-    color: '#8e8e9a',
     fontSize: 12,
-    marginBottom: 14,
+    color: '#8e8e9a',
+    marginBottom: 12,
   },
   buttonList: {
-    marginBottom: 16,
+    gap: 8,
   },
   scanOption: {
-    borderWidth: 1,
-    borderRadius: 8,
     padding: 12,
-    marginBottom: 8,
-    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
   },
   optionText: {
     fontSize: 13,
@@ -434,37 +702,48 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    marginVertical: 14,
+    marginVertical: 16,
   },
   inputLabel: {
-    color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
+    color: '#b3b3c2',
     marginBottom: 8,
   },
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 10,
   },
   input: {
     flex: 1,
-    height: 40,
+    height: 44,
     borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: 10,
     paddingHorizontal: 12,
     fontSize: 13,
-    marginRight: 8,
   },
   inputButton: {
-    height: 40,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
+    paddingHorizontal: 18,
+    height: 44,
+    borderRadius: 10,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   inputButtonText: {
     color: '#ffffff',
+    fontWeight: '800',
     fontSize: 13,
-    fontWeight: '700',
+  },
+  permTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  permDesc: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
   },
 });

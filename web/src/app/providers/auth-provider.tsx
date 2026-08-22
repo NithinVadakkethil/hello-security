@@ -2,8 +2,17 @@
 
 import React, { useEffect } from 'react';
 import { useAuthStore } from '../store/auth-store';
-import { getAccessToken, getUserFromToken, clearTokens, getRefreshToken, setAccessToken, setRefreshToken } from '../utils/token';
+import {
+  getAccessToken,
+  getUserFromToken,
+  getStoredUser,
+  clearTokens,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+} from '../utils/token';
 import { authClient } from '../lib/axios';
+import LoadingState from '../components/ui/LoadingState';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setAuth, clearAuth, isLoading, setLoading } = useAuthStore();
@@ -12,13 +21,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initializeAuth = async () => {
       try {
         const token = getAccessToken();
+        const storedUser = getStoredUser();
+
         if (token) {
-          const user = getUserFromToken(token);
-          if (user) {
-            setAuth(user);
-            setLoading(false);
-            return;
+          // Restore stored user with name/companyName if available
+          const initialUser = storedUser || getUserFromToken(token);
+          if (initialUser) {
+            setAuth(initialUser);
           }
+
+          // Fetch latest profile from API to ensure fresh user information
+          try {
+            const meResponse = await authClient.get('/auth/me', {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const profileUser = meResponse.data?.data;
+            if (profileUser) {
+              setAuth(profileUser);
+            }
+          } catch (profileErr) {
+            console.log('[AuthProvider] Profile fetch notice:', profileErr);
+          }
+
+          setLoading(false);
+          return;
         }
 
         // If access token is expired or missing, attempt session refresh
@@ -26,7 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (refreshToken) {
           try {
             const response = await authClient.post('/auth/refresh', { refreshToken });
-            const { accessToken: newAccessToken, refreshToken: newRefreshToken, user } = response.data.data;
+            const { accessToken: newAccessToken, refreshToken: newRefreshToken, user } =
+              response.data.data;
 
             setAccessToken(newAccessToken);
             if (newRefreshToken) {
@@ -39,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error('Mount session auto-refresh failed:', refreshError);
           }
         }
-        
+
         // No valid token/session, clear state
         clearTokens();
         clearAuth();
@@ -57,14 +84,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="auth-loader-container">
-        <div className="auth-loader-card">
-          <div className="auth-spinner"></div>
-          <h2 className="auth-loader-title">Hello Security</h2>
-          <p className="auth-loader-subtitle">Establishing secure session...</p>
-        </div>
+        <LoadingState variant="card" size="lg" message="Establishing secure session..." />
       </div>
     );
   }
 
   return <>{children}</>;
 }
+
+export default AuthProvider;

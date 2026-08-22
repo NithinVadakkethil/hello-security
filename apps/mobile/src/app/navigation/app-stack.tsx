@@ -13,14 +13,19 @@ import { MapPreviewScreen } from '../../modules/assignment/screens/MapPreviewScr
 import { PatrolScreen } from '../../modules/patrol/screens/PatrolScreen';
 import { ScannerScreen } from '../../modules/scanner/screens/ScannerScreen';
 import { ReportIncidentScreen } from '../../modules/incident/screens/ReportIncidentScreen';
+import { ReportSnagScreen } from '../../modules/snag/screens/ReportSnagScreen';
 import { ProfileScreen } from '../../modules/profile/screens/ProfileScreen';
-import { Home, ShieldAlert, Camera, Clipboard, User } from 'lucide-react-native';
+import { PatrolDetailsScreen } from '../../modules/dashboard/screens/PatrolDetailsScreen';
+import { HistoryScreen } from '../../modules/history/screens/HistoryScreen';
+import { AssignedMaintenanceScreen } from '../../modules/maintenance/screens/AssignedMaintenanceScreen';
+import { Home, ShieldAlert, Camera, Clipboard, User, History as HistoryIcon, Wrench } from 'lucide-react-native';
 
 export type MainTabParamList = {
   HomeTab: undefined;
   PatrolTab: undefined;
   ScannerTab: undefined;
-  IncidentsTab: undefined;
+  HistoryTab: undefined;
+  MaintenanceTab: undefined;
   ProfileTab: undefined;
 };
 
@@ -88,12 +93,21 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="IncidentsTab"
-        component={ReportIncidentScreen}
+        name="HistoryTab"
+        component={HistoryScreen}
         options={{
-          title: 'Report Incident',
-          tabBarLabel: 'Incidents',
-          tabBarIcon: ({ color, size }) => <ShieldAlert size={size} color={color} />,
+          title: 'Work History',
+          tabBarLabel: 'History',
+          tabBarIcon: ({ color, size }) => <HistoryIcon size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="MaintenanceTab"
+        component={AssignedMaintenanceScreen}
+        options={{
+          title: 'Assigned Work',
+          tabBarLabel: 'Jobs',
+          tabBarIcon: ({ color, size }) => <Wrench size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -119,12 +133,15 @@ export function AppStack() {
       <Stack.Screen name="Shifts" component={TodayAssignmentScreen} options={{ headerShown: true, title: 'My Assignment' }} />
       <Stack.Screen name="Patrol" component={PatrolScreen} options={{ headerShown: true, title: 'Checkpoint Patrol' }} />
       <Stack.Screen name="Reports" component={ReportIncidentScreen} options={{ headerShown: true, title: 'Incidents & Reports' }} />
+      <Stack.Screen name="ReportIncident" component={ReportIncidentScreen} options={{ headerShown: true, title: 'Report Security Incident' }} />
+      <Stack.Screen name="ReportSnag" component={ReportSnagScreen} options={{ headerShown: true, title: 'Report Maintenance Snag' }} />
       <Stack.Screen name="AssignmentDetails" component={AssignmentDetailsScreen} options={{ headerShown: true, title: 'Assignment Details' }} />
       <Stack.Screen name="ShiftDetails" component={ShiftDetailsScreen} options={{ headerShown: true, title: 'Shift Details' }} />
       <Stack.Screen name="PatrolRoute" component={PatrolRouteScreen} options={{ headerShown: true, title: 'Patrol Route' }} />
       <Stack.Screen name="AssignedGates" component={AssignedGatesScreen} options={{ headerShown: true, title: 'Assigned Gates' }} />
       <Stack.Screen name="MapPreview" component={MapPreviewScreen} options={{ headerShown: true, title: 'Map Preview' }} />
       <Stack.Screen name="Scanner" component={ScannerScreen} options={{ headerShown: true, title: 'QR Scanner' }} />
+      <Stack.Screen name="PatrolDetails" component={PatrolDetailsScreen} options={{ headerShown: true, title: 'Patrol Details & Verification' }} />
     </Stack.Navigator>
   );
 }

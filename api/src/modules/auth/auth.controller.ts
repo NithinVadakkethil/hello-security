@@ -8,9 +8,28 @@ export class AuthController {
     try {
       const body = loginSchema.parse(req.body);
 
-      const result = await authService.login(body.email, body.password);
+      const result = await authService.login(
+        body.email,
+        body.password,
+        body.deviceId,
+        body.deviceInfo,
+      );
 
       res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = req.user as any;
+      const deviceId = (req.body?.deviceId as string) || (req.query?.deviceId as string);
+      const result = await authService.logout(user.id, deviceId);
+      res.json({
         success: true,
         data: result,
       });

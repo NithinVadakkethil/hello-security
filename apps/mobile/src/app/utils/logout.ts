@@ -7,24 +7,38 @@ import { QueryClient } from '@tanstack/react-query';
 export async function performLogout(queryClient?: QueryClient) {
   console.log('[Logout] Executing enterprise logout...');
 
-  // 1. Clear tokens
-  tokenManager.clearTokens();
+  try {
+    // 1. Clear tokens
+    await tokenManager.clearTokens();
+  } catch (err) {
+    console.warn('[Logout] Warning clearing tokens:', err);
+  }
 
-  // 2. Reset active patrol store & SQLite refs
-  await usePatrolStore.getState().completeSession();
+  try {
+    // 2. Reset active patrol store & SQLite refs
+    await usePatrolStore.getState().completeSession();
+  } catch (err) {
+    console.warn('[Logout] Warning completing session:', err);
+  }
 
-  // 3. Purge cached SQLite database tables
-  await sqliteDb.clearTable('assignments');
-  await sqliteDb.clearTable('checkpoints');
-  await sqliteDb.clearTable('patrols');
-  
-  // Note: We preserve the 'offline_mutations' table so queued reports are not lost on logout.
+  try {
+    // 3. Purge cached SQLite database tables
+    await sqliteDb.clearTable('assignments');
+    await sqliteDb.clearTable('checkpoints');
+    await sqliteDb.clearTable('patrols');
+  } catch (err) {
+    console.warn('[Logout] Warning clearing SQLite tables:', err);
+  }
 
   // 4. Clear React Query cache
   if (queryClient) {
-    queryClient.clear();
+    try {
+      queryClient.clear();
+    } catch (err) {
+      console.warn('[Logout] Warning clearing query client:', err);
+    }
   }
 
-  // 5. Clear User authorization store (triggers React Navigation switch to AuthStack)
+  // 5. Clear User authorization store (ALWAYS triggers React Navigation switch to AuthStack)
   useAuthStore.getState().clearAuth();
 }

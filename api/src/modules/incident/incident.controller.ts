@@ -8,12 +8,35 @@ import { incidentService } from './incident.service';
 
 function saveBase64Image(base64Str: string): string {
   try {
-    const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-    if (!matches || matches.length !== 3) {
+    if (!base64Str) return '';
+    if (base64Str.startsWith('/uploads/') || base64Str.startsWith('http://') || base64Str.startsWith('https://')) {
       return base64Str;
     }
-    const ext = matches[1].split('/')[1] || 'png';
-    const buffer = Buffer.from(matches[2], 'base64');
+
+    let ext = 'png';
+    let base64Data = base64Str.trim();
+
+    const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/s);
+    if (matches && matches.length === 3) {
+      const mime = matches[1];
+      ext = mime.split('/')[1] || 'png';
+      base64Data = matches[2];
+    } else if (base64Data.startsWith('/9j/')) {
+      ext = 'jpg';
+    } else if (base64Data.startsWith('iVBOR')) {
+      ext = 'png';
+    } else if (base64Data.startsWith('R0lG')) {
+      ext = 'gif';
+    } else if (base64Data.startsWith('UklGR')) {
+      ext = 'webp';
+    }
+
+    base64Data = base64Data.replace(/[\r\n\s]+/g, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    if (buffer.length === 0) {
+      return base64Str;
+    }
+
     const filename = `incident-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
     const uploadDir = path.join(process.cwd(), 'uploads');
     if (!fs.existsSync(uploadDir)) {
@@ -26,10 +49,13 @@ function saveBase64Image(base64Str: string): string {
   }
 }
 
+import { resolveEmployeeId } from '../../common/auth/resolve-employee';
+
 export class IncidentController {
   async create(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
       const body = createIncidentSchema.parse(req.body);
 
       const files = req.files as Express.Multer.File[] | undefined;
@@ -42,7 +68,7 @@ export class IncidentController {
 
       const result = await incidentService.create(
         user.tenantId!,
-        user.employeeId!,
+        employeeId,
         {
           ...body,
           images: imageUrls,
@@ -82,6 +108,22 @@ export class IncidentController {
           message: 'Incident not found.',
         });
       }
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async updateStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const result = await incidentService.updateStatus(id as string, status as string);
 
       return res.json({
         success: true,

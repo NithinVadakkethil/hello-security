@@ -12,7 +12,6 @@ export interface OfflineTableRecord {
 export const sqliteDb = {
   // Simulates table initialization
   init: async (): Promise<boolean> => {
-    console.log('[SQLite DB] Initializing local database tables...');
     return true;
   },
 

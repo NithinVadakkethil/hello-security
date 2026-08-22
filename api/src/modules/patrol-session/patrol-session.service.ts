@@ -3,18 +3,14 @@ import { PatrolStatus } from '@prisma/client';
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
-
-import { ENTITY } from '../../common/constants/entities';
-import { PREFIX } from '../../common/constants/prefixes';
-
-import { counterService } from '../../common/counter/counter.service';
-import { generateCode } from '../../common/utils/code-generator';
+import { prisma } from '../../database/prisma';
 
 import { assignmentRepository } from '../assignment/assignment.repository';
 import { patrolSessionRepository } from './patrol-session.repository';
+import { ListPatrolSessionsQuery } from './patrol-session.types';
 
 export class PatrolSessionService {
-  async start(clientId: string, employeeId: string) {
+  async start(clientId: string, employeeId: string, targetAssignmentId?: string) {
     if (!employeeId) {
       throw new AppError(
         HttpStatus.UNAUTHORIZED,
@@ -23,9 +19,19 @@ export class PatrolSessionService {
       );
     }
 
-    // Find active assignment
-    const assignment =
-      await assignmentRepository.findEmployeeActiveAssignment(employeeId);
+    let assignment;
+    if (targetAssignmentId) {
+      assignment = await assignmentRepository.findById(targetAssignmentId);
+      if (!assignment || assignment.employeeId !== employeeId || !assignment.isActive) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.NOT_FOUND,
+          'Specified active assignment not found for this employee.',
+        );
+      }
+    } else {
+      assignment = await assignmentRepository.findEmployeeActiveAssignment(employeeId);
+    }
 
     if (!assignment) {
       throw new AppError(
@@ -41,17 +47,24 @@ export class PatrolSessionService {
     );
 
     if (running) {
-      throw new AppError(
-        HttpStatus.CONFLICT,
-        ErrorCodes.VALIDATION_ERROR,
-        'Patrol already in progress.',
-      );
+      const scannedCount = await prisma.patrolCheckpoint.count({
+        where: { patrolSessionId: running.id },
+      });
+
+      if (scannedCount === 0) {
+        // Abandoned zero-checkpoint session — auto-clear it so starting a new patrol succeeds cleanly
+        await patrolSessionRepository.cancel(running.id);
+      } else {
+        throw new AppError(
+          HttpStatus.CONFLICT,
+          ErrorCodes.VALIDATION_ERROR,
+          'Patrol already in progress.',
+        );
+      }
     }
 
-    // Generate Patrol Code
-    const sequence = await counterService.next(ENTITY.PATROL_SESSION);
-
-    const patrolCode = generateCode(PREFIX.PATROL_SESSION, sequence);
+    // Generate Patrol Code based on highest existing valid DB record
+    const patrolCode = await patrolSessionRepository.getNextPatrolCode(clientId);
 
     return patrolSessionRepository.create({
       clientId,
@@ -73,8 +86,8 @@ export class PatrolSessionService {
     return patrolSessionRepository.findActiveByAssignment(assignment.id);
   }
 
-  async history(clientId: string) {
-    return patrolSessionRepository.list(clientId);
+  async history(clientId: string, query?: ListPatrolSessionsQuery) {
+    return patrolSessionRepository.list(clientId, query);
   }
 
   async pause(id: string) {
@@ -137,12 +150,20 @@ export class PatrolSessionService {
       );
     }
 
-    if (patrol.status !== PatrolStatus.IN_PROGRESS) {
+    if (patrol.status !== PatrolStatus.IN_PROGRESS && patrol.status !== PatrolStatus.PAUSED) {
       throw new AppError(
         HttpStatus.BAD_REQUEST,
         ErrorCodes.VALIDATION_ERROR,
         'Patrol is not in progress.',
       );
+    }
+
+    const checkpointCount = await prisma.patrolCheckpoint.count({
+      where: { patrolSessionId: id },
+    });
+
+    if (checkpointCount === 0) {
+      return patrolSessionRepository.cancel(id);
     }
 
     const endedAt = new Date();
@@ -159,8 +180,49 @@ export class PatrolSessionService {
     });
   }
 
+  async cancel(id: string) {
+    return patrolSessionRepository.cancel(id);
+  }
+
   async findById(id: string) {
     return patrolSessionRepository.findFullById(id);
+  }
+
+  async verify(
+    id: string,
+    userId: string,
+    dto: {
+      verificationStatus: 'VERIFIED' | 'NOT_VERIFIED';
+      supervisorRemarks?: string;
+    },
+  ) {
+    const patrol = await patrolSessionRepository.findById(id);
+
+    if (!patrol) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Patrol session not found.',
+      );
+    }
+
+    if (
+      dto.verificationStatus !== 'VERIFIED' &&
+      dto.verificationStatus !== 'NOT_VERIFIED'
+    ) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Invalid verification status. Must be VERIFIED or NOT_VERIFIED.',
+      );
+    }
+
+    return patrolSessionRepository.verifyPatrolSession(id, {
+      verificationStatus: dto.verificationStatus,
+      verifiedById: userId,
+      verificationTime: new Date(),
+      supervisorRemarks: dto.supervisorRemarks,
+    });
   }
 }
 

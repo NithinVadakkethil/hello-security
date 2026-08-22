@@ -24,6 +24,11 @@ router.get(
 );
 
 router.get(
+  '/resource-limits',
+  clientController.getResourceLimits.bind(clientController),
+);
+
+router.get(
   '/:id',
   authorize(UserRole.SUPER_ADMIN),
   clientController.get.bind(clientController),

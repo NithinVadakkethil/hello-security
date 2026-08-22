@@ -1,20 +1,20 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { Eye, EyeOff, Lock, Mail, Moon, Sun } from 'lucide-react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Sun, Moon, Shield, Lock, Mail } from 'lucide-react';
+import { z } from 'zod';
 
+import { ProtectedRoute } from '../components/protected-route';
+import { API_ROUTES } from '../constants';
+import { apiClient } from '../lib/axios';
 import { useTheme } from '../providers/theme-provider';
 import { useAuthStore } from '../store/auth-store';
-import { setAccessToken, setRefreshToken } from '../utils/token';
-import { apiClient } from '../lib/axios';
-import { API_ROUTES } from '../constants';
-import { showErrorToast } from '../utils/error-handler';
-import { ProtectedRoute } from '../components/protected-route';
 import { ApiResponse, AuthData } from '../types/api';
+import { showErrorToast } from '../utils/error-handler';
+import { setAccessToken, setRefreshToken } from '../utils/token';
 
 const loginValidationSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Invalid email address'),
@@ -27,6 +27,7 @@ export default function LoginPage() {
   const { theme, toggleTheme } = useTheme();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -46,11 +47,11 @@ export default function LoginPage() {
       // Direct API Call using auth client endpoints
       const response = (await apiClient.post(
         API_ROUTES.LOGIN,
-        values
+        values,
       )) as unknown as ApiResponse<AuthData>;
 
       const authData = response.data;
-      
+
       // Save tokens in cookies
       setAccessToken(authData.accessToken);
       if (authData.refreshToken) {
@@ -59,7 +60,7 @@ export default function LoginPage() {
 
       // Sync Zustand Auth Store
       setAuth(authData.user);
-      
+
       toast.success('Signed in successfully!');
     } catch (error) {
       showErrorToast(error, 'Sign in failed. Please check your credentials.');
@@ -76,17 +77,31 @@ export default function LoginPage() {
         <div className="glow-light purple"></div>
 
         <div className="login-header-actions">
-          <button onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle Theme">
+          <button
+            onClick={toggleTheme}
+            className="theme-toggle-btn"
+            aria-label="Toggle Theme"
+          >
             {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
           </button>
         </div>
 
         <div className="login-card glass-card">
           <div className="login-logo-section">
-            <div className="logo-icon">
-              <Shield size={22} fill="currentColor" />
+            <div className="logo-badge">
+              <img
+                src="/assets/hello-orbit-logo.png"
+                alt="Hello Orbit Logo"
+                className="login-logo-img"
+              />
             </div>
-            <h1 className="login-app-title">Hello Security</h1>
+            <h1 className="login-app-title">
+              HELLO
+              <span className="text-[#2563EB]" style={{ color: '#2563EB' }}>
+                {' '}
+                ORBIT
+              </span>
+            </h1>
             <p className="login-app-subtitle">Enterprise Security Portal</p>
           </div>
 
@@ -96,7 +111,9 @@ export default function LoginPage() {
                 Email Address
               </label>
               <div className="input-with-icon">
-                <Mail className="input-icon" size={18} />
+                <span className="input-icon-left">
+                  <Mail size={18} />
+                </span>
                 <input
                   {...register('email')}
                   type="email"
@@ -116,22 +133,40 @@ export default function LoginPage() {
                 Password
               </label>
               <div className="input-with-icon">
-                <Lock className="input-icon" size={18} />
+                <span className="input-icon-left">
+                  <Lock size={18} />
+                </span>
                 <input
                   {...register('password')}
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   id="password"
                   placeholder="••••••••"
-                  className={`form-input icon-padded ${errors.password ? 'border-danger' : ''}`}
+                  className={`form-input icon-padded icon-padded-right ${errors.password ? 'border-danger' : ''}`}
                   disabled={submitting}
                 />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  onMouseDown={(e) => e.preventDefault()}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
               {errors.password && (
-                <span className="form-error-msg">{errors.password.message}</span>
+                <span className="form-error-msg">
+                  {errors.password.message}
+                </span>
               )}
             </div>
 
-            <button type="submit" className="btn btn-primary w-full" disabled={submitting}>
+            <button
+              type="submit"
+              className="btn btn-primary w-full"
+              disabled={submitting}
+            >
               {submitting ? 'Authenticating...' : 'Sign In'}
             </button>
           </form>
@@ -187,12 +222,40 @@ export default function LoginPage() {
             align-items: center;
             margin-bottom: 32px;
           }
+          .logo-badge {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 6px;
+            box-shadow: 0 0 15px var(--primary-glow);
+          }
+          .login-logo-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 4px;
+          }
           .login-app-title {
             font-size: 1.75rem;
             font-weight: 700;
             margin-top: 16px;
             margin-bottom: 4px;
             letter-spacing: -0.02em;
+          }
+          .login-app-title span:first-child {
+            color: #0f172a;
+          }
+          :global(html.dark) .login-app-title span:first-child {
+            color: var(--text-primary);
+          }
+          .login-app-title span:last-child {
+            color: #2563eb;
           }
           .login-app-subtitle {
             font-size: 0.9rem;
@@ -207,15 +270,49 @@ export default function LoginPage() {
             position: relative;
             display: flex;
             align-items: center;
+            width: 100%;
           }
-          .input-icon {
+          .input-icon-left {
             position: absolute;
-            left: 16px;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
             color: var(--text-muted);
             pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            z-index: 2;
+          }
+          .password-toggle-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5px;
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            z-index: 2;
+            transition: color 0.15s ease;
+          }
+          .password-toggle-btn:hover {
+            color: var(--text-primary);
           }
           .form-input.icon-padded {
-            padding-left: 48px;
+            padding-left: 44px;
+          }
+          .form-input.icon-padded-right {
+            padding-right: 44px;
           }
           .border-danger {
             border-color: var(--danger) !important;

@@ -1,22 +1,27 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Edit, Plus, MapPin, RefreshCw, ToggleLeft, ToggleRight, QrCode } from 'lucide-react';
+import { ArrowLeft, Edit, Plus, MapPin, ToggleLeft, ToggleRight, QrCode, CheckSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
 import DataTable from '../../../components/ui/DataTable';
+import LoadingState from '../../../components/ui/LoadingState';
+import Pagination from '../../../components/ui/Pagination';
+import SearchBar from '../../../components/ui/SearchBar';
 import Modal from '../../../components/ui/Modal';
 import ConfirmationDialog from '../../../components/ui/ConfirmationDialog';
 import { FormInput } from '../../../components/ui/FormControls';
 import StatusChip from '../../../components/ui/StatusChip';
+import GateSubTasksModal from '../components/GateSubTasksModal';
+import CheckpointQrModal from '../components/CheckpointQrModal';
 
 interface Site {
   id: string;
@@ -31,6 +36,7 @@ interface Site {
   description?: string | null;
   isActive: boolean;
   createdAt: string;
+  client?: { id: string; companyName: string } | null;
 }
 
 interface Gate {
@@ -57,6 +63,9 @@ type GateValues = z.infer<typeof gateSchema>;
 export default function SiteDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
 
   // Dialog / Modal state
@@ -75,20 +84,110 @@ export default function SiteDetailPage() {
     targetStatus: false,
   });
 
+  const [subTaskModal, setSubTaskModal] = useState<{
+    isOpen: boolean;
+    gateId: string;
+    gateName: string;
+  }>({
+    isOpen: false,
+    gateId: '',
+    gateName: '',
+  });
+
+  const [qrModal, setQrModal] = useState<{
+    isOpen: boolean;
+    gate: Gate | null;
+  }>({
+    isOpen: false,
+    gate: null,
+  });
+
+  // Dynamic Pagination & Search state for gates synced via URL
+  const gatePage = searchParams.get('gatePage') ? Number(searchParams.get('gatePage')) : 1;
+  const gateSearch = searchParams.get('gateSearch') || '';
+  const rawLimit = searchParams.get('gateLimit');
+  const gateLimit: number | 'all' = rawLimit === 'all' ? 'all' : (rawLimit ? Number(rawLimit) : 10);
+
+  const updateUrlParams = (newPage: number, newSearch: string, newLimit?: number | 'all') => {
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+
+    if (newPage > 1) {
+      current.set('gatePage', String(newPage));
+    } else {
+      current.delete('gatePage');
+    }
+
+    if (newSearch.trim()) {
+      current.set('gateSearch', newSearch.trim());
+    } else {
+      current.delete('gateSearch');
+    }
+
+    const limitVal = newLimit !== undefined ? newLimit : gateLimit;
+    if (limitVal === 'all') {
+      current.set('gateLimit', 'all');
+    } else if (typeof limitVal === 'number' && limitVal !== 10) {
+      current.set('gateLimit', String(limitVal));
+    } else {
+      current.delete('gateLimit');
+    }
+
+    const query = current.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  const handleGateSearchChange = (val: string) => {
+    updateUrlParams(1, val);
+  };
+
+  const handleGatePageChange = (newPage: number) => {
+    updateUrlParams(newPage, gateSearch);
+  };
+
+  const handleGateLimitChange = (newLimit: number | 'all') => {
+    updateUrlParams(1, gateSearch, newLimit);
+  };
+
   // Fetch Site Details
   const { data: siteRes, isLoading: isSiteLoading } = useQuery<ApiResponse<Site>>({
     queryKey: ['site', id],
     queryFn: () => apiClient.get(`/sites/${id}`),
   });
 
-  // Fetch Site Gates
-  const { data: gatesRes, isLoading: isGatesLoading } = useQuery<ApiResponse<Gate[]>>({
-    queryKey: ['gates', id],
-    queryFn: () => apiClient.get('/gates', { params: { siteId: id } }),
+  // Fetch Site Gates (Paginated & Searched)
+  const { data: gatesRes, isLoading: isGatesLoading } = useQuery<ApiResponse<Gate[]> & { pagination?: any }>({
+    queryKey: ['gates', id, gatePage, gateSearch, gateLimit],
+    queryFn: () =>
+      apiClient.get('/gates', {
+        params: {
+          siteId: id,
+          page: gateLimit === 'all' ? undefined : gatePage,
+          limit: gateLimit === 'all' ? undefined : gateLimit,
+          search: gateSearch.trim() || undefined,
+        },
+      }),
+    placeholderData: (previousData) => previousData,
   });
 
   const site = siteRes?.data;
-  const gates = gatesRes?.data || [];
+  const gates = Array.isArray(gatesRes?.data)
+    ? gatesRes.data
+    : (gatesRes?.data as any)?.items || [];
+  const gatePagination =
+    gatesRes?.pagination ||
+    (gatesRes as any)?.pagination || {
+      page: 1,
+      limit: gateLimit === 'all' ? gates.length : gateLimit,
+      total: gates.length,
+      totalPages: 1,
+    };
+
+  // Query Resource Limits for Client
+  const { data: limitsRes } = useQuery<ApiResponse<any>>({
+    queryKey: ['resource-limits'],
+    queryFn: () => apiClient.get('/clients/resource-limits'),
+  });
+  const limits = limitsRes?.data;
 
   const {
     register: registerGate,
@@ -144,14 +243,31 @@ export default function SiteDetailPage() {
     },
   });
 
-  const handleOpenAddGate = () => {
+  const handleOpenAddGate = async () => {
+    if (limits && limits.remainingCheckpoints === 0) {
+      toast.error(
+        `Checkpoint creation limit reached. Maximum allowed across client: ${limits.maxCheckpoints}. Current count: ${limits.currentCheckpointCount}.`
+      );
+      return;
+    }
     setEditingGate(null);
+
+    let nextSeq = 1;
+    try {
+      const res = await apiClient.get<ApiResponse<{ nextSequence: number }>>('/gates/next-sequence', {
+        params: { siteId: id },
+      });
+      nextSeq = res.data?.data?.nextSequence || (res.data as any)?.nextSequence || 1;
+    } catch (err) {
+      nextSeq = 1;
+    }
+
     resetGate({
       name: '',
       description: '',
       latitude: undefined,
       longitude: undefined,
-      sequence: gates.length + 1,
+      sequence: nextSeq,
     });
     setIsGateModalOpen(true);
   };
@@ -168,104 +284,8 @@ export default function SiteDetailPage() {
     setIsGateModalOpen(true);
   };
 
-  const handlePrintQr = (gate: Gate) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Print Checkpoint QR - ${gate.name}</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              height: 90vh;
-              margin: 0;
-              background-color: #fff;
-              color: #000;
-            }
-            .qr-card {
-              border: 3px double #000;
-              padding: 40px;
-              text-align: center;
-              max-width: 360px;
-              width: 100%;
-              border-radius: 12px;
-            }
-            .logo-header {
-              font-size: 1.6rem;
-              font-weight: 800;
-              text-transform: uppercase;
-              letter-spacing: 0.05em;
-              margin-bottom: 4px;
-              color: #000;
-            }
-            .site-title {
-              font-size: 1.05rem;
-              font-weight: 600;
-              margin-bottom: 20px;
-              color: #555;
-            }
-            .qr-img {
-              width: 240px;
-              height: 240px;
-              margin: 15px auto;
-              display: block;
-            }
-            .gate-title {
-              font-size: 1.25rem;
-              font-weight: 700;
-              margin-top: 15px;
-              margin-bottom: 4px;
-            }
-            .gate-code {
-              font-size: 0.85rem;
-              font-family: monospace;
-              color: #555;
-              margin-bottom: 20px;
-            }
-            .instructions {
-              font-size: 0.75rem;
-              color: #666;
-              line-height: 1.4;
-              border-top: 1px solid #ddd;
-              padding-top: 15px;
-            }
-            @media print {
-              body {
-                height: auto;
-              }
-              .qr-card {
-                border: 3px double #000 !important;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="qr-card">
-            <div class="logo-header">Hello Security</div>
-            <div class="site-title">${site?.name || 'Monitored Facility'}</div>
-            <div class="gate-title">${gate.name}</div>
-            <div class="gate-code">CHECKPOINT ID: ${gate.gateCode}</div>
-            <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(gate.id)}" alt="Checkpoint QR" />
-            <div class="instructions">
-              <strong>OFFICIAL SECURITY PERIMETER POST</strong><br />
-              Scan this QR code using the Hello Security Guard mobile app to log check-in sequence status.
-            </div>
-          </div>
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+  const handleOpenQrModal = (gate: Gate) => {
+    setQrModal({ isOpen: true, gate });
   };
 
   const onSubmitGate = (values: GateValues) => {
@@ -310,12 +330,22 @@ export default function SiteDetailPage() {
       render: (row: Gate) => (
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
-            onClick={() => handlePrintQr(row)}
+            onClick={() => handleOpenQrModal(row)}
             className="btn btn-secondary"
             style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px', color: 'var(--primary)' }}
+            title="Print or Download Checkpoint QR"
           >
             <QrCode size={14} />
-            <span>Print QR</span>
+            <span>QR Code</span>
+          </button>
+          <button
+            onClick={() => setSubTaskModal({ isOpen: true, gateId: row.id, gateName: row.name })}
+            className="btn btn-secondary"
+            style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px', color: 'var(--primary)' }}
+            title="Configure Verification Sub-Tasks"
+          >
+            <CheckSquare size={14} />
+            <span>Sub Tasks ({(row as any).subTasks?.length || 0})</span>
           </button>
           <button
             onClick={() => handleOpenEditGate(row)}
@@ -351,11 +381,7 @@ export default function SiteDetailPage() {
   ];
 
   if (isSiteLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading site & gates details..." variant="page" />;
   }
 
   if (!site) {
@@ -455,8 +481,37 @@ export default function SiteDetailPage() {
       </div>
 
       {/* Gates / Checkpoint List */}
-      <div className="glass-card" style={{ padding: '28px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div className="glass-card" style={{ padding: '28px', marginTop: '32px' }}>
+        {limits && (
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              backgroundColor: 'var(--surface-color)',
+              border: limits.remainingCheckpoints === 0 ? '1px solid #ef4444' : '1px solid var(--border-color)',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Client Checkpoint Resource Usage
+              </span>
+              <div style={{ fontSize: '0.95rem', fontWeight: 800, marginTop: '2px' }}>
+                {limits.currentCheckpointCount} / {limits.maxCheckpoints} Checkpoints Created Across Client ({limits.remainingCheckpoints} Remaining)
+              </div>
+            </div>
+            {limits.remainingCheckpoints === 0 && (
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.15)', padding: '4px 8px', borderRadius: '4px' }}>
+                ⚠️ Checkpoint Limit Reached
+              </span>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h3 style={{ fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>Security Gates & Patrol Checkpoints</h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
@@ -464,17 +519,38 @@ export default function SiteDetailPage() {
             </p>
           </div>
 
-          <button onClick={handleOpenAddGate} className="btn btn-primary" style={{ gap: '8px' }}>
-            <Plus size={16} />
-            <span>Add Checkpoint</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <SearchBar
+              value={gateSearch}
+              onChange={handleGateSearchChange}
+              placeholder="Search checkpoints by name or ID..."
+            />
+            <button onClick={handleOpenAddGate} className="btn btn-primary" style={{ gap: '8px' }}>
+              <Plus size={16} />
+              <span>Add Checkpoint</span>
+            </button>
+          </div>
         </div>
 
         <DataTable
           columns={gateColumns}
           data={gates}
           isLoading={isGatesLoading}
-          emptyMessage="No gate checkpoints registered for this site yet. Click 'Add Checkpoint' to create one."
+          emptyMessage={
+            gateSearch
+              ? 'No security gate checkpoints found matching your search.'
+              : "No gate checkpoints registered for this site yet. Click 'Add Checkpoint' to create one."
+          }
+        />
+
+        <Pagination
+          currentPage={gatePage}
+          totalPages={gatePagination.totalPages}
+          onPageChange={handleGatePageChange}
+          pageSize={gateLimit}
+          pageSizeOptions={[10, 25, 50, 100, 'all']}
+          onPageSizeChange={handleGateLimitChange}
+          totalRecords={gatePagination.total}
         />
       </div>
 
@@ -566,6 +642,21 @@ export default function SiteDetailPage() {
         confirmText={confirmGateStatus.targetStatus ? 'Activate' : 'Deactivate'}
         isDanger={!confirmGateStatus.targetStatus}
         isLoading={toggleGateStatusMutation.isPending}
+      />
+
+      <GateSubTasksModal
+        isOpen={subTaskModal.isOpen}
+        onClose={() => setSubTaskModal((prev) => ({ ...prev, isOpen: false }))}
+        gateId={subTaskModal.gateId}
+        gateName={subTaskModal.gateName}
+      />
+
+      <CheckpointQrModal
+        isOpen={qrModal.isOpen}
+        onClose={() => setQrModal({ isOpen: false, gate: null })}
+        gate={qrModal.gate}
+        siteName={site?.name || ''}
+        companyName={(site as any)?.client?.companyName || 'HELLO ORBIT'}
       />
     </div>
   );

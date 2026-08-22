@@ -12,20 +12,33 @@ export default function StatusChip({ status }: StatusChipProps) {
     label = status ? 'Active' : 'Inactive';
     colorClass = status ? 'green' : 'red';
   } else {
-    label = status.toUpperCase();
+    const raw = (status || '').toString();
+    label = raw.replace(/_/g, ' ').toUpperCase();
     switch (label) {
       case 'ACTIVE':
+      case 'COMPLETED':
+      case 'VERIFIED':
         colorClass = 'green';
         break;
       case 'TRIAL':
+      case 'IN PROGRESS':
+      case 'IN_PROGRESS':
         colorClass = 'blue';
         break;
+      case 'PAUSED':
       case 'SUSPENDED':
+      case 'PENDING':
         colorClass = 'orange';
         break;
       case 'EXPIRED':
+      case 'CANCELLED':
+      case 'NOT VERIFIED':
+      case 'NOT_VERIFIED':
         colorClass = 'red';
         break;
+      case 'NOT STARTED':
+      case 'NOT_STARTED':
+      case 'INACTIVE':
       default:
         colorClass = 'gray';
         break;

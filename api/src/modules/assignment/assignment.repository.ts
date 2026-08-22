@@ -2,8 +2,59 @@ import { prisma } from '../../database/prisma';
 
 export class AssignmentRepository {
   create(data: any) {
+    const { gateIds, ...rest } = data;
+    if (gateIds && gateIds.length > 0) {
+      return prisma.guardAssignment.create({
+        data: {
+          ...rest,
+          assignmentGates: {
+            create: gateIds.map((gateId: string, idx: number) => ({
+              gateId,
+              sequence: idx + 1,
+            })),
+          },
+        },
+        include: {
+          employee: true,
+          site: true,
+          shift: true,
+          patrolRoute: true,
+          assignmentGates: {
+            include: {
+              gate: {
+                include: {
+                  subTasks: {
+                    where: { isActive: true },
+                    orderBy: { displayOrder: 'asc' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
     return prisma.guardAssignment.create({
-      data,
+      data: rest,
+      include: {
+        employee: true,
+        site: true,
+        shift: true,
+        patrolRoute: true,
+        assignmentGates: {
+          include: {
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
+          },
+        },
+      },
     });
   }
 
@@ -17,6 +68,18 @@ export class AssignmentRepository {
         site: true,
         shift: true,
         patrolRoute: true,
+        assignmentGates: {
+          include: {
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -35,7 +98,14 @@ export class AssignmentRepository {
           include: {
             routeGates: {
               include: {
-                gate: true,
+                gate: {
+                  include: {
+                    subTasks: {
+                      where: { isActive: true },
+                      orderBy: { displayOrder: 'asc' },
+                    },
+                  },
+                },
               },
               orderBy: {
                 sequence: 'asc',
@@ -43,6 +113,131 @@ export class AssignmentRepository {
             },
           },
         },
+        assignmentGates: {
+          include: {
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
+          },
+          orderBy: {
+            sequence: 'asc',
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  findEmployeeActiveAssignments(employeeId: string) {
+    return prisma.guardAssignment.findMany({
+      where: {
+        employeeId,
+        isActive: true,
+      },
+      include: {
+        employee: true,
+        site: true,
+        shift: true,
+        patrolRoute: {
+          include: {
+            routeGates: {
+              include: {
+                gate: {
+                  include: {
+                    subTasks: {
+                      where: { isActive: true },
+                      orderBy: { displayOrder: 'asc' },
+                    },
+                  },
+                },
+              },
+              orderBy: {
+                sequence: 'asc',
+              },
+            },
+          },
+        },
+        assignmentGates: {
+          include: {
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
+          },
+          orderBy: {
+            sequence: 'asc',
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  findEmployeeAllAssignments(employeeId: string) {
+    return prisma.guardAssignment.findMany({
+      where: {
+        employeeId,
+      },
+      include: {
+        employee: true,
+        site: true,
+        shift: true,
+        patrolRoute: {
+          include: {
+            routeGates: {
+              include: {
+                gate: {
+                  include: {
+                    subTasks: {
+                      where: { isActive: true },
+                      orderBy: { displayOrder: 'asc' },
+                    },
+                  },
+                },
+              },
+              orderBy: {
+                sequence: 'asc',
+              },
+            },
+          },
+        },
+        assignmentGates: {
+          include: {
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
+          },
+          orderBy: {
+            sequence: 'asc',
+          },
+        },
+        patrolSessions: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
+      },
+      orderBy: {
+        effectiveFrom: 'desc',
       },
     });
   }
@@ -89,6 +284,11 @@ export class AssignmentRepository {
         site: true,
         shift: true,
         patrolRoute: true,
+        assignmentGates: {
+          include: {
+            gate: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',

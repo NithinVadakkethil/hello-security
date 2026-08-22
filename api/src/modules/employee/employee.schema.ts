@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 export const createEmployeeSchema = z.object({
   firstName: z.string().min(2),
-  lastName: z.string().min(1),
+  lastName: z.string().optional(),
 
   email: z.string().email().optional(),
 
@@ -34,4 +34,5 @@ export const updateEmployeeSchema = z.object({
   joiningDate: z.coerce.date().optional(),
 
   status: z.nativeEnum(EmployeeStatus).optional(),
+  role: z.nativeEnum(UserRole).optional(),
 });

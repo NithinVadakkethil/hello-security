@@ -19,6 +19,25 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
 );
 FormInput.displayName = 'FormInput';
 
+// FormTextarea Component
+interface FormTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label: string;
+  error?: string;
+}
+
+export const FormTextarea = forwardRef<HTMLTextAreaElement, FormTextareaProps>(
+  ({ label, error, ...props }, ref) => {
+    return (
+      <div className="form-group">
+        <label className="form-label">{label}</label>
+        <textarea ref={ref} className="form-input" style={{ minHeight: '80px', resize: 'vertical' }} {...props} />
+        {error && <span className="form-error-msg">{error}</span>}
+      </div>
+    );
+  }
+);
+FormTextarea.displayName = 'FormTextarea';
+
 // Select Component
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label: string;

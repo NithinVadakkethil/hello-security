@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Check, Copy, Shield } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -16,7 +16,7 @@ import { apiClient } from '../../../lib/axios';
 
 const schema = z.object({
   firstName: z.string().min(2, 'First name is required (min 2 characters)'),
-  lastName: z.string().min(1, 'Last name is required'),
+  lastName: z.string().optional().or(z.literal('')),
   email: z
     .string()
     .email('Please enter a valid email address')
@@ -32,6 +32,11 @@ const schema = z.object({
     'MANAGER',
     'SUPERVISOR',
     'SECURITY',
+    'CLEANER',
+    'SERVICE_ENGINEER',
+    'TECHNICIAN',
+    'LIFE_GUARD',
+    'PLUMBER',
   ]),
 });
 
@@ -39,6 +44,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default function NewEmployeePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -61,6 +67,9 @@ export default function NewEmployeePage() {
       if (!payload.email) {
         delete payload.email;
       }
+      if (!payload.lastName) {
+        delete payload.lastName;
+      }
       if (payload.joiningDate) {
         payload.joiningDate = new Date(payload.joiningDate).toISOString();
       } else {
@@ -69,6 +78,9 @@ export default function NewEmployeePage() {
       return apiClient.post('/employees', payload);
     },
     onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['resource-limits'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
       toast.success('Employee registered successfully!');
       if (res.data?.data?.temporaryPassword) {
         setTempPassword(res.data.data.temporaryPassword);
@@ -96,6 +108,9 @@ export default function NewEmployeePage() {
 
   const handleCloseCreds = () => {
     setTempPassword(null);
+    queryClient.invalidateQueries({ queryKey: ['employees'] });
+    queryClient.invalidateQueries({ queryKey: ['resource-limits'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
     router.push('/dashboard/employees');
   };
 
@@ -202,8 +217,22 @@ export default function NewEmployeePage() {
               error={errors.joiningDate?.message}
               {...register('joiningDate')}
             />
-
             <Select
+              label="App User / Operational Field Role *"
+              options={[
+                { value: 'SECURITY', label: 'Security Guard' },
+                { value: 'CLEANER', label: 'House Keeping' },
+                { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+                { value: 'TECHNICIAN', label: 'Technician' },
+                { value: 'LIFE_GUARD', label: 'Life Guard' },
+                { value: 'PLUMBER', label: 'Plumber' },
+                { value: 'SUPERVISOR', label: 'Supervisor' },
+                { value: 'MANAGER', label: 'Manager' },
+              ]}
+              error={errors.role?.message}
+              {...register('role')}
+            />
+            {/* <Select
               label="Identification Method"
               options={[
                 { value: 'QR', label: 'QR Code scanning' },
@@ -211,10 +240,10 @@ export default function NewEmployeePage() {
               ]}
               error={errors.identificationMethod?.message}
               {...register('identificationMethod')}
-            />
+            /> */}
           </div>
 
-          <Select
+          {/* <Select
             label="Security Portal Role"
             options={[
               { value: 'SECURITY', label: 'Security Guard' },
@@ -224,7 +253,7 @@ export default function NewEmployeePage() {
             ]}
             error={errors.role?.message}
             {...register('role')}
-          />
+          /> */}
 
           <button
             type="submit"

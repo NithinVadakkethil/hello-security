@@ -15,6 +15,9 @@ import shiftRoutes from '../modules/shift/shift.routes';
 import siteRoutes from '../modules/site/site.routes';
 import userRoutes from '../modules/user/user.routes';
 import incidentRoutes from '../modules/incident/incident.routes';
+import reportRoutes from '../modules/report/report.routes';
+import snagRoutes from '../modules/snag/snag.routes';
+import snagCategoryRoutes from '../modules/snag-category/snag-category.routes';
 
 import healthRoute from './health.route';
 import protectedRoute from './protected.route';
@@ -38,5 +41,8 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/users', userRoutes);
 router.use('/audit-logs', auditLogRoutes);
 router.use('/incidents', incidentRoutes);
+router.use('/reports', reportRoutes);
+router.use('/snags', snagRoutes);
+router.use('/snag-categories', snagCategoryRoutes);
 
 export default router;

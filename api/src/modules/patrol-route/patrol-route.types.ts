@@ -7,12 +7,13 @@ export interface PatrolCheckpointDto {
 export interface CreatePatrolRouteDto {
   siteId: string;
   name: string;
-  description?: string;
+  description?: string | null;
   checkpoints: PatrolCheckpointDto[];
 }
 
 export interface UpdatePatrolRouteDto {
   name?: string;
-  description?: string;
+  description?: string | null;
   isActive?: boolean;
+  checkpoints?: PatrolCheckpointDto[];
 }

@@ -10,13 +10,13 @@
       }
     },
     "dev": {
-      "command": "next dev -p 3001",
+      "command": "next dev -p 3000",
       "options": {
         "cwd": "web"
       }
     },
     "start": {
-      "command": "next start -p 3001",
+      "command": "next start -p 3000",
       "options": {
         "cwd": "web"
       }

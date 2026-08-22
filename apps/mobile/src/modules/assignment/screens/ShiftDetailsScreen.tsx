@@ -53,7 +53,7 @@ export function ShiftDetailsScreen({ route }: any) {
 
         <Text style={[styles.instructionTitle, { color: colors.text }]}>3. Patrol Frequency</Text>
         <Text style={[styles.instructionText, { color: colors.textSecondary }]}>
-          Ensure checkpoint sweeps are performed as scheduled. Keep the Hello Security application open for real-time check-ins.
+          Ensure checkpoint sweeps are performed as scheduled. Keep the Hello Orbit application open for real-time check-ins.
         </Text>
       </Card>
     </ScrollView>

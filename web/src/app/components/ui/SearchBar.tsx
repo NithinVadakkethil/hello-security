@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
 
 interface SearchBarProps {
@@ -15,20 +15,27 @@ export default function SearchBar({
   debounceTime = 300,
 }: SearchBarProps) {
   const [innerValue, setInnerValue] = useState(value);
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     setInnerValue(value);
   }, [value]);
 
   useEffect(() => {
+    if (innerValue === value) return;
+
     const handler = setTimeout(() => {
-      onChange(innerValue);
+      onChangeRef.current(innerValue);
     }, debounceTime);
 
     return () => {
       clearTimeout(handler);
     };
-  }, [innerValue, onChange, debounceTime]);
+  }, [innerValue, value, debounceTime]);
 
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: '320px' }}>

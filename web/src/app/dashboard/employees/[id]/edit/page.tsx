@@ -5,22 +5,33 @@ import { useRouter, useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { Shield, ArrowLeft, RefreshCw } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Shield, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
 import { apiClient } from '../../../../lib/axios';
 import { ApiResponse } from '../../../../types/api';
-import { FormInput } from '../../../../components/ui/FormControls';
+import { FormInput, Select } from '../../../../components/ui/FormControls';
+import LoadingState from '../../../../components/ui/LoadingState';
 
 const schema = z.object({
   firstName: z.string().min(2, 'First name is required (min 2 characters)'),
-  lastName: z.string().min(1, 'Last name is required'),
+  lastName: z.string().optional().or(z.literal('')),
   email: z.string().email('Please enter a valid email address').optional().or(z.literal('')),
   phone: z.string().optional(),
   designation: z.string().optional(),
   joiningDate: z.string().optional(),
+  role: z.enum([
+    'SECURITY',
+    'CLEANER',
+    'SERVICE_ENGINEER',
+    'TECHNICIAN',
+    'LIFE_GUARD',
+    'PLUMBER',
+    'SUPERVISOR',
+    'MANAGER',
+  ]),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -28,6 +39,7 @@ type FormValues = z.infer<typeof schema>;
 export default function EditEmployeePage() {
   const router = useRouter();
   const params = useParams();
+  const queryClient = useQueryClient();
   const id = params.id as string;
 
   // Query Employee details
@@ -51,11 +63,12 @@ export default function EditEmployeePage() {
     if (employee) {
       reset({
         firstName: employee.firstName,
-        lastName: employee.lastName,
+        lastName: employee.lastName || '',
         email: employee.email || '',
         phone: employee.phone || '',
         designation: employee.designation || '',
         joiningDate: employee.joiningDate ? new Date(employee.joiningDate).toISOString().split('T')[0] : '',
+        role: employee.role || employee.user?.role || 'SECURITY',
       });
     }
   }, [employee, reset]);
@@ -66,6 +79,9 @@ export default function EditEmployeePage() {
       if (!payload.email) {
         payload.email = null;
       }
+      if (!payload.lastName) {
+        payload.lastName = null;
+      }
       if (payload.joiningDate) {
         payload.joiningDate = new Date(payload.joiningDate).toISOString();
       } else {
@@ -74,6 +90,8 @@ export default function EditEmployeePage() {
       return apiClient.patch(`/employees/${id}`, payload);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['employee', id] });
       toast.success('Employee configurations saved!');
       router.push(`/dashboard/employees/${id}`);
     },
@@ -87,11 +105,7 @@ export default function EditEmployeePage() {
   };
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading employee profile..." variant="page" />;
   }
 
   return (
@@ -153,12 +167,30 @@ export default function EditEmployeePage() {
             />
           </div>
 
-          <FormInput
-            label="Joining Date"
-            type="date"
-            error={errors.joiningDate?.message}
-            {...register('joiningDate')}
-          />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <FormInput
+              label="Joining Date"
+              type="date"
+              error={errors.joiningDate?.message}
+              {...register('joiningDate')}
+            />
+
+            <Select
+              label="Operational Role / App Role *"
+              options={[
+                { value: 'SECURITY', label: 'Security Guard' },
+                { value: 'CLEANER', label: 'House Keeping' },
+                { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+                { value: 'TECHNICIAN', label: 'Technician' },
+                { value: 'LIFE_GUARD', label: 'Life Guard' },
+                { value: 'PLUMBER', label: 'Plumber' },
+                { value: 'SUPERVISOR', label: 'Supervisor' },
+                { value: 'MANAGER', label: 'Manager' },
+              ]}
+              error={errors.role?.message}
+              {...register('role')}
+            />
+          </div>
 
           <button
             type="submit"

@@ -12,12 +12,16 @@ export class SiteRepository {
       where: {
         id,
       },
+      include: {
+        client: true,
+      },
     });
   }
 
-  findByCode(siteCode: string) {
-    return prisma.site.findUnique({
+  findByCode(clientId: string, siteCode: string) {
+    return prisma.site.findFirst({
       where: {
+        clientId,
         siteCode,
       },
     });
@@ -69,9 +73,10 @@ export class SiteRepository {
         clientId,
         ...(isActive !== undefined && { isActive }),
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [
+        { isActive: 'desc' },
+        { createdAt: 'desc' },
+      ],
     });
   }
 }

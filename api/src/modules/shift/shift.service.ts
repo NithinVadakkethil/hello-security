@@ -12,6 +12,8 @@ import { shiftRepository } from './shift.repository';
 
 import { CreateShiftDto, UpdateShiftDto } from './shift.types';
 
+import { prisma } from '../../database/prisma';
+
 export class ShiftService {
   async create(clientId: string, dto: CreateShiftDto) {
     const existing = await shiftRepository.findByName(clientId, dto.name);
@@ -32,9 +34,34 @@ export class ShiftService {
       );
     }
 
-    const sequence = await counterService.next(ENTITY.SHIFT);
+    const shiftCount = await prisma.shift.count({ where: { clientId } });
+    if (shiftCount === 0) {
+      await prisma.counter.upsert({
+        where: {
+          entity_clientId: {
+            entity: ENTITY.SHIFT,
+            clientId,
+          },
+        },
+        update: { value: 0 },
+        create: {
+          entity: ENTITY.SHIFT,
+          clientId,
+          value: 0,
+        },
+      });
+    }
 
-    const shiftCode = generateCode(PREFIX.SHIFT, sequence);
+    let sequence = await counterService.next(ENTITY.SHIFT, clientId);
+    let shiftCode = generateCode(PREFIX.SHIFT, sequence);
+
+    let existingShiftCode = await shiftRepository.findByShiftCode(clientId, shiftCode);
+
+    while (existingShiftCode) {
+      sequence = await counterService.next(ENTITY.SHIFT, clientId);
+      shiftCode = generateCode(PREFIX.SHIFT, sequence);
+      existingShiftCode = await shiftRepository.findByShiftCode(clientId, shiftCode);
+    }
 
     return shiftRepository.create({
       clientId,

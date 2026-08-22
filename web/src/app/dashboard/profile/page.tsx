@@ -5,13 +5,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Key, RefreshCw } from 'lucide-react';
+import { User, Key } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { apiClient } from '../../lib/axios';
 import { ApiResponse } from '../../types/api';
 import { FormInput } from '../../components/ui/FormControls';
 import { useAuthStore } from '../../store/auth-store';
+import LoadingState from '../../components/ui/LoadingState';
 
 const profileSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -105,11 +106,7 @@ export default function ProfilePage() {
   };
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading profile..." variant="page" />;
   }
 
   return (

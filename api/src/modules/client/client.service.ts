@@ -31,9 +31,16 @@ export class ClientService {
     const temporaryPassword = randomBytes(6).toString('hex');
 
     const hashedPassword = await hashPassword(temporaryPassword);
-    const sequence = await counterService.next(ENTITY.CLIENT);
+    let sequence = await counterService.next(ENTITY.CLIENT);
+    let clientCode = generateCode(PREFIX.CLIENT, sequence);
 
-    const clientCode = generateCode(PREFIX.CLIENT, sequence);
+    let existingClientCode = await clientRepository.findByClientCode(clientCode);
+
+    while (existingClientCode) {
+      sequence = await counterService.next(ENTITY.CLIENT);
+      clientCode = generateCode(PREFIX.CLIENT, sequence);
+      existingClientCode = await clientRepository.findByClientCode(clientCode);
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const client = await tx.client.create({
@@ -102,6 +109,31 @@ export class ClientService {
     await this.getById(id);
 
     return clientRepository.update(id, data);
+  }
+
+  async getResourceLimits(clientId: string) {
+    const client = await clientRepository.findById(clientId);
+    if (!client) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Client not found.',
+      );
+    }
+
+    const [currentEmployeeCount, currentCheckpointCount] = await Promise.all([
+      prisma.employee.count({ where: { clientId } }),
+      prisma.gate.count({ where: { site: { clientId } } }),
+    ]);
+
+    return {
+      maxEmployees: client.maxEmployees,
+      currentEmployeeCount,
+      remainingEmployees: Math.max(0, client.maxEmployees - currentEmployeeCount),
+      maxCheckpoints: client.maxCheckpoints,
+      currentCheckpointCount,
+      remainingCheckpoints: Math.max(0, client.maxCheckpoints - currentCheckpointCount),
+    };
   }
 }
 

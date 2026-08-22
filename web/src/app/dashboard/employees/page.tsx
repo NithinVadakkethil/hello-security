@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit2, Eye, ToggleLeft, ToggleRight } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -18,10 +19,11 @@ interface Employee {
   id: string;
   employeeNumber: string;
   firstName: string;
-  lastName: string;
+  lastName?: string | null;
   email?: string | null;
   phone?: string | null;
   designation?: string | null;
+  role: string;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   identificationMethod: 'QR' | 'RFID';
   createdAt: string;
@@ -29,9 +31,46 @@ interface Employee {
 
 export default function EmployeesPage() {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const page = searchParams.get('page') ? Number(searchParams.get('page')) : 1;
+  const search = searchParams.get('search') || '';
+  const statusFilter = searchParams.get('status') || 'ALL';
+
+  const updateUrlParams = (newPage: number, newSearch: string, newStatus: string) => {
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+    if (newPage > 1) {
+      current.set('page', String(newPage));
+    } else {
+      current.delete('page');
+    }
+    if (newSearch.trim()) {
+      current.set('search', newSearch.trim());
+    } else {
+      current.delete('search');
+    }
+    if (newStatus !== 'ALL') {
+      current.set('status', newStatus);
+    } else {
+      current.delete('status');
+    }
+    const query = current.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  const handlePageChange = (p: number) => {
+    updateUrlParams(p, search, statusFilter);
+  };
+
+  const handleSearchChange = (s: string) => {
+    updateUrlParams(1, s, statusFilter);
+  };
+
+  const handleStatusFilterChange = (st: string) => {
+    updateUrlParams(1, search, st);
+  };
 
   // Sort State
   const [sortBy, setSortBy] = useState<string>('createdAt');
@@ -54,7 +93,16 @@ export default function EmployeesPage() {
   const { data: employeesRes, isLoading } = useQuery<ApiResponse<Employee[]>>({
     queryKey: ['employees'],
     queryFn: () => apiClient.get('/employees'),
+    refetchOnMount: true,
+    staleTime: 0,
   });
+
+  // Query Resource Limits for Client
+  const { data: limitsRes } = useQuery<ApiResponse<any>>({
+    queryKey: ['resource-limits'],
+    queryFn: () => apiClient.get('/clients/resource-limits'),
+  });
+  const limits = limitsRes?.data;
 
   // Status toggle mutation
   const toggleStatusMutation = useMutation({
@@ -88,7 +136,7 @@ export default function EmployeesPage() {
     setConfirmDialog({
       isOpen: true,
       employeeId: employee.id,
-      name: `${employee.firstName} ${employee.lastName}`,
+      name: [employee.firstName, employee.lastName].filter(Boolean).join(' '),
       targetStatus,
     });
   };
@@ -107,9 +155,9 @@ export default function EmployeesPage() {
     const s = search.toLowerCase();
     employees = employees.filter(
       (c) =>
-        c.firstName.toLowerCase().includes(s) ||
-        c.lastName.toLowerCase().includes(s) ||
-        c.employeeNumber.toLowerCase().includes(s) ||
+        (c.firstName && c.firstName.toLowerCase().includes(s)) ||
+        (c.lastName && c.lastName.toLowerCase().includes(s)) ||
+        (c.employeeNumber && c.employeeNumber.toLowerCase().includes(s)) ||
         (c.email && c.email.toLowerCase().includes(s))
     );
   }
@@ -118,8 +166,14 @@ export default function EmployeesPage() {
     employees = employees.filter((c) => c.status === statusFilter);
   }
 
-  // Sort logic
+  // Active-first sorting rule
   const sortedEmployees = [...employees].sort((a, b) => {
+    const aIsActive = a.status === 'ACTIVE';
+    const bIsActive = b.status === 'ACTIVE';
+    if (aIsActive !== bIsActive) {
+      return aIsActive ? -1 : 1;
+    }
+
     let aVal: any = a[sortBy as keyof Employee] ?? '';
     let bVal: any = b[sortBy as keyof Employee] ?? '';
 
@@ -139,7 +193,8 @@ export default function EmployeesPage() {
 
   const limit = 10;
   const totalPages = Math.max(1, Math.ceil(sortedEmployees.length / limit));
-  const paginatedEmployees = sortedEmployees.slice((page - 1) * limit, page * limit);
+  const safePage = Math.min(page, totalPages);
+  const paginatedEmployees = sortedEmployees.slice((safePage - 1) * limit, safePage * limit);
 
   const columns = [
     { key: 'employeeNumber', label: 'ID Number', sortable: true },
@@ -149,7 +204,7 @@ export default function EmployeesPage() {
       sortable: true,
       render: (row: Employee) => (
         <span style={{ fontWeight: 600 }}>
-          {row.firstName} {row.lastName}
+          {[row.firstName, row.lastName].filter(Boolean).join(' ')}
         </span>
       ),
     },
@@ -212,6 +267,44 @@ export default function EmployeesPage() {
 
   return (
     <div>
+      {limits && (
+        <div
+          className="glass-card"
+          style={{
+            padding: '16px 20px',
+            borderRadius: '12px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderLeft: limits.remainingEmployees === 0 ? '4px solid #ef4444' : '4px solid #3b82f6',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+              Employee Resource Limit Allocation
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 800, marginTop: '2px' }}>
+              {limits.currentEmployeeCount} / {limits.maxEmployees} Employees Created ({limits.remainingEmployees} Available)
+            </div>
+          </div>
+          {limits.remainingEmployees === 0 && (
+            <span
+              style={{
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: '20px',
+                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                color: '#ef4444',
+              }}
+            >
+              ⚠️ Employee Limit Reached
+            </span>
+          )}
+        </div>
+      )}
+
       <div
         style={{
           display: 'flex',
@@ -223,19 +316,13 @@ export default function EmployeesPage() {
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', width: '100%', maxWidth: '640px' }}>
           <SearchBar
             value={search}
-            onChange={(val) => {
-              setSearch(val);
-              setPage(1);
-            }}
+            onChange={handleSearchChange}
             placeholder="Search employees by name, ID number or email..."
           />
 
           <select
             value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => handleStatusFilterChange(e.target.value)}
             className="form-input"
             style={{ maxWidth: '180px' }}
           >
@@ -267,9 +354,9 @@ export default function EmployeesPage() {
       />
 
       <Pagination
-        currentPage={page}
+        currentPage={safePage}
         totalPages={totalPages}
-        onPageChange={(p) => setPage(p)}
+        onPageChange={handlePageChange}
       />
 
       <ConfirmationDialog

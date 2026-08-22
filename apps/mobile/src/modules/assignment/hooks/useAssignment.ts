@@ -7,3 +7,10 @@ export function useActiveAssignment() {
     queryFn: assignmentApi.getActiveAssignment,
   });
 }
+
+export function useActiveAssignments() {
+  return useQuery({
+    queryKey: ['assignments', 'active-list'],
+    queryFn: assignmentApi.getActiveAssignments,
+  });
+}

@@ -6,21 +6,27 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Shield, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { apiClient } from '../../../../lib/axios';
 import { ApiResponse } from '../../../../types/api';
 import { FormInput, Select, Switch } from '../../../../components/ui/FormControls';
+import LoadingState from '../../../../components/ui/LoadingState';
 
 const schema = z.object({
   companyName: z.string().min(2, 'Company name is required (min 2 characters)'),
+  authorizedPerson: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   maxEmployees: z.any().refine((val) => {
     const num = Number(val);
     return !isNaN(num) && num > 0;
   }, 'Maximum employees must be a positive number'),
+  maxCheckpoints: z.any().refine((val) => {
+    const num = Number(val);
+    return !isNaN(num) && num > 0;
+  }, 'Maximum checkpoints must be a positive number'),
   identificationMethod: z.enum(['QR', 'RFID']),
   subscriptionStatus: z.enum(['TRIAL', 'ACTIVE', 'EXPIRED', 'SUSPENDED']),
   isActive: z.boolean(),
@@ -56,9 +62,11 @@ export default function EditClientPage() {
     if (client) {
       reset({
         companyName: client.companyName,
+        authorizedPerson: client.authorizedPerson || '',
         phone: client.phone || '',
         address: client.address || '',
         maxEmployees: client.maxEmployees,
+        maxCheckpoints: client.maxCheckpoints || 50,
         identificationMethod: client.identificationMethod,
         subscriptionStatus: client.subscriptionStatus,
         isActive: client.isActive,
@@ -80,15 +88,16 @@ export default function EditClientPage() {
   });
 
   const onSubmit = (values: FormValues) => {
-    updateClientMutation.mutate(values);
+    const payload = {
+      ...values,
+      maxEmployees: Number(values.maxEmployees),
+      maxCheckpoints: Number(values.maxCheckpoints),
+    };
+    updateClientMutation.mutate(payload);
   };
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-        <RefreshCw className="spin-animation" size={32} />
-      </div>
-    );
+    return <LoadingState message="Loading client details..." variant="page" />;
   }
 
   if (isError || !client) {
@@ -128,6 +137,12 @@ export default function EditClientPage() {
           />
 
           <FormInput
+            label="Authorised Person"
+            error={errors.authorizedPerson?.message}
+            {...register('authorizedPerson')}
+          />
+
+          <FormInput
             label="Phone"
             error={errors.phone?.message}
             {...register('phone')}
@@ -141,22 +156,29 @@ export default function EditClientPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <FormInput
-              label="Maximum Employees"
+              label="Maximum Employee Limit"
               type="number"
               error={errors.maxEmployees?.message as string | undefined}
               {...register('maxEmployees')}
             />
 
-            <Select
-              label="Identification Method"
-              options={[
-                { value: 'QR', label: 'QR Code scanning' },
-                { value: 'RFID', label: 'RFID card scanning' },
-              ]}
-              error={errors.identificationMethod?.message}
-              {...register('identificationMethod')}
+            <FormInput
+              label="Maximum Checkpoint Limit"
+              type="number"
+              error={errors.maxCheckpoints?.message as string | undefined}
+              {...register('maxCheckpoints')}
             />
           </div>
+
+          <Select
+            label="Identification Method"
+            options={[
+              { value: 'QR', label: 'QR Code scanning' },
+              { value: 'RFID', label: 'RFID card scanning' },
+            ]}
+            error={errors.identificationMethod?.message}
+            {...register('identificationMethod')}
+          />
 
           <Select
             label="Subscription Status"

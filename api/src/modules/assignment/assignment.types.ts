@@ -1,8 +1,11 @@
 export interface CreateAssignmentDto {
-  employeeId: string;
+  employeeId?: string;
+  employeeIds?: string[];
   siteId: string;
   shiftId: string;
-  patrolRouteId: string;
+  assignmentType?: 'ROUTE' | 'DIRECT_CHECKPOINTS';
+  patrolRouteId?: string;
+  gateIds?: string[];
   effectiveFrom: Date;
   effectiveTo?: Date;
 }
@@ -10,7 +13,9 @@ export interface CreateAssignmentDto {
 export interface UpdateAssignmentDto {
   siteId?: string;
   shiftId?: string;
+  assignmentType?: 'ROUTE' | 'DIRECT_CHECKPOINTS';
   patrolRouteId?: string;
+  gateIds?: string[];
   effectiveFrom?: Date;
   effectiveTo?: Date;
   isActive?: boolean;

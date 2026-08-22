@@ -36,3 +36,18 @@ export function useEmployees() {
     queryFn: dashboardApi.getEmployees,
   });
 }
+
+export function useMyAssignments() {
+  return useQuery({
+    queryKey: ['my-assignments'],
+    queryFn: dashboardApi.getMyAssignments,
+  });
+}
+
+export function usePatrolDetail(patrolId: string) {
+  return useQuery({
+    queryKey: ['patrol-session', 'detail', patrolId],
+    queryFn: () => dashboardApi.getPatrolDetail(patrolId),
+    enabled: !!patrolId,
+  });
+}
