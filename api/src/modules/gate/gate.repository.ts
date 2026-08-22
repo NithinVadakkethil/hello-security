@@ -156,6 +156,23 @@ export class GateRepository {
       },
     });
   }
+
+  async getNextSequence(siteId: string): Promise<number> {
+    const maxGate = await prisma.gate.findFirst({
+      where: {
+        siteId,
+      },
+      orderBy: {
+        sequence: 'desc',
+      },
+      select: {
+        sequence: true,
+      },
+    });
+
+    return (maxGate?.sequence ?? 0) + 1;
+  }
+
   delete(id: string) {
     return prisma.gate.delete({
       where: {

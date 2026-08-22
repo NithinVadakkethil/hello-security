@@ -105,8 +105,10 @@ export default function SiteDetailPage() {
   // Dynamic Pagination & Search state for gates synced via URL
   const gatePage = searchParams.get('gatePage') ? Number(searchParams.get('gatePage')) : 1;
   const gateSearch = searchParams.get('gateSearch') || '';
+  const rawLimit = searchParams.get('gateLimit');
+  const gateLimit: number | 'all' = rawLimit === 'all' ? 'all' : (rawLimit ? Number(rawLimit) : 10);
 
-  const updateUrlParams = (newPage: number, newSearch: string) => {
+  const updateUrlParams = (newPage: number, newSearch: string, newLimit?: number | 'all') => {
     const current = new URLSearchParams(Array.from(searchParams.entries()));
 
     if (newPage > 1) {
@@ -121,6 +123,15 @@ export default function SiteDetailPage() {
       current.delete('gateSearch');
     }
 
+    const limitVal = newLimit !== undefined ? newLimit : gateLimit;
+    if (limitVal === 'all') {
+      current.set('gateLimit', 'all');
+    } else if (typeof limitVal === 'number' && limitVal !== 10) {
+      current.set('gateLimit', String(limitVal));
+    } else {
+      current.delete('gateLimit');
+    }
+
     const query = current.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
@@ -133,6 +144,10 @@ export default function SiteDetailPage() {
     updateUrlParams(newPage, gateSearch);
   };
 
+  const handleGateLimitChange = (newLimit: number | 'all') => {
+    updateUrlParams(1, gateSearch, newLimit);
+  };
+
   // Fetch Site Details
   const { data: siteRes, isLoading: isSiteLoading } = useQuery<ApiResponse<Site>>({
     queryKey: ['site', id],
@@ -141,13 +156,13 @@ export default function SiteDetailPage() {
 
   // Fetch Site Gates (Paginated & Searched)
   const { data: gatesRes, isLoading: isGatesLoading } = useQuery<ApiResponse<Gate[]> & { pagination?: any }>({
-    queryKey: ['gates', id, gatePage, gateSearch],
+    queryKey: ['gates', id, gatePage, gateSearch, gateLimit],
     queryFn: () =>
       apiClient.get('/gates', {
         params: {
           siteId: id,
-          page: gatePage,
-          limit: 10,
+          page: gateLimit === 'all' ? undefined : gatePage,
+          limit: gateLimit === 'all' ? undefined : gateLimit,
           search: gateSearch.trim() || undefined,
         },
       }),
@@ -162,7 +177,7 @@ export default function SiteDetailPage() {
     gatesRes?.pagination ||
     (gatesRes as any)?.pagination || {
       page: 1,
-      limit: 10,
+      limit: gateLimit === 'all' ? gates.length : gateLimit,
       total: gates.length,
       totalPages: 1,
     };
@@ -228,7 +243,7 @@ export default function SiteDetailPage() {
     },
   });
 
-  const handleOpenAddGate = () => {
+  const handleOpenAddGate = async () => {
     if (limits && limits.remainingCheckpoints === 0) {
       toast.error(
         `Checkpoint creation limit reached. Maximum allowed across client: ${limits.maxCheckpoints}. Current count: ${limits.currentCheckpointCount}.`
@@ -236,12 +251,23 @@ export default function SiteDetailPage() {
       return;
     }
     setEditingGate(null);
+
+    let nextSeq = 1;
+    try {
+      const res = await apiClient.get<ApiResponse<{ nextSequence: number }>>('/gates/next-sequence', {
+        params: { siteId: id },
+      });
+      nextSeq = res.data?.data?.nextSequence || (res.data as any)?.nextSequence || 1;
+    } catch (err) {
+      nextSeq = 1;
+    }
+
     resetGate({
       name: '',
       description: '',
       latitude: undefined,
       longitude: undefined,
-      sequence: gates.length + 1,
+      sequence: nextSeq,
     });
     setIsGateModalOpen(true);
   };
@@ -521,6 +547,10 @@ export default function SiteDetailPage() {
           currentPage={gatePage}
           totalPages={gatePagination.totalPages}
           onPageChange={handleGatePageChange}
+          pageSize={gateLimit}
+          pageSizeOptions={[10, 25, 50, 100, 'all']}
+          onPageSizeChange={handleGateLimitChange}
+          totalRecords={gatePagination.total}
         />
       </div>
 

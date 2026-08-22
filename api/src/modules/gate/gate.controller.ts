@@ -60,6 +60,21 @@ export class GateController {
     }
   }
 
+  async getNextSequence(req: Request, res: Response, next: NextFunction) {
+    try {
+      const siteId = req.query.siteId as string;
+
+      const result = await gateService.getNextSequence(siteId);
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   async get(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await gateService.get(req.params.id as string);

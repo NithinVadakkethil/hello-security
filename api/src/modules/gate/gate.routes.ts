@@ -26,6 +26,13 @@ router.get(
 );
 
 router.get(
+  '/next-sequence',
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN),
+  gateController.getNextSequence.bind(gateController),
+);
+
+router.get(
   '/:id',
   authenticate,
   authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN),

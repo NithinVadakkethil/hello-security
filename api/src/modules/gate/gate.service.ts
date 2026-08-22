@@ -60,6 +60,10 @@ export class GateService {
       );
     }
 
+    if (!dto.sequence || Number(dto.sequence) <= 0) {
+      dto.sequence = await gateRepository.getNextSequence(dto.siteId);
+    }
+
     const existingSequence = await gateRepository.findBySequence(
       dto.siteId,
       dto.sequence,
@@ -113,6 +117,11 @@ export class GateService {
 
   async list(siteId?: string, isActive?: boolean, clientId?: string, page?: number, limit?: number, search?: string) {
     return gateRepository.list(siteId, isActive, clientId, page, limit, search);
+  }
+
+  async getNextSequence(siteId: string) {
+    const nextSequence = await gateRepository.getNextSequence(siteId);
+    return { nextSequence };
   }
 
   async get(id: string) {
