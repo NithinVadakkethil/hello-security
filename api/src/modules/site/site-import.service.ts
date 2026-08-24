@@ -75,7 +75,6 @@ export interface CanonicalColumn {
 }
 
 export const CANONICAL_IMPORT_COLUMNS: CanonicalColumn[] = [
-  { field: 'code', excelHeader: 'Checkpoint Code', aliases: ['checkpointcode', 'gatecode', 'code', 'checkpointid'] },
   { field: 'name', excelHeader: 'Checkpoint Name', aliases: ['checkpointname', 'gatename', 'name'] },
   { field: 'sequence', excelHeader: 'Sequence Number', aliases: ['sequencenumber', 'sequence', 'patrolorder', 'order'] },
   { field: 'role', excelHeader: 'Role', aliases: ['role', 'userrole', 'assignedrole'] },
@@ -122,7 +121,7 @@ function getRoleDisplay(role: string): string {
 export class SiteImportService {
   /**
    * Generate an Excel template buffer (.xlsx) using CANONICAL_IMPORT_COLUMNS.
-   * If siteId is provided, exports the site's complete dataset (all checkpoints + subtasks).
+   * Exports only editable configuration data. System IDs, gate codes, and QR codes are not exported.
    */
   async generateTemplateBuffer(siteId?: string): Promise<{ buffer: Buffer; checkpointCount: number }> {
     let exportRows: any[] = [];
@@ -148,7 +147,6 @@ export class SiteImportService {
             gate.subTasks.forEach((st) => {
               if (st.taskName && st.taskName.trim() !== '') {
                 exportRows.push({
-                  'Checkpoint Code': gate.gateCode,
                   'Checkpoint Name': gate.name,
                   'Sequence Number': gate.sequence,
                   'Role': getRoleDisplay(st.role),
@@ -162,7 +160,6 @@ export class SiteImportService {
           } else {
             // Checkpoint with 0 subtasks -> Export a checkpoint-only row
             exportRows.push({
-              'Checkpoint Code': gate.gateCode,
               'Checkpoint Name': gate.name,
               'Sequence Number': gate.sequence,
               'Role': '',
@@ -179,7 +176,6 @@ export class SiteImportService {
     if (exportRows.length === 0) {
       exportRows = [
         {
-          'Checkpoint Code': 'GATE-000001',
           'Checkpoint Name': 'Main Entrance Gate A',
           'Sequence Number': 1,
           'Role': 'Security',
@@ -189,7 +185,6 @@ export class SiteImportService {
           'Longitude': '',
         },
         {
-          'Checkpoint Code': 'GATE-000001',
           'Checkpoint Name': 'Main Entrance Gate A',
           'Sequence Number': 1,
           'Role': 'Security',
@@ -199,7 +194,6 @@ export class SiteImportService {
           'Longitude': '',
         },
         {
-          'Checkpoint Code': 'GATE-000001',
           'Checkpoint Name': 'Main Entrance Gate A',
           'Sequence Number': 1,
           'Role': 'Security',
@@ -209,7 +203,6 @@ export class SiteImportService {
           'Longitude': '',
         },
         {
-          'Checkpoint Code': 'GATE-000001',
           'Checkpoint Name': 'Main Entrance Gate A',
           'Sequence Number': 1,
           'Role': 'House Keeping',
@@ -219,7 +212,6 @@ export class SiteImportService {
           'Longitude': '',
         },
         {
-          'Checkpoint Code': 'GATE-000001',
           'Checkpoint Name': 'Main Entrance Gate A',
           'Sequence Number': 1,
           'Role': 'House Keeping',
@@ -229,7 +221,6 @@ export class SiteImportService {
           'Longitude': '',
         },
         {
-          'Checkpoint Code': 'GATE-000001',
           'Checkpoint Name': 'Main Entrance Gate A',
           'Sequence Number': 1,
           'Role': 'House Keeping',
@@ -239,7 +230,6 @@ export class SiteImportService {
           'Longitude': '',
         },
         {
-          'Checkpoint Code': 'GATE-000001',
           'Checkpoint Name': 'Main Entrance Gate A',
           'Sequence Number': 1,
           'Role': 'Technician',
@@ -249,7 +239,6 @@ export class SiteImportService {
           'Longitude': '',
         },
         {
-          'Checkpoint Code': 'GATE-000001',
           'Checkpoint Name': 'Main Entrance Gate A',
           'Sequence Number': 1,
           'Role': 'Technician',
@@ -259,7 +248,6 @@ export class SiteImportService {
           'Longitude': '',
         },
         {
-          'Checkpoint Code': 'GATE-000001',
           'Checkpoint Name': 'Main Entrance Gate A',
           'Sequence Number': 1,
           'Role': 'Technician',
@@ -269,7 +257,6 @@ export class SiteImportService {
           'Longitude': '',
         },
         {
-          'Checkpoint Code': 'GATE-000002',
           'Checkpoint Name': 'Loading Dock Gate B',
           'Sequence Number': 2,
           'Role': 'Security',
@@ -285,7 +272,6 @@ export class SiteImportService {
     const worksheet = XLSX.utils.json_to_sheet(exportRows, { header: headers });
     
     worksheet['!cols'] = [
-      { wch: 18 },
       { wch: 25 },
       { wch: 16 },
       { wch: 16 },
@@ -498,17 +484,17 @@ export class SiteImportService {
     rows.forEach((row) => {
       let isRowValid = true;
 
-      // Validate Checkpoint Name or Code
+      // Validate Checkpoint Name
       if (!row.name && !row.code) {
         errors.push({
           row: row.rowIndex,
           field: 'Checkpoint Name',
-          message: 'Checkpoint Name or Code is required.',
+          message: 'Checkpoint Name is required.',
         });
         isRowValid = false;
       }
 
-      // Check if this is a Checkpoint-Only Row (checkpoint code/name present, but subtask & role are both empty)
+      // Check if this is a Checkpoint-Only Row (checkpoint name present, but subtask & role are both empty)
       const isCheckpointOnlyRow = (row.name || row.code) && (!row.taskName && !row.role);
 
       let roleEnum: UserRole | undefined;
@@ -553,16 +539,15 @@ export class SiteImportService {
       if (isRowValid) {
         validRowsCount++;
 
-        // Group by Checkpoint Key (Code if available, else Name)
-        const checkpointKey = row.code
-          ? `CODE_${row.code.toLowerCase().trim()}`
-          : `NAME_${(row.name || '').toLowerCase().trim()}`;
+        // Group by Checkpoint Name
+        const checkpointNameVal = row.name || row.code || 'Unnamed Checkpoint';
+        const checkpointKey = `NAME_${checkpointNameVal.toLowerCase().trim()}`;
 
         let group = groupedCheckpoints.get(checkpointKey);
         if (!group) {
           group = {
             code: row.code,
-            name: row.name,
+            name: checkpointNameVal,
             sequence: row.sequence,
             latitude: row.latitude,
             longitude: row.longitude,
@@ -571,7 +556,7 @@ export class SiteImportService {
           };
           groupedCheckpoints.set(checkpointKey, group);
         } else {
-          if (!group.name && row.name) group.name = row.name;
+          if (!group.name && checkpointNameVal) group.name = checkpointNameVal;
           if (group.sequence === undefined && row.sequence !== undefined) group.sequence = row.sequence;
           if (group.latitude === undefined && row.latitude !== undefined) group.latitude = row.latitude;
           if (group.longitude === undefined && row.longitude !== undefined) group.longitude = row.longitude;
@@ -590,8 +575,8 @@ export class SiteImportService {
 
           preview.push({
             rowIndex: row.rowIndex,
-            checkpointCode: row.code || 'Auto',
-            checkpointName: row.name || group.name || 'Unnamed',
+            checkpointCode: 'Auto',
+            checkpointName: group.name,
             sequence: row.sequence ?? 'Auto',
             role: roleEnum,
             roleDisplay: getRoleDisplay(roleEnum),
@@ -602,8 +587,8 @@ export class SiteImportService {
           // Valid Checkpoint-Only Row
           preview.push({
             rowIndex: row.rowIndex,
-            checkpointCode: row.code || 'Auto',
-            checkpointName: row.name || group.name || 'Unnamed',
+            checkpointCode: 'Auto',
+            checkpointName: group.name,
             sequence: row.sequence ?? 'Auto',
             role: '',
             roleDisplay: 'N/A (Checkpoint Only)',
@@ -614,8 +599,8 @@ export class SiteImportService {
       } else {
         preview.push({
           rowIndex: row.rowIndex,
-          checkpointCode: row.code || '-',
-          checkpointName: row.name || '-',
+          checkpointCode: '-',
+          checkpointName: row.name || row.code || '-',
           sequence: row.sequence ?? '-',
           role: row.role || '-',
           roleDisplay: row.role || '-',
@@ -633,9 +618,7 @@ export class SiteImportService {
     let newSubtasksToCreateCount = 0;
 
     groupedCheckpoints.forEach((group) => {
-      const matchByName = group.name ? existingGateNameMap.get(group.name.toLowerCase().trim()) : undefined;
-      const matchByCode = group.code ? existingGateCodeMap.get(group.code.toLowerCase().trim()) : undefined;
-      const matchedGate = matchByCode || matchByName;
+      const matchedGate = group.name ? existingGateNameMap.get(group.name.toLowerCase().trim()) : undefined;
 
       if (matchedGate) {
         existingCheckpointsCount++;
@@ -716,15 +699,14 @@ export class SiteImportService {
         normalizedRole = norm;
       }
 
-      const checkpointKey = row.code
-        ? `CODE_${row.code.toLowerCase().trim()}`
-        : `NAME_${(row.name || '').toLowerCase().trim()}`;
+      const checkpointNameVal = row.name || row.code || 'Unnamed Checkpoint';
+      const checkpointKey = `NAME_${checkpointNameVal.toLowerCase().trim()}`;
 
       let group = groupedCheckpoints.get(checkpointKey);
       if (!group) {
         group = {
           code: row.code,
-          name: row.name,
+          name: checkpointNameVal,
           sequence: row.sequence,
           latitude: row.latitude,
           longitude: row.longitude,
@@ -733,7 +715,7 @@ export class SiteImportService {
         };
         groupedCheckpoints.set(checkpointKey, group);
       } else {
-        if (!group.name && row.name) group.name = row.name;
+        if (!group.name && checkpointNameVal) group.name = checkpointNameVal;
         if (group.sequence === undefined && row.sequence !== undefined) group.sequence = row.sequence;
         if (group.latitude === undefined && row.latitude !== undefined) group.latitude = row.latitude;
         if (group.longitude === undefined && row.longitude !== undefined) group.longitude = row.longitude;
@@ -769,24 +751,19 @@ export class SiteImportService {
         let gate = await tx.gate.findFirst({
           where: {
             siteId,
-            OR: [
-              ...(group.code ? [{ gateCode: { equals: group.code, mode: 'insensitive' as const } }] : []),
-              ...(group.name ? [{ name: { equals: group.name, mode: 'insensitive' as const } }] : []),
-            ],
+            name: { equals: group.name, mode: 'insensitive' as const },
           },
         });
 
         if (!gate) {
-          let gateCode = group.code;
-          if (!gateCode) {
-            let seqCounter = await counterService.next(ENTITY.GATE, site.id);
+          // ALWAYS generate a FRESH unique gate code for the destination site using site counter
+          let seqCounter = await counterService.next(ENTITY.GATE, site.id);
+          let gateCode = generateCode(PREFIX.GATE, seqCounter);
+          let existingCode = await tx.gate.findFirst({ where: { siteId, gateCode } });
+          while (existingCode) {
+            seqCounter = await counterService.next(ENTITY.GATE, site.id);
             gateCode = generateCode(PREFIX.GATE, seqCounter);
-            let existingCode = await tx.gate.findFirst({ where: { siteId, gateCode } });
-            while (existingCode) {
-              seqCounter = await counterService.next(ENTITY.GATE, site.id);
-              gateCode = generateCode(PREFIX.GATE, seqCounter);
-              existingCode = await tx.gate.findFirst({ where: { siteId, gateCode } });
-            }
+            existingCode = await tx.gate.findFirst({ where: { siteId, gateCode } });
           }
 
           const seq = group.sequence || nextSeq++;
@@ -795,11 +772,12 @@ export class SiteImportService {
             data: {
               siteId,
               gateCode,
-              name: group.name || `Checkpoint ${gateCode}`,
+              name: group.name,
               sequence: seq,
               description: group.description || null,
               latitude: group.latitude || null,
               longitude: group.longitude || null,
+              qrCode: gateCode, // Fresh unique QR payload for destination checkpoint!
             },
           });
           createdGatesCount++;

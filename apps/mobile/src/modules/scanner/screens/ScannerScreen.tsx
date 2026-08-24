@@ -130,55 +130,79 @@ export function ScannerScreen() {
     }
   };
 
-  const routeGates = useMemo(() => {
-    const primaryAssignment = activeAssignments[0];
-    if (
-      primaryAssignment?.assignmentGates &&
-      primaryAssignment.assignmentGates.length > 0
-    ) {
-      return primaryAssignment.assignmentGates.map((ag: any, idx: number) => ({
-        id: ag.id,
-        gateId: ag.gateId,
-        gate: ag.gate,
-        sequence: ag.sequence || idx + 1,
-      }));
-    }
-    return primaryAssignment?.patrolRoute?.routeGates || [];
+  const allRouteGates = useMemo(() => {
+    const list: any[] = [];
+    (activeAssignments || []).forEach((ass: any) => {
+      const gates =
+        ass.assignmentGates && ass.assignmentGates.length > 0
+          ? ass.assignmentGates.map((ag: any, idx: number) => ({
+              id: ag.id,
+              gateId: ag.gateId || ag.gate?.id || ag.id,
+              gate: ag.gate,
+              sequence: ag.sequence || idx + 1,
+              assignmentId: ass.id,
+            }))
+          : (ass.patrolRoute?.routeGates || []).map((rg: any, idx: number) => ({
+              id: rg.id,
+              gateId: rg.gateId || rg.gate?.id || rg.id,
+              gate: rg.gate,
+              sequence: rg.sequence || idx + 1,
+              assignmentId: ass.id,
+            }));
+      list.push(...gates);
+    });
+    return list;
   }, [activeAssignments]);
 
+  const routeGates = allRouteGates;
+
   const targetGate = useMemo(() => {
-    if (!routeGates || routeGates.length === 0) return null;
+    if (!allRouteGates || allRouteGates.length === 0) return null;
 
-    if (checkpointId || checkpointCode) {
-      const found = routeGates.find(
+    // 1. Strict match by explicit checkpointId passed from PatrolScreen
+    if (checkpointId) {
+      const found = allRouteGates.find(
         (rg: any) =>
-          (checkpointId &&
-            (rg.gateId === checkpointId ||
-              rg.gate?.id === checkpointId ||
-              rg.id === checkpointId)) ||
-          (checkpointCode &&
-            (rg.gate?.gateCode === checkpointCode ||
-              rg.gateId === checkpointCode)),
+          rg.gateId === checkpointId ||
+          rg.gate?.id === checkpointId ||
+          rg.id === checkpointId,
       );
       if (found) return found;
     }
 
-    if (checkpointName || sequenceOrder) {
-      const found = routeGates.find(
+    // 2. Strict match by explicit checkpointCode passed from PatrolScreen
+    if (checkpointCode) {
+      const found = allRouteGates.find(
         (rg: any) =>
-          (checkpointName && rg.gate?.name === checkpointName) ||
-          (sequenceOrder && rg.sequence === sequenceOrder),
+          rg.gate?.gateCode === checkpointCode ||
+          rg.gateId === checkpointCode,
       );
       if (found) return found;
     }
 
-    // Fallback to first pending checkpoint
+    // 3. Match by explicit checkpointName
+    if (checkpointName) {
+      const found = allRouteGates.find(
+        (rg: any) => rg.gate?.name === checkpointName,
+      );
+      if (found) return found;
+    }
+
+    // 4. Match by explicit sequenceOrder
+    if (sequenceOrder) {
+      const found = allRouteGates.find(
+        (rg: any) => rg.sequence === sequenceOrder,
+      );
+      if (found) return found;
+    }
+
+    // Fallback: First pending checkpoint across active assignments, else first gate
     return (
-      routeGates.find((rg: any) => !scannedGateIds.includes(rg.gateId)) ||
-      routeGates[0]
+      allRouteGates.find((rg: any) => !scannedGateIds.includes(rg.gateId)) ||
+      allRouteGates[0]
     );
   }, [
-    routeGates,
+    allRouteGates,
     scannedGateIds,
     checkpointId,
     checkpointCode,
