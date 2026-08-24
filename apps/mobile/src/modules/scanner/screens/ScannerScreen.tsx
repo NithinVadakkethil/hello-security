@@ -1,4 +1,9 @@
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import {
+  RouteProp,
+  useIsFocused,
+  useNavigation,
+  useRoute,
+} from '@react-navigation/native';
 import { Zap, ZapOff } from 'lucide-react-native';
 import React, {
   useCallback,
@@ -15,7 +20,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -26,6 +30,7 @@ import {
   useCodeScanner,
 } from 'react-native-vision-camera';
 import { useTheme } from '../../../app/hooks/useTheme';
+import { AppTabParamList } from '../../../app/navigation/types';
 import { Button } from '../../../components/Button';
 import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
 import { Card } from '../../dashboard/components/WidgetCard';
@@ -35,6 +40,10 @@ import { usePatrolStore } from '../../patrol/store/patrol-store';
 export function ScannerScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation<any>();
+  const route = useRoute<RouteProp<AppTabParamList, 'Scanner'>>();
+  const { checkpointId, checkpointCode, checkpointName, sequenceOrder } =
+    route.params || {};
+
   const isFocused = useIsFocused();
 
   // AppState to pause camera when app is backgrounded
@@ -78,12 +87,14 @@ export function ScannerScreen() {
     }
   }, [hasPermission, isFocused, requestPermission]);
 
-  // Reset scan locks when screen gains focus
+  // Reset scan locks and error/success messages when screen gains focus
   useEffect(() => {
     if (isFocused) {
       isProcessingScanRef.current = false;
       lastScannedCodeRef.current = null;
       setIsProcessingCode(false);
+      setErrorMessage(null);
+      setSuccessMessage(null);
     }
   }, [isFocused]);
 
@@ -119,6 +130,62 @@ export function ScannerScreen() {
     }
   };
 
+  const routeGates = useMemo(() => {
+    const primaryAssignment = activeAssignments[0];
+    if (
+      primaryAssignment?.assignmentGates &&
+      primaryAssignment.assignmentGates.length > 0
+    ) {
+      return primaryAssignment.assignmentGates.map((ag: any, idx: number) => ({
+        id: ag.id,
+        gateId: ag.gateId,
+        gate: ag.gate,
+        sequence: ag.sequence || idx + 1,
+      }));
+    }
+    return primaryAssignment?.patrolRoute?.routeGates || [];
+  }, [activeAssignments]);
+
+  const targetGate = useMemo(() => {
+    if (!routeGates || routeGates.length === 0) return null;
+
+    if (checkpointId || checkpointCode) {
+      const found = routeGates.find(
+        (rg: any) =>
+          (checkpointId &&
+            (rg.gateId === checkpointId ||
+              rg.gate?.id === checkpointId ||
+              rg.id === checkpointId)) ||
+          (checkpointCode &&
+            (rg.gate?.gateCode === checkpointCode ||
+              rg.gateId === checkpointCode)),
+      );
+      if (found) return found;
+    }
+
+    if (checkpointName || sequenceOrder) {
+      const found = routeGates.find(
+        (rg: any) =>
+          (checkpointName && rg.gate?.name === checkpointName) ||
+          (sequenceOrder && rg.sequence === sequenceOrder),
+      );
+      if (found) return found;
+    }
+
+    // Fallback to first pending checkpoint
+    return (
+      routeGates.find((rg: any) => !scannedGateIds.includes(rg.gateId)) ||
+      routeGates[0]
+    );
+  }, [
+    routeGates,
+    scannedGateIds,
+    checkpointId,
+    checkpointCode,
+    checkpointName,
+    sequenceOrder,
+  ]);
+
   const handleProcessScan = useCallback(
     async (code: string) => {
       const cleanCode = code.trim();
@@ -137,7 +204,7 @@ export function ScannerScreen() {
 
       // Search across employee active assignments (supports Security, House Keeping, Technician, Service Engineer, Plumber, Lifeguard)
       for (const ass of activeAssignments) {
-        const routeGates =
+        const rGates =
           ass.assignmentGates && ass.assignmentGates.length > 0
             ? ass.assignmentGates.map((ag: any, idx: number) => ({
                 id: ag.id,
@@ -147,10 +214,11 @@ export function ScannerScreen() {
               }))
             : ass.patrolRoute?.routeGates || [];
 
-        const found = routeGates.find(
+        const found = rGates.find(
           (rg: any) =>
             cleanCode === rg.gate?.gateCode ||
             cleanCode === rg.gateId ||
+            cleanCode === rg.gate?.id ||
             cleanCode === rg.gate?.qrCode ||
             cleanCode === rg.gate?.nfcTag,
         );
@@ -167,6 +235,53 @@ export function ScannerScreen() {
         const errorMsg = 'You are not assigned to this checkpoint.';
         setErrorMessage(errorMsg);
         Alert.alert('Access Blocked', errorMsg, [
+          {
+            text: 'OK',
+            onPress: () => {
+              setTimeout(() => {
+                isProcessingScanRef.current = false;
+                setIsProcessingCode(false);
+              }, 1000);
+            },
+          },
+        ]);
+        setTimeout(() => {
+          isProcessingScanRef.current = false;
+          setIsProcessingCode(false);
+        }, 2000);
+        return;
+      }
+
+      // Workflow Rule: Validate scanned checkpoint against the targeted checkpoint!
+      const targetGateId =
+        targetGate?.gateId ||
+        targetGate?.gate?.id ||
+        targetGate?.id ||
+        checkpointId;
+      const targetGateCode = targetGate?.gate?.gateCode || checkpointCode;
+      const targetGateQr = targetGate?.gate?.qrCode;
+      const targetGateNfc = targetGate?.gate?.nfcTag;
+      const displayTargetName =
+        targetGate?.gate?.name || checkpointName || 'Target Checkpoint';
+
+      const isMatchingTarget =
+        (targetGateId &&
+          (matchedGate.gateId === targetGateId ||
+            matchedGate.gate?.id === targetGateId ||
+            matchedGate.id === targetGateId)) ||
+        (targetGateCode &&
+          (matchedGate.gate?.gateCode === targetGateCode ||
+            cleanCode === targetGateCode)) ||
+        (targetGateQr && cleanCode === targetGateQr) ||
+        (targetGateNfc && cleanCode === targetGateNfc);
+
+      if (targetGate && !isMatchingTarget) {
+        const scannedName = matchedGate.gate?.name
+          ? `"${matchedGate.gate.name}"`
+          : `code "${cleanCode}"`;
+        const errorMsg = `Incorrect Checkpoint QR: You scanned ${scannedName}, but the target checkpoint is "${displayTargetName}". Please scan the QR code for "${displayTargetName}".`;
+        setErrorMessage(errorMsg);
+        Alert.alert('Incorrect Checkpoint QR', errorMsg, [
           {
             text: 'OK',
             onPress: () => {
@@ -243,7 +358,15 @@ export function ScannerScreen() {
         setIsProcessingCode(false);
       }
     },
-    [activeAssignments, scannedGateIds, navigation],
+    [
+      activeAssignments,
+      scannedGateIds,
+      navigation,
+      targetGate,
+      checkpointId,
+      checkpointCode,
+      checkpointName,
+    ],
   );
 
   // Configure Code Scanner Hook for Camera View (Vision Camera v4)
@@ -274,27 +397,6 @@ export function ScannerScreen() {
       [handleProcessScan],
     ),
   });
-
-  const routeGates = useMemo(() => {
-    const primaryAssignment = activeAssignments[0];
-    if (
-      primaryAssignment?.assignmentGates &&
-      primaryAssignment.assignmentGates.length > 0
-    ) {
-      return primaryAssignment.assignmentGates.map((ag: any, idx: number) => ({
-        id: ag.id,
-        gateId: ag.gateId,
-        gate: ag.gate,
-        sequence: ag.sequence || idx + 1,
-      }));
-    }
-    return primaryAssignment?.patrolRoute?.routeGates || [];
-  }, [activeAssignments]);
-
-  const nextGateToScan = useMemo(
-    () => routeGates.find((rg: any) => !scannedGateIds.includes(rg.gateId)),
-    [routeGates, scannedGateIds],
-  );
 
   if (!hasPermission) {
     return (
@@ -344,12 +446,14 @@ export function ScannerScreen() {
         </TouchableOpacity>
       </View>
 
-      {nextGateToScan && (
+      {targetGate && (
         <View style={styles.targetBanner}>
           <Text style={styles.targetLabel}>Target Checkpoint:</Text>
-          <Text style={styles.targetName}>{nextGateToScan.gate?.name}</Text>
+          <Text style={styles.targetName}>
+            {targetGate.gate?.name || checkpointName || 'Checkpoint'}
+          </Text>
           <Text style={styles.targetSub}>
-            Sequence Order: {nextGateToScan.sequence}
+            Sequence Order: {targetGate.sequence ?? sequenceOrder ?? 1}
           </Text>
         </View>
       )}
@@ -454,7 +558,7 @@ export function ScannerScreen() {
         </Card>
       )}
 
-      <Card
+      {/* <Card
         style={[
           styles.quickScanCard,
           { backgroundColor: '#1a1a1e', borderColor: '#2d2d34' },
@@ -468,7 +572,11 @@ export function ScannerScreen() {
         <View style={styles.buttonList}>
           {routeGates.map((rg: any) => {
             const isScanned = scannedGateIds.includes(rg.gateId);
-            const isNext = nextGateToScan?.gateId === rg.gateId;
+            const isTarget = targetGate
+              ? rg.gateId === targetGate.gateId ||
+                rg.id === targetGate.id ||
+                rg.sequence === targetGate.sequence
+              : false;
 
             return (
               <TouchableOpacity
@@ -478,12 +586,12 @@ export function ScannerScreen() {
                   {
                     backgroundColor: isScanned
                       ? '#2d2d34'
-                      : isNext
+                      : isTarget
                       ? colors.primary + '25'
                       : '#121214',
                     borderColor: isScanned
                       ? '#3e3e4a'
-                      : isNext
+                      : isTarget
                       ? colors.primary
                       : '#2d2d34',
                   },
@@ -491,7 +599,9 @@ export function ScannerScreen() {
                 onPress={() => {
                   if (!isProcessingScanRef.current) {
                     isProcessingScanRef.current = true;
-                    handleProcessScan(rg.gate?.gateCode || rg.gateId);
+                    handleProcessScan(
+                      rg.gate?.gateCode || rg.gateId || rg.gate?.qrCode,
+                    );
                   }
                 }}
               >
@@ -501,14 +611,18 @@ export function ScannerScreen() {
                     {
                       color: isScanned
                         ? '#8e8e9a'
-                        : isNext
+                        : isTarget
                         ? '#ffffff'
                         : '#b3b3c2',
                     },
                   ]}
                 >
                   {rg.gate?.name}{' '}
-                  {isScanned ? '(Completed)' : isNext ? '★ (Next Target)' : ''}
+                  {isScanned
+                    ? '(Completed)'
+                    : isTarget
+                    ? '★ (Target Checkpoint)'
+                    : ''}
                 </Text>
               </TouchableOpacity>
             );
@@ -546,7 +660,7 @@ export function ScannerScreen() {
             <Text style={styles.inputButtonText}>Verify</Text>
           </TouchableOpacity>
         </View>
-      </Card>
+      </Card> */}
     </ScrollView>
   );
 }

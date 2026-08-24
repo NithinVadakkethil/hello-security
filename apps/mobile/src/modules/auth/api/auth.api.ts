@@ -16,6 +16,18 @@ export const authApi = {
     return response.data.data;
   },
 
+  logoutAllDevices: async (credentials: LoginCredentials): Promise<AuthData> => {
+    const deviceId = getDeviceId();
+    const deviceInfo = getDeviceInfo();
+    const response = await authClient.post<ApiResponse<AuthData>>('/auth/logout-all-devices', {
+      email: credentials.email,
+      password: credentials.password,
+      deviceId,
+      deviceInfo,
+    });
+    return response.data.data;
+  },
+
   logout: async (): Promise<void> => {
     const deviceId = getDeviceId();
     try {

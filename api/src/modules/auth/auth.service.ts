@@ -74,7 +74,7 @@ export class AuthService {
           throw new AppError(
             HttpStatus.CONFLICT,
             ErrorCodes.USER_ALREADY_LOGGED_IN,
-            'Your account is already logged in on another device. Please log out from the other device before trying again.',
+            "Your account is currently signed in on another device. Please sign out from that device, or use 'Log Out From All Devices' if you no longer have access to it.",
           );
         }
 
@@ -306,6 +306,99 @@ export class AuthService {
     });
 
     return { success: true };
+  }
+
+  async logoutAllDevices(
+    email: string,
+    pass: string,
+    deviceId?: string,
+    deviceInfo?: string,
+  ) {
+    const user = await authRepository.findUserByEmail(email);
+    if (!user) {
+      throw new AppError(
+        HttpStatus.UNAUTHORIZED,
+        ErrorCodes.INVALID_CREDENTIALS,
+        'Invalid email or password.',
+      );
+    }
+
+    const isPassValid = await comparePassword(pass, user.password);
+    if (!isPassValid) {
+      throw new AppError(
+        HttpStatus.UNAUTHORIZED,
+        ErrorCodes.INVALID_CREDENTIALS,
+        'Invalid email or password.',
+      );
+    }
+
+    let accessToken: string | null = null;
+    let refreshToken: string | null = null;
+    let hashedRefreshToken: string | null = null;
+
+    if (deviceId) {
+      const payload = {
+        sub: user.id,
+        tenantId: user.clientId,
+        employeeId: user.employeeId,
+        email: user.email,
+        role: user.role,
+      };
+      accessToken = signAccessToken(payload);
+      refreshToken = signRefreshToken(payload);
+      hashedRefreshToken = await hashPassword(refreshToken);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Lock user row to prevent race conditions
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
+
+      // Revoke ALL mobile device sessions for this user
+      await authRepository.revokeMobileSession(user.id, null, tx);
+
+      // Create new active mobile session if deviceId is provided
+      if (deviceId && hashedRefreshToken) {
+        await authRepository.createRefreshToken(
+          {
+            clientId: user.clientId,
+            userId: user.id,
+            tokenHash: hashedRefreshToken,
+            deviceId,
+            deviceInfo,
+            expiresAt: addDays(new Date(), 7),
+          },
+          tx,
+        );
+      }
+
+      await authRepository.updateLastLogin(user.id, tx);
+    });
+
+    if (deviceId && accessToken && refreshToken) {
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user.id,
+          tenantId: user.clientId,
+          employeeId: user.employeeId,
+          email: user.email,
+          role: user.role,
+          firstName: (user as any).employee?.firstName || null,
+          lastName: (user as any).employee?.lastName || null,
+          companyName: (user as any).client?.companyName || null,
+          name:
+            (user as any).client?.companyName ||
+            ((user as any).employee
+              ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
+              : user.email.split('@')[0]),
+        },
+      };
+    }
+
+    return {
+      message: 'All mobile device sessions have been revoked successfully.',
+    };
   }
 }
 

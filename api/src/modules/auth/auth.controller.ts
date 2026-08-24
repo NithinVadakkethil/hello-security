@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 
 import { authService } from './auth.service';
-import { loginSchema } from './auth.validation';
+import { loginSchema, logoutAllDevicesSchema } from './auth.validation';
 
 export class AuthController {
   async login(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -9,6 +9,30 @@ export class AuthController {
       const body = loginSchema.parse(req.body);
 
       const result = await authService.login(
+        body.email,
+        body.password,
+        body.deviceId,
+        body.deviceInfo,
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async logoutAllDevices(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const body = logoutAllDevicesSchema.parse(req.body);
+
+      const result = await authService.logoutAllDevices(
         body.email,
         body.password,
         body.deviceId,

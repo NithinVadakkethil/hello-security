@@ -1751,7 +1751,14 @@ export function PatrolScreen() {
                             styles.scanTriggerButton,
                             { backgroundColor: colors.primary },
                           ]}
-                          onPress={() => navigation.navigate('Scanner')}
+                          onPress={() =>
+                            navigation.navigate('Scanner', {
+                              checkpointId: rg.gateId || rg.gate?.id || rg.id,
+                              checkpointCode: rg.gate?.gateCode,
+                              checkpointName: rg.gate?.name,
+                              sequenceOrder: rg.sequence,
+                            })
+                          }
                           disabled={activeSession.status !== 'IN_PROGRESS'}
                         >
                           <Unlock

@@ -13,13 +13,21 @@ export function useAuth() {
     },
   });
 
+  const logoutAllDevicesMutation = useMutation<AuthData, AxiosError<{ message?: string }>, LoginCredentials>({
+    mutationFn: authApi.logoutAllDevices,
+    onSuccess: (data) => {
+      authService.handleLoginSuccess(data);
+    },
+  });
+
   const logout = () => {
     authService.handleLogout();
   };
 
   return {
     login: loginMutation.mutateAsync,
-    isLoggingIn: loginMutation.isPending,
+    logoutAllDevices: logoutAllDevicesMutation.mutateAsync,
+    isLoggingIn: loginMutation.isPending || logoutAllDevicesMutation.isPending,
     loginError: loginMutation.error,
     logout,
   };

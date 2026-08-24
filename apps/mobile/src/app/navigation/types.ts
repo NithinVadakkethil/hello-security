@@ -12,7 +12,14 @@ export type AppTabParamList = {
   PatrolRoute: { route: any };
   AssignedGates: { route: any };
   MapPreview: { site: any; route: any };
-  Scanner: undefined;
+  Scanner:
+    | {
+        checkpointId?: string;
+        checkpointCode?: string;
+        checkpointName?: string;
+        sequenceOrder?: number;
+      }
+    | undefined;
   ReportIncident: undefined;
   ReportSnag: { gateId?: string; patrolSessionId?: string } | undefined;
   History: undefined;

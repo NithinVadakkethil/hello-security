@@ -10,7 +10,7 @@ import { Button } from '../../../components/Button';
 
 export function LoginScreen() {
   const { colors } = useTheme();
-  const { login, isLoggingIn } = useAuth();
+  const { login, logoutAllDevices, isLoggingIn } = useAuth();
   const [apiError, setApiError] = useState<string | null>(null);
 
   const {
@@ -24,6 +24,21 @@ export function LoginScreen() {
       password: '',
     },
   });
+
+  const handleLogoutAllAndLogin = async (data: LoginCredentials) => {
+    setApiError(null);
+    try {
+      await logoutAllDevices(data);
+    } catch (err: any) {
+      console.error('[LoginScreen] Logout all devices failed:', err);
+      const errorMessage =
+        err.response?.data?.error?.message ||
+        err.response?.data?.message ||
+        err.message ||
+        'Failed to log out from all devices. Please check your credentials and try again.';
+      setApiError(errorMessage);
+    }
+  };
 
   const onSubmit = async (data: LoginCredentials) => {
     setApiError(null);
@@ -41,8 +56,18 @@ export function LoginScreen() {
       if (errorCode === 'USER_ALREADY_LOGGED_IN') {
         Alert.alert(
           'Account Already Logged In',
-          'Your account is currently active on another device. Please log out from that device before trying again.',
-          [{ text: 'OK' }]
+          'Your account is currently signed in on another device. Please sign out from that device, or use \'Log Out From All Devices\' if you no longer have access to it.',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+            },
+            {
+              text: 'Log Out From All Devices',
+              style: 'destructive',
+              onPress: () => handleLogoutAllAndLogin(data),
+            },
+          ],
         );
       }
 
