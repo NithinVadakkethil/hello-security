@@ -46,7 +46,7 @@ export class EmployeeService {
         throw new AppError(
           HttpStatus.CONFLICT,
           ErrorCodes.VALIDATION_ERROR,
-          'Employee email already exists.',
+          'This email address is already registered to another employee. Please use a different email address.',
         );
       }
 
@@ -60,7 +60,7 @@ export class EmployeeService {
         throw new AppError(
           HttpStatus.CONFLICT,
           ErrorCodes.VALIDATION_ERROR,
-          'User email already exists.',
+          'This email address is already registered to another employee. Please use a different email address.',
         );
       }
     }
@@ -166,7 +166,10 @@ export class EmployeeService {
   async update(id: string, dto: UpdateEmployeeDto) {
     await this.get(id);
 
-    return employeeRepository.update(id, dto);
+    // Strip email from dto to ensure email remains immutable after creation
+    const { email, ...cleanDto } = dto as any;
+
+    return employeeRepository.update(id, cleanDto);
   }
 
   async activate(id: string) {

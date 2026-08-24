@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -26,9 +26,16 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+import Modal from '../../../components/ui/Modal';
+import ImportCheckpointsModal from '../components/ImportCheckpointsModal';
+import { Upload, CheckCircle2 } from 'lucide-react';
+
 export default function NewSitePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [createdSite, setCreatedSite] = useState<{ id: string; name: string } | null>(null);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const {
     register,
@@ -43,10 +50,16 @@ export default function NewSitePage() {
 
   const createSiteMutation = useMutation({
     mutationFn: (values: FormValues) => apiClient.post('/sites', values),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['sites'] });
       toast.success('Site registered successfully!');
-      router.push('/dashboard/sites');
+      const newSite = res?.data?.data || res?.data;
+      if (newSite && newSite.id) {
+        setCreatedSite({ id: newSite.id, name: newSite.name });
+        setIsSuccessModalOpen(true);
+      } else {
+        router.push('/dashboard/sites');
+      }
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Failed to register site.');
@@ -159,6 +172,74 @@ export default function NewSitePage() {
           </button>
         </form>
       </div>
+
+      {/* POST SITE CREATION ACTION DIALOG */}
+      {createdSite && (
+        <Modal
+          isOpen={isSuccessModalOpen}
+          onClose={() => {
+            setIsSuccessModalOpen(false);
+            router.push(`/dashboard/sites/${createdSite.id}`);
+          }}
+          title="Site Registered Successfully!"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'center', padding: '12px 0' }}>
+            <CheckCircle2 size={48} style={{ color: '#10b981', margin: '0 auto' }} />
+            <div>
+              <h3 style={{ margin: '0 0 6px', fontSize: '1.15rem', fontWeight: 700 }}>
+                "{createdSite.name}" Created
+              </h3>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Would you like to import checkpoints & role-specific subtasks from an Excel spreadsheet now, or navigate to Site Details?
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ padding: '12px', gap: '8px', width: '100%' }}
+                onClick={() => {
+                  setIsSuccessModalOpen(false);
+                  setIsImportModalOpen(true);
+                }}
+              >
+                <Upload size={18} />
+                <span>Import Checkpoints & Subtasks</span>
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '10px', width: '100%' }}
+                onClick={() => {
+                  setIsSuccessModalOpen(false);
+                  router.push(`/dashboard/sites/${createdSite.id}`);
+                }}
+              >
+                <span>Go to Site Details</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* IMPORT CHECKPOINTS MODAL WIZARD */}
+      {createdSite && (
+        <ImportCheckpointsModal
+          isOpen={isImportModalOpen}
+          onClose={() => {
+            setIsImportModalOpen(false);
+            router.push(`/dashboard/sites/${createdSite.id}`);
+          }}
+          siteId={createdSite.id}
+          siteName={createdSite.name}
+          onImportSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['sites'] });
+            queryClient.invalidateQueries({ queryKey: ['gates', createdSite.id] });
+          }}
+        />
+      )}
     </div>
   );
 }

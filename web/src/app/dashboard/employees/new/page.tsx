@@ -15,13 +15,13 @@ import Modal from '../../../components/ui/Modal';
 import { apiClient } from '../../../lib/axios';
 
 const schema = z.object({
-  firstName: z.string().min(2, 'First name is required (min 2 characters)'),
+  firstName: z.string().trim().min(1, 'First name is required'),
   lastName: z.string().optional().or(z.literal('')),
   email: z
     .string()
-    .email('Please enter a valid email address')
-    .optional()
-    .or(z.literal('')),
+    .trim()
+    .min(1, 'Email is required')
+    .email('Please enter a valid email address'),
   phone: z.string().optional(),
   designation: z.string().optional(),
   joiningDate: z.string().optional(),
@@ -52,6 +52,7 @@ export default function NewEmployeePage() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -89,7 +90,20 @@ export default function NewEmployeePage() {
       }
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Failed to enroll employee.');
+      const message: string = err.response?.data?.message || '';
+      if (
+        message.toLowerCase().includes('already registered') ||
+        message.toLowerCase().includes('already exists') ||
+        message.toLowerCase().includes('duplicate') ||
+        message.toLowerCase().includes('unique constraint')
+      ) {
+        setError('email', {
+          type: 'manual',
+          message: 'This email address is already registered to another employee. Please use a different email address.',
+        });
+      } else {
+        toast.error(message || 'Failed to enroll employee.');
+      }
     },
   });
 
@@ -175,7 +189,7 @@ export default function NewEmployeePage() {
           </div>
 
           <FormInput
-            label="Email Address (Used for system portal login)"
+            label="Email Address (Used for system portal login) *"
             type="email"
             placeholder="e.g. mvance@security.acme.com"
             error={errors.email?.message}

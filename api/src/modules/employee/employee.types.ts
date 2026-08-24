@@ -3,7 +3,7 @@ import { EmployeeStatus, IdentificationMethod, UserRole } from '@prisma/client';
 export interface CreateEmployeeDto {
   firstName: string;
   lastName?: string;
-  email?: string;
+  email: string;
   phone?: string;
   designation?: string;
   joiningDate?: Date;
@@ -14,7 +14,6 @@ export interface CreateEmployeeDto {
 export interface UpdateEmployeeDto {
   firstName?: string;
   lastName?: string;
-  email?: string;
   phone?: string;
   designation?: string;
   joiningDate?: Date;

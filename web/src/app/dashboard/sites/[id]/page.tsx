@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Edit, Plus, MapPin, ToggleLeft, ToggleRight, QrCode, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Edit, Plus, MapPin, ToggleLeft, ToggleRight, QrCode, CheckSquare, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -22,6 +22,7 @@ import { FormInput } from '../../../components/ui/FormControls';
 import StatusChip from '../../../components/ui/StatusChip';
 import GateSubTasksModal from '../components/GateSubTasksModal';
 import CheckpointQrModal from '../components/CheckpointQrModal';
+import ImportCheckpointsModal from '../components/ImportCheckpointsModal';
 
 interface Site {
   id: string;
@@ -101,6 +102,8 @@ export default function SiteDetailPage() {
     isOpen: false,
     gate: null,
   });
+
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Dynamic Pagination & Search state for gates synced via URL
   const gatePage = searchParams.get('gatePage') ? Number(searchParams.get('gatePage')) : 1;
@@ -525,6 +528,10 @@ export default function SiteDetailPage() {
               onChange={handleGateSearchChange}
               placeholder="Search checkpoints by name or ID..."
             />
+            <button onClick={() => setIsImportModalOpen(true)} className="btn btn-secondary" style={{ gap: '8px' }}>
+              <Upload size={16} />
+              <span>Import Checkpoints</span>
+            </button>
             <button onClick={handleOpenAddGate} className="btn btn-primary" style={{ gap: '8px' }}>
               <Plus size={16} />
               <span>Add Checkpoint</span>
@@ -539,7 +546,7 @@ export default function SiteDetailPage() {
           emptyMessage={
             gateSearch
               ? 'No security gate checkpoints found matching your search.'
-              : "No gate checkpoints registered for this site yet. Click 'Add Checkpoint' to create one."
+              : "No gate checkpoints registered for this site yet. Click 'Add Checkpoint' or 'Import Checkpoints' to create them."
           }
         />
 
@@ -596,18 +603,13 @@ export default function SiteDetailPage() {
           </div>
 
           <div>
-            <label className="form-label">Checkpoint Location Instructions</label>
+            <label className="form-label">Description / Guard Note (Optional)</label>
             <textarea
               className="form-input"
               style={{ minHeight: '80px', resize: 'vertical' }}
-              placeholder="e.g. Located on the outer perimeter fence next to dumpster."
+              placeholder="Location guidance, lockbox combination, etc."
               {...registerGate('description')}
             />
-            {gateErrors.description?.message && (
-              <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginTop: '4px' }}>
-                {gateErrors.description.message}
-              </p>
-            )}
           </div>
 
           <button
@@ -617,15 +619,15 @@ export default function SiteDetailPage() {
             disabled={createGateMutation.isPending || updateGateMutation.isPending}
           >
             {createGateMutation.isPending || updateGateMutation.isPending
-              ? 'Saving gate configs...'
+              ? 'Saving checkpoint...'
               : editingGate
-              ? 'Save Gate'
-              : 'Add Gate'}
+              ? 'Update Checkpoint'
+              : 'Create Checkpoint'}
           </button>
         </form>
       </Modal>
 
-      {/* CONFIRM TOGGLE GATE STATUS */}
+      {/* CONFIRM STATUS TOGGLE */}
       <ConfirmationDialog
         isOpen={confirmGateStatus.isOpen}
         onClose={() => setConfirmGateStatus((prev) => ({ ...prev, isOpen: false }))}
@@ -638,7 +640,11 @@ export default function SiteDetailPage() {
         title={confirmGateStatus.targetStatus ? 'Activate Checkpoint' : 'Deactivate Checkpoint'}
         description={`Are you sure you want to ${
           confirmGateStatus.targetStatus ? 'activate' : 'deactivate'
-        } checkpoint "${confirmGateStatus.gateName}"?`}
+        } checkpoint "${confirmGateStatus.gateName}"? ${
+          confirmGateStatus.targetStatus
+            ? 'Guards will be required to scan it during active patrol routes.'
+            : 'Guards will no longer be prompted for this checkpoint during patrols.'
+        }`}
         confirmText={confirmGateStatus.targetStatus ? 'Activate' : 'Deactivate'}
         isDanger={!confirmGateStatus.targetStatus}
         isLoading={toggleGateStatusMutation.isPending}
@@ -657,6 +663,17 @@ export default function SiteDetailPage() {
         gate={qrModal.gate}
         siteName={site?.name || ''}
         companyName={(site as any)?.client?.companyName || 'HELLO ORBIT'}
+      />
+
+      <ImportCheckpointsModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        siteId={id}
+        siteName={site?.name || ''}
+        onImportSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['gates', id] });
+          queryClient.invalidateQueries({ queryKey: ['site', id] });
+        }}
       />
     </div>
   );

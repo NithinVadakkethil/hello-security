@@ -76,9 +76,7 @@ export default function EditEmployeePage() {
   const updateEmployeeMutation = useMutation({
     mutationFn: (values: FormValues) => {
       const payload: any = { ...values };
-      if (!payload.email) {
-        payload.email = null;
-      }
+      delete payload.email; // Email is immutable after creation
       if (!payload.lastName) {
         payload.lastName = null;
       }
@@ -143,13 +141,20 @@ export default function EditEmployeePage() {
             />
           </div>
 
-          <FormInput
-            label="Email Address"
-            type="email"
-            placeholder="e.g. mvance@security.acme.com"
-            error={errors.email?.message}
-            {...register('email')}
-          />
+          <div>
+            <FormInput
+              label="Email Address (Read-only)"
+              type="email"
+              placeholder="e.g. mvance@security.acme.com"
+              disabled
+              readOnly
+              style={{ opacity: 0.7, cursor: 'not-allowed', backgroundColor: 'var(--bg-tertiary)' }}
+              {...register('email')}
+            />
+            <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              Email cannot be changed after employee creation.
+            </p>
+          </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <FormInput

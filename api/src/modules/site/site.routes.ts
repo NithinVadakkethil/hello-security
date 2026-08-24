@@ -6,7 +6,23 @@ import { authorize } from '../../common/auth/authorize';
 
 import { siteController } from './site.controller';
 
+import multer from 'multer';
+
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 20MB limit
+  },
+});
+
 const router: Router = Router();
+
+router.get(
+  '/import-template',
+  authenticate,
+  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
+  siteController.downloadImportTemplate.bind(siteController),
+);
 
 router.post(
   '/',
@@ -20,6 +36,29 @@ router.get(
   authenticate,
   authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN, UserRole.SUPERVISOR),
   siteController.list.bind(siteController),
+);
+
+router.post(
+  '/:id/import-checkpoints/validate',
+  authenticate,
+  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
+  memoryUpload.single('file'),
+  siteController.validateImportCheckpoints.bind(siteController),
+);
+
+router.post(
+  '/:id/import-checkpoints/execute',
+  authenticate,
+  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
+  memoryUpload.single('file'),
+  siteController.executeImportCheckpoints.bind(siteController),
+);
+
+router.get(
+  '/:id/import-template',
+  authenticate,
+  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
+  siteController.downloadImportTemplate.bind(siteController),
 );
 
 router.get(
