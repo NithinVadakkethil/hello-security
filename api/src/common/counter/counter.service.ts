@@ -6,6 +6,10 @@ export class CounterService {
 
     return counter.value;
   }
+
+  async reserveRange(entity: string, count: number, clientId?: string, tx?: any): Promise<number> {
+    return counterRepository.reserveRange(entity, count, clientId, tx);
+  }
 }
 
 export const counterService = new CounterService();

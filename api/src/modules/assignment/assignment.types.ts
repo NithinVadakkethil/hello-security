@@ -5,6 +5,7 @@ export interface CreateAssignmentDto {
   shiftId: string;
   assignmentType?: 'ROUTE' | 'DIRECT_CHECKPOINTS';
   patrolRouteId?: string;
+  patrolRouteIds?: string[];
   gateIds?: string[];
   effectiveFrom: Date;
   effectiveTo?: Date;

@@ -84,6 +84,16 @@ export const CANONICAL_IMPORT_COLUMNS: CanonicalColumn[] = [
   { field: 'longitude', excelHeader: 'Longitude', aliases: ['longitude', 'lng', 'lon'] },
 ];
 
+export interface GroupedCheckpoint {
+  code: string;
+  name: string;
+  sequence?: number;
+  latitude?: number;
+  longitude?: number;
+  description?: string;
+  subtasks: Array<{ role: UserRole; taskName: string; description?: string }>;
+}
+
 const VALID_USER_ROLES: UserRole[] = [
   UserRole.SECURITY,
   UserRole.CLEANER,
@@ -676,15 +686,7 @@ export class SiteImportService {
 
     const rows = this.parseFileBuffer(buffer);
 
-    const groupedCheckpoints = new Map<string, {
-      code: string;
-      name: string;
-      sequence?: number;
-      latitude?: number;
-      longitude?: number;
-      description?: string;
-      subtasks: Array<{ role: UserRole; taskName: string; description?: string }>;
-    }>();
+    const groupedCheckpoints = new Map<string, GroupedCheckpoint>();
 
     rows.forEach((row) => {
       if (!row.name && !row.code) return;
@@ -739,96 +741,180 @@ export class SiteImportService {
     let createdSubtasksCount = 0;
     let skippedSubtasksCount = 0;
 
-    await prisma.$transaction(async (tx) => {
-      const maxGate = await tx.gate.findFirst({
-        where: { siteId },
-        orderBy: { sequence: 'desc' },
-        select: { sequence: true },
-      });
-      let nextSeq = (maxGate?.sequence ?? 0) + 1;
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          // 1. Bulk Fetch Existing Gates & Subtasks for this siteId
+          const existingGates = await tx.gate.findMany({
+            where: { siteId },
+            include: {
+              subTasks: {
+                select: { role: true, taskName: true },
+              },
+            },
+            orderBy: { sequence: 'asc' },
+          });
 
-      for (const [_, group] of groupedCheckpoints) {
-        let gate = await tx.gate.findFirst({
-          where: {
-            siteId,
-            name: { equals: group.name, mode: 'insensitive' as const },
-          },
-        });
+          // Create In-Memory Lookups
+          const existingGatesByNameMap = new Map<string, typeof existingGates[0]>();
+          const existingCodesSet = new Set<string>();
+          let maxSequence = 0;
 
-        if (!gate) {
-          // ALWAYS generate a FRESH unique gate code for the destination site using site counter
-          let seqCounter = await counterService.next(ENTITY.GATE, site.id);
-          let gateCode = generateCode(PREFIX.GATE, seqCounter);
-          let existingCode = await tx.gate.findFirst({ where: { siteId, gateCode } });
-          while (existingCode) {
-            seqCounter = await counterService.next(ENTITY.GATE, site.id);
-            gateCode = generateCode(PREFIX.GATE, seqCounter);
-            existingCode = await tx.gate.findFirst({ where: { siteId, gateCode } });
+          existingGates.forEach((g) => {
+            existingGatesByNameMap.set(g.name.toLowerCase().trim(), g);
+            if (g.gateCode) existingCodesSet.add(g.gateCode.toUpperCase());
+            if (g.sequence > maxSequence) maxSequence = g.sequence;
+          });
+
+          let nextSeq = maxSequence + 1;
+
+          // Categorize groupedCheckpoints into new gates vs existing gates
+          const newGroupsToCreate: GroupedCheckpoint[] = [];
+          const existingGroupsToProcess: Array<{ gate: typeof existingGates[0]; group: GroupedCheckpoint }> = [];
+
+          for (const [_, group] of groupedCheckpoints) {
+            const normName = group.name.toLowerCase().trim();
+            const existingGate = existingGatesByNameMap.get(normName);
+            if (existingGate) {
+              existingGroupsToProcess.push({ gate: existingGate, group });
+            } else {
+              newGroupsToCreate.push(group);
+            }
           }
 
-          const seq = group.sequence || nextSeq++;
+          // 2. Batch Reserve Counter for New Gates
+          if (newGroupsToCreate.length > 0) {
+            const startSeq = await counterService.reserveRange(
+              ENTITY.GATE,
+              newGroupsToCreate.length,
+              site.id,
+              tx,
+            );
 
-          gate = await tx.gate.create({
-            data: {
-              siteId,
-              gateCode,
-              name: group.name,
-              sequence: seq,
-              description: group.description || null,
-              latitude: group.latitude || null,
-              longitude: group.longitude || null,
-              qrCode: gateCode, // Fresh unique QR payload for destination checkpoint!
+            // Prepare batch gate data in memory
+            const newGatesData: Array<{
+              siteId: string;
+              gateCode: string;
+              name: string;
+              sequence: number;
+              description: string | null;
+              latitude: number | null;
+              longitude: number | null;
+              qrCode: string;
+            }> = [];
+
+            newGroupsToCreate.forEach((group, idx) => {
+              let seqCounter = startSeq + idx;
+              let gateCode = generateCode(PREFIX.GATE, seqCounter);
+              // Ensure code is unique in memory
+              while (existingCodesSet.has(gateCode.toUpperCase())) {
+                seqCounter++;
+                gateCode = generateCode(PREFIX.GATE, seqCounter);
+              }
+              existingCodesSet.add(gateCode.toUpperCase());
+
+              const seq = group.sequence || nextSeq++;
+
+              newGatesData.push({
+                siteId,
+                gateCode,
+                name: group.name,
+                sequence: seq,
+                description: group.description || null,
+                latitude: group.latitude || null,
+                longitude: group.longitude || null,
+                qrCode: gateCode, // Fresh unique QR payload for destination checkpoint!
+              });
+            });
+
+            // 3. Single Bulk Gate Insertion
+            await tx.gate.createMany({
+              data: newGatesData,
+              skipDuplicates: true,
+            });
+            createdGatesCount = newGatesData.length;
+          }
+
+          // 4. Bulk Fetch All Gate Records to map Gate IDs to Subtasks
+          const allSiteGates = await tx.gate.findMany({
+            where: { siteId },
+            include: {
+              subTasks: {
+                select: { role: true, taskName: true },
+              },
             },
           });
-          createdGatesCount++;
-        }
 
-        const existingSubtasks = await tx.gateSubTask.findMany({
-          where: { gateId: gate.id },
-          select: { role: true, taskName: true },
-        });
+          const gateByNameMap = new Map<string, typeof allSiteGates[0]>();
+          allSiteGates.forEach((g) => {
+            gateByNameMap.set(g.name.toLowerCase().trim(), g);
+          });
 
-        const existingSet = new Set(
-          existingSubtasks.map((st) => `${st.role}_${st.taskName.toLowerCase().trim()}`)
-        );
+          // 5. Accumulate Subtasks to Create
+          const subtasksToInsert: Array<{
+            gateId: string;
+            role: UserRole;
+            taskName: string;
+            description?: string;
+            displayOrder: number;
+            isRequired: boolean;
+            isActive: boolean;
+          }> = [];
 
-        const subtasksToInsert: Array<{
-          gateId: string;
-          role: UserRole;
-          taskName: string;
-          description?: string;
-          displayOrder: number;
-          isRequired: boolean;
-          isActive: boolean;
-        }> = [];
+          for (const [_, group] of groupedCheckpoints) {
+            const gate = gateByNameMap.get(group.name.toLowerCase().trim());
+            if (!gate) continue;
 
-        group.subtasks.forEach((st, idx) => {
-          const key = `${st.role}_${st.taskName.toLowerCase().trim()}`;
-          if (existingSet.has(key)) {
-            skippedSubtasksCount++;
-          } else {
-            existingSet.add(key);
-            subtasksToInsert.push({
-              gateId: gate!.id,
-              role: st.role,
-              taskName: st.taskName,
-              description: st.description || undefined,
-              displayOrder: idx,
-              isRequired: true,
-              isActive: true,
+            const existingSet = new Set(
+              (gate.subTasks || []).map(
+                (st) => `${st.role}_${st.taskName.toLowerCase().trim()}`,
+              ),
+            );
+
+            group.subtasks.forEach((st, idx) => {
+              const key = `${st.role}_${st.taskName.toLowerCase().trim()}`;
+              if (existingSet.has(key)) {
+                skippedSubtasksCount++;
+              } else {
+                existingSet.add(key);
+                subtasksToInsert.push({
+                  gateId: gate.id,
+                  role: st.role,
+                  taskName: st.taskName,
+                  description: st.description || undefined,
+                  displayOrder: idx,
+                  isRequired: true,
+                  isActive: true,
+                });
+              }
             });
           }
-        });
 
-        if (subtasksToInsert.length > 0) {
-          const res = await tx.gateSubTask.createMany({
-            data: subtasksToInsert,
-            skipDuplicates: true,
-          });
-          createdSubtasksCount += res.count;
-        }
+          // 6. Single Bulk Subtask Insertion
+          if (subtasksToInsert.length > 0) {
+            const res = await tx.gateSubTask.createMany({
+              data: subtasksToInsert,
+              skipDuplicates: true,
+            });
+            createdSubtasksCount = res.count;
+          }
+        },
+        {
+          maxWait: 10000,
+          timeout: 60000, // 60s transaction timeout for bulk imports
+        },
+      );
+    } catch (err: any) {
+      console.error('Site import execution transaction failed:', err);
+      if (err instanceof AppError) {
+        throw err;
       }
-    });
+      throw new AppError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        ErrorCodes.UNKNOWN_ERROR,
+        'Unable to complete the checkpoint import. Please try again. If the problem continues, contact support.',
+      );
+    }
 
     if (userId && clientId) {
       await auditLogService.create({

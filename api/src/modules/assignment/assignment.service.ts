@@ -67,40 +67,55 @@ export class AssignmentService {
     }
 
     const assignmentType =
-      dto.assignmentType || (dto.patrolRouteId ? 'ROUTE' : 'DIRECT_CHECKPOINTS');
+      dto.assignmentType ||
+      (dto.patrolRouteId || (dto.patrolRouteIds && dto.patrolRouteIds.length > 0)
+        ? 'ROUTE'
+        : 'DIRECT_CHECKPOINTS');
+
+    let targetRouteIds: string[] = [];
 
     if (assignmentType === 'ROUTE') {
-      if (!dto.patrolRouteId) {
+      targetRouteIds =
+        dto.patrolRouteIds && dto.patrolRouteIds.length > 0
+          ? dto.patrolRouteIds
+          : dto.patrolRouteId
+          ? [dto.patrolRouteId]
+          : [];
+
+      if (targetRouteIds.length === 0) {
         throw new AppError(
           HttpStatus.BAD_REQUEST,
           ErrorCodes.VALIDATION_ERROR,
-          'Patrol route is required for route assignments.',
-        );
-      }
-      const patrolRoute = await patrolRouteRepository.findById(dto.patrolRouteId);
-
-      if (!patrolRoute || patrolRoute.clientId !== clientId) {
-        throw new AppError(
-          HttpStatus.NOT_FOUND,
-          ErrorCodes.NOT_FOUND,
-          'Patrol route not found.',
+          'At least one patrol route is required for route assignments.',
         );
       }
 
-      if (!patrolRoute.isActive) {
-        throw new AppError(
-          HttpStatus.BAD_REQUEST,
-          ErrorCodes.VALIDATION_ERROR,
-          'Patrol route is inactive.',
-        );
-      }
+      for (const routeId of targetRouteIds) {
+        const patrolRoute = await patrolRouteRepository.findById(routeId);
 
-      if (patrolRoute.siteId !== dto.siteId) {
-        throw new AppError(
-          HttpStatus.BAD_REQUEST,
-          ErrorCodes.VALIDATION_ERROR,
-          'Selected patrol route does not belong to the selected site.',
-        );
+        if (!patrolRoute || patrolRoute.clientId !== clientId) {
+          throw new AppError(
+            HttpStatus.NOT_FOUND,
+            ErrorCodes.NOT_FOUND,
+            'Patrol route not found.',
+          );
+        }
+
+        if (!patrolRoute.isActive) {
+          throw new AppError(
+            HttpStatus.BAD_REQUEST,
+            ErrorCodes.VALIDATION_ERROR,
+            `Patrol route "${patrolRoute.name}" is inactive.`,
+          );
+        }
+
+        if (patrolRoute.siteId !== dto.siteId) {
+          throw new AppError(
+            HttpStatus.BAD_REQUEST,
+            ErrorCodes.VALIDATION_ERROR,
+            `Patrol route "${patrolRoute.name}" does not belong to the selected site.`,
+          );
+        }
       }
     } else if (assignmentType === 'DIRECT_CHECKPOINTS') {
       if (!dto.gateIds || dto.gateIds.length === 0) {
@@ -121,7 +136,9 @@ export class AssignmentService {
       );
     }
 
-    const createdAssignments = [];
+    let createdCount = 0;
+    let skippedCount = 0;
+    const createdAssignments: any[] = [];
 
     for (const empId of targetEmployeeIds) {
       const employee = await employeeRepository.findById(empId);
@@ -130,22 +147,61 @@ export class AssignmentService {
         continue;
       }
 
-      const created = await assignmentRepository.create({
-        clientId,
-        employeeId: empId,
-        siteId: dto.siteId,
-        shiftId: dto.shiftId,
-        assignmentType,
-        patrolRouteId: assignmentType === 'ROUTE' ? dto.patrolRouteId : null,
-        gateIds: assignmentType === 'DIRECT_CHECKPOINTS' ? dto.gateIds : undefined,
-        effectiveFrom: dto.effectiveFrom,
-        effectiveTo: dto.effectiveTo,
-      });
+      if (assignmentType === 'ROUTE') {
+        for (const routeId of targetRouteIds) {
+          const existing = await assignmentRepository.findEmployeeActiveAssignmentForRoute(
+            empId,
+            dto.siteId,
+            dto.shiftId,
+            routeId,
+          );
 
-      createdAssignments.push(created);
+          if (existing) {
+            skippedCount++;
+            continue;
+          }
+
+          const created = await assignmentRepository.create({
+            clientId,
+            employeeId: empId,
+            siteId: dto.siteId,
+            shiftId: dto.shiftId,
+            assignmentType,
+            patrolRouteId: routeId,
+            effectiveFrom: dto.effectiveFrom,
+            effectiveTo: dto.effectiveTo,
+          });
+
+          createdCount++;
+          createdAssignments.push(created);
+        }
+      } else {
+        const created = await assignmentRepository.create({
+          clientId,
+          employeeId: empId,
+          siteId: dto.siteId,
+          shiftId: dto.shiftId,
+          assignmentType,
+          gateIds: dto.gateIds,
+          effectiveFrom: dto.effectiveFrom,
+          effectiveTo: dto.effectiveTo,
+        });
+
+        createdCount++;
+        createdAssignments.push(created);
+      }
     }
 
-    return createdAssignments.length === 1 ? createdAssignments[0] : createdAssignments;
+    const totalRequested =
+      targetEmployeeIds.length * (assignmentType === 'ROUTE' ? targetRouteIds.length : 1);
+
+    return {
+      success: true,
+      createdCount,
+      skippedCount,
+      totalRequested,
+      assignments: createdAssignments,
+    };
   }
 
   async list(clientId: string, isActive?: boolean) {

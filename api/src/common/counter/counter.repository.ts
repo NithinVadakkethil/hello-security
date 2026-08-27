@@ -23,6 +23,33 @@ export class CounterRepository {
       },
     });
   }
+
+  async reserveRange(entity: string, count: number, clientId?: string, tx?: any) {
+    if (count <= 0) return 1;
+    const targetClientId = clientId || 'GLOBAL';
+    const client = tx || prisma;
+
+    const counter = await client.counter.upsert({
+      where: {
+        entity_clientId: {
+          entity,
+          clientId: targetClientId,
+        },
+      },
+      update: {
+        value: {
+          increment: count,
+        },
+      },
+      create: {
+        entity,
+        clientId: targetClientId,
+        value: count,
+      },
+    });
+
+    return counter.value - count + 1;
+  }
 }
 
 export const counterRepository = new CounterRepository();

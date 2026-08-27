@@ -135,6 +135,23 @@ export class AssignmentRepository {
     });
   }
 
+  findEmployeeActiveAssignmentForRoute(
+    employeeId: string,
+    siteId: string,
+    shiftId: string,
+    patrolRouteId: string,
+  ) {
+    return prisma.guardAssignment.findFirst({
+      where: {
+        employeeId,
+        siteId,
+        shiftId,
+        patrolRouteId,
+        isActive: true,
+      },
+    });
+  }
+
   findEmployeeActiveAssignments(employeeId: string) {
     return prisma.guardAssignment.findMany({
       where: {

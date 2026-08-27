@@ -11,6 +11,7 @@ export const createAssignmentSchema = z.object({
   assignmentType: z.enum(['ROUTE', 'DIRECT_CHECKPOINTS']).optional(),
 
   patrolRouteId: z.string().optional(),
+  patrolRouteIds: z.array(z.string()).optional(),
 
   gateIds: z.array(z.string()).optional(),
 

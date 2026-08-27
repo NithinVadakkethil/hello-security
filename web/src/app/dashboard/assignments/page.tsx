@@ -2,8 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
@@ -159,7 +159,34 @@ export default function AssignmentsPage() {
     'ROUTE' | 'DIRECT_CHECKPOINTS'
   >('ROUTE');
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([]);
   const [selectedGateIds, setSelectedGateIds] = useState<string[]>([]);
+  const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
+  const routeDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        routeDropdownRef.current &&
+        !routeDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsRouteDropdownOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsRouteDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   const [confirmStatus, setConfirmStatus] = useState<{
     isOpen: boolean;
@@ -241,6 +268,11 @@ export default function AssignmentsPage() {
 
   const selectedFormSiteId = watch('siteId');
 
+  useEffect(() => {
+    setSelectedRouteIds([]);
+    setIsRouteDropdownOpen(false);
+  }, [selectedFormSiteId]);
+
   const { data: gatesRes } = useQuery<ApiResponse<GateItem[]>>({
     queryKey: ['gates-by-site', selectedFormSiteId],
     queryFn: () =>
@@ -250,12 +282,9 @@ export default function AssignmentsPage() {
 
   const siteGates = gatesRes?.data || [];
 
-  const filteredRouteOptions = [
-    { value: '', label: '-- Select Patrol Route --' },
-    ...activeRoutes
-      .filter((r) => !selectedFormSiteId || r.siteId === selectedFormSiteId)
-      .map((r) => ({ value: r.id, label: r.name })),
-  ];
+  const availableRoutesForSite = activeRoutes.filter(
+    (r) => selectedFormSiteId && r.siteId === selectedFormSiteId,
+  );
 
   // Create Assignment mutation
   const createAssignmentMutation = useMutation({
@@ -274,7 +303,11 @@ export default function AssignmentsPage() {
       }
 
       if (assignmentType === 'ROUTE') {
-        payload.patrolRouteId = values.patrolRouteId;
+        if (selectedRouteIds.length > 0) {
+          payload.patrolRouteIds = selectedRouteIds;
+        } else if (values.patrolRouteId) {
+          payload.patrolRouteId = values.patrolRouteId;
+        }
       } else {
         payload.gateIds = selectedGateIds;
       }
@@ -285,12 +318,23 @@ export default function AssignmentsPage() {
 
       return apiClient.post('/assignments', payload);
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      toast.success('Guard assignment(s) created successfully!');
+      const data = res?.data || res;
+      if (typeof data?.createdCount === 'number') {
+        const createdMsg = `${data.createdCount} guard assignment(s) created successfully.`;
+        const skippedMsg =
+          data.skippedCount > 0
+            ? ` ${data.skippedCount} existing assignment(s) skipped.`
+            : '';
+        toast.success(`${createdMsg}${skippedMsg}`);
+      } else {
+        toast.success('Guard assignment(s) created successfully!');
+      }
       setIsModalOpen(false);
       reset();
       setSelectedEmployeeIds([]);
+      setSelectedRouteIds([]);
       setSelectedGateIds([]);
     },
     onError: (err: any) => {
@@ -310,7 +354,11 @@ export default function AssignmentsPage() {
         effectiveFrom: new Date(values.effectiveFrom).toISOString(),
       };
       if (assignmentType === 'ROUTE') {
-        payload.patrolRouteId = values.patrolRouteId;
+        if (selectedRouteIds.length > 0) {
+          payload.patrolRouteId = selectedRouteIds[0];
+        } else if (values.patrolRouteId) {
+          payload.patrolRouteId = values.patrolRouteId;
+        }
       } else {
         payload.gateIds = selectedGateIds;
       }
@@ -360,7 +408,9 @@ export default function AssignmentsPage() {
     setEditingAssignment(null);
     setAssignmentType('ROUTE');
     setSelectedEmployeeIds([]);
+    setSelectedRouteIds([]);
     setSelectedGateIds([]);
+    setIsRouteDropdownOpen(false);
     reset({
       employeeId: '',
       siteId: '',
@@ -380,9 +430,13 @@ export default function AssignmentsPage() {
         : 'ROUTE',
     );
     setSelectedEmployeeIds([assignment.employeeId]);
+    setSelectedRouteIds(
+      assignment.patrolRouteId ? [assignment.patrolRouteId] : [],
+    );
     setSelectedGateIds(
       assignment.assignmentGates?.map((ag) => ag.gate.id) || [],
     );
+    setIsRouteDropdownOpen(false);
     reset({
       employeeId: assignment.employeeId,
       siteId: assignment.siteId,
@@ -404,11 +458,15 @@ export default function AssignmentsPage() {
       selectedEmployeeIds.length === 0 &&
       !values.employeeId
     ) {
-      toast.error('Please select at least one security guard employee.');
+      toast.error('Please select at least one staff member.');
       return;
     }
-    if (assignmentType === 'ROUTE' && !values.patrolRouteId) {
-      toast.error('Please select a patrol route.');
+    if (
+      assignmentType === 'ROUTE' &&
+      selectedRouteIds.length === 0 &&
+      !values.patrolRouteId
+    ) {
+      toast.error('Please select at least one patrol route.');
       return;
     }
     if (
@@ -622,6 +680,37 @@ export default function AssignmentsPage() {
     },
   ];
 
+  const isAllGuardsSelected =
+    activeEmployees.length > 0 &&
+    activeEmployees.every((emp) => selectedEmployeeIds.includes(emp.id));
+
+  const isSomeGuardsSelected =
+    selectedEmployeeIds.length > 0 && !isAllGuardsSelected;
+
+  const isAllRoutesSelected =
+    availableRoutesForSite.length > 0 &&
+    availableRoutesForSite.every((r) => selectedRouteIds.includes(r.id));
+
+  const isSomeRoutesSelected =
+    selectedRouteIds.length > 0 && !isAllRoutesSelected;
+
+  const getRouteDropdownLabel = () => {
+    if (!selectedFormSiteId) return '-- Select Monitored Site First --';
+    if (availableRoutesForSite.length === 0)
+      return 'No patrol routes registered for this site';
+    if (selectedRouteIds.length === 0) return '-- Select Patrol Routes --';
+    if (selectedRouteIds.length === 1) {
+      const r = availableRoutesForSite.find(
+        (r) => r.id === selectedRouteIds[0],
+      );
+      return r ? r.name : '1 route selected';
+    }
+    if (selectedRouteIds.length === availableRoutesForSite.length) {
+      return `All routes selected (${availableRoutesForSite.length})`;
+    }
+    return `${selectedRouteIds.length} routes selected`;
+  };
+
   return (
     <div>
       <div
@@ -691,10 +780,13 @@ export default function AssignmentsPage() {
       {/* CREATE / EDIT ASSIGNMENT MODAL */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setIsRouteDropdownOpen(false);
+        }}
         title={
           editingAssignment
-            ? 'Modify Active Guard Assignment'
+            ? 'Edit Guard Duty Assignment'
             : 'Assign Guard Staff'
         }
       >
@@ -739,7 +831,7 @@ export default function AssignmentsPage() {
               </label>
               <div
                 style={{
-                  maxHeight: '130px',
+                  maxHeight: '140px',
                   overflowY: 'auto',
                   border: '1px solid var(--border-color)',
                   borderRadius: '6px',
@@ -758,47 +850,85 @@ export default function AssignmentsPage() {
                     No active guards available.
                   </p>
                 ) : (
-                  activeEmployees.map((emp) => {
-                    const isSelected = selectedEmployeeIds.includes(emp.id);
-                    return (
-                      <label
-                        key={emp.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '4px 6px',
-                          cursor: 'pointer',
-                          borderRadius: '4px',
-                          fontSize: '0.85rem',
-                          background: isSelected
-                            ? 'rgba(59, 130, 246, 0.1)'
-                            : 'transparent',
+                  <>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 8px',
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        borderBottom: '1px solid var(--border-color)',
+                        marginBottom: '4px',
+                        background: isAllGuardsSelected
+                          ? 'rgba(59, 130, 246, 0.15)'
+                          : 'transparent',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isAllGuardsSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = isSomeGuardsSelected;
                         }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedEmployeeIds((prev) => [
-                                ...prev,
-                                emp.id,
-                              ]);
-                            } else {
-                              setSelectedEmployeeIds((prev) =>
-                                prev.filter((id) => id !== emp.id),
-                              );
-                            }
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedEmployeeIds(
+                              activeEmployees.map((emp) => emp.id),
+                            );
+                          } else {
+                            setSelectedEmployeeIds([]);
+                          }
+                        }}
+                      />
+                      <span>Select All ({activeEmployees.length})</span>
+                    </label>
+
+                    {activeEmployees.map((emp) => {
+                      const isSelected = selectedEmployeeIds.includes(emp.id);
+                      return (
+                        <label
+                          key={emp.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '4px 6px',
+                            cursor: 'pointer',
+                            borderRadius: '4px',
+                            fontSize: '0.85rem',
+                            background: isSelected
+                              ? 'rgba(59, 130, 246, 0.1)'
+                              : 'transparent',
                           }}
-                        />
-                        <span>
-                          {emp.firstName} {emp.lastName} &mdash;{' '}
-                          {getRoleLabel(emp)} ({emp.employeeNumber})
-                        </span>
-                      </label>
-                    );
-                  })
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedEmployeeIds((prev) => [
+                                  ...prev,
+                                  emp.id,
+                                ]);
+                              } else {
+                                setSelectedEmployeeIds((prev) =>
+                                  prev.filter((id) => id !== emp.id),
+                                );
+                              }
+                            }}
+                          />
+                          <span>
+                            {emp.firstName} {emp.lastName} &mdash;{' '}
+                            {getRoleLabel(emp)} ({emp.employeeNumber})
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </>
                 )}
               </div>
             </div>
@@ -839,13 +969,169 @@ export default function AssignmentsPage() {
 
           {/* TARGET SELECTION: ROUTE OR DIRECT GATES */}
           {assignmentType === 'ROUTE' ? (
-            <Select
-              label="Select Patrol Route"
-              options={filteredRouteOptions}
-              error={errors.patrolRouteId?.message}
-              {...register('patrolRouteId')}
-              disabled={!selectedFormSiteId}
-            />
+            <div>
+              <label className="form-label">
+                Select Patrol Routes (Multiple allowed)
+              </label>
+              <div ref={routeDropdownRef} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  className="form-input"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor:
+                      selectedFormSiteId && availableRoutesForSite.length > 0
+                        ? 'pointer'
+                        : 'not-allowed',
+                    opacity:
+                      selectedFormSiteId && availableRoutesForSite.length > 0
+                        ? 1
+                        : 0.6,
+                    textAlign: 'left',
+                    width: '100%',
+                    borderColor: isRouteDropdownOpen
+                      ? 'var(--primary)'
+                      : undefined,
+                  }}
+                  disabled={
+                    !selectedFormSiteId || availableRoutesForSite.length === 0
+                  }
+                  onClick={() => setIsRouteDropdownOpen((prev) => !prev)}
+                >
+                  <span
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontSize: '0.85rem',
+                      color:
+                        selectedRouteIds.length > 0
+                          ? 'var(--text-color)'
+                          : 'var(--text-muted)',
+                    }}
+                  >
+                    {getRouteDropdownLabel()}
+                  </span>
+                  <ChevronDown
+                    size={16}
+                    style={{
+                      opacity: 0.7,
+                      transition: 'transform 0.2s ease',
+                      transform: isRouteDropdownOpen
+                        ? 'rotate(180deg)'
+                        : 'rotate(0deg)',
+                    }}
+                  />
+                </button>
+
+                {isRouteDropdownOpen &&
+                  selectedFormSiteId &&
+                  availableRoutesForSite.length > 0 && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 4px)',
+                        left: 0,
+                        right: 0,
+                        zIndex: 1000,
+                        maxHeight: '240px',
+                        overflowY: 'auto',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        padding: '6px',
+                        background: 'var(--bg-secondary, #1e293b)',
+                        backdropFilter: 'blur(12px)',
+                        boxShadow:
+                          '0 12px 24px -4px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3)',
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '8px 10px',
+                          cursor: 'pointer',
+                          borderRadius: '4px',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          borderBottom: '1px solid var(--border-color)',
+                          marginBottom: '4px',
+                          background: isAllRoutesSelected
+                            ? 'rgba(59, 130, 246, 0.15)'
+                            : 'transparent',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isAllRoutesSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = isSomeRoutesSelected;
+                          }}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedRouteIds(
+                                availableRoutesForSite.map((r) => r.id),
+                              );
+                            } else {
+                              setSelectedRouteIds([]);
+                            }
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span>
+                          Select All ({availableRoutesForSite.length})
+                        </span>
+                      </label>
+
+                      {availableRoutesForSite.map((route) => {
+                        const isChecked = selectedRouteIds.includes(route.id);
+                        return (
+                          <label
+                            key={route.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              padding: '7px 10px',
+                              cursor: 'pointer',
+                              fontSize: '0.85rem',
+                              color: 'var(--text-primary)',
+                              borderRadius: '4px',
+                              transition: 'background 0.15s ease',
+                              background: isChecked
+                                ? 'rgba(59, 130, 246, 0.15)'
+                                : 'transparent',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedRouteIds((prev) => [
+                                    ...prev,
+                                    route.id,
+                                  ]);
+                                } else {
+                                  setSelectedRouteIds((prev) =>
+                                    prev.filter((id) => id !== route.id),
+                                  );
+                                }
+                              }}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <span>🗺️ {route.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+              </div>
+            </div>
           ) : (
             <div>
               <label className="form-label">
