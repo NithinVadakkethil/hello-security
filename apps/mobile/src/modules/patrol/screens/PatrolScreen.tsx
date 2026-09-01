@@ -770,15 +770,33 @@ export function PatrolScreen() {
     setIsRefreshing(false);
   };
 
-  const handleStart = async () => {
+  const handleStart = async (resolveExisting = false) => {
     try {
-      await startPatrol(assignment?.id);
+      await startPatrol({
+        assignmentId: assignment?.id,
+        resolveExistingPatrol: resolveExisting,
+      });
       Alert.alert(
         'Patrol Started',
         'Your active security patrol sweep has initiated.',
       );
     } catch (err: any) {
-      Alert.alert('Error starting patrol', err.message || 'Please try again.');
+      const errCode = err?.response?.data?.error?.code || err?.code;
+      if (errCode === 'ACTIVE_PATROL_EXISTS' || err?.response?.status === 409) {
+        Alert.alert(
+          'Ongoing Patrol Detected',
+          'You already have a patrol in progress. Starting a new patrol will close the current patrol. If at least one checkpoint has been scanned, the current patrol will be marked as completed and moved to Completed Patrol History. If no checkpoints have been scanned, the current patrol will be cancelled and will not be added to patrol history. Do you want to continue?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Continue',
+              onPress: () => handleStart(true),
+            },
+          ],
+        );
+      } else {
+        Alert.alert('Error starting patrol', err.message || 'Please try again.');
+      }
     }
   };
 

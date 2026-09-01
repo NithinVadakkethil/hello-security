@@ -3,6 +3,8 @@ import { PatrolStatus } from '@prisma/client';
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
+import { logger } from '../../common/logger/logger';
+import { notificationQueueService } from '../../common/queue/notification-queue.service';
 import { prisma } from '../../database/prisma';
 
 import { assignmentRepository } from '../assignment/assignment.repository';
@@ -10,7 +12,12 @@ import { patrolSessionRepository } from './patrol-session.repository';
 import { ListPatrolSessionsQuery } from './patrol-session.types';
 
 export class PatrolSessionService {
-  async start(clientId: string, employeeId: string, targetAssignmentId?: string) {
+  async start(
+    clientId: string,
+    employeeId: string,
+    targetAssignmentId?: string,
+    resolveExistingPatrol?: boolean,
+  ) {
     if (!employeeId) {
       throw new AppError(
         HttpStatus.UNAUTHORIZED,
@@ -41,25 +48,54 @@ export class PatrolSessionService {
       );
     }
 
-    // Already running?
-    const running = await patrolSessionRepository.findActiveByAssignment(
-      assignment.id,
-    );
+    // Single active patrol rule: Check for ANY active session for this employee
+    const running = await patrolSessionRepository.findActiveByEmployee(employeeId);
 
     if (running) {
       const scannedCount = await prisma.patrolCheckpoint.count({
         where: { patrolSessionId: running.id },
       });
 
-      if (scannedCount === 0) {
-        // Abandoned zero-checkpoint session — auto-clear it so starting a new patrol succeeds cleanly
-        await patrolSessionRepository.cancel(running.id);
-      } else {
+      if (!resolveExistingPatrol) {
+        // Return structured conflict error payload (whether 0 scans or >0 scans)
         throw new AppError(
           HttpStatus.CONFLICT,
-          ErrorCodes.VALIDATION_ERROR,
-          'Patrol already in progress.',
+          'ACTIVE_PATROL_EXISTS',
+          'You already have a patrol in progress.',
+          {
+            activePatrolSessionId: running.id,
+            patrolCode: running.patrolCode,
+            routeName: running.assignment?.patrolRoute?.name || 'Direct Checkpoints',
+            siteName: running.assignment?.site?.name || 'Monitored Site',
+            scannedCheckpointCount: scannedCount,
+          },
         );
+      } else {
+        // User confirmed resolution (resolveExistingPatrol: true)
+        if (scannedCount >= 1) {
+          const endedAt = new Date();
+          const totalDuration = Math.floor(
+            (endedAt.getTime() - running.startedAt.getTime()) / 60000,
+          );
+          await patrolSessionRepository.update(running.id, {
+            status: PatrolStatus.COMPLETED,
+            endedAt,
+            totalDuration,
+            remarks: 'Auto-completed upon starting a new patrol session.',
+          });
+
+          // Enqueue completed patrol email notification asynchronously
+          notificationQueueService
+            .enqueueCompletedPatrol(running.id, running.clientId)
+            .catch((err) => {
+              logger.error(
+                `Failed to enqueue completed patrol notification for session ${running.id}: ${err.message}`,
+              );
+            });
+        } else {
+          // Cancel/discard abandoned 0-scan patrol session
+          await patrolSessionRepository.cancel(running.id);
+        }
       }
     }
 
@@ -151,6 +187,9 @@ export class PatrolSessionService {
     }
 
     if (patrol.status !== PatrolStatus.IN_PROGRESS && patrol.status !== PatrolStatus.PAUSED) {
+      if (patrol.status === PatrolStatus.COMPLETED) {
+        return patrol;
+      }
       throw new AppError(
         HttpStatus.BAD_REQUEST,
         ErrorCodes.VALIDATION_ERROR,
@@ -172,12 +211,23 @@ export class PatrolSessionService {
       (endedAt.getTime() - patrol.startedAt.getTime()) / 60000,
     );
 
-    return patrolSessionRepository.update(id, {
+    const completedPatrol = await patrolSessionRepository.update(id, {
       status: PatrolStatus.COMPLETED,
       endedAt,
       totalDuration,
       remarks,
     });
+
+    // Asynchronously queue completed patrol email notification (non-blocking)
+    notificationQueueService
+      .enqueueCompletedPatrol(id, patrol.clientId)
+      .catch((err) => {
+        logger.error(
+          `Failed to enqueue completed patrol notification for session ${id}: ${err.message}`,
+        );
+      });
+
+    return completedPatrol;
   }
 
   async cancel(id: string) {

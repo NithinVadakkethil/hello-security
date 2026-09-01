@@ -7,6 +7,7 @@ export interface SubTaskResponseDto {
 
 export interface ScanCheckpointDto {
   gateId: string;
+  patrolSessionId?: string;
 
   latitude?: number;
 

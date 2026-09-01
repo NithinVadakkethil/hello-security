@@ -4,6 +4,7 @@ import { Bell, Moon, Settings, ShieldAlert, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
+import { apiClient } from '../../lib/axios';
 import { Select, Switch } from '../../components/ui/FormControls';
 import { useTheme } from '../../providers/theme-provider';
 
@@ -138,6 +139,9 @@ export default function SettingsPage() {
             />
           </div>
 
+          {/* COMPLETED PATROL EMAIL NOTIFICATIONS */}
+          <CompletedPatrolNotificationSettings />
+
           {/* Session Timeout */}
           <div>
             <div
@@ -180,3 +184,228 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+function CompletedPatrolNotificationSettings() {
+  const [enabled, setEnabled] = useState(true);
+  const [recipients, setRecipients] = useState<string[]>([]);
+  const [newEmail, setNewEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const response: any = await apiClient.get('/client/settings/notifications');
+        if (response.success && response.data) {
+          setEnabled(response.data.patrolCompletedEmailEnabled ?? true);
+          setRecipients(response.data.recipients || []);
+        }
+      } catch (err) {
+        console.error('Failed to load completed patrol notification settings:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadSettings();
+  }, []);
+
+  const handleAddRecipient = () => {
+    const trimmed = newEmail.trim().toLowerCase();
+    if (!trimmed) return;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmed)) {
+      toast.error('Please enter a valid email address format.');
+      return;
+    }
+
+    if (recipients.includes(trimmed)) {
+      toast.error('This email address is already added.');
+      return;
+    }
+
+    setRecipients([...recipients, trimmed]);
+    setNewEmail('');
+  };
+
+  const handleRemoveRecipient = (emailToRemove: string) => {
+    setRecipients(recipients.filter((email) => email !== emailToRemove));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const response: any = await apiClient.put('/client/settings/notifications', {
+        patrolCompletedEmailEnabled: enabled,
+        recipients,
+      });
+      if (response.success) {
+        toast.success('Completed patrol email notification settings saved successfully.');
+      } else {
+        toast.error(response.error?.message || 'Failed to save settings.');
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || err.message || 'Error saving settings.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        paddingBottom: '16px',
+        borderBottom: '1px solid var(--border-color)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          marginBottom: '8px',
+        }}
+      >
+        <Bell size={16} style={{ color: 'var(--primary)' }} />
+        <h4 style={{ fontWeight: 600, fontSize: '0.95rem', margin: 0 }}>
+          Completed Patrol Email Notifications
+        </h4>
+      </div>
+      <p
+        style={{
+          fontSize: '0.8rem',
+          color: 'var(--text-muted)',
+          marginBottom: '16px',
+        }}
+      >
+        Send an email notification whenever a patrol is completed.
+      </p>
+
+      {isLoading ? (
+        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          Loading notification preferences...
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <Switch
+            label="Enable Completed Patrol Email Notifications"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+          />
+
+          <div>
+            <label
+              style={{
+                display: 'block',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                marginBottom: '8px',
+                color: 'var(--text-color)',
+              }}
+            >
+              Recipient Email Addresses ({recipients.length})
+            </label>
+
+            {recipients.length === 0 ? (
+              <div
+                style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--text-muted)',
+                  fontStyle: 'italic',
+                  marginBottom: '12px',
+                }}
+              >
+                No recipient email addresses added yet.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  marginBottom: '12px',
+                }}
+              >
+                {recipients.map((email) => (
+                  <div
+                    key={email}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '0.85rem',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      ✉️ {email}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRecipient(email)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#ef4444',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="email"
+                placeholder="email@client.com"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddRecipient();
+                  }
+                }}
+                className="form-input"
+                style={{ flex: 1, fontSize: '0.85rem' }}
+              />
+              <button
+                type="button"
+                onClick={handleAddRecipient}
+                className="btn btn-secondary"
+                style={{ fontSize: '0.85rem' }}
+              >
+                + Add Email Address
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="btn btn-primary"
+              style={{ fontSize: '0.85rem', width: '100%' }}
+            >
+              {isSaving ? 'Saving Preferences...' : 'Save Notification Changes'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+

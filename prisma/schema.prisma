@@ -113,6 +113,10 @@ model Client {
   snags Snag[]
 
   snagCategories SnagCategory[]
+
+  notificationSettings ClientNotificationSettings?
+
+  notificationDeliveries NotificationDelivery[]
 }
 
 model User {
@@ -726,5 +730,55 @@ model SnagAssignment {
   @@index([snagId])
   @@index([assignedToId])
   @@index([assignedById])
+}
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+model ClientNotificationSettings {
+  id                          String                  @id @default(cuid())
+  clientId                    String                  @unique
+  client                      Client                  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  patrolCompletedEmailEnabled Boolean                 @default(true)
+  createdAt                   DateTime                @default(now())
+  updatedAt                   DateTime                @updatedAt
+  recipients                  NotificationRecipient[]
+
+  @@index([clientId])
+}
+
+model NotificationRecipient {
+  id         String                     @id @default(cuid())
+  settingsId String
+  settings   ClientNotificationSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+  email      String
+  isActive   Boolean                    @default(true)
+  createdAt  DateTime                   @default(now())
+
+  @@unique([settingsId, email])
+  @@index([settingsId])
+}
+
+model NotificationDelivery {
+  id                String             @id @default(cuid())
+  clientId          String
+  client            Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  patrolSessionId   String
+  type              String             @default("PATROL_COMPLETED")
+  recipient         String
+  status            NotificationStatus @default(PENDING)
+  attempts          Int                @default(0)
+  providerMessageId String?
+  errorMessage      String?
+  sentAt            DateTime?
+  createdAt         DateTime           @default(now())
+
+  @@unique([type, patrolSessionId, recipient])
+  @@index([clientId])
+  @@index([patrolSessionId])
 }
 

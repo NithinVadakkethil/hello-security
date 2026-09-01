@@ -66,9 +66,9 @@ export function GuardDashboard() {
     minute: '2-digit',
   });
 
-  const handleStartAssignment = async (asg: any) => {
+  const handleStartAssignment = async (asg: any, resolveExisting = false) => {
     try {
-      if (activeSession) {
+      if (activeSession && !resolveExisting) {
         navigation.navigate('Dashboard', {
           screen: 'PatrolTab',
           params: {
@@ -78,13 +78,31 @@ export function GuardDashboard() {
         });
         return;
       }
-      const startedSession = await startPatrol(asg.id);
+      const startedSession = await startPatrol({
+        assignmentId: asg.id,
+        resolveExistingPatrol: resolveExisting,
+      });
       navigation.navigate('Dashboard', {
         screen: 'PatrolTab',
         params: { assignmentId: asg.id, sessionId: startedSession?.id },
       });
     } catch (err: any) {
-      Alert.alert('Patrol Error', err.message || 'Failed to start patrol.');
+      const errCode = err?.response?.data?.error?.code || err?.code;
+      if (errCode === 'ACTIVE_PATROL_EXISTS' || err?.response?.status === 409) {
+        Alert.alert(
+          'Ongoing Patrol Detected',
+          'You already have a patrol in progress. Starting a new patrol will close the current patrol. If at least one checkpoint has been scanned, the current patrol will be marked as completed and moved to Completed Patrol History. If no checkpoints have been scanned, the current patrol will be cancelled and will not be added to patrol history. Do you want to continue?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Continue',
+              onPress: () => handleStartAssignment(asg, true),
+            },
+          ],
+        );
+      } else {
+        Alert.alert('Patrol Error', err.message || 'Failed to start patrol.');
+      }
     }
   };
 

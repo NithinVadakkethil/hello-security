@@ -17,6 +17,7 @@ export function errorHandler(
       error: {
         code: err.code,
         message: err.message,
+        details: err.details,
       },
     });
   }

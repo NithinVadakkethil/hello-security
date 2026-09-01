@@ -1,10 +1,14 @@
+import 'dotenv/config';
 import { createApp } from './bootstrap/app';
 import { logger } from './common/logger/logger';
 import { appConfig } from './config/app.config';
 import { connectDatabase } from './database';
+import { startNotificationWorker } from './workers/notification-worker';
 
 async function bootstrap() {
   await connectDatabase();
+
+  startNotificationWorker();
 
   const app = createApp();
 

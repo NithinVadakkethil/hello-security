@@ -14,11 +14,13 @@ export class PatrolSessionController {
       const user = currentUser(req);
       const employeeId = await resolveEmployeeId(user);
       const assignmentId = req.body?.assignmentId || (req.query?.assignmentId as string | undefined);
+      const resolveExistingPatrol = Boolean(req.body?.resolveExistingPatrol);
 
       const result = await patrolSessionService.start(
         user.tenantId!,
         employeeId,
         assignmentId,
+        resolveExistingPatrol,
       );
 
       return res.status(HttpStatus.CREATED).json({

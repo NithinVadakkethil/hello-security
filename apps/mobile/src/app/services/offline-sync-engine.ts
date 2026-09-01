@@ -54,15 +54,22 @@ export class OfflineSyncEngine {
 
       try {
         let url = item.url;
-        // Dynamically map temp patrol session IDs to the real ID
-        if (realSessionId && url.includes('temp-active-session')) {
-          url = url.replace('temp-active-session', realSessionId);
+        let data = item.data;
+
+        // Dynamically map temp patrol session IDs to the real ID in URL and data payload
+        if (realSessionId) {
+          if (url.includes('temp-active-session')) {
+            url = url.replace('temp-active-session', realSessionId);
+          }
+          if (data && typeof data === 'object') {
+            data = JSON.parse(JSON.stringify(data).replace(/temp-active-session/g, realSessionId));
+          }
         }
 
         const response = await apiClient.request({
           url,
           method: item.method,
-          data: item.data,
+          data,
         }) as any;
 
         // If it was a patrol start session, capture the real session ID
@@ -90,8 +97,13 @@ export class OfflineSyncEngine {
         console.error(`[OfflineSyncEngine] Sync failure for item ${item.id}:`, errMsg);
 
         if (statusCode === 409) {
-          // Conflict Handling: default to server_wins (discard/dequeue) to unblock queue, or allow manual strategy
-          console.warn(`[OfflineSyncEngine] Conflict (409) detected for item ${item.id}. Discarding to unblock queue.`);
+          // Conflict Handling: capture existing active patrol session ID if provided by server
+          const conflictActiveId = err.response?.data?.error?.details?.activePatrolSessionId;
+          if (conflictActiveId) {
+            realSessionId = conflictActiveId;
+            console.log(`[OfflineSyncEngine] 409 Conflict captured active session ID: ${realSessionId}`);
+          }
+          console.warn(`[OfflineSyncEngine] Conflict (409) detected for item ${item.id}. Discarding item to unblock queue.`);
           await dequeue(item.id);
         } else if (statusCode >= 400 && statusCode < 500 && statusCode !== 408) {
           // Fatal Client Error: 400 Bad Request, 422 Validation - will never succeed on retries

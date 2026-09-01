@@ -20,6 +20,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -174,8 +175,7 @@ export function ScannerScreen() {
     if (checkpointCode) {
       const found = allRouteGates.find(
         (rg: any) =>
-          rg.gate?.gateCode === checkpointCode ||
-          rg.gateId === checkpointCode,
+          rg.gate?.gateCode === checkpointCode || rg.gateId === checkpointCode,
       );
       if (found) return found;
     }
@@ -582,7 +582,7 @@ export function ScannerScreen() {
         </Card>
       )}
 
-      {/* <Card
+      <Card
         style={[
           styles.quickScanCard,
           { backgroundColor: '#1a1a1e', borderColor: '#2d2d34' },
@@ -684,7 +684,7 @@ export function ScannerScreen() {
             <Text style={styles.inputButtonText}>Verify</Text>
           </TouchableOpacity>
         </View>
-      </Card> */}
+      </Card>
     </ScrollView>
   );
 }

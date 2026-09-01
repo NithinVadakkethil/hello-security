@@ -3,6 +3,8 @@ import { z } from 'zod';
 export const scanCheckpointSchema = z.object({
   gateId: z.string().min(1),
 
+  patrolSessionId: z.string().optional(),
+
   latitude: z.number().optional(),
 
   longitude: z.number().optional(),

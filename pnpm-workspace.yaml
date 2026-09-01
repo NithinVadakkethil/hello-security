@@ -13,6 +13,7 @@ allowBuilds:
   core-js: true
   esbuild: true
   less: true
+  msgpackr-extract: true
   nx: true
   prisma: true
   sharp: true

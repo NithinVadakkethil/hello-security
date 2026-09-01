@@ -2,8 +2,8 @@ import { apiClient } from '../../../app/api/api-client';
 import { PatrolSession } from '../../dashboard/types';
 
 export const patrolApi = {
-  startPatrol: async (assignmentId?: string): Promise<PatrolSession> => {
-    const res = (await apiClient.post('/patrol-sessions/start', { assignmentId })) as any;
+  startPatrol: async (assignmentId?: string, resolveExistingPatrol?: boolean): Promise<PatrolSession> => {
+    const res = (await apiClient.post('/patrol-sessions/start', { assignmentId, resolveExistingPatrol })) as any;
     return res.data;
   },
 
@@ -34,10 +34,12 @@ export const patrolApi = {
     images?: string[],
     latitude?: number,
     longitude?: number,
-    subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string; images?: string[] }>
+    subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string; images?: string[] }>,
+    patrolSessionId?: string,
   ): Promise<any> => {
     const res = (await apiClient.post('/patrol-checkpoints/scan', {
       gateId,
+      patrolSessionId,
       remarks,
       status,
       images,

@@ -18,6 +18,7 @@ import incidentRoutes from '../modules/incident/incident.routes';
 import reportRoutes from '../modules/report/report.routes';
 import snagRoutes from '../modules/snag/snag.routes';
 import snagCategoryRoutes from '../modules/snag-category/snag-category.routes';
+import clientNotificationRoutes from '../modules/client-notification/client-notification.routes';
 
 import healthRoute from './health.route';
 import protectedRoute from './protected.route';
@@ -27,6 +28,7 @@ const router: Router = Router();
 router.use('/health', healthRoute);
 router.use('/protected', protectedRoute);
 router.use('/auth', authRoutes);
+router.use('/', clientNotificationRoutes);
 router.use('/clients', clientRoutes);
 router.use('/employees', employeeRoutes);
 router.use('/sites', siteRoutes);

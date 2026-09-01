@@ -24,7 +24,19 @@ export class PatrolCheckpointService {
     // Find active patrol session for employee
     // -----------------------------------------
 
-    let patrol = await patrolSessionRepository.findActiveByEmployee(employeeId);
+    let patrol: any = null;
+
+    if (dto.patrolSessionId && !dto.patrolSessionId.startsWith('temp-')) {
+      patrol = await patrolSessionRepository.findFullById(dto.patrolSessionId);
+      // Validate employee ownership if found
+      if (patrol && patrol.assignment?.employeeId !== employeeId) {
+        patrol = null;
+      }
+    }
+
+    if (!patrol) {
+      patrol = await patrolSessionRepository.findActiveByEmployee(employeeId);
+    }
 
     if (!patrol) {
       patrol = (await prisma.patrolSession.findFirst({
