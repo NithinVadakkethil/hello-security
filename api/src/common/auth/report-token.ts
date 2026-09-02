@@ -3,7 +3,9 @@ import { AppError } from '../errors/AppError';
 import { ErrorCodes } from '../errors/ErrorCodes';
 import { HttpStatus } from '../errors/HttpStatus';
 
-const JWT_SECRET = process.env.JWT_ACCESS_SECRET || 'secret';
+function getJwtSecret(): string {
+  return process.env.JWT_ACCESS_SECRET || 'secret';
+}
 
 export interface ReportTokenPayload {
   patrolSessionId: string;
@@ -18,14 +20,14 @@ export function generateReportDownloadToken(patrolSessionId: string, clientId: s
       clientId,
       purpose: 'PATROL_REPORT_DOWNLOAD',
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: '7d' },
   );
 }
 
 export function verifyReportDownloadToken(token: string): ReportTokenPayload {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as ReportTokenPayload;
+    const decoded = jwt.verify(token, getJwtSecret()) as ReportTokenPayload;
     if (!decoded || decoded.purpose !== 'PATROL_REPORT_DOWNLOAD' || !decoded.patrolSessionId) {
       throw new AppError(
         HttpStatus.UNAUTHORIZED,
