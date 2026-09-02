@@ -50,7 +50,9 @@ export function resolveImageUrl(url: string | null | undefined): string {
     return trimmed;
   }
 
-  const baseUrl = (process.env.API_URL || 'http://localhost:3001/api/v1').replace(/\/+api\/v1\/?$/, '').replace(/\/+$/, '');
+  const isProd = process.env.NODE_ENV === 'production';
+  const defaultApi = isProd ? 'https://orbit.helloentry.com/api/v1' : 'http://localhost:3001/api/v1';
+  const baseUrl = (process.env.PUBLIC_API_URL || process.env.API_URL || defaultApi).replace(/\/+api\/v1\/?$/, '').replace(/\/+$/, '');
   return `${baseUrl}/${cleanPath}`;
 }
 
