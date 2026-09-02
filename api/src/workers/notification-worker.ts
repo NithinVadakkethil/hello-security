@@ -80,12 +80,11 @@ export async function processCompletedPatrolNotification(
   const formatTime = (d?: Date | null) => (d ? new Date(d).toLocaleString() : 'N/A');
 
   const token = generateReportDownloadToken(patrolSessionId, clientId);
-  const isProd = process.env.NODE_ENV === 'production';
-  const defaultPublicApi = isProd ? 'https://orbit.helloentry.com/api/v1' : 'http://localhost:3001/api/v1';
+  const defaultPublicApi = 'https://orbit.helloentry.com/api/v1';
   const baseUrl = (process.env.PUBLIC_API_URL || process.env.API_URL || defaultPublicApi).replace(/\/+$/, '');
   const reportDownloadUrl = `${baseUrl}/reports/public/download-pdf?token=${token}`;
 
-  const defaultWebApp = isProd ? 'https://orbit.helloentry.com' : 'http://localhost:3000';
+  const defaultWebApp = 'https://orbit.helloentry.com';
   const webAppBaseUrl = (process.env.WEB_APP_URL || process.env.FRONTEND_URL || defaultWebApp).replace(/\/+$/, '');
   const webAppReportsUrl = `${webAppBaseUrl}/dashboard/reports?patrolSessionId=${encodeURIComponent(patrolSessionId)}&search=${encodeURIComponent(patrol.patrolCode)}`;
 
