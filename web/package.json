@@ -8,7 +8,7 @@
     "start": "next start -p 3001"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.4.0",
+    "@hookform/resolvers": "^3.9.1",
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-table": "^8.21.3",
     "axios": "^1.18.1",
@@ -24,7 +24,7 @@
     "react-hot-toast": "^2.6.0",
     "tailwind-merge": "^3.6.0",
     "xlsx": "^0.18.5",
-    "zod": "^4.4.3",
+    "zod": "^3.24.2",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
