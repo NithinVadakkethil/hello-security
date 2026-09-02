@@ -14,6 +14,8 @@ export interface PatrolCompletedEmailData {
   supervisorStatus: string;
   checkpoints: Array<{ name: string; sequence: number; scannedAt?: string }>;
   observations: Array<{ title: string; description?: string; severity?: string }>;
+  reportDownloadUrl?: string;
+  webAppReportsUrl?: string;
 }
 
 export function buildPatrolCompletedEmailHtml(data: PatrolCompletedEmailData): string {
@@ -108,6 +110,32 @@ export function buildPatrolCompletedEmailHtml(data: PatrolCompletedEmailData): s
           <td style="padding: 10px 14px; font-size: 14px; color: #0284c7; font-weight: 600;">${data.supervisorStatus}</td>
         </tr>
       </table>
+
+      ${
+        data.reportDownloadUrl
+          ? `
+      <!-- Download Patrol Report Action Button -->
+      <div style="text-align: center; margin: 24px 0 10px 0;">
+        <a href="${data.reportDownloadUrl}" target="_blank" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-size: 15px; font-weight: 700; text-decoration: none; padding: 12px 28px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);">
+          📄 Download Patrol Report (PDF)
+        </a>
+      </div>
+      `
+          : ''
+      }
+
+      ${
+        data.webAppReportsUrl
+          ? `
+      <!-- View in Reports & Analytics Secondary Link -->
+      <div style="text-align: center; margin-bottom: 26px;">
+        <a href="${data.webAppReportsUrl}" target="_blank" style="display: inline-block; color: #475569; font-size: 13px; font-weight: 600; text-decoration: underline;">
+          View in Reports &amp; Analytics →
+        </a>
+      </div>
+      `
+          : ''
+      }
 
       <!-- Checkpoint Summary Section -->
       <h3 style="font-size: 15px; color: #0f172a; margin: 20px 0 10px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">CHECKPOINT SUMMARY</h3>

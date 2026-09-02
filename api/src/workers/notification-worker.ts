@@ -8,6 +8,7 @@ import { buildPatrolCompletedEmailHtml } from '../common/email/templates/patrol-
 import { logger } from '../common/logger/logger';
 import { redisConfig } from '../config/redis.config';
 import { COMPLETED_PATROL_QUEUE_NAME } from '../common/queue/notification-queue.service';
+import { generateReportDownloadToken } from '../common/auth/report-token';
 
 export async function processCompletedPatrolNotification(
   patrolSessionId: string,
@@ -78,6 +79,13 @@ export async function processCompletedPatrolNotification(
 
   const formatTime = (d?: Date | null) => (d ? new Date(d).toLocaleString() : 'N/A');
 
+  const token = generateReportDownloadToken(patrolSessionId, clientId);
+  const baseUrl = (process.env.API_URL || 'http://localhost:3001/api/v1').replace(/\/+$/, '');
+  const reportDownloadUrl = `${baseUrl}/reports/public/download-pdf?token=${token}`;
+
+  const webAppBaseUrl = (process.env.WEB_APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  const webAppReportsUrl = `${webAppBaseUrl}/dashboard/reports?patrolSessionId=${encodeURIComponent(patrolSessionId)}&search=${encodeURIComponent(patrol.patrolCode)}`;
+
   const emailHtml = buildPatrolCompletedEmailHtml({
     patrolCode: patrol.patrolCode,
     officerName,
@@ -98,6 +106,8 @@ export async function processCompletedPatrolNotification(
       scannedAt: formatTime(cp.scannedAt),
     })),
     observations,
+    reportDownloadUrl,
+    webAppReportsUrl,
   });
 
   const subject = `Patrol Completed — ${siteName} — ${patrol.patrolCode}`;

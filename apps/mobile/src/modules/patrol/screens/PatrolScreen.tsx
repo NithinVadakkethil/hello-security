@@ -553,14 +553,26 @@ export function PatrolScreen() {
   // Active assignment from active session (authoritative when patrol is in progress)
   const activeAssignment = useMemo(() => {
     if (activeSession) {
-      if (activeSession.assignment?.site) {
+      // 1. Check if embedded assignment matches activeSession.assignmentId
+      if (
+        activeSession.assignmentId &&
+        activeSession.assignment?.id === activeSession.assignmentId &&
+        activeSession.assignment?.site
+      ) {
         return activeSession.assignment;
       }
+
+      // 2. Look up exact assignment from active assignments list using assignmentId
       if (activeSession.assignmentId && assignments.length > 0) {
         const found = assignments.find(
           (a: any) => a.id === activeSession.assignmentId,
         );
         if (found) return found;
+      }
+
+      // 3. Fallback to embedded assignment if no assignmentId mismatch
+      if (activeSession.assignment?.site) {
+        return activeSession.assignment;
       }
     }
     return null;
@@ -579,8 +591,11 @@ export function PatrolScreen() {
   const assignment =
     activeAssignment ||
     navAssignment ||
-    assignments[selectedAssignmentIndex] ||
-    assignments[0];
+    (selectedAssignmentIndex >= 0 && selectedAssignmentIndex < assignments.length
+      ? assignments[selectedAssignmentIndex]
+      : null) ||
+    assignments[0] ||
+    null;
 
   // Sync selectedAssignmentIndex when active session or navigation param specifies a target assignment
   useEffect(() => {

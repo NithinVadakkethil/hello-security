@@ -16,5 +16,6 @@ allowBuilds:
   msgpackr-extract: true
   nx: true
   prisma: true
+  puppeteer: true
   sharp: true
   unrs-resolver: true

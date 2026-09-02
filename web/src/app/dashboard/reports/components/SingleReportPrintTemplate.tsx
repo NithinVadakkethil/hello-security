@@ -46,10 +46,10 @@ const PRINT_CSS = `
       line-height: 1.4;
     }
 
-    /* A4 Page Margins & Running Footer */
+    /* Page Margins & Container */
     @page {
       size: A4 portrait;
-      margin: 10mm 12mm 14mm 12mm;
+      margin: 8mm 8mm 10mm 8mm;
     }
 
     @page {
@@ -73,21 +73,21 @@ const PRINT_CSS = `
       justify-content: space-between;
       align-items: flex-start;
       border-bottom: 1.5px solid #0f172a;
-      padding-bottom: 8px;
-      margin-bottom: 10px;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
     }
     .rpt-brand-title {
-      font-size: 20pt;
+      font-size: 18pt;
       font-weight: 800;
       color: #0f172a;
       margin: 0;
       line-height: 1.1;
     }
     .rpt-brand-sub {
-      font-size: 9.5pt;
+      font-size: 9pt;
       font-weight: 600;
       color: #475569;
-      margin-top: 3px;
+      margin-top: 2px;
     }
     .rpt-header-right {
       text-align: right;
@@ -99,7 +99,7 @@ const PRINT_CSS = `
       letter-spacing: 0.5px;
     }
     .rpt-ref-code {
-      font-size: 13pt;
+      font-size: 12pt;
       font-weight: 800;
       font-family: 'Courier New', monospace;
       color: #1d4ed8;
@@ -117,7 +117,7 @@ const PRINT_CSS = `
       color: #475569;
       letter-spacing: 0.5px;
       text-transform: uppercase;
-      margin: 12px 0 6px 0;
+      margin: 8px 0 4px 0;
       break-after: avoid;
       page-break-after: avoid;
     }
@@ -127,11 +127,11 @@ const PRINT_CSS = `
       width: 100%;
       border-collapse: collapse;
       font-size: 8.5pt;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       border: 1px solid #cbd5e1;
     }
     .rpt-details-table td {
-      padding: 5px 8px;
+      padding: 4px 6px;
       border: 1px solid #cbd5e1;
       vertical-align: middle;
     }
@@ -150,7 +150,7 @@ const PRINT_CSS = `
     /* Status Pills */
     .rpt-pill {
       display: inline-block;
-      padding: 2px 8px;
+      padding: 2px 6px;
       border-radius: 4px;
       font-size: 7.5pt;
       font-weight: 700;
@@ -166,24 +166,26 @@ const PRINT_CSS = `
     .rpt-summary-grid {
       display: grid;
       grid-template-columns: repeat(6, 1fr);
-      gap: 6px;
-      margin-bottom: 14px;
+      gap: 4px;
+      margin-bottom: 10px;
     }
     .rpt-kpi-box {
       border: 1px solid #cbd5e1;
       border-radius: 5px;
-      padding: 6px 4px;
+      padding: 4px 2px;
       text-align: center;
       background: #ffffff;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .rpt-kpi-label {
-      font-size: 7.5pt;
+      font-size: 7pt;
       font-weight: 700;
       color: #475569;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
     }
     .rpt-kpi-val {
-      font-size: 12pt;
+      font-size: 11pt;
       font-weight: 800;
       color: #0f172a;
     }
@@ -191,18 +193,18 @@ const PRINT_CSS = `
     .rpt-kpi-val.green { color: #15803d; }
     .rpt-kpi-val.red { color: #dc2626; }
 
-    /* Checkpoint Card */
+    /* Detailed Checkpoint Timeline Cards */
     .rpt-cp-card {
       border: 1px solid #cbd5e1;
       border-radius: 6px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       overflow: visible;
     }
     .rpt-cp-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 6px 10px;
+      padding: 5px 8px;
       background: #ffffff;
       border-bottom: 1px solid #cbd5e1;
       break-after: avoid;
@@ -215,39 +217,39 @@ const PRINT_CSS = `
     }
     .rpt-seq-pill {
       display: inline-block;
-      padding: 2px 8px;
+      padding: 2px 6px;
       border-radius: 4px;
-      font-size: 8pt;
+      font-size: 7.5pt;
       font-weight: 700;
     }
     .rpt-seq-pill.scanned { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
     .rpt-seq-pill.pending { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
 
     .rpt-cp-name {
-      font-size: 10pt;
+      font-size: 9.5pt;
       font-weight: 800;
       color: #0f172a;
     }
     .rpt-scan-time {
-      font-size: 8.5pt;
+      font-size: 8pt;
       font-weight: 700;
       color: #15803d;
     }
     .rpt-pending-scan {
-      font-size: 8.5pt;
+      font-size: 8pt;
       font-weight: 700;
       color: #b45309;
     }
 
-    /* Sub-header Bar */
+    /* Checkpoint Sub-bar */
     .rpt-task-summary-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 5px 10px;
+      padding: 4px 8px;
       background: #f8fafc;
       border-bottom: 1px solid #cbd5e1;
-      font-size: 8pt;
+      font-size: 7.5pt;
       font-weight: 700;
       color: #334155;
       break-after: avoid;
@@ -256,10 +258,10 @@ const PRINT_CSS = `
 
     /* Checkpoint Remarks */
     .rpt-cp-remarks {
-      padding: 5px 10px;
+      padding: 4px 8px;
       background: #fefce8;
       border-bottom: 1px solid #fef08a;
-      font-size: 8pt;
+      font-size: 7.5pt;
       color: #713f12;
       word-wrap: break-word;
       white-space: pre-wrap;
@@ -269,11 +271,9 @@ const PRINT_CSS = `
     .rpt-task-card {
       border: 1px solid #e2e8f0;
       border-radius: 5px;
-      margin: 6px 8px;
-      padding: 8px 10px;
+      margin: 4px 6px;
+      padding: 6px 8px;
       background: #ffffff;
-      break-inside: avoid;
-      page-break-inside: avoid;
     }
     .rpt-task-card.is-no {
       border: 1.5px solid #fca5a5;
@@ -283,11 +283,13 @@ const PRINT_CSS = `
       justify-content: space-between;
       align-items: flex-start;
       gap: 8px;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .rpt-task-title {
       font-size: 8.5pt;
       color: #0f172a;
-      line-height: 1.35;
+      line-height: 1.3;
     }
     .rpt-task-role {
       font-size: 7.5pt;
@@ -305,7 +307,7 @@ const PRINT_CSS = `
     .rpt-result-pill {
       font-size: 7.5pt;
       font-weight: 800;
-      padding: 2px 8px;
+      padding: 2px 6px;
       border-radius: 4px;
       letter-spacing: 0.3px;
       flex-shrink: 0;
@@ -316,14 +318,16 @@ const PRINT_CSS = `
 
     /* Task Remarks & Evidence */
     .rpt-task-remarks {
-      margin-top: 6px;
-      padding: 6px 8px;
+      margin-top: 4px;
+      padding: 4px 6px;
       background: #fffbeb;
       border-left: 3px solid #f59e0b;
-      font-size: 8pt;
+      font-size: 7.5pt;
       color: #78350f;
       word-wrap: break-word;
       white-space: pre-wrap;
+      height: auto;
+      min-height: 0;
     }
     .rpt-task-remarks-head {
       font-size: 7pt;
@@ -333,28 +337,36 @@ const PRINT_CSS = `
       margin-bottom: 2px;
     }
     .rpt-task-evidence {
-      margin-top: 6px;
+      margin-top: 4px;
     }
     .rpt-task-evidence-head {
       font-size: 7.5pt;
       font-weight: 700;
       color: #475569;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
     .rpt-task-evidence-imgs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      align-items: flex-start !important;
+      gap: 6px !important;
+      width: 100% !important;
     }
-    .rpt-evidence-img {
-      max-width: 120px;
-      max-height: 120px;
-      width: auto;
-      height: auto;
-      object-fit: contain;
-      border: 1px solid #cbd5e1;
-      border-radius: 4px;
-      background: #f8fafc;
+    .rpt-evidence-img,
+    .rpt-task-evidence-imgs img {
+      width: 80px !important;
+      height: 80px !important;
+      max-width: 80px !important;
+      max-height: 80px !important;
+      min-width: 80px !important;
+      min-height: 80px !important;
+      object-fit: cover !important;
+      display: block !important;
+      flex: 0 0 80px !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 4px !important;
+      background: #f8fafc !important;
     }
 
     /* Task Meta Footer */
@@ -363,14 +375,14 @@ const PRINT_CSS = `
       gap: 12px;
       font-size: 7.5pt;
       color: #64748b;
-      margin-top: 6px;
-      padding-top: 4px;
+      margin-top: 4px;
+      padding-top: 3px;
       border-top: 1px dashed #e2e8f0;
     }
 
     /* No Tasks Message */
     .rpt-no-tasks {
-      padding: 8px 10px;
+      padding: 6px 8px;
       font-size: 8pt;
       color: #64748b;
       font-style: italic;

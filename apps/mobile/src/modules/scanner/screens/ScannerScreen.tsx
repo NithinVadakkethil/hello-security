@@ -20,7 +20,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -131,6 +130,10 @@ export function ScannerScreen() {
     }
   };
 
+  const activeSession = usePatrolStore(state => state.activeSession);
+  const activeAssignmentId =
+    activeSession?.assignmentId || activeSession?.assignment?.id;
+
   const allRouteGates = useMemo(() => {
     const list: any[] = [];
     (activeAssignments || []).forEach((ass: any) => {
@@ -155,14 +158,23 @@ export function ScannerScreen() {
     return list;
   }, [activeAssignments]);
 
-  const routeGates = allRouteGates;
+  // Scope route gates strictly to current active assignment when patrol is in progress
+  const scopedRouteGates = useMemo(() => {
+    if (!activeAssignmentId) return allRouteGates;
+    const filtered = allRouteGates.filter(
+      (rg: any) => rg.assignmentId === activeAssignmentId,
+    );
+    return filtered.length > 0 ? filtered : allRouteGates;
+  }, [allRouteGates, activeAssignmentId]);
+
+  const routeGates = scopedRouteGates;
 
   const targetGate = useMemo(() => {
-    if (!allRouteGates || allRouteGates.length === 0) return null;
+    if (!scopedRouteGates || scopedRouteGates.length === 0) return null;
 
     // 1. Strict match by explicit checkpointId passed from PatrolScreen
     if (checkpointId) {
-      const found = allRouteGates.find(
+      const found = scopedRouteGates.find(
         (rg: any) =>
           rg.gateId === checkpointId ||
           rg.gate?.id === checkpointId ||
@@ -173,7 +185,7 @@ export function ScannerScreen() {
 
     // 2. Strict match by explicit checkpointCode passed from PatrolScreen
     if (checkpointCode) {
-      const found = allRouteGates.find(
+      const found = scopedRouteGates.find(
         (rg: any) =>
           rg.gate?.gateCode === checkpointCode || rg.gateId === checkpointCode,
       );
@@ -182,7 +194,7 @@ export function ScannerScreen() {
 
     // 3. Match by explicit checkpointName
     if (checkpointName) {
-      const found = allRouteGates.find(
+      const found = scopedRouteGates.find(
         (rg: any) => rg.gate?.name === checkpointName,
       );
       if (found) return found;
@@ -190,19 +202,19 @@ export function ScannerScreen() {
 
     // 4. Match by explicit sequenceOrder
     if (sequenceOrder) {
-      const found = allRouteGates.find(
+      const found = scopedRouteGates.find(
         (rg: any) => rg.sequence === sequenceOrder,
       );
       if (found) return found;
     }
 
-    // Fallback: First pending checkpoint across active assignments, else first gate
+    // Fallback: First pending checkpoint in current route assignment, else first gate in current route
     return (
-      allRouteGates.find((rg: any) => !scannedGateIds.includes(rg.gateId)) ||
-      allRouteGates[0]
+      scopedRouteGates.find((rg: any) => !scannedGateIds.includes(rg.gateId)) ||
+      scopedRouteGates[0]
     );
   }, [
-    allRouteGates,
+    scopedRouteGates,
     scannedGateIds,
     checkpointId,
     checkpointCode,
@@ -226,8 +238,19 @@ export function ScannerScreen() {
       let matchedGate: any = null;
       let matchedAssignment: any = null;
 
+      // Prioritize the active assignment when a patrol is currently in progress
+      const targetAssignments = activeAssignmentId
+        ? [...activeAssignments].sort((a: any, b: any) =>
+            a.id === activeAssignmentId
+              ? -1
+              : b.id === activeAssignmentId
+              ? 1
+              : 0,
+          )
+        : activeAssignments;
+
       // Search across employee active assignments (supports Security, House Keeping, Technician, Service Engineer, Plumber, Lifeguard)
-      for (const ass of activeAssignments) {
+      for (const ass of targetAssignments) {
         const rGates =
           ass.assignmentGates && ass.assignmentGates.length > 0
             ? ass.assignmentGates.map((ag: any, idx: number) => ({
@@ -582,7 +605,7 @@ export function ScannerScreen() {
         </Card>
       )}
 
-      <Card
+      {/* <Card
         style={[
           styles.quickScanCard,
           { backgroundColor: '#1a1a1e', borderColor: '#2d2d34' },
@@ -684,7 +707,7 @@ export function ScannerScreen() {
             <Text style={styles.inputButtonText}>Verify</Text>
           </TouchableOpacity>
         </View>
-      </Card>
+      </Card> */}
     </ScrollView>
   );
 }

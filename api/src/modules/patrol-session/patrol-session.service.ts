@@ -267,12 +267,20 @@ export class PatrolSessionService {
       );
     }
 
-    return patrolSessionRepository.verifyPatrolSession(id, {
+    const updateData: any = {
       verificationStatus: dto.verificationStatus,
       verifiedById: userId,
       verificationTime: new Date(),
       supervisorRemarks: dto.supervisorRemarks,
-    });
+    };
+
+    if (patrol.status === PatrolStatus.IN_PROGRESS || patrol.status === PatrolStatus.PAUSED) {
+      updateData.status = PatrolStatus.COMPLETED;
+      updateData.endedAt = patrol.endedAt || new Date();
+      updateData.remarks = patrol.remarks || 'Completed & verified by supervisor.';
+    }
+
+    return patrolSessionRepository.verifyPatrolSession(id, updateData);
   }
 }
 

@@ -2,13 +2,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { patrolApi } from '../api/patrol.api';
 import { usePatrolStore } from '../store/patrol-store';
 import { useOfflineStore } from '../../../app/store/offline-store';
-import { useActiveAssignment } from '../../assignment/hooks/useAssignment';
+import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
 import { PatrolSession } from '../../dashboard/types';
 
 export function usePatrol() {
   const queryClient = useQueryClient();
   const isConnected = useOfflineStore((state) => state.isConnected);
-  const { data: assignment } = useActiveAssignment();
+  const { data: assignmentsList } = useActiveAssignments();
+  const assignments = assignmentsList || [];
 
   const { startSession, pauseSession, resumeSession, scanGate, completeSession } = usePatrolStore();
 
@@ -22,10 +23,21 @@ export function usePatrol() {
       const resolveExistingPatrol = typeof args === 'object' ? args?.resolveExistingPatrol : undefined;
 
       if (!isConnected) {
+        // Resolve exact target assignment by ID from cached active assignments list
+        const targetAssignment = assignmentId
+          ? assignments.find((a: any) => a.id === assignmentId)
+          : assignments[0];
+
+        if (assignmentId && !targetAssignment) {
+          throw new Error(
+            'This patrol route is not available offline. Please connect to the internet and refresh your assignments.',
+          );
+        }
+
         const tempSession: PatrolSession = {
           id: 'temp-active-session',
-          clientId: assignment?.clientId || 'offline-client',
-          assignmentId: assignmentId || assignment?.id || 'offline-assignment',
+          clientId: targetAssignment?.clientId || (targetAssignment as any)?.site?.clientId || 'offline-client',
+          assignmentId: targetAssignment?.id || assignmentId || 'offline-assignment',
           patrolCode: `PTS-${Math.floor(Math.random() * 90000) + 10000}`,
           status: 'IN_PROGRESS',
           startedAt: new Date().toISOString(),
@@ -33,7 +45,7 @@ export function usePatrol() {
           pauseCount: 0,
           totalDuration: null,
           remarks: null,
-          assignment: assignment || undefined,
+          assignment: targetAssignment || undefined,
         };
         await useOfflineStore.getState().enqueue('/patrol-sessions/start', 'POST', { assignmentId, resolveExistingPatrol });
         return tempSession;

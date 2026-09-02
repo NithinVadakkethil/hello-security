@@ -418,6 +418,221 @@ export class ReportRepository {
       },
     };
   }
+
+  async findSingleInspectionReport(id: string, clientId?: string) {
+    const session = await prisma.patrolSession.findFirst({
+      where: {
+        OR: [{ id }, { patrolCode: id }],
+        ...(clientId ? { clientId } : {}),
+      },
+      include: {
+        client: true,
+        assignment: {
+          include: {
+            employee: true,
+            site: true,
+            shift: true,
+            patrolRoute: {
+              include: {
+                routeGates: {
+                  include: {
+                    gate: {
+                      include: {
+                        subTasks: {
+                          where: { isActive: true },
+                          orderBy: { displayOrder: 'asc' },
+                        },
+                      },
+                    },
+                  },
+                  orderBy: {
+                    sequence: 'asc',
+                  },
+                },
+              },
+            },
+            assignmentGates: {
+              include: {
+                gate: {
+                  include: {
+                    subTasks: {
+                      where: { isActive: true },
+                      orderBy: { displayOrder: 'asc' },
+                    },
+                  },
+                },
+              },
+              orderBy: {
+                sequence: 'asc',
+              },
+            },
+          },
+        },
+        checkpoints: {
+          include: {
+            gate: {
+              include: {
+                subTasks: {
+                  where: { isActive: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
+            subTaskResponses: {
+              include: {
+                gateSubTask: true,
+              },
+            },
+          },
+          orderBy: {
+            scannedAt: 'asc',
+          },
+        },
+        verifiedBy: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            employee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                employeeNumber: true,
+                designation: true,
+              },
+            },
+          },
+        },
+        incidents: true,
+        snags: {
+          include: {
+            site: { select: { id: true, name: true } },
+            gate: { select: { id: true, name: true, gateCode: true } },
+            employee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                employeeNumber: true,
+                role: true,
+              },
+            },
+            assignments: {
+              orderBy: { createdAt: 'desc' },
+              include: {
+                assignedTo: {
+                  select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                    employee: {
+                      select: {
+                        firstName: true,
+                        lastName: true,
+                        employeeNumber: true,
+                        role: true,
+                      },
+                    },
+                  },
+                },
+                assignedBy: {
+                  select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                    employee: {
+                      select: {
+                        firstName: true,
+                        lastName: true,
+                        employeeNumber: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            history: {
+              orderBy: { createdAt: 'desc' },
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                    employee: {
+                      select: {
+                        firstName: true,
+                        lastName: true,
+                        employeeNumber: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!session) return null;
+
+    const officerRole = session.assignment?.employee?.role || 'SECURITY';
+
+    const filterSubTasks = (subTasks: any[]) => {
+      if (!Array.isArray(subTasks)) return [];
+      return subTasks.filter((st) => isRoleMatching(st.role, officerRole));
+    };
+
+    const filteredCheckpoints = (session.checkpoints || []).map((cp) => ({
+      ...cp,
+      gate: cp.gate
+        ? {
+            ...cp.gate,
+            subTasks: filterSubTasks(cp.gate.subTasks),
+          }
+        : cp.gate,
+      subTaskResponses: (cp.subTaskResponses || []).filter((res) =>
+        isRoleMatching(res.gateSubTask?.role || (res as any).role, officerRole),
+      ),
+    }));
+
+    const filteredAssignment = session.assignment
+      ? {
+          ...session.assignment,
+          patrolRoute: session.assignment.patrolRoute
+            ? {
+                ...session.assignment.patrolRoute,
+                routeGates: (session.assignment.patrolRoute.routeGates || []).map((rg) => ({
+                  ...rg,
+                  gate: rg.gate
+                    ? {
+                        ...rg.gate,
+                        subTasks: filterSubTasks(rg.gate.subTasks),
+                      }
+                    : rg.gate,
+                })),
+              }
+            : session.assignment.patrolRoute,
+          assignmentGates: (session.assignment.assignmentGates || []).map((ag) => ({
+            ...ag,
+            gate: ag.gate
+              ? {
+                  ...ag.gate,
+                  subTasks: filterSubTasks(ag.gate.subTasks),
+                }
+              : ag.gate,
+          })),
+        }
+      : session.assignment;
+
+    return {
+      ...session,
+      assignment: filteredAssignment,
+      checkpoints: filteredCheckpoints,
+    };
+  }
 }
 
 export const reportRepository = new ReportRepository();

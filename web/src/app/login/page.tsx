@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter, useSearchParams } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Lock, Mail, Moon, Sun } from 'lucide-react';
 import { useState } from 'react';
@@ -8,7 +9,7 @@ import toast from 'react-hot-toast';
 import { z } from 'zod';
 
 import { ProtectedRoute } from '../components/protected-route';
-import { API_ROUTES } from '../constants';
+import { API_ROUTES, ROUTES } from '../constants';
 import { apiClient } from '../lib/axios';
 import { useTheme } from '../providers/theme-provider';
 import { useAuthStore } from '../store/auth-store';
@@ -24,6 +25,9 @@ const loginValidationSchema = z.object({
 type LoginFormValues = z.infer<typeof loginValidationSchema>;
 
 export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTarget = searchParams?.get('redirect') || ROUTES.DASHBOARD;
   const { theme, toggleTheme } = useTheme();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [submitting, setSubmitting] = useState(false);
@@ -62,6 +66,7 @@ export default function LoginPage() {
       setAuth(authData.user);
 
       toast.success('Signed in successfully!');
+      router.replace(redirectTarget);
     } catch (error) {
       showErrorToast(error, 'Sign in failed. Please check your credentials.');
     } finally {

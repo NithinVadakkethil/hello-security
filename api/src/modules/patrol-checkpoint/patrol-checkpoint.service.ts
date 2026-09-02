@@ -39,58 +39,10 @@ export class PatrolCheckpointService {
     }
 
     if (!patrol) {
-      patrol = (await prisma.patrolSession.findFirst({
-        where: {
-          status: 'IN_PROGRESS',
-        },
-        include: {
-          assignment: {
-            include: {
-              employee: true,
-              site: true,
-              shift: true,
-              patrolRoute: {
-                include: {
-                  routeGates: {
-                    include: {
-                      gate: {
-                        include: {
-                          subTasks: {
-                            where: { isActive: true },
-                            orderBy: { displayOrder: 'asc' },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-              assignmentGates: {
-                include: {
-                  gate: {
-                    include: {
-                      subTasks: {
-                        where: { isActive: true },
-                        orderBy: { displayOrder: 'asc' },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      })) as any;
-    }
-
-    if (!patrol) {
       throw new AppError(
         HttpStatus.BAD_REQUEST,
         ErrorCodes.NOT_FOUND,
-        'No patrol in progress.',
+        'No active patrol session in progress for this employee.',
       );
     }
 

@@ -18,8 +18,10 @@ export function ProtectedRoute({ children, isPublic = false }: ProtectedRoutePro
     if (isLoading) return;
 
     if (!isAuthenticated && !isPublic) {
-      // Redirect to login if trying to access protected route while unauthenticated
-      router.replace(ROUTES.LOGIN);
+      // Preserve target path & query string for seamless post-login return
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '';
+      const redirectParam = currentPath && currentPath !== '/' && currentPath !== ROUTES.LOGIN ? `?redirect=${encodeURIComponent(currentPath)}` : '';
+      router.replace(`${ROUTES.LOGIN}${redirectParam}`);
     } else if (isAuthenticated && isPublic) {
       // Redirect to dashboard if trying to access public auth route while authenticated
       router.replace(ROUTES.DASHBOARD);

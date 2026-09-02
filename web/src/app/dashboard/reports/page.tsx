@@ -1,7 +1,8 @@
 'use client';
 
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
 import toast from 'react-hot-toast';
 
 import { exportToCsv } from '../../../lib/export';
@@ -28,8 +29,22 @@ const INITIAL_FILTERS: FilterState = {
   search: '',
 };
 
-export default function ReportsPage() {
-  const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
+function ReportsPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams?.get('search') || searchParams?.get('patrolCode') || '';
+  const deepLinkSessionId =
+    searchParams?.get('patrolSessionId') ||
+    searchParams?.get('reportId') ||
+    searchParams?.get('id') ||
+    (initialSearch.toUpperCase().startsWith('PATROL-SESSION-') || initialSearch.toUpperCase().startsWith('PTS-')
+      ? initialSearch
+      : '');
+
+  const [filters, setFilters] = useState<FilterState>(() => ({
+    ...INITIAL_FILTERS,
+    search: initialSearch,
+  }));
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [sortBy, setSortBy] = useState('startedAt');
@@ -40,6 +55,40 @@ export default function ReportsPage() {
   );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Auto-fetch exact patrol report by patrolSessionId for deep linking
+  const { data: deepLinkReportRes, isError: isDeepLinkError } = useQuery<ApiResponse<InspectionRow>>({
+    queryKey: ['report-deep-link', deepLinkSessionId],
+    queryFn: () => apiClient.get(`/reports/inspections/${deepLinkSessionId}`),
+    enabled: !!deepLinkSessionId,
+  });
+
+  useEffect(() => {
+    if (deepLinkReportRes?.data) {
+      setSelectedReport(deepLinkReportRes.data);
+      setIsModalOpen(true);
+    }
+  }, [deepLinkReportRes]);
+
+  useEffect(() => {
+    if (isDeepLinkError && deepLinkSessionId) {
+      toast.error('Patrol report not found or access denied.');
+    }
+  }, [isDeepLinkError, deepLinkSessionId]);
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedReport(null);
+
+    if (deepLinkSessionId && searchParams) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('patrolSessionId');
+      params.delete('reportId');
+      params.delete('id');
+      const remaining = params.toString();
+      router.replace(remaining ? `/dashboard/reports?${remaining}` : '/dashboard/reports');
+    }
+  };
 
   // Fetch employees for dropdown
   const { data: employeesRes } = useQuery<ApiResponse<any[]>>({
@@ -220,9 +269,17 @@ export default function ReportsPage() {
       {/* Detailed Audit Modal */}
       <DetailedReportModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleCloseModal}
         report={selectedReport}
       />
     </div>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '24px', color: '#64748b' }}>Loading Reports &amp; Analytics...</div>}>
+      <ReportsPageContent />
+    </Suspense>
   );
 }

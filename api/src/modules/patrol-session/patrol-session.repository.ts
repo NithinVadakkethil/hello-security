@@ -584,9 +584,17 @@ export class PatrolSessionRepository {
     ]);
 
     const enhancedSessions = sessions.map((session) => {
+      const validGateIds = new Set([
+        ...(session.assignment?.patrolRoute?.routeGates || []).map((rg) => rg.gateId),
+        ...(session.assignment?.assignmentGates || []).map((ag) => ag.gateId),
+      ].filter(Boolean));
+
       const uniqueScannedGateIds = new Set(
-        (session.checkpoints || []).map((cp) => cp.gateId).filter(Boolean),
+        (session.checkpoints || [])
+          .map((cp) => cp.gateId)
+          .filter((gateId) => gateId && (validGateIds.size === 0 || validGateIds.has(gateId))),
       );
+
       const scannedCount = uniqueScannedGateIds.size;
 
       const totalCheckpointCount =
