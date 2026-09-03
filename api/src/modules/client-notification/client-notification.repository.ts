@@ -1,5 +1,6 @@
 import { NotificationStatus } from '@prisma/client';
 import { prisma } from '../../database/prisma';
+import { RoleRecipientDto } from './client-notification.types';
 
 export class ClientNotificationRepository {
   async getSettings(clientId: string) {
@@ -36,6 +37,7 @@ export class ClientNotificationRepository {
     data: {
       patrolCompletedEmailEnabled?: boolean;
       recipients?: string[];
+      roleRecipients?: RoleRecipientDto[];
     },
   ) {
     const existing = await this.getSettings(clientId);
@@ -50,25 +52,77 @@ export class ClientNotificationRepository {
         },
       });
 
-      // 2. Update recipients list if provided
-      if (data.recipients !== undefined) {
+      // 2. Update recipients if global or roleRecipients provided
+      if (data.recipients !== undefined || data.roleRecipients !== undefined) {
         // Delete old recipients
         await tx.notificationRecipient.deleteMany({
           where: { settingsId: existing.id },
         });
 
-        // Deduplicate & trim emails (case-insensitive deduplication)
-        const cleanEmails = Array.from(
-          new Set(data.recipients.map((e) => e.trim().toLowerCase())),
-        ).filter(Boolean);
+        const newRecipients: Array<{ settingsId: string; email: string; role: string; isActive: boolean }> = [];
 
-        if (cleanEmails.length > 0) {
-          await tx.notificationRecipient.createMany({
-            data: cleanEmails.map((email) => ({
+        // Global recipients (role = "GLOBAL")
+        if (data.recipients !== undefined) {
+          const cleanGlobalEmails = Array.from(
+            new Set(data.recipients.map((e) => e.trim().toLowerCase())),
+          ).filter(Boolean);
+
+          cleanGlobalEmails.forEach((email) => {
+            newRecipients.push({
               settingsId: existing.id,
               email,
+              role: 'GLOBAL',
               isActive: true,
-            })),
+            });
+          });
+        } else {
+          // Preserve existing global recipients
+          existing.recipients
+            .filter((r) => r.role === 'GLOBAL')
+            .forEach((r) => {
+              newRecipients.push({
+                settingsId: existing.id,
+                email: r.email,
+                role: 'GLOBAL',
+                isActive: true,
+              });
+            });
+        }
+
+        // Role-wise recipients
+        if (data.roleRecipients !== undefined) {
+          data.roleRecipients.forEach((roleGroup) => {
+            const roleName = roleGroup.role.toUpperCase().trim();
+            const cleanRoleEmails = Array.from(
+              new Set((roleGroup.recipients || []).map((e) => e.trim().toLowerCase())),
+            ).filter(Boolean);
+
+            cleanRoleEmails.forEach((email) => {
+              newRecipients.push({
+                settingsId: existing.id,
+                email,
+                role: roleName,
+                isActive: true,
+              });
+            });
+          });
+        } else {
+          // Preserve existing non-GLOBAL role recipients
+          existing.recipients
+            .filter((r) => r.role !== 'GLOBAL')
+            .forEach((r) => {
+              newRecipients.push({
+                settingsId: existing.id,
+                email: r.email,
+                role: r.role,
+                isActive: true,
+              });
+            });
+        }
+
+        if (newRecipients.length > 0) {
+          await tx.notificationRecipient.createMany({
+            data: newRecipients,
           });
         }
       }

@@ -185,10 +185,27 @@ export default function SettingsPage() {
   );
 }
 
+const SUPPORTED_EMPLOYEE_ROLES = [
+  { id: 'SECURITY', label: 'Security Guard' },
+  { id: 'TECHNICIAN', label: 'Technician' },
+  { id: 'CLEANER', label: 'House Keeping' },
+  { id: 'SUPERVISOR', label: 'Supervisor' },
+  { id: 'MANAGER', label: 'Manager' },
+  { id: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+  { id: 'LIFE_GUARD', label: 'Life Guard' },
+  { id: 'PLUMBER', label: 'Plumber' },
+];
+
 function CompletedPatrolNotificationSettings() {
   const [enabled, setEnabled] = useState(true);
-  const [recipients, setRecipients] = useState<string[]>([]);
-  const [newEmail, setNewEmail] = useState('');
+  const [globalRecipients, setGlobalRecipients] = useState<string[]>([]);
+  const [newGlobalEmail, setNewGlobalEmail] = useState('');
+  
+  // Role-wise recipients mapping: { SECURITY: string[], TECHNICIAN: string[], ... }
+  const [roleRecipientsMap, setRoleRecipientsMap] = useState<Record<string, string[]>>({});
+  const [selectedRole, setSelectedRole] = useState('SECURITY');
+  const [newRoleEmail, setNewRoleEmail] = useState('');
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -198,7 +215,13 @@ function CompletedPatrolNotificationSettings() {
         const response: any = await apiClient.get('/client/settings/notifications');
         if (response.success && response.data) {
           setEnabled(response.data.patrolCompletedEmailEnabled ?? true);
-          setRecipients(response.data.recipients || []);
+          setGlobalRecipients(response.data.recipients || []);
+
+          const map: Record<string, string[]> = {};
+          (response.data.roleRecipients || []).forEach((rr: any) => {
+            map[rr.role] = rr.recipients || [];
+          });
+          setRoleRecipientsMap(map);
         }
       } catch (err) {
         console.error('Failed to load completed patrol notification settings:', err);
@@ -209,8 +232,8 @@ function CompletedPatrolNotificationSettings() {
     loadSettings();
   }, []);
 
-  const handleAddRecipient = () => {
-    const trimmed = newEmail.trim().toLowerCase();
+  const handleAddGlobalRecipient = () => {
+    const trimmed = newGlobalEmail.trim().toLowerCase();
     if (!trimmed) return;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -219,26 +242,66 @@ function CompletedPatrolNotificationSettings() {
       return;
     }
 
-    if (recipients.includes(trimmed)) {
-      toast.error('This email address is already added.');
+    if (globalRecipients.includes(trimmed)) {
+      toast.error('This email address is already added under Global Recipients.');
       return;
     }
 
-    setRecipients([...recipients, trimmed]);
-    setNewEmail('');
+    setGlobalRecipients([...globalRecipients, trimmed]);
+    setNewGlobalEmail('');
   };
 
-  const handleRemoveRecipient = (emailToRemove: string) => {
-    setRecipients(recipients.filter((email) => email !== emailToRemove));
+  const handleRemoveGlobalRecipient = (emailToRemove: string) => {
+    setGlobalRecipients(globalRecipients.filter((email) => email !== emailToRemove));
+  };
+
+  const handleAddRoleRecipient = () => {
+    const trimmed = newRoleEmail.trim().toLowerCase();
+    if (!trimmed) return;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmed)) {
+      toast.error('Please enter a valid email address format.');
+      return;
+    }
+
+    const currentList = roleRecipientsMap[selectedRole] || [];
+    if (currentList.includes(trimmed)) {
+      toast.error(`This email address is already added for role ${selectedRole}.`);
+      return;
+    }
+
+    setRoleRecipientsMap({
+      ...roleRecipientsMap,
+      [selectedRole]: [...currentList, trimmed],
+    });
+    setNewRoleEmail('');
+  };
+
+  const handleRemoveRoleRecipient = (role: string, emailToRemove: string) => {
+    const currentList = roleRecipientsMap[role] || [];
+    setRoleRecipientsMap({
+      ...roleRecipientsMap,
+      [role]: currentList.filter((e) => e !== emailToRemove),
+    });
   };
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      const roleRecipientsPayload = Object.keys(roleRecipientsMap)
+        .map((role) => ({
+          role,
+          recipients: roleRecipientsMap[role] || [],
+        }))
+        .filter((rr) => rr.recipients.length > 0);
+
       const response: any = await apiClient.put('/client/settings/notifications', {
         patrolCompletedEmailEnabled: enabled,
-        recipients,
+        recipients: globalRecipients,
+        roleRecipients: roleRecipientsPayload,
       });
+
       if (response.success) {
         toast.success('Completed patrol email notification settings saved successfully.');
       } else {
@@ -250,6 +313,9 @@ function CompletedPatrolNotificationSettings() {
       setIsSaving(false);
     }
   };
+
+  const activeRoleEmailList = roleRecipientsMap[selectedRole] || [];
+  const selectedRoleLabel = SUPPORTED_EMPLOYEE_ROLES.find((r) => r.id === selectedRole)?.label || selectedRole;
 
   return (
     <div
@@ -278,7 +344,7 @@ function CompletedPatrolNotificationSettings() {
           marginBottom: '16px',
         }}
       >
-        Send an email notification whenever a patrol is completed.
+        Send an email notification whenever an employee completes their full assigned patrol route cycle.
       </p>
 
       {isLoading ? (
@@ -286,27 +352,30 @@ function CompletedPatrolNotificationSettings() {
           Loading notification preferences...
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <Switch
             label="Enable Completed Patrol Email Notifications"
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
           />
 
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                marginBottom: '8px',
-                color: 'var(--text-color)',
-              }}
-            >
-              Recipient Email Addresses ({recipients.length})
-            </label>
+          {/* Section 1: Global Recipients */}
+          <div
+            style={{
+              padding: '16px',
+              borderRadius: '8px',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
+              GLOBAL RECIPIENTS — ALL USERS ({globalRecipients.length})
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+              These recipients receive completed patrol-cycle emails for all employee roles.
+            </div>
 
-            {recipients.length === 0 ? (
+            {globalRecipients.length === 0 ? (
               <div
                 style={{
                   fontSize: '0.8rem',
@@ -315,7 +384,7 @@ function CompletedPatrolNotificationSettings() {
                   marginBottom: '12px',
                 }}
               >
-                No recipient email addresses added yet.
+                No global recipient email addresses added yet.
               </div>
             ) : (
               <div
@@ -326,7 +395,7 @@ function CompletedPatrolNotificationSettings() {
                   marginBottom: '12px',
                 }}
               >
-                {recipients.map((email) => (
+                {globalRecipients.map((email) => (
                   <div
                     key={email}
                     style={{
@@ -335,21 +404,16 @@ function CompletedPatrolNotificationSettings() {
                       justifyContent: 'space-between',
                       padding: '8px 12px',
                       borderRadius: '6px',
-                      background: 'var(--bg-secondary)',
+                      background: 'var(--card-bg)',
                       border: '1px solid var(--border-color)',
                     }}
                   >
-                    <span
-                      style={{
-                        fontSize: '0.85rem',
-                        color: 'var(--text-primary)',
-                      }}
-                    >
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
                       ✉️ {email}
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleRemoveRecipient(email)}
+                      onClick={() => handleRemoveGlobalRecipient(email)}
                       style={{
                         background: 'transparent',
                         border: 'none',
@@ -369,13 +433,13 @@ function CompletedPatrolNotificationSettings() {
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="email"
-                placeholder="email@client.com"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="global.admin@client.com"
+                value={newGlobalEmail}
+                onChange={(e) => setNewGlobalEmail(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleAddRecipient();
+                    handleAddGlobalRecipient();
                   }
                 }}
                 className="form-input"
@@ -383,12 +447,136 @@ function CompletedPatrolNotificationSettings() {
               />
               <button
                 type="button"
-                onClick={handleAddRecipient}
+                onClick={handleAddGlobalRecipient}
                 className="btn btn-secondary"
                 style={{ fontSize: '0.85rem' }}
               >
                 + Add Email Address
               </button>
+            </div>
+          </div>
+
+          {/* Section 2: Role-wise Recipients */}
+          <div
+            style={{
+              padding: '16px',
+              borderRadius: '8px',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
+              ROLE-WISE EMAIL RECIPIENTS
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
+              Configure additional recipients who should receive completed patrol-cycle emails only for employees in the selected role.
+            </div>
+
+            {/* Role selector dropdown / pills */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                Select Employee Role:
+              </label>
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                className="form-input"
+                style={{ width: '100%', fontSize: '0.85rem', fontWeight: 600 }}
+              >
+                {SUPPORTED_EMPLOYEE_ROLES.map((role) => {
+                  const count = (roleRecipientsMap[role.id] || []).length;
+                  return (
+                    <option key={role.id} value={role.id}>
+                      {role.label} ({count} {count === 1 ? 'recipient' : 'recipients'})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Selected Role Recipient List Card */}
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: '6px',
+                background: 'var(--card-bg)',
+                border: '1px solid var(--border-color)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                  {selectedRoleLabel} Recipients ({activeRoleEmailList.length})
+                </span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '2px 8px', borderRadius: '4px', background: 'var(--primary-light)', color: 'var(--primary)' }}>
+                  Role: {selectedRole}
+                </span>
+              </div>
+
+              {activeRoleEmailList.length === 0 ? (
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '12px' }}>
+                  No recipient email addresses added for {selectedRoleLabel} yet.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                  {activeRoleEmailList.map((email) => (
+                    <div
+                      key={email}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 10px',
+                        borderRadius: '4px',
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-color)',
+                      }}
+                    >
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                        ✉️ {email}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRoleRecipient(selectedRole, email)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="email"
+                  placeholder={`${selectedRole.toLowerCase()}.manager@client.com`}
+                  value={newRoleEmail}
+                  onChange={(e) => setNewRoleEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddRoleRecipient();
+                    }
+                  }}
+                  className="form-input"
+                  style={{ flex: 1, fontSize: '0.85rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddRoleRecipient}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  + Add Role Email
+                </button>
+              </div>
             </div>
           </div>
 

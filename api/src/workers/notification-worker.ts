@@ -18,20 +18,11 @@ export async function processCompletedPatrolNotification(
   patrolSessionId: string,
   clientId: string,
 ) {
-  logger.info(`🔍 Worker processing completed patrol notification check for session: ${patrolSessionId}`);
-
   // 1. Load client notification settings & recipients
   const settings = await clientNotificationRepository.getSettings(clientId);
 
   if (!settings.patrolCompletedEmailEnabled) {
     logger.info(`ℹ️ Patrol completed notifications disabled for client ${clientId}. Skipping.`);
-    return;
-  }
-
-  const activeRecipients = settings.recipients.filter((r: any) => r.isActive).map((r: any) => r.email);
-
-  if (activeRecipients.length === 0) {
-    logger.info(`ℹ️ No active notification recipients configured for client ${clientId}. Skipping.`);
     return;
   }
 
@@ -54,9 +45,29 @@ export async function processCompletedPatrolNotification(
   const shiftId = patrol.assignment.shiftId;
   const officerName = `${patrol.assignment.employee.firstName} ${patrol.assignment.employee.lastName}`;
   const employeeNumber = patrol.assignment.employee.employeeNumber;
-  const officerRole = patrol.assignment.employee.role || 'SECURITY';
+  const officerRole = (patrol.assignment.employee.role || 'SECURITY').toUpperCase();
   const siteName = patrol.assignment.site.name;
   const shiftName = `${patrol.assignment.shift.name} (${patrol.assignment.shift.startTime} - ${patrol.assignment.shift.endTime})`;
+
+  // Resolve recipients: GLOBAL recipients + ROLE-SPECIFIC recipients for officerRole
+  const globalRecipients = settings.recipients
+    .filter((r: any) => r.isActive && (r.role === 'GLOBAL' || !r.role))
+    .map((r: any) => r.email);
+
+  const roleRecipients = settings.recipients
+    .filter((r: any) => r.isActive && r.role && r.role.toUpperCase() === officerRole)
+    .map((r: any) => r.email);
+
+  const activeRecipients = Array.from(
+    new Set([...globalRecipients, ...roleRecipients].map((e: string) => e.trim().toLowerCase())),
+  ).filter(Boolean);
+
+  if (activeRecipients.length === 0) {
+    logger.info(
+      `ℹ️ No active notification recipients configured for client ${clientId} and role ${officerRole}. Skipping.`,
+    );
+    return;
+  }
 
   // 3. Resolve active assigned routes for this employee at this site & shift
   const activeAssignments = await prisma.guardAssignment.findMany({

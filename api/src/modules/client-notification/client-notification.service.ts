@@ -15,9 +15,31 @@ export class ClientNotificationService {
     }
 
     const settings = await clientNotificationRepository.getSettings(clientId);
+
+    const globalRecipients = settings.recipients
+      .filter((r: any) => r.role === 'GLOBAL' || !r.role)
+      .map((r: any) => r.email);
+
+    const roleMap: Record<string, string[]> = {};
+    settings.recipients
+      .filter((r: any) => r.role && r.role !== 'GLOBAL')
+      .forEach((r: any) => {
+        const role = r.role.toUpperCase();
+        if (!roleMap[role]) {
+          roleMap[role] = [];
+        }
+        roleMap[role].push(r.email);
+      });
+
+    const roleRecipients = Object.keys(roleMap).map((role) => ({
+      role,
+      recipients: roleMap[role],
+    }));
+
     return {
       patrolCompletedEmailEnabled: settings.patrolCompletedEmailEnabled,
-      recipients: settings.recipients.map((r: any) => r.email),
+      recipients: globalRecipients,
+      roleRecipients,
     };
   }
 
@@ -30,17 +52,17 @@ export class ClientNotificationService {
       );
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     if (dto.recipients !== undefined) {
-      if (dto.recipients.length > 20) {
+      if (dto.recipients.length > 50) {
         throw new AppError(
           HttpStatus.BAD_REQUEST,
           ErrorCodes.VALIDATION_ERROR,
-          'Maximum of 20 recipient emails allowed.',
+          'Maximum of 50 global recipient emails allowed.',
         );
       }
 
-      // Check email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       for (const email of dto.recipients) {
         const trimmed = email.trim();
         if (!trimmed || !emailRegex.test(trimmed)) {
@@ -53,11 +75,47 @@ export class ClientNotificationService {
       }
     }
 
+    if (dto.roleRecipients !== undefined) {
+      for (const roleGroup of dto.roleRecipients) {
+        for (const email of roleGroup.recipients || []) {
+          const trimmed = email.trim();
+          if (!trimmed || !emailRegex.test(trimmed)) {
+            throw new AppError(
+              HttpStatus.BAD_REQUEST,
+              ErrorCodes.VALIDATION_ERROR,
+              `Invalid email address format for role ${roleGroup.role}: "${email}"`,
+            );
+          }
+        }
+      }
+    }
+
     const updated = await clientNotificationRepository.updateSettings(clientId, dto);
+
+    const globalRecipients = updated.recipients
+      .filter((r: any) => r.role === 'GLOBAL' || !r.role)
+      .map((r: any) => r.email);
+
+    const roleMap: Record<string, string[]> = {};
+    updated.recipients
+      .filter((r: any) => r.role && r.role !== 'GLOBAL')
+      .forEach((r: any) => {
+        const role = r.role.toUpperCase();
+        if (!roleMap[role]) {
+          roleMap[role] = [];
+        }
+        roleMap[role].push(r.email);
+      });
+
+    const roleRecipients = Object.keys(roleMap).map((role) => ({
+      role,
+      recipients: roleMap[role],
+    }));
 
     return {
       patrolCompletedEmailEnabled: updated.patrolCompletedEmailEnabled,
-      recipients: updated.recipients.map((r: any) => r.email),
+      recipients: globalRecipients,
+      roleRecipients,
     };
   }
 }

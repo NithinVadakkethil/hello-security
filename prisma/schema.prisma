@@ -756,10 +756,11 @@ model NotificationRecipient {
   settingsId String
   settings   ClientNotificationSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
   email      String
+  role       String                     @default("GLOBAL")
   isActive   Boolean                    @default(true)
   createdAt  DateTime                   @default(now())
 
-  @@unique([settingsId, email])
+  @@unique([settingsId, email, role])
   @@index([settingsId])
 }
 
