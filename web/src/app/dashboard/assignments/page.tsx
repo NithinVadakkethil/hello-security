@@ -263,7 +263,7 @@ export default function AssignmentsPage() {
     reset,
     formState: { errors },
   } = useForm<AssignmentValues>({
-    resolver: zodResolver(assignmentSchema),
+    resolver: zodResolver(assignmentSchema as any),
   });
 
   const selectedFormSiteId = watch('siteId');

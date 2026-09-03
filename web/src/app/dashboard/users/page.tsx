@@ -129,7 +129,7 @@ export default function UsersPage() {
     reset: resetCreate,
     formState: { errors: createErrors },
   } = useForm<CreateValues>({
-    resolver: zodResolver(createSchema),
+    resolver: zodResolver(createSchema as any),
     defaultValues: { role: 'CLIENT_ADMIN' },
   });
 
@@ -140,7 +140,7 @@ export default function UsersPage() {
     setValue: setEditValue,
     formState: { errors: editErrors },
   } = useForm<EditValues>({
-    resolver: zodResolver(editSchema),
+    resolver: zodResolver(editSchema as any),
   });
 
   const selectedCreateRole = watchCreate('role');

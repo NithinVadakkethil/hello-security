@@ -107,7 +107,7 @@ export default function GateSubTasksModal({
     setValue,
     formState: { errors },
   } = useForm<SubTaskValues>({
-    resolver: zodResolver(subTaskSchema),
+    resolver: zodResolver(subTaskSchema as any),
     defaultValues: {
       isRequired: true,
       isActive: true,

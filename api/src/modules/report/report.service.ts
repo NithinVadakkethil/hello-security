@@ -214,21 +214,25 @@ function buildCheckpointTimeline(
 ): any[] {
   const scans: any[] = report.checkpoints || [];
 
-  const routeGates: any[] =
-    report.assignment?.assignmentGates &&
-    report.assignment.assignmentGates.length > 0
-      ? report.assignment.assignmentGates
-          .map((ag: any, idx: number) => ({
-            sequence: ag.sequence ?? idx + 1,
-            gate: ag.gate,
-          }))
-          .filter((rg: any) => !!rg.gate)
-      : (report.assignment?.patrolRoute?.routeGates || [])
-          .map((rg: any) => ({
-            sequence: rg.sequence ?? 0,
-            gate: rg.gate ?? rg,
-          }))
-          .filter((rg: any) => !!rg.gate);
+  const isDirectAssignment =
+    report.assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+    (!report.assignment?.patrolRoute &&
+      report.assignment?.assignmentGates &&
+      report.assignment.assignmentGates.length > 0);
+
+  const routeGates: any[] = isDirectAssignment
+    ? (report.assignment?.assignmentGates || [])
+        .map((ag: any, idx: number) => ({
+          sequence: ag.sequence ?? idx + 1,
+          gate: ag.gate,
+        }))
+        .filter((rg: any) => !!rg.gate)
+    : (report.assignment?.patrolRoute?.routeGates || [])
+        .map((rg: any) => ({
+          sequence: rg.sequence ?? 0,
+          gate: rg.gate ?? rg,
+        }))
+        .filter((rg: any) => !!rg.gate);
 
   if (routeGates.length > 0) {
     const sorted = [...routeGates].sort((a, b) => a.sequence - b.sequence);

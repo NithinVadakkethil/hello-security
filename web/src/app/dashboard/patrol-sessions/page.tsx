@@ -168,14 +168,19 @@ export default function PatrolSessionsPage() {
       key: 'progress',
       label: 'Checkpoints Scanned',
       render: (row: PatrolSession) => {
+        const isDirectAssignment =
+          (row.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+          (!row.assignment?.patrolRoute &&
+            (row.assignment?.assignmentGates?.length || 0) > 0);
+
         const totalGates =
           row.totalCheckpointCount ??
-          (row.assignment?.patrolRoute?.routeGates?.length ||
-            row.assignment?.assignmentGates?.length ||
-            0);
+          (isDirectAssignment
+            ? row.assignment?.assignmentGates?.length || 0
+            : row.assignment?.patrolRoute?.routeGates?.length || 0);
 
         const uniqueScannedGates = new Set(
-          (row.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean),
+          (row.checkpoints || []).map((cp: any) => cp.gateId || cp.id).filter(Boolean),
         );
         const scannedCount =
           row.scannedCount ?? (row.checkpoints ? uniqueScannedGates.size : 0);

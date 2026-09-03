@@ -204,11 +204,19 @@ export default function InspectionReportTable({
               </tr>
             ) : (
               data.map((row) => {
-                const totalGates =
-                  row.assignment?.patrolRoute?.routeGates?.length ||
-                  row.assignment?.assignmentGates?.length ||
-                  0;
-                const scannedCount = row.checkpoints?.length || 0;
+                const isDirectAssignment =
+                  (row.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+                  (!row.assignment?.patrolRoute &&
+                    (row.assignment?.assignmentGates?.length || 0) > 0);
+
+                const totalGates = isDirectAssignment
+                  ? row.assignment?.assignmentGates?.length || 0
+                  : row.assignment?.patrolRoute?.routeGates?.length || 0;
+
+                const scannedCount = new Set(
+                  (row.checkpoints || []).map((cp: any) => cp.gateId || cp.id),
+                ).size;
+
                 const compliancePct =
                   totalGates > 0
                     ? Math.round((scannedCount / totalGates) * 100)

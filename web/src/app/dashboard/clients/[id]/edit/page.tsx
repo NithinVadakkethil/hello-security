@@ -55,7 +55,7 @@ export default function EditClientPage() {
     watch,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema as any),
   });
 
   useEffect(() => {

@@ -47,7 +47,7 @@ export default function EditSitePage() {
     reset,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema as any),
   });
 
   useEffect(() => {

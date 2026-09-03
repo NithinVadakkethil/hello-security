@@ -55,7 +55,7 @@ export default function NewEmployeePage() {
     setError,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema as any),
     defaultValues: {
       identificationMethod: 'QR',
       role: 'SECURITY',

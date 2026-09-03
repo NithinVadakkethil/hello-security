@@ -95,11 +95,18 @@ export default function ReportPrintTemplate({ analytics, sessions, filters }: Re
         </thead>
         <tbody>
           {sessions.map((session, idx) => {
-            const totalGates =
-              session.assignment?.patrolRoute?.routeGates?.length ||
-              session.assignment?.assignmentGates?.length ||
-              0;
-            const scannedCount = session.checkpoints?.length || 0;
+            const isDirectAssignment =
+              (session.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+              (!session.assignment?.patrolRoute &&
+                (session.assignment?.assignmentGates?.length || 0) > 0);
+
+            const totalGates = isDirectAssignment
+              ? session.assignment?.assignmentGates?.length || 0
+              : session.assignment?.patrolRoute?.routeGates?.length || 0;
+
+            const scannedCount = new Set(
+              (session.checkpoints || []).map((cp: any) => cp.gateId || cp.id),
+            ).size;
 
             return (
               <tr key={idx} style={{ borderBottom: '1px solid #ddd' }}>

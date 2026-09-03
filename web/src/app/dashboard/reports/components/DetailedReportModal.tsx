@@ -18,13 +18,18 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
 
   if (!report) return null;
 
-  const routeGates =
-    report.assignment?.assignmentGates && report.assignment.assignmentGates.length > 0
-      ? report.assignment.assignmentGates.map((ag: any, idx: number) => ({
-          sequence: ag.sequence || idx + 1,
-          gate: ag.gate,
-        }))
-      : report.assignment?.patrolRoute?.routeGates || [];
+  const isDirectAssignment =
+    (report.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+    (!report.assignment?.patrolRoute &&
+      report.assignment?.assignmentGates &&
+      report.assignment.assignmentGates.length > 0);
+
+  const routeGates = isDirectAssignment
+    ? (report.assignment?.assignmentGates || []).map((ag: any, idx: number) => ({
+        sequence: ag.sequence || idx + 1,
+        gate: ag.gate,
+      }))
+    : report.assignment?.patrolRoute?.routeGates || [];
 
   const scans = report.checkpoints || [];
   const incidents = report.incidents || [];

@@ -42,7 +42,7 @@ export default function NewSitePage() {
     handleSubmit,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema as any),
     defaultValues: {
       radius: 100,
     },

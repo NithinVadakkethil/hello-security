@@ -48,7 +48,7 @@ export default function ProfilePage() {
     handleSubmit: handleProfileSubmit,
     formState: { errors: profileErrors },
   } = useForm<ProfileValues>({
-    resolver: zodResolver(profileSchema),
+    resolver: zodResolver(profileSchema as any),
     values: profile ? { email: profile.email } : undefined,
   });
 
@@ -58,7 +58,7 @@ export default function ProfilePage() {
     reset: resetPassword,
     formState: { errors: passwordErrors },
   } = useForm<PasswordValues>({
-    resolver: zodResolver(passwordSchema),
+    resolver: zodResolver(passwordSchema as any),
   });
 
   // Mutations

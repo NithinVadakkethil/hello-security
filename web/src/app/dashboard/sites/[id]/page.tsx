@@ -198,7 +198,7 @@ export default function SiteDetailPage() {
     reset: resetGate,
     formState: { errors: gateErrors },
   } = useForm<GateValues>({
-    resolver: zodResolver(gateSchema),
+    resolver: zodResolver(gateSchema as any),
   });
 
   // Create Gate mutation

@@ -1041,8 +1041,14 @@ export function PatrolScreen() {
 
   // Memoized route gates list calculation
   const routeGates = useMemo(() => {
-    if (assignment?.assignmentGates && assignment.assignmentGates.length > 0) {
-      return assignment.assignmentGates.map((ag: any, idx: number) => ({
+    const isDirectAssignment =
+      assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+      (!assignment?.patrolRoute &&
+        assignment?.assignmentGates &&
+        assignment.assignmentGates.length > 0);
+
+    if (isDirectAssignment) {
+      return (assignment?.assignmentGates || []).map((ag: any, idx: number) => ({
         id: ag.id,
         gateId: ag.gateId || ag.gate?.id || ag.id,
         gate: ag.gate,

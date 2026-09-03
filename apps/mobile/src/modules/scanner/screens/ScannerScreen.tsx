@@ -138,22 +138,27 @@ export function ScannerScreen() {
   const allRouteGates = useMemo(() => {
     const list: any[] = [];
     (activeAssignments || []).forEach((ass: any) => {
-      const gates =
-        ass.assignmentGates && ass.assignmentGates.length > 0
-          ? ass.assignmentGates.map((ag: any, idx: number) => ({
-              id: ag.id,
-              gateId: ag.gateId || ag.gate?.id || ag.id,
-              gate: ag.gate,
-              sequence: ag.sequence || idx + 1,
-              assignmentId: ass.id,
-            }))
-          : (ass.patrolRoute?.routeGates || []).map((rg: any, idx: number) => ({
-              id: rg.id,
-              gateId: rg.gateId || rg.gate?.id || rg.id,
-              gate: rg.gate,
-              sequence: rg.sequence || idx + 1,
-              assignmentId: ass.id,
-            }));
+      const isDirectAssignment =
+        ass.assignmentType === 'DIRECT_CHECKPOINTS' ||
+        (!ass.patrolRoute &&
+          ass.assignmentGates &&
+          ass.assignmentGates.length > 0);
+
+      const gates = isDirectAssignment
+        ? (ass.assignmentGates || []).map((ag: any, idx: number) => ({
+            id: ag.id,
+            gateId: ag.gateId || ag.gate?.id || ag.id,
+            gate: ag.gate,
+            sequence: ag.sequence || idx + 1,
+            assignmentId: ass.id,
+          }))
+        : (ass.patrolRoute?.routeGates || []).map((rg: any, idx: number) => ({
+            id: rg.id,
+            gateId: rg.gateId || rg.gate?.id || rg.id,
+            gate: rg.gate,
+            sequence: rg.sequence || idx + 1,
+            assignmentId: ass.id,
+          }));
       list.push(...gates);
     });
     return list;

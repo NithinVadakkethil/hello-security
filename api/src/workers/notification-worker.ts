@@ -52,11 +52,17 @@ export async function processCompletedPatrolNotification(
   const routeName = patrol.assignment.patrolRoute?.name || 'Direct Checkpoints';
   const shiftName = `${patrol.assignment.shift.name} (${patrol.assignment.shift.startTime} - ${patrol.assignment.shift.endTime})`;
 
-  const scannedCount = patrol.checkpoints.length;
-  const totalGates =
-    patrol.assignment.patrolRoute?.routeGates?.length ||
-    patrol.assignment.assignmentGates?.length ||
-    0;
+  const scannedCount = new Set((patrol.checkpoints || []).map((cp: any) => cp.gateId)).size;
+  const isDirectAssignment =
+    patrol.assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+    (!patrol.assignment?.patrolRoute &&
+      patrol.assignment?.assignmentGates &&
+      patrol.assignment.assignmentGates.length > 0);
+
+  const totalGates = isDirectAssignment
+    ? (patrol.assignment?.assignmentGates?.length || 0)
+    : (patrol.assignment?.patrolRoute?.routeGates?.length || 0);
+
   const compliancePercentage =
     totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
 

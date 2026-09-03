@@ -218,15 +218,19 @@ export default function PatrolSessionDetailPage() {
     );
   }
 
-  const routeGates =
-    session.assignment?.assignmentGates &&
-    session.assignment.assignmentGates.length > 0
-      ? session.assignment.assignmentGates.map((ag: any, idx: number) => ({
-          sequence: ag.sequence || idx + 1,
-          expectedDuration: null,
-          gate: ag.gate,
-        }))
-      : session.assignment?.patrolRoute?.routeGates || [];
+  const isDirectAssignment =
+    (session.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+    (!session.assignment?.patrolRoute &&
+      session.assignment?.assignmentGates &&
+      session.assignment.assignmentGates.length > 0);
+
+  const routeGates = isDirectAssignment
+    ? (session.assignment?.assignmentGates || []).map((ag: any, idx: number) => ({
+        sequence: ag.sequence || idx + 1,
+        expectedDuration: null,
+        gate: ag.gate,
+      }))
+    : session.assignment?.patrolRoute?.routeGates || [];
   const scans = session.checkpoints || [];
 
   // Map route gates to their scan status

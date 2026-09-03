@@ -40,13 +40,18 @@ export default function PatrolSessionPrintTemplate({
   const site = assignment.site || {};
   const shift = assignment.shift || {};
 
-  const routeGates =
-    assignment.assignmentGates && assignment.assignmentGates.length > 0
-      ? assignment.assignmentGates.map((ag: any, idx: number) => ({
-          sequence: ag.sequence || idx + 1,
-          gate: ag.gate,
-        }))
-      : assignment.patrolRoute?.routeGates || [];
+  const isDirectAssignment =
+    (assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+    (!assignment.patrolRoute &&
+      assignment.assignmentGates &&
+      assignment.assignmentGates.length > 0);
+
+  const routeGates = isDirectAssignment
+    ? (assignment.assignmentGates || []).map((ag: any, idx: number) => ({
+        sequence: ag.sequence || idx + 1,
+        gate: ag.gate,
+      }))
+    : assignment.patrolRoute?.routeGates || [];
 
   const scans = session.checkpoints || [];
   const incidents = session.incidents || [];

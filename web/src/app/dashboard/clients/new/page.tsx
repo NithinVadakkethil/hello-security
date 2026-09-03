@@ -42,7 +42,7 @@ export default function NewClientPage() {
     handleSubmit,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema as any),
     defaultValues: {
       identificationMethod: 'QR',
       maxEmployees: 50,

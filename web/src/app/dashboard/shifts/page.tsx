@@ -75,7 +75,7 @@ export default function ShiftsPage() {
     reset,
     formState: { errors },
   } = useForm<ShiftValues>({
-    resolver: zodResolver(shiftSchema),
+    resolver: zodResolver(shiftSchema as any),
   });
 
   // Create Shift mutation
