@@ -1,10 +1,14 @@
 import { NotificationStatus } from '@prisma/client';
 import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
+import { prisma } from '../database/prisma';
 import { clientNotificationRepository } from '../modules/client-notification/client-notification.repository';
 import { patrolSessionRepository } from '../modules/patrol-session/patrol-session.repository';
 import { emailProvider } from '../common/email/SmtpEmailProvider';
-import { buildPatrolCompletedEmailHtml } from '../common/email/templates/patrol-completed.template';
+import {
+  buildConsolidatedRouteCycleEmailHtml,
+  RouteSummaryItem,
+} from '../common/email/templates/patrol-completed.template';
 import { logger } from '../common/logger/logger';
 import { redisConfig } from '../config/redis.config';
 import { COMPLETED_PATROL_QUEUE_NAME } from '../common/queue/notification-queue.service';
@@ -14,7 +18,7 @@ export async function processCompletedPatrolNotification(
   patrolSessionId: string,
   clientId: string,
 ) {
-  logger.info(`🔍 Worker processing completed patrol notification for session: ${patrolSessionId}`);
+  logger.info(`🔍 Worker processing completed patrol notification check for session: ${patrolSessionId}`);
 
   // 1. Load client notification settings & recipients
   const settings = await clientNotificationRepository.getSettings(clientId);
@@ -35,7 +39,7 @@ export async function processCompletedPatrolNotification(
   const patrol = await patrolSessionRepository.findFullById(patrolSessionId);
 
   if (!patrol) {
-    logger.error(`❌ Patrol session ${patrolSessionId} not found. Cannot send notification.`);
+    logger.error(`❌ Patrol session ${patrolSessionId} not found. Cannot process notification.`);
     return;
   }
 
@@ -45,99 +49,226 @@ export async function processCompletedPatrolNotification(
     return;
   }
 
-  // Calculate report metrics
+  const employeeId = patrol.assignment.employeeId;
+  const siteId = patrol.assignment.siteId;
+  const shiftId = patrol.assignment.shiftId;
   const officerName = `${patrol.assignment.employee.firstName} ${patrol.assignment.employee.lastName}`;
-  const employeeId = patrol.assignment.employee.employeeNumber;
+  const employeeNumber = patrol.assignment.employee.employeeNumber;
+  const officerRole = patrol.assignment.employee.role || 'SECURITY';
   const siteName = patrol.assignment.site.name;
-  const routeName = patrol.assignment.patrolRoute?.name || 'Direct Checkpoints';
   const shiftName = `${patrol.assignment.shift.name} (${patrol.assignment.shift.startTime} - ${patrol.assignment.shift.endTime})`;
 
-  const scannedCount = new Set((patrol.checkpoints || []).map((cp: any) => cp.gateId)).size;
-  const isDirectAssignment =
-    patrol.assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
-    (!patrol.assignment?.patrolRoute &&
-      patrol.assignment?.assignmentGates &&
-      patrol.assignment.assignmentGates.length > 0);
-
-  const totalGates = isDirectAssignment
-    ? (patrol.assignment?.assignmentGates?.length || 0)
-    : (patrol.assignment?.patrolRoute?.routeGates?.length || 0);
-
-  const compliancePercentage =
-    totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
-
-  // Gather observations / snags across scanned checkpoints
-  const observations: Array<{ title: string; description?: string }> = [];
-  patrol.checkpoints.forEach((cp) => {
-    cp.subTaskResponses?.forEach((str) => {
-      if (str.remarks || str.images?.length) {
-        observations.push({
-          title: `Checkpoint: ${cp.gate?.name || 'Gate'} — Subtask Observation`,
-          description: str.remarks || undefined,
-        });
-      }
-    });
+  // 3. Resolve active assigned routes for this employee at this site & shift
+  const activeAssignments = await prisma.guardAssignment.findMany({
+    where: {
+      employeeId,
+      siteId,
+      shiftId,
+      isActive: true,
+    },
+    include: {
+      patrolRoute: {
+        include: {
+          routeGates: { include: { gate: true } },
+        },
+      },
+      assignmentGates: { include: { gate: true } },
+    },
   });
 
-  const supervisorStatus = patrol.verificationStatus
-    ? patrol.verificationStatus
-    : 'Pending';
+  const assignedRouteIds = new Set<string>();
+  activeAssignments.forEach((asg) => {
+    if (asg.assignmentType === 'ROUTE' && asg.patrolRouteId) {
+      assignedRouteIds.add(asg.patrolRouteId);
+    } else if (asg.assignmentType === 'DIRECT_CHECKPOINTS') {
+      assignedRouteIds.add(asg.id);
+    }
+  });
 
-  const formatTime = (d?: Date | null) => (d ? new Date(d).toLocaleString() : 'N/A');
+  const totalAssignedRoutesCount = Math.max(assignedRouteIds.size, 1);
 
-  const token = generateReportDownloadToken(patrolSessionId, clientId);
+  // 4. Resolve completed patrol sessions for this employee & site & shift in current cycle
+  const startedAt = patrol.startedAt;
+  const cycleDate = startedAt.toISOString().split('T')[0];
+  const cycleStart = new Date(startedAt);
+  cycleStart.setHours(0, 0, 0, 0);
+  const cycleEnd = new Date(startedAt);
+  cycleEnd.setHours(23, 59, 59, 999);
+
+  const completedSessions = await prisma.patrolSession.findMany({
+    where: {
+      assignment: {
+        employeeId,
+        siteId,
+        shiftId,
+      },
+      status: 'COMPLETED',
+      startedAt: {
+        gte: cycleStart,
+        lte: cycleEnd,
+      },
+    },
+    include: {
+      assignment: {
+        include: {
+          employee: true,
+          site: true,
+          shift: true,
+          patrolRoute: {
+            include: {
+              routeGates: { include: { gate: true } },
+            },
+          },
+          assignmentGates: { include: { gate: true } },
+        },
+      },
+      checkpoints: {
+        include: {
+          gate: true,
+          subTaskResponses: true,
+        },
+        orderBy: { scannedAt: 'asc' },
+      },
+      incidents: true,
+      snags: true,
+    },
+    orderBy: { startedAt: 'asc' },
+  });
+
+  // Track distinct completed route IDs
+  const completedDistinctRouteIds = new Set<string>();
+  completedSessions.forEach((sess) => {
+    const routeId = sess.assignment?.patrolRouteId || sess.assignmentId;
+    if (routeId) {
+      completedDistinctRouteIds.add(routeId);
+    }
+  });
+
+  const completedRoutesCount = completedDistinctRouteIds.size;
+
+  // 5. Check if ALL assigned routes have been completed at least once
+  if (completedRoutesCount < totalAssignedRoutesCount) {
+    logger.info(
+      `ℹ️ Patrol cycle incomplete for ${officerName} (${completedRoutesCount}/${totalAssignedRoutesCount} assigned routes completed). Email delayed until all routes are finished.`,
+    );
+    return;
+  }
+
+  logger.info(
+    `🎉 ALL assigned routes completed for ${officerName}! (${completedRoutesCount}/${totalAssignedRoutesCount} routes). Preparing consolidated email.`,
+  );
+
+  // 6. Enforce Idempotency — cycle notification key
+  const cycleKey = `CYCLE_${employeeId}_${siteId}_${shiftId}_${cycleDate}`;
+
   const defaultPublicApi = 'https://orbit.helloentry.com/api/v1';
   const baseUrl = (process.env.PUBLIC_API_URL || process.env.API_URL || defaultPublicApi).replace(/\/+$/, '');
-  const reportDownloadUrl = `${baseUrl}/reports/public/download-pdf?token=${token}`;
-
   const defaultWebApp = 'https://orbit.helloentry.com';
   const webAppBaseUrl = (process.env.WEB_APP_URL || process.env.FRONTEND_URL || defaultWebApp).replace(/\/+$/, '');
-  const webAppReportsUrl = `${webAppBaseUrl}/dashboard/reports?patrolSessionId=${encodeURIComponent(patrolSessionId)}&search=${encodeURIComponent(patrol.patrolCode)}`;
+  const formatTime = (d?: Date | null) => (d ? new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A');
 
-  const emailHtml = buildPatrolCompletedEmailHtml({
-    patrolCode: patrol.patrolCode,
-    officerName,
-    employeeId,
-    siteName,
-    routeName,
-    shiftName,
-    startedAt: formatTime(patrol.startedAt),
-    completedAt: formatTime(patrol.endedAt),
-    scannedCount,
-    totalCount: totalGates,
-    compliancePercentage,
-    observationsCount: observations.length,
-    supervisorStatus,
-    checkpoints: patrol.checkpoints.map((cp, idx) => ({
-      name: cp.gate?.name || `Checkpoint #${idx + 1}`,
-      sequence: cp.gate?.sequence || idx + 1,
-      scannedAt: formatTime(cp.scannedAt),
-    })),
-    observations,
-    reportDownloadUrl,
-    webAppReportsUrl,
+  // 7. Aggregate data across completed sessions
+  let totalCheckpointsScanned = 0;
+  let totalCheckpointsCount = 0;
+  let totalObservationsCount = 0;
+  let totalComplianceSum = 0;
+
+  const routesSummaryList: RouteSummaryItem[] = completedSessions.map((sess) => {
+    const routeName = sess.assignment?.patrolRoute?.name || 'Direct Checkpoints';
+    const isDirectAssignment =
+      sess.assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+      (!sess.assignment?.patrolRoute &&
+        sess.assignment?.assignmentGates &&
+        sess.assignment.assignmentGates.length > 0);
+
+    const totalGates = isDirectAssignment
+      ? sess.assignment?.assignmentGates?.length || 0
+      : sess.assignment?.patrolRoute?.routeGates?.length || 0;
+
+    const scannedCount = new Set((sess.checkpoints || []).map((cp: any) => cp.gateId)).size;
+    const compliancePercentage = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
+
+    const observations: Array<{ title: string; description?: string }> = [];
+    (sess.checkpoints || []).forEach((cp: any) => {
+      cp.subTaskResponses?.forEach((str: any) => {
+        if (str.remarks || str.images?.length) {
+          observations.push({
+            title: `Checkpoint: ${cp.gate?.name || 'Gate'} — Subtask Remark`,
+            description: str.remarks || undefined,
+          });
+        }
+      });
+    });
+
+    totalCheckpointsScanned += scannedCount;
+    totalCheckpointsCount += totalGates;
+    totalObservationsCount += observations.length;
+    totalComplianceSum += compliancePercentage;
+
+    const token = generateReportDownloadToken(sess.id, clientId);
+    const reportDownloadUrl = `${baseUrl}/reports/public/download-pdf?token=${token}`;
+    const webAppReportsUrl = `${webAppBaseUrl}/dashboard/reports?patrolSessionId=${encodeURIComponent(sess.id)}&search=${encodeURIComponent(sess.patrolCode)}`;
+
+    return {
+      routeName,
+      patrolCode: sess.patrolCode,
+      scannedCount,
+      totalCount: totalGates,
+      compliancePercentage,
+      observationsCount: observations.length,
+      completedAt: formatTime(sess.endedAt),
+      reportDownloadUrl,
+      webAppReportsUrl,
+      checkpoints: (sess.checkpoints || []).map((cp: any, idx: number) => ({
+        name: cp.gate?.name || `Checkpoint #${idx + 1}`,
+        sequence: cp.gate?.sequence || idx + 1,
+        scannedAt: formatTime(cp.scannedAt),
+      })),
+      observations,
+    };
   });
 
-  const subject = `Patrol Completed — ${siteName} — ${patrol.patrolCode}`;
+  const overallCompliancePercentage =
+    completedSessions.length > 0
+      ? Math.round(totalComplianceSum / completedSessions.length)
+      : 100;
 
-  // 3. Send email to each active recipient with idempotency and delivery tracking
+  const emailHtml = buildConsolidatedRouteCycleEmailHtml({
+    officerName,
+    employeeId: employeeNumber,
+    officerRole,
+    siteName,
+    shiftName,
+    cycleDate,
+    assignedRoutesCount: totalAssignedRoutesCount,
+    completedRoutesCount,
+    overallCompliancePercentage,
+    totalCheckpointsScanned,
+    totalCheckpointsCount,
+    totalObservationsCount,
+    routes: routesSummaryList,
+  });
+
+  const subject = `Assigned Patrol Routes Completed — ${officerName} — ${siteName}`;
+
+  // 8. Send consolidated email to recipients with idempotency check
   for (const recipient of activeRecipients) {
     let delivery = await clientNotificationRepository.getDelivery(
-      'PATROL_COMPLETED',
-      patrolSessionId,
+      'ROUTE_CYCLE_COMPLETED',
+      cycleKey,
       recipient,
     );
 
     if (delivery && delivery.status === NotificationStatus.SENT) {
-      logger.info(`⏩ Notification already SENT to ${recipient} for session ${patrolSessionId}. Skipping.`);
+      logger.info(`⏩ Cycle notification already SENT to ${recipient} for cycle ${cycleKey}. Skipping.`);
       continue;
     }
 
     if (!delivery) {
       delivery = await clientNotificationRepository.createDelivery({
         clientId,
-        patrolSessionId,
-        type: 'PATROL_COMPLETED',
+        patrolSessionId: cycleKey,
+        type: 'ROUTE_CYCLE_COMPLETED',
         recipient,
         status: NotificationStatus.PROCESSING,
       });
@@ -162,14 +293,14 @@ export async function processCompletedPatrolNotification(
         providerMessageId: result.providerMessageId,
         sentAt: new Date(),
       });
-      logger.info(`✅ Delivered patrol completed notification to ${recipient}`);
+      logger.info(`✅ Delivered consolidated route cycle notification to ${recipient} for cycle ${cycleKey}`);
     } else {
       await clientNotificationRepository.updateDeliveryStatus(delivery.id, {
         status: NotificationStatus.FAILED,
         attempts: currentAttempts,
         errorMessage: result.error,
       });
-      logger.error(`❌ Delivery failed for ${recipient}: ${result.error}`);
+      logger.error(`❌ Cycle notification delivery failed for ${recipient}: ${result.error}`);
     }
   }
 }

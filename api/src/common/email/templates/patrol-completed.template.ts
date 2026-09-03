@@ -18,6 +18,36 @@ export interface PatrolCompletedEmailData {
   webAppReportsUrl?: string;
 }
 
+export interface RouteSummaryItem {
+  routeName: string;
+  patrolCode: string;
+  scannedCount: number;
+  totalCount: number;
+  compliancePercentage: number;
+  observationsCount: number;
+  completedAt: string;
+  reportDownloadUrl?: string;
+  webAppReportsUrl?: string;
+  checkpoints: Array<{ name: string; sequence: number; scannedAt?: string }>;
+  observations: Array<{ title: string; description?: string }>;
+}
+
+export interface ConsolidatedRouteCycleEmailData {
+  officerName: string;
+  employeeId: string;
+  officerRole: string;
+  siteName: string;
+  shiftName: string;
+  cycleDate: string;
+  assignedRoutesCount: number;
+  completedRoutesCount: number;
+  overallCompliancePercentage: number;
+  totalCheckpointsScanned: number;
+  totalCheckpointsCount: number;
+  totalObservationsCount: number;
+  routes: RouteSummaryItem[];
+}
+
 export function buildPatrolCompletedEmailHtml(data: PatrolCompletedEmailData): string {
   const checkpointsListHtml = data.checkpoints
     .map(
@@ -146,6 +176,180 @@ export function buildPatrolCompletedEmailHtml(data: PatrolCompletedEmailData): s
       <!-- Observation Summary Section -->
       <h3 style="font-size: 15px; color: #0f172a; margin: 20px 0 10px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">OBSERVATION SUMMARY</h3>
       ${observationsListHtml}
+
+    </div>
+
+    <!-- Footer -->
+    <div style="background: #f1f5f9; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
+      <div style="font-size: 13px; color: #64748b; font-weight: 600;">Hello Orbit</div>
+      <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">Powered by Atlabs</div>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+}
+
+export function buildConsolidatedRouteCycleEmailHtml(data: ConsolidatedRouteCycleEmailData): string {
+  const routesSummaryHtml = data.routes
+    .map((r, idx) => {
+      const checkpointsList = r.checkpoints
+        .map(
+          (cp) =>
+            `<li style="margin-bottom: 4px; color: #334155; font-size: 13px;">
+              <span style="color: #16a34a; font-weight: bold; margin-right: 4px;">✓</span>
+              <strong>${cp.name}</strong> ${cp.scannedAt ? `<span style="color: #94a3b8; font-size: 11px;">(${cp.scannedAt})</span>` : ''}
+            </li>`,
+        )
+        .join('');
+
+      return `
+      <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 10px;">
+          <span style="font-size: 15px; font-weight: 700; color: #0f172a;">${idx + 1}. ${r.routeName}</span>
+          <span style="font-size: 12px; font-weight: 700; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px;">${r.patrolCode}</span>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 13px;">
+          <tr>
+            <td style="color: #64748b; padding: 4px 0;">Checkpoints:</td>
+            <td style="color: #0f172a; font-weight: 600; text-align: right;">${r.scannedCount} / ${r.totalCount}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; padding: 4px 0;">Compliance:</td>
+            <td style="color: ${r.compliancePercentage >= 100 ? '#16a34a' : '#d97706'}; font-weight: 700; text-align: right;">${r.compliancePercentage}%</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; padding: 4px 0;">Issues / Observations:</td>
+            <td style="color: ${r.observationsCount > 0 ? '#e11d48' : '#0f172a'}; font-weight: 600; text-align: right;">${r.observationsCount}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; padding: 4px 0;">Completed:</td>
+            <td style="color: #0f172a; text-align: right;">${r.completedAt}</td>
+          </tr>
+        </table>
+
+        <!-- Action Links for this route -->
+        <div style="background: #f8fafc; border-radius: 6px; padding: 8px 12px; display: flex; gap: 12px; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          ${
+            r.reportDownloadUrl
+              ? `<a href="${r.reportDownloadUrl}" target="_blank" style="color: #2563eb; font-size: 12px; font-weight: 700; text-decoration: none;">📄 Download Report (PDF)</a>`
+              : '<span></span>'
+          }
+          ${
+            r.webAppReportsUrl
+              ? `<a href="${r.webAppReportsUrl}" target="_blank" style="color: #475569; font-size: 12px; font-weight: 600; text-decoration: underline;">View in Reports &amp; Analytics →</a>`
+              : '<span></span>'
+          }
+        </div>
+
+        <!-- Checkpoints list for this route -->
+        <div style="font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Checkpoints</div>
+        <ul style="padding-left: 16px; margin: 0; list-style-type: none;">
+          ${checkpointsList}
+        </ul>
+      </div>
+      `;
+    })
+    .join('');
+
+  // Collect all observations across routes
+  const allObservations: Array<{ routeName: string; title: string; description?: string }> = [];
+  data.routes.forEach((r) => {
+    r.observations.forEach((obs) => {
+      allObservations.push({
+        routeName: r.routeName,
+        title: obs.title,
+        description: obs.description,
+      });
+    });
+  });
+
+  const observationsSummaryHtml =
+    allObservations.length > 0
+      ? allObservations
+          .map(
+            (obs) =>
+              `<div style="padding: 10px 12px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 6px; margin-bottom: 8px;">
+                <div style="font-size: 11px; font-weight: 700; color: #9f1239; text-transform: uppercase;">${obs.routeName}</div>
+                <div style="font-weight: 600; color: #be123c; font-size: 14px; margin-top: 2px;">⚠️ ${obs.title}</div>
+                ${obs.description ? `<div style="color: #475569; font-size: 13px; margin-top: 4px;">${obs.description}</div>` : ''}
+              </div>`,
+          )
+          .join('')
+      : `<div style="color: #64748b; font-style: italic; font-size: 14px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center;">No observations reported across the completed assignment cycle.</div>`;
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Assigned Patrol Routes Completed — ${data.officerName} — ${data.siteName}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b;">
+  <div style="max-width: 620px; margin: 0 auto; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    
+    <!-- Header -->
+    <div style="background: #0f172a; padding: 24px; text-align: center;">
+      <h1 style="color: #38bdf8; margin: 0 0 6px 0; font-size: 24px; font-weight: 700; letter-spacing: 0.5px;">Hello Orbit</h1>
+      <div style="color: #f8fafc; font-size: 15px; font-weight: 700; letter-spacing: 0.5px;">ASSIGNED PATROL ROUTES COMPLETED</div>
+      <div style="color: #94a3b8; font-size: 12px; margin-top: 4px;">All assigned patrol routes for this employee have been completed once for the current assignment cycle.</div>
+    </div>
+
+    <div style="padding: 24px;">
+      
+      <!-- Assignment Summary Card -->
+      <h3 style="font-size: 14px; color: #475569; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px;">Assignment Cycle Summary</h3>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; background: #f8fafc; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+        <tr>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Security Officer</td>
+          <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; font-weight: 700; border-bottom: 1px solid #e2e8f0;">${data.officerName} (${data.employeeId})</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Role</td>
+          <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${data.officerRole}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Monitored Site</td>
+          <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; font-weight: 600; border-bottom: 1px solid #e2e8f0;">${data.siteName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Shift</td>
+          <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${data.shiftName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Assignment Date</td>
+          <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${data.cycleDate}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Assigned Routes</td>
+          <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; font-weight: 700; border-bottom: 1px solid #e2e8f0;">${data.assignedRoutesCount}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Completed Routes</td>
+          <td style="padding: 10px 14px; font-size: 14px; color: #16a34a; font-weight: 700; border-bottom: 1px solid #e2e8f0;">${data.completedRoutesCount} / ${data.assignedRoutesCount} (100% Completed)</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Overall Compliance</td>
+          <td style="padding: 10px 14px; font-size: 14px; color: ${data.overallCompliancePercentage >= 100 ? '#16a34a' : '#d97706'}; font-weight: 700; border-bottom: 1px solid #e2e8f0;">${data.overallCompliancePercentage}%</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Total Checkpoints Scanned</td>
+          <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; font-weight: 600; border-bottom: 1px solid #e2e8f0;">${data.totalCheckpointsScanned} / ${data.totalCheckpointsCount}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600;">Total Observations / Issues</td>
+          <td style="padding: 10px 14px; font-size: 14px; color: ${data.totalObservationsCount > 0 ? '#e11d48' : '#0f172a'}; font-weight: 700;">${data.totalObservationsCount}</td>
+        </tr>
+      </table>
+
+      <!-- Route-by-Route Summary -->
+      <h3 style="font-size: 14px; color: #475569; margin: 24px 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px;">Route Breakdown (${data.completedRoutesCount} Routes)</h3>
+      ${routesSummaryHtml}
+
+      <!-- Observation Summary Section -->
+      <h3 style="font-size: 14px; color: #475569; margin: 24px 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px;">Cycle Observations Summary</h3>
+      ${observationsSummaryHtml}
 
     </div>
 
