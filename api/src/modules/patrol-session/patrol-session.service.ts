@@ -17,6 +17,7 @@ export class PatrolSessionService {
     employeeId: string,
     targetAssignmentId?: string,
     resolveExistingPatrol?: boolean,
+    customStartedAt?: string | Date,
   ) {
     if (!employeeId) {
       throw new AppError(
@@ -48,6 +49,17 @@ export class PatrolSessionService {
       );
     }
 
+    // Parse provided event timestamp or fallback to server time
+    let startedAt = new Date();
+    if (customStartedAt) {
+      const parsed = new Date(customStartedAt);
+      if (!isNaN(parsed.getTime())) {
+        // Sanity check: allow up to 5 mins in future for minor clock skew
+        const maxFuture = Date.now() + 5 * 60 * 1000;
+        startedAt = parsed.getTime() > maxFuture ? new Date() : parsed;
+      }
+    }
+
     // Single active patrol rule: Check for ANY active session for this employee
     const running = await patrolSessionRepository.findActiveByEmployee(employeeId);
 
@@ -74,8 +86,9 @@ export class PatrolSessionService {
         // User confirmed resolution (resolveExistingPatrol: true)
         if (scannedCount >= 1) {
           const endedAt = new Date();
-          const totalDuration = Math.floor(
-            (endedAt.getTime() - running.startedAt.getTime()) / 60000,
+          const totalDuration = Math.max(
+            0,
+            Math.floor((endedAt.getTime() - running.startedAt.getTime()) / 60000),
           );
           await patrolSessionRepository.update(running.id, {
             status: PatrolStatus.COMPLETED,
@@ -106,7 +119,7 @@ export class PatrolSessionService {
       clientId,
       assignmentId: assignment.id,
       patrolCode,
-      startedAt: new Date(),
+      startedAt,
       status: PatrolStatus.IN_PROGRESS,
     });
   }
@@ -175,7 +188,7 @@ export class PatrolSessionService {
     });
   }
 
-  async complete(id: string, remarks?: string) {
+  async complete(id: string, remarks?: string, customEndedAt?: string | Date) {
     const patrol = await patrolSessionRepository.findById(id);
 
     if (!patrol) {
@@ -205,10 +218,18 @@ export class PatrolSessionService {
       return patrolSessionRepository.cancel(id);
     }
 
-    const endedAt = new Date();
+    let endedAt = new Date();
+    if (customEndedAt) {
+      const parsed = new Date(customEndedAt);
+      if (!isNaN(parsed.getTime())) {
+        const maxFuture = Date.now() + 5 * 60 * 1000;
+        endedAt = parsed.getTime() > maxFuture ? new Date() : parsed;
+      }
+    }
 
-    const totalDuration = Math.floor(
-      (endedAt.getTime() - patrol.startedAt.getTime()) / 60000,
+    const totalDuration = Math.max(
+      0,
+      Math.floor((endedAt.getTime() - patrol.startedAt.getTime()) / 60000),
     );
 
     const completedPatrol = await patrolSessionRepository.update(id, {

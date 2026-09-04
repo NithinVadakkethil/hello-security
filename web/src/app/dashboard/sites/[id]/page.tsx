@@ -23,6 +23,7 @@ import StatusChip from '../../../components/ui/StatusChip';
 import GateSubTasksModal from '../components/GateSubTasksModal';
 import CheckpointQrModal from '../components/CheckpointQrModal';
 import ImportCheckpointsModal from '../components/ImportCheckpointsModal';
+import BulkQrModal from '../components/BulkQrModal';
 
 interface Site {
   id: string;
@@ -104,6 +105,7 @@ export default function SiteDetailPage() {
   });
 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isBulkQrModalOpen, setIsBulkQrModalOpen] = useState(false);
 
   // Dynamic Pagination & Search state for gates synced via URL
   const gatePage = searchParams.get('gatePage') ? Number(searchParams.get('gatePage')) : 1;
@@ -528,6 +530,10 @@ export default function SiteDetailPage() {
               onChange={handleGateSearchChange}
               placeholder="Search checkpoints by name or ID..."
             />
+            <button onClick={() => setIsBulkQrModalOpen(true)} className="btn btn-secondary" style={{ gap: '8px' }}>
+              <QrCode size={16} />
+              <span>Bulk QR Codes</span>
+            </button>
             <button onClick={() => setIsImportModalOpen(true)} className="btn btn-secondary" style={{ gap: '8px' }}>
               <Upload size={16} />
               <span>Import Checkpoints</span>
@@ -674,6 +680,15 @@ export default function SiteDetailPage() {
           queryClient.invalidateQueries({ queryKey: ['gates', id] });
           queryClient.invalidateQueries({ queryKey: ['site', id] });
         }}
+      />
+
+      <BulkQrModal
+        isOpen={isBulkQrModalOpen}
+        onClose={() => setIsBulkQrModalOpen(false)}
+        siteId={id}
+        siteName={site?.name || ''}
+        companyName={(site as any)?.client?.companyName || 'HELLO ORBIT'}
+        totalCheckpointsCount={gatePagination.total || gates.length || 0}
       />
     </div>
   );

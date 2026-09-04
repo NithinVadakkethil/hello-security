@@ -148,6 +148,38 @@ export class GateRepository {
     });
   }
 
+  async listBySequenceRange(siteId: string, fromSeq?: number, toSeq?: number, clientId?: string) {
+    const where: any = {
+      siteId,
+      ...(clientId && { site: { clientId } }),
+    };
+
+    if (fromSeq !== undefined || toSeq !== undefined) {
+      where.sequence = {
+        ...(fromSeq !== undefined && { gte: fromSeq }),
+        ...(toSeq !== undefined && { lte: toSeq }),
+      };
+    }
+
+    const [items, totalSiteCount] = await Promise.all([
+      prisma.gate.findMany({
+        where,
+        orderBy: { sequence: 'asc' },
+      }),
+      prisma.gate.count({
+        where: {
+          siteId,
+          ...(clientId && { site: { clientId } }),
+        },
+      }),
+    ]);
+
+    return {
+      items,
+      totalSiteCount,
+    };
+  }
+
   findBySequence(siteId: string, sequence: number) {
     return prisma.gate.findFirst({
       where: {

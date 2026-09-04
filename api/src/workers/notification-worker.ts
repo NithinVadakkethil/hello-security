@@ -13,6 +13,7 @@ import { logger } from '../common/logger/logger';
 import { redisConfig } from '../config/redis.config';
 import { COMPLETED_PATROL_QUEUE_NAME } from '../common/queue/notification-queue.service';
 import { generateReportDownloadToken } from '../common/auth/report-token';
+import { formatPatrolTime } from '../common/utils/date-formatter.util';
 
 export async function processCompletedPatrolNotification(
   patrolSessionId: string,
@@ -176,7 +177,7 @@ export async function processCompletedPatrolNotification(
   const baseUrl = (process.env.PUBLIC_API_URL || process.env.API_URL || defaultPublicApi).replace(/\/+$/, '');
   const defaultWebApp = 'https://orbit.helloentry.com';
   const webAppBaseUrl = (process.env.WEB_APP_URL || process.env.FRONTEND_URL || defaultWebApp).replace(/\/+$/, '');
-  const formatTime = (d?: Date | null) => (d ? new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A');
+  const formatTime = (d?: Date | null) => (d ? formatPatrolTime(d) : 'N/A');
 
   // 7. Aggregate data across completed sessions
   let totalCheckpointsScanned = 0;

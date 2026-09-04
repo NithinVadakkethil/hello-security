@@ -13,6 +13,7 @@ import StatusChip from '../../../components/ui/StatusChip';
 import Modal from '../../../components/ui/Modal';
 import ConfirmationDialog from '../../../components/ui/ConfirmationDialog';
 import LoadingState from '../../../components/ui/LoadingState';
+import { formatPatrolDate, formatPatrolDateTime } from '@/lib/date-formatter';
 
 interface Employee {
   id: string;
@@ -172,7 +173,7 @@ export default function EmployeeDetailPage() {
               <div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>JOINED DATE</p>
                 <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>
-                  {employee.joiningDate ? new Date(employee.joiningDate).toLocaleDateString() : 'N/A'}
+                  {employee.joiningDate ? formatPatrolDate(employee.joiningDate) : 'N/A'}
                 </p>
               </div>
 
@@ -233,7 +234,7 @@ export default function EmployeeDetailPage() {
               <div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>LAST PORTAL LOGIN</p>
                 <p style={{ fontSize: '0.9rem', fontWeight: 500, margin: 0 }}>
-                  {employee.user.lastLogin ? new Date(employee.user.lastLogin).toLocaleString() : 'Never logged in'}
+                  {employee.user.lastLogin ? formatPatrolDateTime(employee.user.lastLogin, undefined, false) : 'Never logged in'}
                 </p>
               </div>
 

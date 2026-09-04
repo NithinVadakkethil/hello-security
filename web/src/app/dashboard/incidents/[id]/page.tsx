@@ -11,6 +11,7 @@ import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
 import { resolveImageUrl } from '../../../../lib/image';
 import LoadingState from '../../../components/ui/LoadingState';
+import { formatPatrolDateTime } from '@/lib/date-formatter';
 
 interface Employee {
   id: string;
@@ -351,7 +352,7 @@ export default function IncidentDetailPage() {
               </h4>
               <span style={{ fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Clock size={16} />
-                {new Date(incident.createdAt).toLocaleString()}
+                {formatPatrolDateTime(incident.createdAt)}
               </span>
             </div>
 

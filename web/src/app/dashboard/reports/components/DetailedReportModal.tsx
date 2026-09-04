@@ -6,6 +6,7 @@ import Modal from '../../../components/ui/Modal';
 import StatusChip from '../../../components/ui/StatusChip';
 import SingleReportPrintTemplate from './SingleReportPrintTemplate';
 import TaskVerificationChecklist from '../../patrol-sessions/components/TaskVerificationChecklist';
+import { formatPatrolDateTime, formatPatrolTime } from '@/lib/date-formatter';
 
 interface DetailedReportModalProps {
   isOpen: boolean;
@@ -119,7 +120,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
               {report.patrolCode}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              Generated: {new Date().toLocaleString()}
+              Generated: {formatPatrolDateTime(new Date())}
             </div>
           </div>
         </div>
@@ -227,7 +228,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
                       {item.scanned ? (
                         <>
                           <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>
-                            {new Date(item.scannedAt).toLocaleTimeString()}
+                            {formatPatrolTime(item.scannedAt)}
                           </div>
                           {item.scanCoords && (
                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>

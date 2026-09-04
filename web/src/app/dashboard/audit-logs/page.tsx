@@ -11,6 +11,7 @@ import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
 import Modal from '../../components/ui/Modal';
 import { useAuthStore } from '../../store/auth-store';
+import { formatPatrolDateTime } from '../../../lib/date-formatter';
 
 interface AuditLog {
   id: string;
@@ -106,7 +107,7 @@ export default function AuditLogsPage() {
       render: (row: AuditLog) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Clock size={14} style={{ color: 'var(--text-muted)' }} />
-          <span>{new Date(row.createdAt).toLocaleString()}</span>
+          <span>{formatPatrolDateTime(row.createdAt, undefined, false)}</span>
         </div>
       ),
     },
@@ -301,7 +302,7 @@ export default function AuditLogsPage() {
               <div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>TIMESTAMP</p>
                 <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
-                  {new Date(selectedLog.createdAt).toLocaleString()}
+                  {formatPatrolDateTime(selectedLog.createdAt, undefined, false)}
                 </p>
               </div>
 

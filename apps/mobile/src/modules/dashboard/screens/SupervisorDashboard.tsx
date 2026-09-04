@@ -23,6 +23,7 @@ import {
   View,
 } from 'react-native';
 import { useTheme } from '../../../app/hooks/useTheme';
+import { formatPatrolDate } from '../../../app/utils/date-formatter';
 import { AppTabParamList } from '../../../app/navigation/types';
 import { useAuthStore } from '../../../app/store/auth-store';
 import { useIncidents } from '../../incident/hooks/useIncident';
@@ -870,9 +871,9 @@ export function SupervisorDashboard() {
                     style={[styles.detailText, { color: colors.textSecondary }]}
                   >
                     Effective:{' '}
-                    {new Date(asg.effectiveFrom).toLocaleDateString()}
+                    {formatPatrolDate(asg.effectiveFrom)}
                     {asg.effectiveTo
-                      ? ` - ${new Date(asg.effectiveTo).toLocaleDateString()}`
+                      ? ` - ${formatPatrolDate(asg.effectiveTo)}`
                       : ' (Ongoing)'}
                   </Text>
                 </View>

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { formatPatrolDateTime } from '@/lib/date-formatter';
 
 interface ReportPrintTemplateProps {
   analytics?: any;
@@ -52,7 +53,7 @@ export default function ReportPrintTemplate({ analytics, sessions, filters }: Re
           </p>
         </div>
         <div style={{ textAlign: 'right', fontSize: '9pt', color: '#444' }}>
-          <div>Generated: {new Date().toLocaleString()}</div>
+          <div>Generated: {formatPatrolDateTime(new Date())}</div>
           <div>Filter Preset: {filters.datePreset || 'All Time'}</div>
         </div>
       </div>
@@ -111,7 +112,7 @@ export default function ReportPrintTemplate({ analytics, sessions, filters }: Re
             return (
               <tr key={idx} style={{ borderBottom: '1px solid #ddd' }}>
                 <td style={{ padding: '6px', fontFamily: 'monospace', fontWeight: 'bold' }}>{session.patrolCode}</td>
-                <td style={{ padding: '6px' }}>{new Date(session.startedAt).toLocaleString()}</td>
+                <td style={{ padding: '6px' }}>{formatPatrolDateTime(session.startedAt)}</td>
                 <td style={{ padding: '6px' }}>
                   {session.assignment?.employee?.firstName} {session.assignment?.employee?.lastName} ({session.assignment?.employee?.employeeNumber})
                 </td>

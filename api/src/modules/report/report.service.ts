@@ -5,6 +5,10 @@ import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 import { isRoleMatching } from '../../common/utils/role-matching';
+import {
+  formatPatrolDateTime,
+  formatPatrolTime,
+} from '../../common/utils/date-formatter.util';
 import { reportRepository } from './report.repository';
 import { ReportQueryDto } from './report.types';
 
@@ -94,21 +98,11 @@ function getRoleLabel(role?: string | null): string {
 }
 
 function fmtTime(dateStr?: any): string {
-  if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleTimeString();
-  } catch {
-    return '—';
-  }
+  return formatPatrolTime(dateStr);
 }
 
 function fmtDateTime(dateStr?: any): string {
-  if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleString();
-  } catch {
-    return '—';
-  }
+  return formatPatrolDateTime(dateStr);
 }
 
 function getVerificationStatus(report: any): string {

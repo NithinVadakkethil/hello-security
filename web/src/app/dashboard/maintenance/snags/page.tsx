@@ -16,6 +16,7 @@ import DataTable from '../../../components/ui/DataTable';
 import Pagination from '../../../components/ui/Pagination';
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
+import { formatPatrolDate, formatPatrolDateTime } from '@/lib/date-formatter';
 
 interface SnagItem {
   id: string;
@@ -176,7 +177,7 @@ export default function SnagsListPage() {
       `"${s.site?.name || ''}"`,
       `"${s.gate?.name || ''} (${s.gate?.gateCode || ''})"`,
       `"${s.employee?.firstName || ''} ${s.employee?.lastName || ''}"`,
-      new Date(s.createdAt).toLocaleDateString(),
+      formatPatrolDate(s.createdAt),
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -232,7 +233,7 @@ export default function SnagsListPage() {
             #{s.id.slice(-8).toUpperCase()}
           </span>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-            {new Date(s.createdAt).toLocaleDateString()} {new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {formatPatrolDateTime(s.createdAt, undefined, false)}
           </span>
         </div>
       ),

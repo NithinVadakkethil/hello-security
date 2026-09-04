@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { resolveImageUrl } from '../../../../lib/image';
 import { isRoleMatching } from '../../../utils/role-matching';
+import { formatPatrolDateTime, formatPatrolTime } from '@/lib/date-formatter';
 
 interface SingleReportPrintTemplateProps {
   report: any;
@@ -448,21 +449,11 @@ function getRoleLabel(role?: string | null): string {
 
 // ─── Format helpers ──────────────────────────────────────────────────────────
 function fmtTime(dateStr?: string | null): string {
-  if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleTimeString();
-  } catch {
-    return '—';
-  }
+  return formatPatrolTime(dateStr);
 }
 
 function fmtDateTime(dateStr?: string | null): string {
-  if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleString();
-  } catch {
-    return '—';
-  }
+  return formatPatrolDateTime(dateStr);
 }
 
 
@@ -700,7 +691,7 @@ export default function SingleReportPrintTemplate({
     report.clientCompanyName ||
     '—';
 
-  const generatedAt = new Date().toLocaleString();
+  const generatedAt = formatPatrolDateTime(new Date());
 
   const verificationStatus = getVerificationStatus(report);
   const verificationPillClass = getVerificationStatusPillClass(verificationStatus);

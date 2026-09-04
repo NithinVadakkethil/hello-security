@@ -211,6 +211,41 @@ export class GateService {
 
     return gateRepository.delete(id);
   }
+
+  async getBulkRange(siteId: string, fromSeq?: number, toSeq?: number, userTenantId?: string) {
+    const site = await siteRepository.findById(siteId);
+
+    if (!site) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Site not found.',
+      );
+    }
+
+    if (userTenantId && site.clientId !== userTenantId) {
+      throw new AppError(
+        HttpStatus.FORBIDDEN,
+        ErrorCodes.FORBIDDEN,
+        'Access to site checkpoints denied.',
+      );
+    }
+
+    const result = await gateRepository.listBySequenceRange(siteId, fromSeq, toSeq, userTenantId);
+
+    return {
+      site: {
+        id: site.id,
+        name: site.name,
+        siteCode: site.siteCode,
+      },
+      totalSiteCount: result.totalSiteCount,
+      fromSeq,
+      toSeq,
+      count: result.items.length,
+      items: result.items,
+    };
+  }
 }
 
 export const gateService = new GateService();

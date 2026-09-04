@@ -209,6 +209,15 @@ export class PatrolCheckpointService {
     const checkpoint = await prisma
       .$transaction(
         async (tx) => {
+          let scannedAt = new Date();
+          if (dto.scannedAt) {
+            const parsed = new Date(dto.scannedAt);
+            if (!isNaN(parsed.getTime())) {
+              const maxFuture = Date.now() + 5 * 60 * 1000;
+              scannedAt = parsed.getTime() > maxFuture ? new Date() : parsed;
+            }
+          }
+
           let cp;
           if (existing) {
             cp = await tx.patrolCheckpoint.update({
@@ -219,7 +228,7 @@ export class PatrolCheckpointService {
                 remarks: dto.remarks,
                 status: dto.status,
                 images: allImages,
-                scannedAt: new Date(),
+                scannedAt,
               },
             });
           } else {
@@ -232,6 +241,7 @@ export class PatrolCheckpointService {
                 remarks: dto.remarks,
                 status: dto.status,
                 images: allImages,
+                scannedAt,
               },
             });
           }
@@ -241,6 +251,15 @@ export class PatrolCheckpointService {
             processedSubTaskResponses.length > 0
           ) {
             for (const resp of processedSubTaskResponses) {
+              let answeredAt = scannedAt;
+              if (resp.answeredAt) {
+                const parsedAns = new Date(resp.answeredAt);
+                if (!isNaN(parsedAns.getTime())) {
+                  const maxFuture = Date.now() + 5 * 60 * 1000;
+                  answeredAt = parsedAns.getTime() > maxFuture ? scannedAt : parsedAns;
+                }
+              }
+
               await tx.patrolSubTaskResponse.upsert({
                 where: {
                   patrolCheckpointId_gateSubTaskId: {
@@ -254,12 +273,13 @@ export class PatrolCheckpointService {
                   answer: resp.answer,
                   remarks: resp.remarks?.trim() || null,
                   images: resp.images || [],
+                  answeredAt,
                 },
                 update: {
                   answer: resp.answer,
                   remarks: resp.remarks?.trim() || null,
                   images: resp.images || [],
-                  answeredAt: new Date(),
+                  answeredAt,
                 },
               });
 

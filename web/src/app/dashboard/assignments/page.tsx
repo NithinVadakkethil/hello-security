@@ -17,6 +17,7 @@ import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
 import { apiClient } from '../../lib/axios';
 import { ApiResponse } from '../../types/api';
+import { formatPatrolDate } from '../../../lib/date-formatter';
 
 interface Employee {
   id: string;
@@ -626,9 +627,9 @@ export default function AssignmentsPage() {
       label: 'Effective Period',
       render: (row: Assignment) => (
         <span style={{ fontSize: '0.85rem' }}>
-          {new Date(row.effectiveFrom).toLocaleDateString()} -{' '}
+          {formatPatrolDate(row.effectiveFrom)} -{' '}
           {row.effectiveTo
-            ? new Date(row.effectiveTo).toLocaleDateString()
+            ? formatPatrolDate(row.effectiveTo)
             : 'Continuous'}
         </span>
       ),

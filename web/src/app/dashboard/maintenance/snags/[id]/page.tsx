@@ -20,6 +20,7 @@ import { apiClient } from '../../../../lib/axios';
 import { resolveImageUrl } from '../../../../../lib/image';
 import { ApiResponse } from '../../../../types/api';
 import LoadingState from '../../../../components/ui/LoadingState';
+import { formatPatrolDate, formatPatrolDateTime } from '@/lib/date-formatter';
 
 export default function SnagDetailPage() {
   const params = useParams();
@@ -181,7 +182,7 @@ export default function SnagDetailPage() {
               </span>
             </div>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              Created on {new Date(snag.createdAt).toLocaleString()}
+              Created on {formatPatrolDateTime(snag.createdAt, undefined, false)}
             </span>
           </div>
         </div>
@@ -225,7 +226,7 @@ export default function SnagDetailPage() {
               </div>
               <div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Last Updated</div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{new Date(snag.updatedAt).toLocaleString()}</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{formatPatrolDateTime(snag.updatedAt, undefined, false)}</div>
               </div>
             </div>
 
@@ -323,7 +324,7 @@ export default function SnagDetailPage() {
                         {h.action.replace('_', ' ')}
                       </span>
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        {new Date(h.createdAt).toLocaleString()}
+                        {formatPatrolDateTime(h.createdAt, undefined, false)}
                       </span>
                     </div>
                     {h.notes && (
@@ -455,7 +456,7 @@ export default function SnagDetailPage() {
                   </div>
                   {snag.assignments[0].dueDate && (
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      Target Due Date: {new Date(snag.assignments[0].dueDate).toLocaleDateString()}
+                      Target Due Date: {formatPatrolDate(snag.assignments[0].dueDate)}
                     </div>
                   )}
                 </div>
@@ -708,7 +709,7 @@ export default function SnagDetailPage() {
                 snag.comments.map((c: any) => (
                   <div key={c.id} style={{ padding: '10px', borderRadius: '6px', backgroundColor: 'var(--bg-secondary)' }}>
                     <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '2px' }}>
-                      {c.user?.email} ({new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                      {c.user?.email} ({formatPatrolDateTime(c.createdAt, undefined, false)})
                     </div>
                     <div style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{c.comment}</div>
                   </div>

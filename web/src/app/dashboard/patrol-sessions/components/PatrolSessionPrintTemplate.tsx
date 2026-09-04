@@ -1,6 +1,7 @@
 'use client';
 
 import { resolveImageUrl } from '../../../../lib/image';
+import { formatPatrolDateTime } from '@/lib/date-formatter';
 
 interface PatrolSessionPrintTemplateProps {
   session: any;
@@ -22,12 +23,7 @@ function getRoleLabel(role?: string | null): string {
 }
 
 function fmtDateTime(dateStr?: string | null): string {
-  if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleString();
-  } catch {
-    return '—';
-  }
+  return formatPatrolDateTime(dateStr);
 }
 
 export default function PatrolSessionPrintTemplate({

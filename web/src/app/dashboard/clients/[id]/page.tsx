@@ -9,6 +9,7 @@ import { Shield, ArrowLeft, Edit, Users, Calendar, MapPin, Route, Mail, Phone, M
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
 import StatusChip from '../../../components/ui/StatusChip';
+import { formatPatrolDate, formatPatrolDateTime } from '../../../../lib/date-formatter';
 
 interface ClientDetail {
   id: string;
@@ -122,7 +123,7 @@ export default function ClientDetailsPage() {
               <StatusChip status={client.isActive} />
             </div>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: 0 }}>
-              Client Code: <strong>{client.clientCode}</strong> • Provisioned on {new Date(client.createdAt).toLocaleDateString()}
+              Client Code: <strong>{client.clientCode}</strong> • Provisioned on {formatPatrolDate(client.createdAt)}
             </p>
           </div>
         </div>
@@ -226,7 +227,7 @@ export default function ClientDetailsPage() {
                       <div>
                         <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>{usr.email}</p>
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                          Last login: {usr.lastLogin ? new Date(usr.lastLogin).toLocaleString() : 'Never'}
+                          Last login: {usr.lastLogin ? formatPatrolDateTime(usr.lastLogin, undefined, false) : 'Never'}
                         </p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -271,7 +272,7 @@ export default function ClientDetailsPage() {
                       <strong>{log.user.email}</strong> performed <strong>{log.action}</strong> on <em>{log.entity}</em>
                     </p>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                      {new Date(log.createdAt).toLocaleString()}
+                      {formatPatrolDateTime(log.createdAt, undefined, false)}
                     </p>
                   </div>
                 </div>

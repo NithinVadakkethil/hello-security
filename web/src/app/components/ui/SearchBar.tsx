@@ -16,26 +16,33 @@ export default function SearchBar({
 }: SearchBarProps) {
   const [innerValue, setInnerValue] = useState(value);
   const onChangeRef = useRef(onChange);
+  const lastEmittedValueRef = useRef<string>(value);
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
+  // Sync external value updates (e.g. clear filters, external navigation),
+  // but avoid clobbering user typing if value is an echo of what was just emitted.
   useEffect(() => {
-    setInnerValue(value);
+    if (value !== lastEmittedValueRef.current) {
+      setInnerValue(value);
+      lastEmittedValueRef.current = value;
+    }
   }, [value]);
 
   useEffect(() => {
-    if (innerValue === value) return;
+    if (innerValue === lastEmittedValueRef.current) return;
 
     const handler = setTimeout(() => {
+      lastEmittedValueRef.current = innerValue;
       onChangeRef.current(innerValue);
     }, debounceTime);
 
     return () => {
       clearTimeout(handler);
     };
-  }, [innerValue, value, debounceTime]);
+  }, [innerValue, debounceTime]);
 
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: '320px' }}>

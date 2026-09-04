@@ -22,6 +22,10 @@ import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
 import TaskVerificationChecklist from '../components/TaskVerificationChecklist';
 import PatrolSessionPrintTemplate from '../components/PatrolSessionPrintTemplate';
+import {
+  formatPatrolDateTime,
+  formatPatrolTime,
+} from '@/lib/date-formatter';
 
 interface Gate {
   id: string;
@@ -701,7 +705,7 @@ export default function PatrolSessionDetailPage() {
                                 margin: 0,
                               }}
                             >
-                              {new Date(item.scannedAt!).toLocaleTimeString()}
+                              {formatPatrolTime(item.scannedAt!)}
                             </p>
                             {item.scanCoords && (
                               <span
@@ -767,7 +771,7 @@ export default function PatrolSessionDetailPage() {
                   STARTED AT
                 </p>
                 <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
-                  {new Date(session.startedAt).toLocaleString()}
+                  {formatPatrolDateTime(session.startedAt)}
                 </p>
               </div>
 
@@ -783,7 +787,7 @@ export default function PatrolSessionDetailPage() {
                 </p>
                 <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
                   {session.endedAt
-                    ? new Date(session.endedAt).toLocaleString()
+                    ? formatPatrolDateTime(session.endedAt)
                     : 'Active monitoring'}
                 </p>
               </div>

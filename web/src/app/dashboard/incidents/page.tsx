@@ -18,6 +18,7 @@ import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
 import { apiClient } from '../../lib/axios';
 import { ApiResponse } from '../../types/api';
+import { formatPatrolDate } from '@/lib/date-formatter';
 
 interface Employee {
   id: string;
@@ -497,7 +498,7 @@ export default function IncidentsPage() {
                       }}
                     >
                       <Clock size={12} />
-                      {new Date(incident.createdAt).toLocaleDateString()}
+                      {formatPatrolDate(incident.createdAt)}
                     </span>
                   </div>
 

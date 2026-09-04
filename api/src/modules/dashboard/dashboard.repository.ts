@@ -10,6 +10,7 @@ export class DashboardRepository {
       routes,
       assignments,
       activePatrols,
+      clientInfo,
     ] = await Promise.all([
       prisma.employee.count({
         where: {
@@ -63,6 +64,20 @@ export class DashboardRepository {
           status: 'IN_PROGRESS',
         },
       }),
+
+      clientId
+        ? prisma.client.findUnique({
+            where: { id: clientId },
+            select: {
+              companyName: true,
+              clientLogoUrl: true,
+              dashboardImageUrl: true,
+              dashboardImageAspectRatio: true,
+              dashboardImageOrientation: true,
+              dashboardImageFocalPosition: true,
+            },
+          })
+        : Promise.resolve(null),
     ]);
 
     return {
@@ -73,6 +88,16 @@ export class DashboardRepository {
       routes,
       assignments,
       activePatrols,
+      clientBranding: clientInfo
+        ? {
+            companyName: clientInfo.companyName,
+            clientLogoUrl: clientInfo.clientLogoUrl,
+            dashboardImageUrl: clientInfo.dashboardImageUrl,
+            dashboardImageAspectRatio: clientInfo.dashboardImageAspectRatio,
+            dashboardImageOrientation: clientInfo.dashboardImageOrientation || 'LANDSCAPE',
+            dashboardImageFocalPosition: clientInfo.dashboardImageFocalPosition || 'center',
+          }
+        : null,
     };
   }
 

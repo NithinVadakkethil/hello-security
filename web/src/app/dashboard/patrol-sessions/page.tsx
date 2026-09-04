@@ -10,6 +10,7 @@ import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
 import { apiClient } from '../../lib/axios';
+import { formatPatrolDateTime } from '@/lib/date-formatter';
 
 interface Checkpoint {
   id: string;
@@ -195,7 +196,7 @@ export default function PatrolSessionsPage() {
     {
       key: 'startedAt',
       label: 'Started Time',
-      render: (row: PatrolSession) => new Date(row.startedAt).toLocaleString(),
+      render: (row: PatrolSession) => formatPatrolDateTime(row.startedAt),
     },
     {
       key: 'status',

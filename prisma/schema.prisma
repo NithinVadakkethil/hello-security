@@ -86,6 +86,16 @@ model Client {
 
   isActive Boolean @default(true)
 
+  clientLogoUrl String?
+
+  dashboardImageUrl String?
+
+  dashboardImageAspectRatio Float?
+
+  dashboardImageOrientation String? @default("LANDSCAPE")
+
+  dashboardImageFocalPosition String? @default("center")
+
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt

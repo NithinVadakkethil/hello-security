@@ -2,6 +2,8 @@ import { NextFunction, Request, Response } from 'express';
 
 import { currentUser } from '../../common/auth/current-user';
 import { HttpStatus } from '../../common/errors/HttpStatus';
+import { AppError } from '../../common/errors/AppError';
+import { ErrorCodes } from '../../common/errors/ErrorCodes';
 
 import { createGateSchema, updateGateSchema } from './gate.schema';
 import { gateService } from './gate.service';
@@ -65,6 +67,35 @@ export class GateController {
       const siteId = req.query.siteId as string;
 
       const result = await gateService.getNextSequence(siteId);
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getBulkRange(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const siteId = req.query.siteId as string;
+      const fromSeq = req.query.fromSeq ? Number(req.query.fromSeq) : undefined;
+      const toSeq = req.query.toSeq ? Number(req.query.toSeq) : undefined;
+
+      if (!siteId) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          'siteId query parameter is required.',
+        );
+      }
+
+      const isSuperAdmin = user.role === 'SUPER_ADMIN';
+      const clientId = isSuperAdmin || !user.tenantId ? undefined : user.tenantId;
+
+      const result = await gateService.getBulkRange(siteId, fromSeq, toSeq, clientId);
 
       return res.status(HttpStatus.OK).json({
         success: true,

@@ -26,6 +26,7 @@ import StatusChip from '../../components/ui/StatusChip';
 import { apiClient } from '../../lib/axios';
 import { useAuthStore } from '../../store/auth-store';
 import { ApiResponse } from '../../types/api';
+import { formatPatrolDateTime } from '@/lib/date-formatter';
 
 interface User {
   id: string;
@@ -313,7 +314,7 @@ export default function UsersPage() {
       key: 'lastLogin',
       label: 'Last Login',
       render: (row: User) =>
-        row.lastLogin ? new Date(row.lastLogin).toLocaleString() : 'Never',
+        row.lastLogin ? formatPatrolDateTime(row.lastLogin, undefined, false) : 'Never',
     },
     {
       key: 'isActive',

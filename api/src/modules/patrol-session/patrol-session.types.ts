@@ -1,9 +1,12 @@
 export interface StartPatrolDto {
   assignmentId: string;
+  startedAt?: string;
 }
 
 export interface CompletePatrolDto {
   remarks?: string;
+  endedAt?: string;
+  completedAt?: string;
 }
 
 export interface ListPatrolSessionsQuery {

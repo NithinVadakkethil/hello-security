@@ -31,6 +31,7 @@ import { useTheme } from '../../../app/hooks/useTheme';
 import { AppTabParamList } from '../../../app/navigation/types';
 import { resolveImageUrl } from '../../../app/utils/image';
 import { dashboardApi } from '../api/dashboard.api';
+import { formatPatrolDateTime } from '../../../app/utils/date-formatter';
 import { Card } from '../components/WidgetCard';
 import { usePatrolDetail } from '../hooks/useDashboard';
 
@@ -164,12 +165,7 @@ export function PatrolDetailsScreen() {
 
   const formatTime = (dateStr?: string) => {
     if (!dateStr) return 'N/A';
-    return new Date(dateStr).toLocaleString([], {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatPatrolDateTime(dateStr);
   };
 
   return (

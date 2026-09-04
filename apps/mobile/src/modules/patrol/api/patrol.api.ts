@@ -2,8 +2,8 @@ import { apiClient } from '../../../app/api/api-client';
 import { PatrolSession } from '../../dashboard/types';
 
 export const patrolApi = {
-  startPatrol: async (assignmentId?: string, resolveExistingPatrol?: boolean): Promise<PatrolSession> => {
-    const res = (await apiClient.post('/patrol-sessions/start', { assignmentId, resolveExistingPatrol })) as any;
+  startPatrol: async (assignmentId?: string, resolveExistingPatrol?: boolean, startedAt?: string): Promise<PatrolSession> => {
+    const res = (await apiClient.post('/patrol-sessions/start', { assignmentId, resolveExistingPatrol, startedAt })) as any;
     return res.data;
   },
 
@@ -17,8 +17,8 @@ export const patrolApi = {
     return res.data;
   },
 
-  completePatrol: async (id: string, remarks?: string): Promise<PatrolSession> => {
-    const res = (await apiClient.patch(`/patrol-sessions/${id}/complete`, { remarks })) as any;
+  completePatrol: async (id: string, remarks?: string, endedAt?: string): Promise<PatrolSession> => {
+    const res = (await apiClient.patch(`/patrol-sessions/${id}/complete`, { remarks, endedAt })) as any;
     return res.data;
   },
 
@@ -34,8 +34,9 @@ export const patrolApi = {
     images?: string[],
     latitude?: number,
     longitude?: number,
-    subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string; images?: string[] }>,
+    subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string; images?: string[]; answeredAt?: string }>,
     patrolSessionId?: string,
+    scannedAt?: string,
   ): Promise<any> => {
     const res = (await apiClient.post('/patrol-checkpoints/scan', {
       gateId,
@@ -45,6 +46,7 @@ export const patrolApi = {
       images,
       latitude,
       longitude,
+      scannedAt,
       subTaskResponses,
     })) as any;
     return res.data;

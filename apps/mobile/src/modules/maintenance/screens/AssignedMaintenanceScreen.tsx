@@ -35,6 +35,7 @@ import { apiClient } from '../../../app/api/api-client';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { useAuthStore } from '../../../app/store/auth-store';
 import { resolveImageUrl } from '../../../app/utils/image';
+import { formatPatrolDate } from '../../../app/utils/date-formatter';
 import { Button } from '../../../components/Button';
 import { Card } from '../../dashboard/components/WidgetCard';
 
@@ -462,7 +463,7 @@ export function AssignedMaintenanceScreen() {
                     <Text style={{ fontWeight: '700', color: colors.primary }}>
                       {snag.status}
                     </Text>{' '}
-                    • {new Date(snag.createdAt).toLocaleDateString()}
+                    • {formatPatrolDate(snag.createdAt)}
                   </Text>
                 </View>
                 {snag.status === 'RESOLVED' ? (

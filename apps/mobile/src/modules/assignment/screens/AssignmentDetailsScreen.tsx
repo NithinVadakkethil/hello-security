@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '../../../app/hooks/useTheme';
+import { formatPatrolDate } from '../../../app/utils/date-formatter';
 import { Card } from '../../dashboard/components/WidgetCard';
 
 export function AssignmentDetailsScreen({ route }: any) {
@@ -39,12 +40,12 @@ export function AssignmentDetailsScreen({ route }: any) {
       <Card style={styles.card}>
         <Text style={[styles.label, { color: colors.textSecondary }]}>Effective From</Text>
         <Text style={[styles.value, { color: colors.text }]}>
-          {new Date(assignment.effectiveFrom).toLocaleDateString()}
+          {formatPatrolDate(assignment.effectiveFrom)}
         </Text>
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>Effective To</Text>
         <Text style={[styles.value, { color: colors.text }]}>
-          {assignment.effectiveTo ? new Date(assignment.effectiveTo).toLocaleDateString() : 'Indefinite / Ongoing'}
+          {assignment.effectiveTo ? formatPatrolDate(assignment.effectiveTo) : 'Indefinite / Ongoing'}
         </Text>
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>Status</Text>

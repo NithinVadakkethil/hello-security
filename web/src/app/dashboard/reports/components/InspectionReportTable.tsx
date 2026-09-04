@@ -3,6 +3,7 @@
 import { AlertTriangle, ArrowUpDown, Eye } from 'lucide-react';
 import Pagination from '../../../components/ui/Pagination';
 import StatusChip from '../../../components/ui/StatusChip';
+import { formatPatrolDateTime } from '@/lib/date-formatter';
 
 export interface InspectionRow {
   id: string;
@@ -251,7 +252,7 @@ export default function InspectionReportTable({
                         color: 'var(--text-secondary)',
                       }}
                     >
-                      {new Date(row.startedAt).toLocaleString()}
+                      {formatPatrolDateTime(row.startedAt)}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <div

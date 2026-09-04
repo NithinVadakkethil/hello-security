@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { apiClient } from '../../../app/api/api-client';
+import { formatPatrolDate, formatPatrolTime } from '../../../app/utils/date-formatter';
 import { Card } from '../../dashboard/components/WidgetCard';
 
 export function HistoryScreen() {
@@ -226,8 +227,8 @@ export function HistoryScreen() {
         ) : (
           filteredList.map((item: any) => {
             const dateVal = item.createdAt || item.startedAt;
-            const formattedDate = dateVal ? new Date(dateVal).toLocaleDateString() : 'N/A';
-            const formattedTime = dateVal ? new Date(dateVal).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
+            const formattedDate = formatPatrolDate(dateVal);
+            const formattedTime = formatPatrolTime(dateVal, undefined, false);
             const siteName = item.assignment?.site?.name || item.site?.name || 'Site Location';
             const code = item.patrolCode || item.incidentCode || item.snagCode || item.id?.substring(0, 8);
             const status = item.status || 'LOGGED';

@@ -33,6 +33,13 @@ router.get(
 );
 
 router.get(
+  '/bulk-range',
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN),
+  gateController.getBulkRange.bind(gateController),
+);
+
+router.get(
   '/:id',
   authenticate,
   authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN),

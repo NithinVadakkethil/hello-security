@@ -3,6 +3,7 @@ export interface SubTaskResponseDto {
   answer: 'YES' | 'NO';
   remarks?: string;
   images?: string[];
+  answeredAt?: string;
 }
 
 export interface ScanCheckpointDto {
@@ -18,6 +19,8 @@ export interface ScanCheckpointDto {
   status?: string;
 
   images?: string[];
+
+  scannedAt?: string;
 
   subTaskResponses?: SubTaskResponseDto[];
 }
