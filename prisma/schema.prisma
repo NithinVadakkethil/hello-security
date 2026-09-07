@@ -127,6 +127,8 @@ model Client {
   notificationSettings ClientNotificationSettings?
 
   notificationDeliveries NotificationDelivery[]
+
+  subtaskMasters SubTaskMaster[]
 }
 
 model User {
@@ -606,9 +608,47 @@ model GateSubTask {
   updatedAt    DateTime                @updatedAt
   responses    PatrolSubTaskResponse[]
 
+  sourceMasterItemId String?
+  sourceMasterItem   SubTaskMasterItem? @relation(fields: [sourceMasterItemId], references: [id], onDelete: SetNull)
+
   @@unique([gateId, role, taskName])
   @@index([gateId])
   @@index([role])
+  @@index([sourceMasterItemId])
+}
+
+model SubTaskMaster {
+  id          String              @id @default(cuid())
+  clientId    String
+  client      Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  role        UserRole            @default(SECURITY)
+  name        String?
+  description String?
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  items       SubTaskMasterItem[]
+
+  @@unique([clientId, role])
+  @@index([clientId])
+}
+
+model SubTaskMasterItem {
+  id           String        @id @default(cuid())
+  masterId     String
+  master       SubTaskMaster @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  taskName     String
+  description  String?
+  displayOrder Int           @default(0)
+  isRequired   Boolean       @default(true)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  gateSubTasks GateSubTask[]
+
+  @@unique([masterId, taskName])
+  @@index([masterId])
 }
 
 model PatrolSubTaskResponse {

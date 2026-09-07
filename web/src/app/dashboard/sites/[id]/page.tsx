@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Edit, Plus, MapPin, ToggleLeft, ToggleRight, QrCode, CheckSquare, Upload } from 'lucide-react';
+import { ArrowLeft, Edit, Plus, MapPin, ToggleLeft, ToggleRight, QrCode, CheckSquare, Upload, FileCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -24,6 +24,7 @@ import GateSubTasksModal from '../components/GateSubTasksModal';
 import CheckpointQrModal from '../components/CheckpointQrModal';
 import ImportCheckpointsModal from '../components/ImportCheckpointsModal';
 import BulkQrModal from '../components/BulkQrModal';
+import ApplySubtaskMasterModal from '../components/ApplySubtaskMasterModal';
 
 interface Site {
   id: string;
@@ -106,6 +107,7 @@ export default function SiteDetailPage() {
 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isBulkQrModalOpen, setIsBulkQrModalOpen] = useState(false);
+  const [isApplyMasterModalOpen, setIsApplyMasterModalOpen] = useState(false);
 
   // Dynamic Pagination & Search state for gates synced via URL
   const gatePage = searchParams.get('gatePage') ? Number(searchParams.get('gatePage')) : 1;
@@ -538,6 +540,10 @@ export default function SiteDetailPage() {
               <Upload size={16} />
               <span>Import Checkpoints</span>
             </button>
+            <button onClick={() => setIsApplyMasterModalOpen(true)} className="btn btn-secondary" style={{ gap: '8px' }}>
+              <FileCheck size={16} />
+              <span>Apply Master Tasks</span>
+            </button>
             <button onClick={handleOpenAddGate} className="btn btn-primary" style={{ gap: '8px' }}>
               <Plus size={16} />
               <span>Add Checkpoint</span>
@@ -689,6 +695,18 @@ export default function SiteDetailPage() {
         siteName={site?.name || ''}
         companyName={(site as any)?.client?.companyName || 'HELLO ORBIT'}
         totalCheckpointsCount={gatePagination.total || gates.length || 0}
+      />
+
+      <ApplySubtaskMasterModal
+        isOpen={isApplyMasterModalOpen}
+        onClose={() => setIsApplyMasterModalOpen(false)}
+        siteId={id}
+        siteName={site?.name || ''}
+        checkpointCount={gatePagination.total || gates.length || 0}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['gates', id] });
+          queryClient.invalidateQueries({ queryKey: ['site', id] });
+        }}
       />
     </div>
   );

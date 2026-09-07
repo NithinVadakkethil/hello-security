@@ -131,6 +131,8 @@ const getRolePresentation = (roleId: string): RoleStyle => {
   };
 };
 
+import SubtaskMasterSettings from './components/SubtaskMasterSettings';
+
 export default function SettingsPage() {
   // Local state for settings persisted in LocalStorage
   const [notifications, setNotifications] = useState(true);
@@ -463,6 +465,9 @@ export default function SettingsPage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* CARD 0: ROLE-WISE SUBTASK MASTER */}
+        <SubtaskMasterSettings />
+
         {/* CARD 1: SYSTEM NOTIFICATIONS */}
         <div className="glass-card" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>

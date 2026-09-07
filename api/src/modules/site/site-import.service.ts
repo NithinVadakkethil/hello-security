@@ -141,44 +141,19 @@ export class SiteImportService {
       const gates = await prisma.gate.findMany({
         where: { siteId },
         orderBy: { sequence: 'asc' },
-        include: {
-          subTasks: {
-            where: { isActive: true },
-            orderBy: { displayOrder: 'asc' },
-          },
-        },
       });
 
       checkpointCount = gates.length;
 
       if (gates.length > 0) {
         gates.forEach((gate) => {
-          if (gate.subTasks.length > 0) {
-            gate.subTasks.forEach((st) => {
-              if (st.taskName && st.taskName.trim() !== '') {
-                exportRows.push({
-                  'Checkpoint Name': gate.name,
-                  'Sequence Number': gate.sequence,
-                  'Role': getRoleDisplay(st.role),
-                  'Subtask': st.taskName.trim(),
-                  'Description': st.description || gate.description || '',
-                  'Latitude': gate.latitude !== null && gate.latitude !== undefined ? gate.latitude : '',
-                  'Longitude': gate.longitude !== null && gate.longitude !== undefined ? gate.longitude : '',
-                });
-              }
-            });
-          } else {
-            // Checkpoint with 0 subtasks -> Export a checkpoint-only row
-            exportRows.push({
-              'Checkpoint Name': gate.name,
-              'Sequence Number': gate.sequence,
-              'Role': '',
-              'Subtask': '',
-              'Description': gate.description || '',
-              'Latitude': gate.latitude !== null && gate.latitude !== undefined ? gate.latitude : '',
-              'Longitude': gate.longitude !== null && gate.longitude !== undefined ? gate.longitude : '',
-            });
-          }
+          exportRows.push({
+            'Sequence Number': gate.sequence,
+            'Checkpoint Name': gate.name,
+            'Description': gate.description || '',
+            'Latitude': gate.latitude !== null && gate.latitude !== undefined ? gate.latitude : '',
+            'Longitude': gate.longitude !== null && gate.longitude !== undefined ? gate.longitude : '',
+          });
         });
       }
     }
@@ -186,109 +161,38 @@ export class SiteImportService {
     if (exportRows.length === 0) {
       exportRows = [
         {
-          'Checkpoint Name': 'Main Entrance Gate A',
           'Sequence Number': 1,
-          'Role': 'Security',
-          'Subtask': 'Doors are closed and cleaned',
+          'Checkpoint Name': 'Main Entrance Gate A',
           'Description': 'Inspect perimeter lock & hinges',
           'Latitude': '',
           'Longitude': '',
         },
         {
-          'Checkpoint Name': 'Main Entrance Gate A',
-          'Sequence Number': 1,
-          'Role': 'Security',
-          'Subtask': 'All Lights are working',
-          'Description': 'Check overhead floodlights',
-          'Latitude': '',
-          'Longitude': '',
-        },
-        {
-          'Checkpoint Name': 'Main Entrance Gate A',
-          'Sequence Number': 1,
-          'Role': 'Security',
-          'Subtask': 'Clean As per Kaizen STD',
-          'Description': '',
-          'Latitude': '',
-          'Longitude': '',
-        },
-        {
-          'Checkpoint Name': 'Main Entrance Gate A',
-          'Sequence Number': 1,
-          'Role': 'House Keeping',
-          'Subtask': 'All Area Cleaned',
-          'Description': '',
-          'Latitude': '',
-          'Longitude': '',
-        },
-        {
-          'Checkpoint Name': 'Main Entrance Gate A',
-          'Sequence Number': 1,
-          'Role': 'House Keeping',
-          'Subtask': 'Floor is clean and dry',
-          'Description': '',
-          'Latitude': '',
-          'Longitude': '',
-        },
-        {
-          'Checkpoint Name': 'Main Entrance Gate A',
-          'Sequence Number': 1,
-          'Role': 'House Keeping',
-          'Subtask': 'No unidentified Material Present',
-          'Description': '',
-          'Latitude': '',
-          'Longitude': '',
-        },
-        {
-          'Checkpoint Name': 'Main Entrance Gate A',
-          'Sequence Number': 1,
-          'Role': 'Technician',
-          'Subtask': 'All Equipment functioning OK',
-          'Description': 'Check power indicator lights',
-          'Latitude': '',
-          'Longitude': '',
-        },
-        {
-          'Checkpoint Name': 'Main Entrance Gate A',
-          'Sequence Number': 1,
-          'Role': 'Technician',
-          'Subtask': 'Auto Mode On',
-          'Description': '',
-          'Latitude': '',
-          'Longitude': '',
-        },
-        {
-          'Checkpoint Name': 'Main Entrance Gate A',
-          'Sequence Number': 1,
-          'Role': 'Technician',
-          'Subtask': 'No Leakages',
-          'Description': '',
-          'Latitude': '',
-          'Longitude': '',
-        },
-        {
-          'Checkpoint Name': 'Loading Dock Gate B',
           'Sequence Number': 2,
-          'Role': 'Security',
-          'Subtask': 'Verify vehicle access logs',
-          'Description': '',
+          'Checkpoint Name': 'North Lobby Checkpoint',
+          'Description': 'Main reception entrance area',
+          'Latitude': '',
+          'Longitude': '',
+        },
+        {
+          'Sequence Number': 3,
+          'Checkpoint Name': 'Loading Dock Gate B',
+          'Description': 'Rear delivery bay entrance',
           'Latitude': '',
           'Longitude': '',
         },
       ];
     }
 
-    const headers = CANONICAL_IMPORT_COLUMNS.map((col) => col.excelHeader);
+    const headers = exportRows.length > 0 ? Object.keys(exportRows[0]) : ['Sequence Number', 'Checkpoint Name', 'Description', 'Latitude', 'Longitude'];
     const worksheet = XLSX.utils.json_to_sheet(exportRows, { header: headers });
     
     worksheet['!cols'] = [
-      { wch: 25 },
       { wch: 16 },
-      { wch: 16 },
-      { wch: 35 },
       { wch: 30 },
-      { wch: 12 },
-      { wch: 12 },
+      { wch: 40 },
+      { wch: 14 },
+      { wch: 14 },
     ];
 
     const workbook = XLSX.utils.book_new();
