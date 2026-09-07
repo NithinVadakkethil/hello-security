@@ -192,7 +192,7 @@ export class GateService {
   }
 
   async delete(id: string) {
-    await this.get(id);
+    const gate = await this.get(id);
 
     const activeSubTasksCount = await prisma.gateSubTask.count({
       where: {
@@ -209,7 +209,22 @@ export class GateService {
       );
     }
 
-    return gateRepository.delete(id);
+    return prisma.$transaction(async (tx) => {
+      const result = await gateRepository.delete(id, tx);
+
+      // Compact sequence numbers for remaining checkpoints on the site
+      await tx.gate.updateMany({
+        where: {
+          siteId: gate.siteId,
+          sequence: { gt: gate.sequence },
+        },
+        data: {
+          sequence: { decrement: 1 },
+        },
+      });
+
+      return result;
+    });
   }
 
   async getBulkRange(siteId: string, fromSeq?: number, toSeq?: number, userTenantId?: string) {

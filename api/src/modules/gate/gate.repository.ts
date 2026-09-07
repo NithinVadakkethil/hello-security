@@ -205,8 +205,9 @@ export class GateRepository {
     return (maxGate?.sequence ?? 0) + 1;
   }
 
-  delete(id: string) {
-    return prisma.gate.delete({
+  delete(id: string, tx?: any) {
+    const client = tx || prisma;
+    return client.gate.delete({
       where: {
         id,
       },

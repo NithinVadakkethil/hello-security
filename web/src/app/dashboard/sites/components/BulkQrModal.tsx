@@ -131,8 +131,8 @@ export default function BulkQrModal({
       const apiRes = await apiClient.get('/gates/bulk-range', {
         params: {
           siteId,
-          fromSeq: effectiveRange.from,
-          toSeq: effectiveRange.to,
+          fromSeq: rangeType === 'ALL' ? undefined : effectiveRange.from,
+          toSeq: rangeType === 'ALL' ? undefined : effectiveRange.to,
         },
       });
 

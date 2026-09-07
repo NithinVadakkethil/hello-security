@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Shield, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
@@ -9,6 +9,7 @@ import Link from 'next/link';
 
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
+import CheckpointSearchInput, { HighlightText } from '../../../components/ui/CheckpointSearchInput';
 
 interface Gate {
   id: string;
@@ -31,6 +32,7 @@ export default function NewPatrolRoutePage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedSiteId, setSelectedSiteId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Selected checkpoints timeline
   const [checkpoints, setCheckpoints] = useState<SelectedCheckpoint[]>([]);
@@ -52,9 +54,21 @@ export default function NewPatrolRoutePage() {
 
   const siteGates = gatesRes?.data || [];
 
-  // Reset checkpoints when site changes
+  // Filter site gates by search query (name or gate code)
+  const filteredGates = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return siteGates;
+    return siteGates.filter(
+      (gate) =>
+        gate.name.toLowerCase().includes(q) ||
+        gate.gateCode.toLowerCase().includes(q)
+    );
+  }, [siteGates, searchQuery]);
+
+  // Reset checkpoints and search query when site changes
   useEffect(() => {
     setCheckpoints([]);
+    setSearchQuery('');
   }, [selectedSiteId]);
 
   const handleAddGate = (gate: Gate) => {
@@ -209,7 +223,23 @@ export default function NewPatrolRoutePage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '32px' }}>
           {/* Left panel: Site gates list */}
           <div className="glass-card" style={{ padding: '24px' }}>
-            <h4 style={{ fontWeight: 600, margin: '0 0 16px 0', fontSize: '1rem' }}>1. Available Checkpoints</h4>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h4 style={{ fontWeight: 600, margin: 0, fontSize: '1rem' }}>1. Available Checkpoints</h4>
+              {selectedSiteId && !isGatesLoading && siteGates.length > 0 && (
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-muted)',
+                    background: 'var(--bg-tertiary)',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-color)',
+                  }}
+                >
+                  {searchQuery.trim() ? `${filteredGates.length} matching` : `${siteGates.length} available`}
+                </span>
+              )}
+            </div>
 
             {!selectedSiteId ? (
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '40px 0' }}>
@@ -222,41 +252,63 @@ export default function NewPatrolRoutePage() {
                 No gates found in this site. Add gates in the Sites module first.
               </p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto' }}>
-                {siteGates.map((gate) => {
-                  const added = checkpoints.some((c) => c.gateId === gate.id);
-                  return (
-                    <div
-                      key={gate.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '10px 14px',
-                        background: 'var(--bg-tertiary)',
-                        borderRadius: 'var(--radius-sm)',
-                        border: '1px solid var(--border-color)',
-                        opacity: added ? 0.6 : 1,
-                      }}
-                    >
-                      <div>
-                        <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: 0 }}>{gate.name}</p>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                          {gate.gateCode}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleAddGate(gate)}
-                        disabled={added}
-                        className="btn btn-secondary"
-                        style={{ padding: '4px 8px', fontSize: '0.75rem', height: '28px' }}
-                      >
-                        Add
-                      </button>
-                    </div>
-                  );
-                })}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <CheckpointSearchInput
+                  value={searchQuery}
+                  onChange={(val) => setSearchQuery(val)}
+                  onClear={() => setSearchQuery('')}
+                  placeholder="Search checkpoints by name or gate code..."
+                />
+
+                {filteredGates.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
+                    <p style={{ fontWeight: 600, fontSize: '0.88rem', margin: '0 0 4px 0', color: 'var(--text-primary)' }}>
+                      No checkpoints found
+                    </p>
+                    <p style={{ fontSize: '0.8rem', margin: 0 }}>
+                      Try searching by checkpoint name or gate code.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto', paddingRight: '2px' }}>
+                    {filteredGates.map((gate) => {
+                      const added = checkpoints.some((c) => c.gateId === gate.id);
+                      return (
+                        <div
+                          key={gate.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 14px',
+                            background: 'var(--bg-tertiary)',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--border-color)',
+                            opacity: added ? 0.6 : 1,
+                          }}
+                        >
+                          <div>
+                            <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: 0 }}>
+                              <HighlightText text={gate.name} query={searchQuery} />
+                            </p>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                              <HighlightText text={gate.gateCode} query={searchQuery} />
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleAddGate(gate)}
+                            disabled={added}
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 8px', fontSize: '0.75rem', height: '28px' }}
+                          >
+                            {added ? 'Added' : 'Add'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>

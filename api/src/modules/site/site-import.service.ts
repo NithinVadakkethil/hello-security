@@ -898,6 +898,37 @@ export class SiteImportService {
             });
             createdSubtasksCount = res.count;
           }
+
+          // 7. Contiguous Sequence Normalization for the Site
+          const siteGatesToResequence = await tx.gate.findMany({
+            where: { siteId },
+            orderBy: [
+              { sequence: 'asc' },
+              { createdAt: 'asc' },
+              { id: 'asc' },
+            ],
+            select: { id: true, sequence: true },
+          });
+
+          let needsResequence = false;
+          siteGatesToResequence.forEach((g, idx) => {
+            if (g.sequence !== idx + 1) needsResequence = true;
+          });
+
+          if (needsResequence) {
+            for (const g of siteGatesToResequence) {
+              await tx.gate.update({
+                where: { id: g.id },
+                data: { sequence: g.sequence + 1000000 },
+              });
+            }
+            for (let idx = 0; idx < siteGatesToResequence.length; idx++) {
+              await tx.gate.update({
+                where: { id: siteGatesToResequence[idx].id },
+                data: { sequence: idx + 1 },
+              });
+            }
+          }
         },
         {
           maxWait: 10000,

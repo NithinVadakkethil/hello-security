@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -10,7 +10,6 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
-  Search,
   CheckCircle2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -22,6 +21,7 @@ import { Switch } from '../../../../components/ui/FormControls';
 import LoadingState from '../../../../components/ui/LoadingState';
 import Modal from '../../../../components/ui/Modal';
 import ConfirmationDialog from '../../../../components/ui/ConfirmationDialog';
+import CheckpointSearchInput, { HighlightText } from '../../../../components/ui/CheckpointSearchInput';
 
 interface Gate {
   id: string;
@@ -204,15 +204,20 @@ export default function EditPatrolRoutePage() {
   };
 
   // Available gates filter (must belong to site and not already added to route)
-  const availableGates = siteGates.filter(
-    (g) => g.isActive && !checkpoints.some((cp) => cp.gateId === g.id)
+  const availableGates = useMemo(
+    () => siteGates.filter((g) => g.isActive && !checkpoints.some((cp) => cp.gateId === g.id)),
+    [siteGates, checkpoints]
   );
 
-  const filteredAvailableGates = availableGates.filter(
-    (g) =>
-      g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      g.gateCode.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAvailableGates = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return availableGates;
+    return availableGates.filter(
+      (g) =>
+        g.name.toLowerCase().includes(q) ||
+        g.gateCode.toLowerCase().includes(q)
+    );
+  }, [availableGates, searchQuery]);
 
   if (isRouteLoading) {
     return <LoadingState message="Loading route configuration..." variant="page" />;
@@ -470,33 +475,19 @@ export default function EditPatrolRoutePage() {
             Select an active checkpoint registered under <strong>{route?.site?.name}</strong> to include in this route.
           </p>
 
-          {/* Search Box */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 12px',
-              background: 'var(--bg-tertiary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '6px',
-            }}
-          >
-            <Search size={16} style={{ color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              placeholder="Search checkpoint..."
+          {/* Search Box & Count */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <CheckpointSearchInput
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: 'var(--text-primary)',
-                width: '100%',
-                fontSize: '0.85rem',
-              }}
+              onChange={(val) => setSearchQuery(val)}
+              onClear={() => setSearchQuery('')}
+              placeholder="Search checkpoints by name or gate code..."
             />
+            {!isGatesLoading && availableGates.length > 0 && (
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+                {searchQuery.trim() ? `${filteredAvailableGates.length} matching` : `${availableGates.length} available`}
+              </div>
+            )}
           </div>
 
           {/* Gates List */}
@@ -515,10 +506,15 @@ export default function EditPatrolRoutePage() {
                 Loading checkpoints...
               </div>
             ) : filteredAvailableGates.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                {availableGates.length === 0
-                  ? 'No available checkpoints for this site.'
-                  : 'No checkpoints match your search.'}
+              <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
+                <p style={{ fontWeight: 600, fontSize: '0.88rem', margin: '0 0 4px 0', color: 'var(--text-primary)' }}>
+                  No checkpoints found
+                </p>
+                <p style={{ fontSize: '0.8rem', margin: 0 }}>
+                  {availableGates.length === 0
+                    ? 'All checkpoints for this site are already in the route.'
+                    : 'Try searching by checkpoint name or gate code.'}
+                </p>
               </div>
             ) : (
               filteredAvailableGates.map((gate) => {
@@ -541,9 +537,11 @@ export default function EditPatrolRoutePage() {
                     }}
                   >
                     <div>
-                      <p style={{ margin: 0, fontWeight: 600, fontSize: '0.88rem' }}>{gate.name}</p>
+                      <p style={{ margin: 0, fontWeight: 600, fontSize: '0.88rem' }}>
+                        <HighlightText text={gate.name} query={searchQuery} />
+                      </p>
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                        {gate.gateCode}
+                        <HighlightText text={gate.gateCode} query={searchQuery} />
                       </span>
                     </div>
                     {isSelected && <CheckCircle2 size={18} style={{ color: 'var(--primary)' }} />}
