@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 export const createEmployeeSchema = z.object({
   firstName: z.string().trim().min(1, 'First name is required'),
-  lastName: z.string().optional(),
+  lastName: z.string().trim().nullable().optional(),
 
   email: z
     .string()
@@ -11,11 +11,11 @@ export const createEmployeeSchema = z.object({
     .min(1, 'Email is required')
     .email('Invalid email address'),
 
-  phone: z.string().optional(),
+  phone: z.string().trim().nullable().optional(),
 
-  designation: z.string().optional(),
+  designation: z.string().trim().nullable().optional(),
 
-  joiningDate: z.coerce.date().optional(),
+  joiningDate: z.coerce.date().nullable().optional(),
 
   identificationMethod: z
     .nativeEnum(IdentificationMethod)
@@ -25,15 +25,15 @@ export const createEmployeeSchema = z.object({
 });
 
 export const updateEmployeeSchema = z.object({
-  firstName: z.string().min(2).optional(),
+  firstName: z.string().trim().min(1).optional(),
 
-  lastName: z.string().optional(),
+  lastName: z.string().trim().nullable().optional(),
 
-  phone: z.string().optional(),
+  phone: z.string().trim().nullable().optional(),
 
-  designation: z.string().optional(),
+  designation: z.string().trim().nullable().optional(),
 
-  joiningDate: z.coerce.date().optional(),
+  joiningDate: z.coerce.date().nullable().optional(),
 
   status: z.nativeEnum(EmployeeStatus).optional(),
   role: z.nativeEnum(UserRole).optional(),

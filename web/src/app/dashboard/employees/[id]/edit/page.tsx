@@ -77,8 +77,14 @@ export default function EditEmployeePage() {
     mutationFn: (values: FormValues) => {
       const payload: any = { ...values };
       delete payload.email; // Email is immutable after creation
-      if (!payload.lastName) {
+      if (!payload.lastName || !payload.lastName.trim()) {
         payload.lastName = null;
+      }
+      if (!payload.phone || !payload.phone.trim()) {
+        payload.phone = null;
+      }
+      if (!payload.designation || !payload.designation.trim()) {
+        payload.designation = null;
       }
       if (payload.joiningDate) {
         payload.joiningDate = new Date(payload.joiningDate).toISOString();

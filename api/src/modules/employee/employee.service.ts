@@ -164,12 +164,27 @@ export class EmployeeService {
   }
 
   async update(id: string, dto: UpdateEmployeeDto) {
-    await this.get(id);
+    const existing = await this.get(id);
 
     // Strip email from dto to ensure email remains immutable after creation
     const { email, ...cleanDto } = dto as any;
 
-    return employeeRepository.update(id, cleanDto);
+    return prisma.$transaction(async (tx) => {
+      const updatedEmp = await tx.employee.update({
+        where: { id },
+        data: cleanDto,
+        include: { user: true },
+      });
+
+      if (cleanDto.role && existing.user) {
+        await tx.user.update({
+          where: { id: existing.user.id },
+          data: { role: cleanDto.role },
+        });
+      }
+
+      return updatedEmp;
+    });
   }
 
   async activate(id: string) {

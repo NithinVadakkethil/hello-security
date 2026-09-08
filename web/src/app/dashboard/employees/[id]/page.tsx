@@ -23,6 +23,7 @@ interface Employee {
   email?: string | null;
   phone?: string | null;
   designation?: string | null;
+  role?: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   identificationMethod: 'QR' | 'RFID';
   joiningDate?: string | null;
@@ -208,7 +209,7 @@ export default function EmployeeDetailPage() {
               <div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>USER ROLE</p>
                 <span style={{ fontSize: '0.8rem', padding: '3px 8px', background: 'var(--primary-glow)', color: 'var(--primary)', fontWeight: 600, borderRadius: '4px' }}>
-                  {employee.user.role.replace('_', ' ')}
+                  {(employee.role || employee.user?.role || 'SECURITY').replace('_', ' ')}
                 </span>
               </div>
 
