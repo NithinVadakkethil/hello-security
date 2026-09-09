@@ -100,7 +100,7 @@ export class PatrolRouteService {
         throw new AppError(
           HttpStatus.BAD_REQUEST,
           ErrorCodes.VALIDATION_ERROR,
-          'Gate is inactive.',
+          'One or more selected checkpoints are inactive and cannot be added to a patrol route.',
         );
       }
     }
@@ -209,6 +209,14 @@ export class PatrolRouteService {
     }
 
     if (dto.checkpoints) {
+      if (dto.checkpoints.length === 0) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          'A patrol route must contain at least one checkpoint.',
+        );
+      }
+
       const sequences = dto.checkpoints.map((c) => c.sequence);
       if (new Set(sequences).size !== sequences.length) {
         throw new AppError(
