@@ -89,6 +89,7 @@ const ROLE_LABELS: Record<string, string> = {
   SERVICE_ENGINEER: 'Service Engineer',
   PLUMBER: 'Plumber',
   LIFE_GUARD: 'Lifeguard',
+  MANAGER: 'Manager',
 };
 
 function getRoleLabel(role?: string | null): string {

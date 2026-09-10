@@ -10,6 +10,7 @@ import { patrolSessionRepository } from '../patrol-session/patrol-session.reposi
 import { prisma } from '../../database/prisma';
 import { patrolCheckpointRepository } from './patrol-checkpoint.repository';
 import { ScanCheckpointDto } from './patrol-checkpoint.types';
+import { ensureGateSubTasksFromMaster } from '../gate-sub-task/gate-sub-task.service';
 
 export class PatrolCheckpointService {
   async authorizeManagerScan(employeeId: string, gateIdInput: string, clientContextId?: string) {
@@ -343,6 +344,12 @@ export class PatrolCheckpointService {
       select: { role: true },
     });
     const userRole = isManagerUser ? UserRole.MANAGER : (employee?.role || 'SECURITY');
+
+    await ensureGateSubTasksFromMaster(
+      dto.gateId,
+      userRole,
+      (gateRecord as any)?.site?.clientId,
+    );
 
     const activeSubTasks = await prisma.gateSubTask.findMany({
       where: {

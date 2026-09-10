@@ -1354,9 +1354,10 @@ export function PatrolScreen() {
 
   const activeGateId = useMemo(
     () =>
-      unlockedGateObj?.gateId ||
       unlockedGateObj?.gate?.id ||
+      unlockedGateObj?.gateId ||
       unlockedGateId ||
+      routeGates.find((rg: any) => !isGateCompleted(rg))?.gate?.id ||
       routeGates.find((rg: any) => !isGateCompleted(rg))?.gateId,
     [unlockedGateObj, unlockedGateId, routeGates, isGateCompleted],
   );
@@ -1378,11 +1379,13 @@ export function PatrolScreen() {
   const getSubTasksForGate = useCallback(
     (rg: any) => {
       let rawTasks: any[] = [];
+      const targetGateId = rg?.gate?.id || rg?.gateId || rg?.id;
       const isTargetActive =
         isGateUnlocked(rg) ||
-        rg.gateId === activeGateId ||
-        rg.gate?.id === activeGateId ||
-        rg.id === activeGateId;
+        targetGateId === activeGateId ||
+        rg?.gateId === activeGateId ||
+        rg?.gate?.id === activeGateId ||
+        rg?.id === activeGateId;
       if (
         isTargetActive &&
         fetchedSubTasksRes &&
@@ -1858,9 +1861,7 @@ export function PatrolScreen() {
 
                         {/* Checkpoint Verification Sub-Tasks Section */}
                         {(() => {
-                          const currentGateSubTasks = getSubTasksForGate(
-                            rg.gate,
-                          );
+                          const currentGateSubTasks = getSubTasksForGate(rg);
                           const activeTasks = currentGateSubTasks.filter(
                             (st: any) => st.isActive !== false,
                           );

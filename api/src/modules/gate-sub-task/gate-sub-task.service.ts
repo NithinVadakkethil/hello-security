@@ -2,20 +2,102 @@ import { UserRole } from '@prisma/client';
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
-import { gateRepository } from '../gate/gate.repository';
 import { gateSubTaskRepository } from './gate-sub-task.repository';
 import { CreateGateSubTaskDto, UpdateGateSubTaskDto } from './gate-sub-task.types';
 import { auditLogService } from '../audit-log/audit-log.service';
+import { prisma } from '../../database/prisma';
+
+export async function resolveGateRecord(gateIdInput: string) {
+  if (!gateIdInput) return null;
+  return prisma.gate.findFirst({
+    where: {
+      OR: [
+        { id: gateIdInput },
+        { gateCode: gateIdInput },
+        { qrCode: gateIdInput },
+      ],
+    },
+    include: {
+      site: true,
+    },
+  });
+}
+
+export async function ensureGateSubTasksFromMaster(
+  gateId: string,
+  role: UserRole,
+  clientId?: string,
+): Promise<void> {
+  if (!gateId || !role) return;
+
+  const existingCount = await prisma.gateSubTask.count({
+    where: { gateId, role },
+  });
+
+  if (existingCount > 0) {
+    return;
+  }
+
+  let targetClientId = clientId;
+  if (!targetClientId) {
+    const gate = await prisma.gate.findUnique({
+      where: { id: gateId },
+      select: { site: { select: { clientId: true } } },
+    });
+    targetClientId = gate?.site?.clientId;
+  }
+
+  if (!targetClientId) return;
+
+  const master = await prisma.subTaskMaster.findFirst({
+    where: { clientId: targetClientId, role, isActive: true },
+    include: {
+      items: {
+        where: { isActive: true },
+        orderBy: { displayOrder: 'asc' },
+      },
+    },
+  });
+
+  if (!master || !master.items || master.items.length === 0) {
+    return;
+  }
+
+  for (const item of master.items) {
+    const existing = await prisma.gateSubTask.findFirst({
+      where: {
+        gateId,
+        role,
+        taskName: { equals: item.taskName, mode: 'insensitive' },
+      },
+    });
+
+    if (!existing) {
+      await prisma.gateSubTask.create({
+        data: {
+          gateId,
+          role,
+          taskName: item.taskName,
+          description: item.description,
+          displayOrder: item.displayOrder,
+          isRequired: item.isRequired,
+          isActive: item.isActive ?? true,
+          sourceMasterItemId: item.id,
+        },
+      });
+    }
+  }
+}
 
 export class GateSubTaskService {
-  async create(gateId: string, dto: CreateGateSubTaskDto, userId?: string, clientId?: string) {
-    const gate = await gateRepository.findById(gateId);
+  async create(gateIdInput: string, dto: CreateGateSubTaskDto, userId?: string, clientId?: string) {
+    const gate = await resolveGateRecord(gateIdInput);
     if (!gate) {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
     }
 
     const role = dto.role || 'SECURITY';
-    const existing = await gateSubTaskRepository.findByGateAndNameAndRole(gateId, dto.taskName.trim(), role);
+    const existing = await gateSubTaskRepository.findByGateAndNameAndRole(gate.id, dto.taskName.trim(), role);
     if (existing) {
       throw new AppError(
         HttpStatus.CONFLICT,
@@ -24,7 +106,7 @@ export class GateSubTaskService {
       );
     }
 
-    const subTask = await gateSubTaskRepository.create(gateId, dto);
+    const subTask = await gateSubTaskRepository.create(gate.id, dto);
 
     if (userId && clientId) {
       await auditLogService.create({
@@ -39,12 +121,17 @@ export class GateSubTaskService {
     return subTask;
   }
 
-  async list(gateId: string, onlyActive = false, role?: UserRole) {
-    const gate = await gateRepository.findById(gateId);
+  async list(gateIdInput: string, onlyActive = false, role?: UserRole) {
+    const gate = await resolveGateRecord(gateIdInput);
     if (!gate) {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
     }
-    return gateSubTaskRepository.listByGate(gateId, onlyActive, role);
+
+    if (role) {
+      await ensureGateSubTasksFromMaster(gate.id, role, gate.site?.clientId);
+    }
+
+    return gateSubTaskRepository.listByGate(gate.id, onlyActive, role);
   }
 
   async get(id: string) {
@@ -103,7 +190,12 @@ export class GateSubTaskService {
     return { success: true, id };
   }
 
-  async reorder(gateId: string, dto: { subTasks: Array<{ id: string; displayOrder: number }> }, userId?: string, clientId?: string) {
+  async reorder(gateIdInput: string, dto: { subTasks: Array<{ id: string; displayOrder: number }> }, userId?: string, clientId?: string) {
+    const gate = await resolveGateRecord(gateIdInput);
+    if (!gate) {
+      throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
+    }
+
     const updated = await gateSubTaskRepository.reorder(dto.subTasks);
 
     if (userId && clientId && dto.subTasks.length > 0) {
@@ -121,3 +213,4 @@ export class GateSubTaskService {
 }
 
 export const gateSubTaskService = new GateSubTaskService();
+
