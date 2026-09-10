@@ -21,6 +21,8 @@ import snagCategoryRoutes from '../modules/snag-category/snag-category.routes';
 import clientNotificationRoutes from '../modules/client-notification/client-notification.routes';
 import clientBrandingRoutes from '../modules/client/client-branding.routes';
 import subTaskMasterRoutes from '../modules/subtask-master/subtask-master.routes';
+import managerRoutes from '../modules/manager/manager.routes';
+import centralManagerRoutes from '../modules/central-manager/central-manager.routes';
 
 import healthRoute from './health.route';
 import protectedRoute from './protected.route';
@@ -30,6 +32,8 @@ const router: Router = Router();
 router.use('/health', healthRoute);
 router.use('/protected', protectedRoute);
 router.use('/auth', authRoutes);
+router.use('/manager', managerRoutes);
+router.use('/central-manager', centralManagerRoutes);
 router.use('/', clientNotificationRoutes);
 router.use('/', clientBrandingRoutes);
 router.use('/', subTaskMasterRoutes);

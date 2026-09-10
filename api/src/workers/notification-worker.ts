@@ -40,15 +40,38 @@ export async function processCompletedPatrolNotification(
     logger.error(`CRITICAL TENANT ERROR: Patrol session clientId (${patrol.clientId}) does not match job clientId (${clientId}).`);
     return;
   }
+  if (!patrol.assignment && !patrol.managerUserId) {
+    logger.info(`ℹ️ Patrol session ${patrolSessionId} has no guard assignment and no manager. Skipping automated email notification.`);
+    return;
+  }
 
-  const employeeId = patrol.assignment.employeeId;
-  const siteId = patrol.assignment.siteId;
-  const shiftId = patrol.assignment.shiftId;
-  const officerName = `${patrol.assignment.employee.firstName} ${patrol.assignment.employee.lastName}`;
-  const employeeNumber = patrol.assignment.employee.employeeNumber;
-  const officerRole = (patrol.assignment.employee.role || 'SECURITY').toUpperCase();
-  const siteName = patrol.assignment.site.name;
-  const shiftName = `${patrol.assignment.shift.name} (${patrol.assignment.shift.startTime} - ${patrol.assignment.shift.endTime})`;
+  const isManagerSession = !!patrol.managerUserId;
+  const startedAt = patrol.startedAt;
+  const cycleDate = startedAt ? startedAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
+  let employeeId = patrol.assignment?.employeeId || patrol.managerUserId || '';
+  let siteId = patrol.assignment?.siteId || '';
+  let shiftId = patrol.assignment?.shiftId || '';
+
+  let officerName: string;
+  let employeeNumber: string;
+  let officerRole = isManagerSession ? 'MANAGER' : (patrol.assignment?.employee?.role || 'SECURITY').toUpperCase();
+  let siteName: string;
+  let shiftName: string;
+
+  if (isManagerSession) {
+    const mgrUser = patrol.managerUser as any;
+    officerName = `${mgrUser?.employee?.firstName || mgrUser?.email || 'Manager'} ${mgrUser?.employee?.lastName || ''}`.trim();
+    employeeNumber = mgrUser?.employee?.employeeNumber || 'MGR';
+    const cpSites = Array.from(new Set((patrol.checkpoints || []).map((cp: any) => cp.gate?.site?.name).filter(Boolean)));
+    siteName = cpSites.length > 1 ? `${cpSites.length} Sites (${cpSites.join(', ')})` : (cpSites[0] || 'Manager Inspection');
+    shiftName = 'Manager Patrol Sweep';
+  } else {
+    officerName = `${patrol.assignment?.employee?.firstName || ''} ${patrol.assignment?.employee?.lastName || ''}`.trim();
+    employeeNumber = patrol.assignment?.employee?.employeeNumber || 'N/A';
+    siteName = patrol.assignment?.site?.name || 'Monitored Site';
+    shiftName = patrol.assignment?.shift ? `${patrol.assignment.shift.name} (${patrol.assignment.shift.startTime} - ${patrol.assignment.shift.endTime})` : 'Standard Shift';
+  }
 
   // Resolve recipients: GLOBAL recipients + ROLE-SPECIFIC recipients for officerRole
   const globalRecipients = settings.recipients
@@ -70,100 +93,107 @@ export async function processCompletedPatrolNotification(
     return;
   }
 
-  // 3. Resolve active assigned routes for this employee at this site & shift
-  const activeAssignments = await prisma.guardAssignment.findMany({
-    where: {
-      employeeId,
-      siteId,
-      shiftId,
-      isActive: true,
-    },
-    include: {
-      patrolRoute: {
-        include: {
-          routeGates: { include: { gate: true } },
-        },
-      },
-      assignmentGates: { include: { gate: true } },
-    },
-  });
+  let completedSessions: any[] = [];
+  let totalAssignedRoutesCount = 1;
+  let completedRoutesCount = 1;
 
-  const assignedRouteIds = new Set<string>();
-  activeAssignments.forEach((asg) => {
-    if (asg.assignmentType === 'ROUTE' && asg.patrolRouteId) {
-      assignedRouteIds.add(asg.patrolRouteId);
-    } else if (asg.assignmentType === 'DIRECT_CHECKPOINTS') {
-      assignedRouteIds.add(asg.id);
-    }
-  });
-
-  const totalAssignedRoutesCount = Math.max(assignedRouteIds.size, 1);
-
-  // 4. Resolve completed patrol sessions for this employee & site & shift in current cycle
-  const startedAt = patrol.startedAt;
-  const cycleDate = startedAt.toISOString().split('T')[0];
-  const cycleStart = new Date(startedAt);
-  cycleStart.setHours(0, 0, 0, 0);
-  const cycleEnd = new Date(startedAt);
-  cycleEnd.setHours(23, 59, 59, 999);
-
-  const completedSessions = await prisma.patrolSession.findMany({
-    where: {
-      assignment: {
+  if (isManagerSession) {
+    completedSessions = [patrol];
+  } else {
+    // 3. Resolve active assigned routes for this employee at this site & shift
+    const activeAssignments = await prisma.guardAssignment.findMany({
+      where: {
         employeeId,
         siteId,
         shiftId,
+        isActive: true,
       },
-      status: 'COMPLETED',
-      startedAt: {
-        gte: cycleStart,
-        lte: cycleEnd,
-      },
-    },
-    include: {
-      assignment: {
-        include: {
-          employee: true,
-          site: true,
-          shift: true,
-          patrolRoute: {
-            include: {
-              routeGates: { include: { gate: true } },
-            },
+      include: {
+        patrolRoute: {
+          include: {
+            routeGates: { include: { gate: true } },
           },
-          assignmentGates: { include: { gate: true } },
         },
+        assignmentGates: { include: { gate: true } },
       },
-      checkpoints: {
-        include: {
-          gate: true,
-          subTaskResponses: true,
-        },
-        orderBy: { scannedAt: 'asc' },
-      },
-      incidents: true,
-      snags: true,
-    },
-    orderBy: { startedAt: 'asc' },
-  });
+    });
 
-  // Track distinct completed route IDs
-  const completedDistinctRouteIds = new Set<string>();
-  completedSessions.forEach((sess) => {
-    const routeId = sess.assignment?.patrolRouteId || sess.assignmentId;
-    if (routeId) {
-      completedDistinctRouteIds.add(routeId);
+    const assignedRouteIds = new Set<string>();
+    activeAssignments.forEach((asg) => {
+      if (asg.assignmentType === 'ROUTE' && asg.patrolRouteId) {
+        assignedRouteIds.add(asg.patrolRouteId);
+      } else if (asg.assignmentType === 'DIRECT_CHECKPOINTS') {
+        assignedRouteIds.add(asg.id);
+      }
+    });
+
+    totalAssignedRoutesCount = Math.max(assignedRouteIds.size, 1);
+
+    // 4. Resolve completed patrol sessions for this employee & site & shift in current cycle
+    const startedAt = patrol.startedAt;
+    const cycleStart = new Date(startedAt);
+    cycleStart.setHours(0, 0, 0, 0);
+    const cycleEnd = new Date(startedAt);
+    cycleEnd.setHours(23, 59, 59, 999);
+
+    completedSessions = await prisma.patrolSession.findMany({
+      where: {
+        assignment: {
+          employeeId,
+          siteId,
+          shiftId,
+        },
+        status: 'COMPLETED',
+        startedAt: {
+          gte: cycleStart,
+          lte: cycleEnd,
+        },
+      },
+      include: {
+        assignment: {
+          include: {
+            employee: true,
+            site: true,
+            shift: true,
+            patrolRoute: {
+              include: {
+                routeGates: { include: { gate: true } },
+              },
+            },
+            assignmentGates: { include: { gate: true } },
+          },
+        },
+        checkpoints: {
+          include: {
+            gate: true,
+            subTaskResponses: true,
+          },
+          orderBy: { scannedAt: 'asc' },
+        },
+        incidents: true,
+        snags: true,
+      },
+      orderBy: { startedAt: 'asc' },
+    });
+
+    // Track distinct completed route IDs
+    const completedDistinctRouteIds = new Set<string>();
+    completedSessions.forEach((sess) => {
+      const routeId = sess.assignment?.patrolRouteId || sess.assignmentId;
+      if (routeId) {
+        completedDistinctRouteIds.add(routeId);
+      }
+    });
+
+    completedRoutesCount = completedDistinctRouteIds.size;
+
+    // 5. Check if ALL assigned routes have been completed at least once
+    if (completedRoutesCount < totalAssignedRoutesCount) {
+      logger.info(
+        `ℹ️ Patrol cycle incomplete for ${officerName} (${completedRoutesCount}/${totalAssignedRoutesCount} assigned routes completed). Email delayed until all routes are finished.`,
+      );
+      return;
     }
-  });
-
-  const completedRoutesCount = completedDistinctRouteIds.size;
-
-  // 5. Check if ALL assigned routes have been completed at least once
-  if (completedRoutesCount < totalAssignedRoutesCount) {
-    logger.info(
-      `ℹ️ Patrol cycle incomplete for ${officerName} (${completedRoutesCount}/${totalAssignedRoutesCount} assigned routes completed). Email delayed until all routes are finished.`,
-    );
-    return;
   }
 
   logger.info(
@@ -186,18 +216,20 @@ export async function processCompletedPatrolNotification(
   let totalComplianceSum = 0;
 
   const routesSummaryList: RouteSummaryItem[] = completedSessions.map((sess) => {
-    const routeName = sess.assignment?.patrolRoute?.name || 'Direct Checkpoints';
+    const isManager = !!sess.managerUserId;
+    const routeName = isManager ? 'Manager Inspection' : (sess.assignment?.patrolRoute?.name || 'Direct Checkpoints');
     const isDirectAssignment =
       sess.assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
       (!sess.assignment?.patrolRoute &&
         sess.assignment?.assignmentGates &&
         sess.assignment.assignmentGates.length > 0);
 
-    const totalGates = isDirectAssignment
-      ? sess.assignment?.assignmentGates?.length || 0
-      : sess.assignment?.patrolRoute?.routeGates?.length || 0;
-
     const scannedCount = new Set((sess.checkpoints || []).map((cp: any) => cp.gateId)).size;
+    const totalGates = isManager
+      ? scannedCount
+      : isDirectAssignment
+        ? sess.assignment?.assignmentGates?.length || 0
+        : sess.assignment?.patrolRoute?.routeGates?.length || 0;
     const compliancePercentage = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
 
     const observations: Array<{ title: string; description?: string }> = [];

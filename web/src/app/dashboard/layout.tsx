@@ -14,11 +14,12 @@ import {
   Sun,
   Tag,
   User,
+  UserCheck,
   Users,
   Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import React from 'react';
 import toast from 'react-hot-toast';
 
@@ -33,8 +34,15 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { user, clearAuth } = useAuthStore();
+
+  React.useEffect(() => {
+    if (user?.role === 'MANAGER' || (user?.role as string) === 'CENTRAL_MANAGER' || (user?.role as string) === 'CENTRALIZED_MANAGER') {
+      router.replace('/central/dashboard');
+    }
+  }, [user, router]);
 
   const handleLogout = () => {
     clearTokens();
@@ -59,6 +67,7 @@ export default function DashboardLayout({
           icon: Shield,
         },
         { href: '/dashboard/users', label: 'User Management', icon: Users },
+        { href: '/dashboard/managers', label: 'Centralized Managers', icon: UserCheck },
         { href: '/dashboard/audit-logs', label: 'Audit Logs', icon: FileText },
         { href: '/dashboard/profile', label: 'My Profile', icon: User },
         { href: '/dashboard/settings', label: 'Settings', icon: Settings },
@@ -68,6 +77,7 @@ export default function DashboardLayout({
         { href: '/dashboard/sites', label: 'Sites & Gates', icon: MapPin },
         { href: '/dashboard/shifts', label: 'Shifts', icon: Calendar },
         { href: '/dashboard/employees', label: 'Employees', icon: Users },
+        { href: '/dashboard/managers', label: 'Managers', icon: UserCheck },
         { href: '/dashboard/users', label: 'Users', icon: Shield },
         {
           href: '/dashboard/patrol-routes',

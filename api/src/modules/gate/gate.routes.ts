@@ -21,7 +21,7 @@ router.post(
 router.get(
   '/',
   authenticate,
-  authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN),
+  authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR),
   gateController.list.bind(gateController),
 );
 
@@ -42,7 +42,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN),
+  authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR),
   gateController.get.bind(gateController),
 );
 

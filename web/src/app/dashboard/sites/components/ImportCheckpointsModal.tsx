@@ -632,6 +632,7 @@ export default function ImportCheckpointsModal({
                 <option value="CLEANER">House Keeping</option>
                 <option value="TECHNICIAN">Technician</option>
                 <option value="SUPERVISOR">Supervisor</option>
+                <option value="MANAGER">Manager</option>
                 <option value="SERVICE_ENGINEER">Service Engineer</option>
               </select>
             </div>

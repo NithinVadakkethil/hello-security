@@ -6,6 +6,33 @@ import { isOperationalRole } from '../../../app/utils/role-helpers';
 import { GuardDashboard } from './GuardDashboard';
 import { SupervisorDashboard } from './SupervisorDashboard';
 import { SyncStatusWidget } from '../../../app/components/SyncStatusWidget';
+import { ManagerDashboard } from '../../manager/screens/ManagerDashboard';
+import { OrganizationSelectorScreen } from '../../manager/screens/OrganizationSelectorScreen';
+import { useManagerStore } from '../../manager/store/manager-store';
+import { useNavigation } from '@react-navigation/native';
+
+function ManagerDashboardContainer() {
+  const navigation = useNavigation<any>();
+  const { activeClient, setActiveClient } = useManagerStore();
+  const [showSelector, setShowSelector] = React.useState(false);
+
+  if (!activeClient || showSelector) {
+    return (
+      <OrganizationSelectorScreen
+        onSelectClient={() => setShowSelector(false)}
+      />
+    );
+  }
+
+  return (
+    <ManagerDashboard
+      onSwitchOrganization={() => setShowSelector(true)}
+      onNavigateToScan={() => navigation.navigate('Scanner')}
+      onNavigateToMonitoring={() => navigation.navigate('HistoryTab')}
+      onNavigateToHistory={() => navigation.navigate('HistoryTab')}
+    />
+  );
+}
 
 export function DashboardSelector() {
   const user = useAuthStore((state) => state.user);
@@ -45,11 +72,20 @@ export function DashboardSelector() {
     );
   }
 
+  // Manager role supports multi-client monitoring & unrestricted scanning
+  if (userRole === 'MANAGER') {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ManagerDashboardContainer />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={[styles.title, { color: colors.text }]}>Role Not Supported</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        Mobile dashboards are supported for Operational Roles (Security, House Keeping, Technician, Service Engineer, Plumber, Lifeguard) and Supervisor roles.
+        Mobile dashboards are supported for Operational Roles, Supervisor, and Manager roles.
       </Text>
     </View>
   );

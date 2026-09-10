@@ -240,7 +240,10 @@ export default function SiteDetailPage() {
     mutationFn: ({ gateId, isActive }: { gateId: string; isActive: boolean }) =>
       apiClient.patch(`/gates/${gateId}/${isActive ? 'activate' : 'deactivate'}`),
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['gates', id] });
+      queryClient.invalidateQueries({ queryKey: ['gates'] });
+      queryClient.invalidateQueries({ queryKey: ['patrol-routes'] });
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['checkpoints'] });
       toast.success(`Gate checkpoint ${vars.isActive ? 'activated' : 'deactivated'}.`);
       setConfirmGateStatus((prev) => ({ ...prev, isOpen: false }));
     },

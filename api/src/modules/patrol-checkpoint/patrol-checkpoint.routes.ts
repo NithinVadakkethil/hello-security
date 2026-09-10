@@ -13,6 +13,12 @@ const router: Router = Router();
 router.use(authenticate);
 
 router.post(
+  '/authorize-scan',
+  authorize(UserRole.MANAGER, UserRole.SUPER_ADMIN),
+  patrolCheckpointController.authorizeScan,
+);
+
+router.post(
   '/scan',
   authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR, UserRole.MANAGER),
   patrolCheckpointController.scan,

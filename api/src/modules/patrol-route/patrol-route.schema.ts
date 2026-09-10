@@ -25,5 +25,5 @@ export const updatePatrolRouteSchema = z.object({
 
   isActive: z.boolean().optional(),
 
-  checkpoints: z.array(checkpointSchema).optional(),
+  checkpoints: z.array(checkpointSchema).min(1, 'A patrol route must contain at least one checkpoint.').optional(),
 });

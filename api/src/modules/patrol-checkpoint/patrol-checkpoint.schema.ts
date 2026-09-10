@@ -26,3 +26,11 @@ export const scanCheckpointSchema = z.object({
     )
     .optional(),
 });
+
+export const authorizeScanSchema = z.object({
+  gateId: z.string().min(1, 'Gate ID or QR code is required'),
+});
+
+export type AuthorizeScanDto = z.infer<typeof authorizeScanSchema>;
+
+

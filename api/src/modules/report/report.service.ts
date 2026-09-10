@@ -326,13 +326,21 @@ export class ReportService {
     ];
 
     const rows = result.data.map((session) => {
-      const guardName = `${session.assignment?.employee?.firstName || ''} ${session.assignment?.employee?.lastName || ''}`.trim();
-      const empCode = session.assignment?.employee?.employeeNumber || 'N/A';
-      const siteName = session.assignment?.site?.name || 'N/A';
-      const routeName = session.assignment?.patrolRoute?.name || 'Direct Checkpoints';
+      const isManager = !!session.managerUserId;
+      const guardName = isManager
+        ? `${(session.managerUser as any)?.employee?.firstName || (session.managerUser as any)?.email || 'Manager'} ${(session.managerUser as any)?.employee?.lastName || ''}`.trim()
+        : `${session.assignment?.employee?.firstName || ''} ${session.assignment?.employee?.lastName || ''}`.trim();
+      const empCode = isManager
+        ? (session.managerUser as any)?.employee?.employeeNumber || 'MGR'
+        : session.assignment?.employee?.employeeNumber || 'N/A';
+      const cpSites = Array.from(new Set((session.checkpoints || []).map((cp: any) => cp.gate?.site?.name).filter(Boolean)));
+      const siteName = isManager
+        ? (cpSites.length > 1 ? `${cpSites.length} Sites (${cpSites.join(', ')})` : (cpSites[0] || 'N/A'))
+        : (session.assignment?.site?.name || 'N/A');
+      const routeName = isManager ? 'Manager Inspection' : (session.assignment?.patrolRoute?.name || 'Direct Checkpoints');
       const uniqueGateIds = new Set(session.checkpoints.map((cp) => cp.gateId).filter(Boolean));
       const scannedCount = uniqueGateIds.size;
-      const totalGates = session.assignment?.patrolRoute?.routeGates?.length || session.assignment?.assignmentGates?.length || 0;
+      const totalGates = isManager ? scannedCount : (session.assignment?.patrolRoute?.routeGates?.length || session.assignment?.assignmentGates?.length || 0);
       const compliance = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
       const durationMins = session.totalDuration ? Math.round(session.totalDuration / 60) : 0;
       const incidentCount = session.incidents?.length || 0;
@@ -359,12 +367,16 @@ export class ReportService {
   }
 
   buildPatrolReportHtml(report: any): string {
-    const guardName = report.assignment?.employee
+    const isManagerSession = !!report.managerUserId;
+    const guardName = isManagerSession
+      ? `${report.managerUser?.employee?.firstName || report.managerUser?.email || 'Manager'} ${report.managerUser?.employee?.lastName || ''}`.trim()
+      : report.assignment?.employee
       ? `${report.assignment.employee.firstName} ${report.assignment.employee.lastName || ''}`.trim()
       : '';
 
-    const officerRole =
-      report.assignment?.employee?.role || report.employeeRole || 'SECURITY';
+    const officerRole = isManagerSession
+      ? 'MANAGER'
+      : (report.assignment?.employee?.role || report.employeeRole || 'SECURITY');
 
     const checkpointsTimeline = buildCheckpointTimeline(
       report,
@@ -402,10 +414,18 @@ export class ReportService {
       allTasksTotal > 0 ? Math.round((allTasksYes / allTasksTotal) * 100) : 100;
     const totalIssuesCount = snags.length + incidents.length;
 
-    const employeeId = report.assignment?.employee?.employeeNumber || '—';
-    const siteName = report.assignment?.site?.name || '—';
-    const routeName =
-      report.assignment?.patrolRoute?.name || 'Direct Checkpoints';
+    const employeeId = isManagerSession
+      ? (report.managerUser?.employee?.employeeNumber || 'MGR')
+      : (report.assignment?.employee?.employeeNumber || '—');
+
+    const cpSites = Array.from(new Set((report.checkpoints || []).map((cp: any) => cp.gate?.site?.name).filter(Boolean)));
+    const siteName = isManagerSession
+      ? (cpSites.length > 1 ? `${cpSites.length} Sites (${cpSites.join(', ')})` : (cpSites[0] || 'Manager Inspection'))
+      : (report.assignment?.site?.name || '—');
+
+    const routeName = isManagerSession
+      ? 'Manager Inspection'
+      : (report.assignment?.patrolRoute?.name || 'Direct Checkpoints');
     const shiftInfo = report.assignment?.shift
       ? `Day (${report.assignment.shift.startTime} - ${report.assignment.shift.endTime})`
       : 'Day (06:00 - 5:59)';

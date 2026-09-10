@@ -4,11 +4,15 @@ import { AnalyticsResult, ReportQueryDto } from './report.types';
 import { isRoleMatching } from '../../common/utils/role-matching';
 
 export class ReportRepository {
-  private buildWhereClause(clientId: string | undefined, query: ReportQueryDto): Prisma.PatrolSessionWhereInput {
+  private buildWhereClause(clientId: string | string[] | undefined, query: ReportQueryDto): Prisma.PatrolSessionWhereInput {
     const where: Prisma.PatrolSessionWhereInput = {};
 
     if (clientId) {
-      where.clientId = clientId;
+      if (Array.isArray(clientId)) {
+        where.clientId = { in: clientId };
+      } else {
+        where.clientId = clientId;
+      }
     }
 
     // Status filter
@@ -242,10 +246,33 @@ export class ReportRepository {
               },
             },
           },
+          managerUser: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              employee: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  employeeNumber: true,
+                  role: true,
+                },
+              },
+            },
+          },
           checkpoints: {
             include: {
               gate: {
                 include: {
+                  site: {
+                    select: {
+                      id: true,
+                      name: true,
+                      clientId: true,
+                    },
+                  },
                   subTasks: {
                     where: { isActive: true },
                     orderBy: { displayOrder: 'asc' },
@@ -419,11 +446,11 @@ export class ReportRepository {
     };
   }
 
-  async findSingleInspectionReport(id: string, clientId?: string) {
+  async findSingleInspectionReport(id: string, clientId?: string | string[]) {
     const session = await prisma.patrolSession.findFirst({
       where: {
         OR: [{ id }, { patrolCode: id }],
-        ...(clientId ? { clientId } : {}),
+        ...(clientId ? { clientId: Array.isArray(clientId) ? { in: clientId } : clientId } : {}),
       },
       include: {
         client: true,
@@ -468,26 +495,49 @@ export class ReportRepository {
             },
           },
         },
-        checkpoints: {
-          include: {
-            gate: {
-              include: {
-                subTasks: {
-                  where: { isActive: true },
-                  orderBy: { displayOrder: 'asc' },
+          managerUser: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              employee: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  employeeNumber: true,
+                  role: true,
                 },
               },
             },
-            subTaskResponses: {
-              include: {
-                gateSubTask: true,
+          },
+          checkpoints: {
+            include: {
+              gate: {
+                include: {
+                  site: {
+                    select: {
+                      id: true,
+                      name: true,
+                      clientId: true,
+                    },
+                  },
+                  subTasks: {
+                    where: { isActive: true },
+                    orderBy: { displayOrder: 'asc' },
+                  },
+                },
+              },
+              subTaskResponses: {
+                include: {
+                  gateSubTask: true,
+                },
               },
             },
+            orderBy: {
+              scannedAt: 'asc',
+            },
           },
-          orderBy: {
-            scannedAt: 'asc',
-          },
-        },
         verifiedBy: {
           select: {
             id: true,

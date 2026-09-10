@@ -275,9 +275,9 @@ export default function AssignmentsPage() {
   }, [selectedFormSiteId]);
 
   const { data: gatesRes } = useQuery<ApiResponse<GateItem[]>>({
-    queryKey: ['gates-by-site', selectedFormSiteId],
+    queryKey: ['gates', selectedFormSiteId, 'active'],
     queryFn: () =>
-      apiClient.get('/gates', { params: { siteId: selectedFormSiteId } }),
+      apiClient.get('/gates', { params: { siteId: selectedFormSiteId, isActive: true } }),
     enabled: !!selectedFormSiteId,
   });
 
@@ -497,15 +497,40 @@ export default function AssignmentsPage() {
   // Local filtering & pagination
   let assignments = assignmentsRes?.data || [];
 
+  if (!Array.isArray(assignments)) {
+    assignments = [];
+  }
+
+  const normalize = (val?: string | null) => (val ?? '').toLowerCase();
+
   if (search) {
-    const s = search.toLowerCase();
-    assignments = assignments.filter(
-      (c) =>
-        c.employee.firstName.toLowerCase().includes(s) ||
-        c.employee.lastName.toLowerCase().includes(s) ||
-        c.site.name.toLowerCase().includes(s) ||
-        c.shift.name.toLowerCase().includes(s),
-    );
+    const s = search.trim().toLowerCase();
+    assignments = assignments.filter((c) => {
+      const firstName = normalize(c?.employee?.firstName);
+      const lastName = normalize(c?.employee?.lastName);
+      const fullName = `${firstName} ${lastName}`.trim();
+      const empNumber = normalize(c?.employee?.employeeNumber);
+      const siteName = normalize(c?.site?.name);
+      const shiftName = normalize(c?.shift?.name);
+      const routeName = normalize(c?.patrolRoute?.name);
+
+      const matchesGate = (c?.assignmentGates || []).some(
+        (ag) =>
+          normalize(ag?.gate?.name).includes(s) ||
+          normalize(ag?.gate?.gateCode).includes(s),
+      );
+
+      return (
+        firstName.includes(s) ||
+        lastName.includes(s) ||
+        fullName.includes(s) ||
+        empNumber.includes(s) ||
+        siteName.includes(s) ||
+        shiftName.includes(s) ||
+        routeName.includes(s) ||
+        matchesGate
+      );
+    });
   }
 
   if (statusFilter !== 'ALL') {

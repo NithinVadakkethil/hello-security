@@ -54,3 +54,34 @@ We implemented Next.js App Router views, components, and API integration for all
 ### 2. ESLint Flat Checks
 - `pnpm nx lint web` completed successfully:
   - All workspace syntax rules are followed. Unused imports, declared variables, and typescript type resolutions have been cleaned up and verified.
+
+---
+
+## P0 Regression Fix — Manager QR Scan & Subtask Inspection Flow
+
+### 1. Root Cause Analysis
+- **Auto-completion on QR Scan**: In `ScannerScreen.tsx`, scanning a QR code as a Manager previously invoked `patrolApi.scanCheckpoint(...)` at scan time. This immediately created a `PatrolCheckpoint` record in the database and added it to `activeSession.checkpoints`.
+- **UI Render Suppression**: In `PatrolScreen.tsx`, items in `activeSession.checkpoints` were mapped with `isCompleted: true`. Consequently, `isGateUnlocked` returned `false`, hiding the inspection subtasks form (`unlockedPanel`) and marking the scanned checkpoint `Completed` before any MANAGER subtasks could be answered.
+
+### 2. State & Flow Separation
+1. **Scan / Authorization Step**:
+   - `POST /api/v1/patrol-checkpoints/authorize-scan`: Validates Manager client membership, creates/fetches active Manager `PatrolSession`, unlocks the gate on mobile, but does **NOT** create a `PatrolCheckpoint` database record.
+2. **Subtask Inspection Step**:
+   - `PatrolScreen.tsx` renders the unlocked checkpoint card with `Unlocked` status.
+   - Fetches and renders active `MANAGER` role subtasks for the gate.
+   - If 0 MANAGER tasks exist, renders explicit banner: *"No inspection tasks are configured for the Manager role at this checkpoint."* with explicit `[ Submit & Lock Checkpoint ]` button.
+3. **Submit & Lock Step**:
+   - Tapping `Submit & Lock Checkpoint` invokes `POST /api/v1/patrol-checkpoints/scan` with the subtask responses, remarks, and photo evidence.
+   - Backend creates the `PatrolCheckpoint` record with `status: 'COMPLETED'`.
+   - Gate transitions to `Completed` with green badge and prompt: `[ CANCEL | SCAN ANOTHER CHECKPOINT ]`.
+4. **Finish Sweep Guard**:
+   - `handleComplete` (Finish Sweep) checks if an inspection is currently in progress (`unlockedGateId` active) and blocks completion until the open inspection is submitted or canceled.
+
+### 3. Verification Results
+- **E2E Integration Test**: Executed `scratch/test_manager_qr_scan_flow.ts`:
+  - Verified QR scan authorization returns `0` completed checkpoints.
+  - Verified 3 active `MANAGER` subtasks load for `CCTV - First Floor`.
+  - Verified Checkpoint status becomes `COMPLETED` ONLY after `Submit & Lock Checkpoint`.
+  - Verified Finish Sweep finalizes session with complete responses saved.
+- **TypeScript Compilation**: `npx tsc --noEmit` passed cleanly for both `api` and `apps/mobile` with 0 errors.
+

@@ -2,8 +2,8 @@ import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 
-
 import { employeeRepository } from '../employee/employee.repository';
+import { gateRepository } from '../gate/gate.repository';
 import { patrolRouteRepository } from '../patrol-route/patrol-route.repository';
 import { shiftRepository } from '../shift/shift.repository';
 import { siteRepository } from '../site/site.repository';
@@ -124,6 +124,33 @@ export class AssignmentService {
           ErrorCodes.VALIDATION_ERROR,
           'At least one checkpoint must be selected for direct assignment.',
         );
+      }
+
+      for (const gateId of dto.gateIds) {
+        const gate = await gateRepository.findById(gateId);
+        if (!gate) {
+          throw new AppError(
+            HttpStatus.NOT_FOUND,
+            ErrorCodes.NOT_FOUND,
+            'Checkpoint not found.',
+          );
+        }
+
+        if (gate.siteId !== dto.siteId) {
+          throw new AppError(
+            HttpStatus.BAD_REQUEST,
+            ErrorCodes.VALIDATION_ERROR,
+            `Checkpoint "${gate.name}" belongs to another site.`,
+          );
+        }
+
+        if (!gate.isActive) {
+          throw new AppError(
+            HttpStatus.BAD_REQUEST,
+            ErrorCodes.VALIDATION_ERROR,
+            'One or more selected checkpoints are inactive and cannot be assigned.',
+          );
+        }
       }
     }
 

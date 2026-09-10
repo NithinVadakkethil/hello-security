@@ -37,6 +37,8 @@ import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
 import { Card } from '../../dashboard/components/WidgetCard';
 import { patrolApi } from '../../patrol/api/patrol.api';
 import { usePatrolStore } from '../../patrol/store/patrol-store';
+import { useAuthStore } from '../../../app/store/auth-store';
+import { useManagerStore } from '../../manager/store/manager-store';
 
 export function ScannerScreen() {
   const { colors } = useTheme();
@@ -59,6 +61,10 @@ export function ScannerScreen() {
   }, []);
 
   const isCameraActive = isFocused && appState === 'active';
+
+  const user = useAuthStore(state => state.user);
+  const userRole = (user as any)?.employee?.role || (user as any)?.role || 'SECURITY';
+  const isManager = userRole === 'MANAGER';
 
   const { data: assignmentsList } = useActiveAssignments();
   const activeAssignments = useMemo(
@@ -240,6 +246,104 @@ export function ScannerScreen() {
       setIsProcessingCode(true);
       setErrorMessage(null);
       setSuccessMessage(null);
+
+      // Special Authorization Path for Manager Role (Membership-based, non-assignment)
+      if (isManager) {
+        const existingCps = (activeSession as any)?.checkpoints || [];
+        const matchCp = existingCps.find(
+          (cp: any) =>
+            cp.gateId === cleanCode ||
+            cp.gate?.id === cleanCode ||
+            cp.gate?.gateCode === cleanCode ||
+            cp.gate?.qrCode === cleanCode,
+        );
+
+        if (matchCp) {
+          const cpName = matchCp?.gate?.name || 'This checkpoint';
+          Alert.alert(
+            'Already Inspected',
+            `"${cpName}" has already been inspected in the current patrol.`,
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel',
+                onPress: () => {
+                  isProcessingScanRef.current = false;
+                  setIsProcessingCode(false);
+                },
+              },
+              {
+                text: 'View Inspection',
+                onPress: () => {
+                  navigation.navigate('Dashboard', {
+                    screen: 'PatrolTab',
+                    params: {
+                      checkpointId: matchCp?.gateId || cleanCode,
+                      mode: 'MANAGER_DIRECT',
+                    },
+                  });
+                  isProcessingScanRef.current = false;
+                  setIsProcessingCode(false);
+                },
+              },
+            ],
+          );
+          return;
+        }
+
+        try {
+          const scanResult = await patrolApi.authorizeManagerScan(cleanCode);
+          const resolvedGateId =
+            scanResult?.checkpoint?.gateId ||
+            scanResult?.checkpoint?.gate?.id ||
+            cleanCode;
+          const resolvedGateName =
+            scanResult?.checkpoint?.gate?.name || cleanCode;
+
+          if (scanResult?.patrolSession) {
+            await usePatrolStore.getState().startSession(scanResult.patrolSession);
+          }
+          await usePatrolStore.getState().unlockCheckpoint(resolvedGateId);
+          setSuccessMessage(`✓ Checkpoint Unlocked: "${resolvedGateName}"`);
+          setManualCode('');
+
+          setTimeout(() => {
+            navigation.navigate('Dashboard', {
+              screen: 'PatrolTab',
+              params: {
+                checkpointId: resolvedGateId,
+                checkpointName: resolvedGateName,
+                mode: 'MANAGER_DIRECT',
+              },
+            });
+            isProcessingScanRef.current = false;
+            setIsProcessingCode(false);
+          }, 150);
+          return;
+        } catch (err: any) {
+          const serverErrorMsg =
+            err?.response?.data?.error?.message ||
+            err?.message ||
+            'Scan validation failed.';
+          setErrorMessage(serverErrorMsg);
+          Alert.alert('Access Blocked', serverErrorMsg, [
+            {
+              text: 'OK',
+              onPress: () => {
+                setTimeout(() => {
+                  isProcessingScanRef.current = false;
+                  setIsProcessingCode(false);
+                }, 1000);
+              },
+            },
+          ]);
+          setTimeout(() => {
+            isProcessingScanRef.current = false;
+            setIsProcessingCode(false);
+          }, 2000);
+          return;
+        }
+      }
 
       let matchedGate: any = null;
       let matchedAssignment: any = null;

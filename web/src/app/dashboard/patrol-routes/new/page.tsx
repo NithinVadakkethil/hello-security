@@ -47,8 +47,8 @@ export default function NewPatrolRoutePage() {
 
   // Query Gates for selected site
   const { data: gatesRes, isLoading: isGatesLoading } = useQuery<ApiResponse<Gate[]>>({
-    queryKey: ['gates', selectedSiteId],
-    queryFn: () => apiClient.get('/gates', { params: { siteId: selectedSiteId } }),
+    queryKey: ['gates', selectedSiteId, 'active'],
+    queryFn: () => apiClient.get('/gates', { params: { siteId: selectedSiteId, isActive: true } }),
     enabled: !!selectedSiteId,
   });
 

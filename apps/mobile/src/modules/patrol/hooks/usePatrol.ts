@@ -130,7 +130,10 @@ export function usePatrol() {
       }
       return patrolApi.scanCheckpoint(gateId, remarks, status, images, latitude, longitude, formattedResponses, currentSessionId, scannedAt);
     },
-    onSuccess: async (_, variables) => {
+    onSuccess: async (data, variables) => {
+      if (data?.patrolSession) {
+        await startSession(data.patrolSession);
+      }
       await scanGate(variables.gateId);
       queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
       queryClient.invalidateQueries({ queryKey: ['patrol-sessions'] });

@@ -38,13 +38,21 @@ const processQueue = (error: any, token: string | null = null) => {
   failedQueue = [];
 };
 
-// Request Interceptor: Attach Access Token
+import { useManagerStore } from '../../modules/manager/store/manager-store';
+
+// Request Interceptor: Attach Access Token & Client Context
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = tokenManager.getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    const activeClientId = useManagerStore.getState().activeClient?.clientId;
+    if (activeClientId && config.headers) {
+      config.headers['x-client-context'] = activeClientId;
+    }
+
     return config;
   },
   (error) => {

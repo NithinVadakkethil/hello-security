@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowDown,
   ArrowUp,
+  Briefcase,
   CheckSquare,
   Cpu,
   Droplet,
@@ -52,6 +53,7 @@ const ROLE_OPTIONS = [
   { key: 'SECURITY', label: 'Security', icon: Shield, color: '#3b82f6' },
   { key: 'CLEANER', label: 'House Keeping', icon: Sparkles, color: '#10b981' },
   { key: 'TECHNICIAN', label: 'Technician', icon: Wrench, color: '#f59e0b' },
+  { key: 'MANAGER', label: 'Manager', icon: Briefcase, color: '#64748b' },
   {
     key: 'SERVICE_ENGINEER',
     label: 'Service Engineer',

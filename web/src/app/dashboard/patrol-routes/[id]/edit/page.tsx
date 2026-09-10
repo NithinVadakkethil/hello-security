@@ -93,8 +93,8 @@ export default function EditPatrolRoutePage() {
 
   // Fetch all available gates for this site
   const { data: gatesRes, isLoading: isGatesLoading } = useQuery<ApiResponse<Gate[]>>({
-    queryKey: ['gates', route?.siteId],
-    queryFn: () => apiClient.get('/gates', { params: { siteId: route?.siteId } }),
+    queryKey: ['gates', route?.siteId, 'active'],
+    queryFn: () => apiClient.get('/gates', { params: { siteId: route?.siteId, isActive: true } }),
     enabled: !!route?.siteId,
   });
 
@@ -113,6 +113,7 @@ export default function EditPatrolRoutePage() {
             gateName: rg.gate.name,
             gateCode: rg.gate.gateCode,
             expectedDuration: rg.expectedDuration || 5,
+            isActive: rg.gate.isActive ?? true,
           }))
         );
       }
@@ -136,6 +137,11 @@ export default function EditPatrolRoutePage() {
     e.preventDefault();
     if (!name.trim()) {
       toast.error('Route name is required.');
+      return;
+    }
+
+    if (checkpoints.length === 0) {
+      toast.error('A patrol route must contain at least one checkpoint.');
       return;
     }
 
@@ -193,13 +199,13 @@ export default function EditPatrolRoutePage() {
     ]);
     setIsAddModalOpen(false);
     setSelectedGateToAdd(null);
-    toast.success(`Added "${selectedGateToAdd.name}" to route.`);
+    toast.success(`Added "${selectedGateToAdd.name}" to route list. Click "Save Settings" to apply changes.`);
   };
 
   // Remove Checkpoint handler
   const handleConfirmRemoveGate = () => {
     setCheckpoints((prev) => prev.filter((cp) => cp.gateId !== confirmDelete.gateId));
-    toast.success(`Removed "${confirmDelete.gateName}" from route.`);
+    toast.success(`Removed "${confirmDelete.gateName}" from route list. Click "Save Settings" to apply changes.`);
     setConfirmDelete((prev) => ({ ...prev, isOpen: false }));
   };
 
@@ -370,8 +376,22 @@ export default function EditPatrolRoutePage() {
 
                       {/* Checkpoint Details */}
                       <div style={{ flex: 1 }}>
-                        <p style={{ fontWeight: 600, fontSize: '0.88rem', margin: 0 }}>
-                          {cp.gateName}
+                        <p style={{ fontWeight: 600, fontSize: '0.88rem', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{cp.gateName}</span>
+                          {(cp as any).isActive === false && (
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                color: '#ef4444',
+                                fontWeight: 700,
+                              }}
+                            >
+                              Inactive
+                            </span>
+                          )}
                         </p>
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                           {cp.gateCode}

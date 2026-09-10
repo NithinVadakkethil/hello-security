@@ -129,6 +129,8 @@ model Client {
   notificationDeliveries NotificationDelivery[]
 
   subtaskMasters SubTaskMaster[]
+
+  managerMemberships ManagerClientMembership[] @relation("ClientManagerMemberships")
 }
 
 model User {
@@ -160,6 +162,9 @@ model User {
   snagHistoryEntries SnagHistory[]
   snagAssignmentsTo  SnagAssignment[] @relation("SnagAssignedTo")
   snagAssignmentsBy  SnagAssignment[] @relation("SnagAssignedBy")
+
+  managerMemberships    ManagerClientMembership[] @relation("UserManagerMemberships")
+  managerPatrolSessions PatrolSession[]           @relation("ManagerPatrolSessions")
 }
 
 model Employee {
@@ -465,8 +470,11 @@ model PatrolSession {
   clientId String
   client   Client @relation(fields: [clientId], references: [id])
 
-  assignmentId String
-  assignment   GuardAssignment @relation(fields: [assignmentId], references: [id])
+  assignmentId String?
+  assignment   GuardAssignment? @relation(fields: [assignmentId], references: [id])
+
+  managerUserId String?
+  managerUser   User? @relation("ManagerPatrolSessions", fields: [managerUserId], references: [id])
 
   checkpoints PatrolCheckpoint[]
 
@@ -831,5 +839,20 @@ model NotificationDelivery {
   @@unique([type, patrolSessionId, recipient])
   @@index([clientId])
   @@index([patrolSessionId])
+}
+
+model ManagerClientMembership {
+  id            String   @id @default(cuid())
+  managerUserId String
+  managerUser   User     @relation("UserManagerMemberships", fields: [managerUserId], references: [id], onDelete: Cascade)
+  clientId      String
+  client        Client   @relation("ClientManagerMemberships", fields: [clientId], references: [id], onDelete: Cascade)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([managerUserId, clientId])
+  @@index([managerUserId])
+  @@index([clientId])
 }
 

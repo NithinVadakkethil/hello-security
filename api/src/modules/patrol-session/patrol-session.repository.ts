@@ -19,6 +19,7 @@ export class PatrolSessionRepository {
             patrolRoute: {
               include: {
                 routeGates: {
+                  where: { gate: { isActive: true } },
                   include: {
                     gate: {
                       include: {
@@ -36,6 +37,7 @@ export class PatrolSessionRepository {
               },
             },
             assignmentGates: {
+              where: { gate: { isActive: true } },
               include: {
                 gate: {
                   include: {
@@ -68,6 +70,7 @@ export class PatrolSessionRepository {
             patrolRoute: {
               include: {
                 routeGates: {
+                  where: { gate: { isActive: true } },
                   include: {
                     gate: {
                       include: {
@@ -85,6 +88,7 @@ export class PatrolSessionRepository {
               },
             },
             assignmentGates: {
+              where: { gate: { isActive: true } },
               include: {
                 gate: {
                   include: {
@@ -129,6 +133,7 @@ export class PatrolSessionRepository {
             patrolRoute: {
               include: {
                 routeGates: {
+                  where: { gate: { isActive: true } },
                   include: {
                     gate: {
                       include: {
@@ -146,6 +151,7 @@ export class PatrolSessionRepository {
               },
             },
             assignmentGates: {
+              where: { gate: { isActive: true } },
               include: {
                 gate: {
                   include: {
@@ -188,6 +194,7 @@ export class PatrolSessionRepository {
             patrolRoute: {
               include: {
                 routeGates: {
+                  where: { gate: { isActive: true } },
                   include: {
                     gate: {
                       include: {
@@ -205,6 +212,7 @@ export class PatrolSessionRepository {
               },
             },
             assignmentGates: {
+              where: { gate: { isActive: true } },
               include: {
                 gate: {
                   include: {
@@ -217,6 +225,22 @@ export class PatrolSessionRepository {
               },
               orderBy: {
                 sequence: 'asc',
+              },
+            },
+          },
+        },
+        managerUser: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            employee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                employeeNumber: true,
+                designation: true,
               },
             },
           },
@@ -241,6 +265,13 @@ export class PatrolSessionRepository {
           include: {
             gate: {
               include: {
+                site: {
+                  select: {
+                    id: true,
+                    name: true,
+                    clientId: true,
+                  },
+                },
                 subTasks: {
                   where: { isActive: true },
                   orderBy: { displayOrder: 'asc' },
@@ -530,11 +561,40 @@ export class PatrolSessionRepository {
         skip,
         take: limit,
         include: {
+          managerUser: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              employee: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  employeeNumber: true,
+                  designation: true,
+                },
+              },
+            },
+          },
           checkpoints: {
             select: {
               id: true,
               gateId: true,
               scannedAt: true,
+              gate: {
+                select: {
+                  id: true,
+                  name: true,
+                  gateCode: true,
+                  site: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
             },
           },
           verifiedBy: {
@@ -584,6 +644,8 @@ export class PatrolSessionRepository {
     ]);
 
     const enhancedSessions = sessions.map((session) => {
+      const isManagerSession = !!session.managerUserId;
+
       const validGateIds = new Set([
         ...(session.assignment?.patrolRoute?.routeGates || []).map((rg) => rg.gateId),
         ...(session.assignment?.assignmentGates || []).map((ag) => ag.gateId),
@@ -592,15 +654,16 @@ export class PatrolSessionRepository {
       const uniqueScannedGateIds = new Set(
         (session.checkpoints || [])
           .map((cp) => cp.gateId)
-          .filter((gateId) => gateId && (validGateIds.size === 0 || validGateIds.has(gateId))),
+          .filter((gateId) => gateId && (isManagerSession || validGateIds.size === 0 || validGateIds.has(gateId))),
       );
 
       const scannedCount = uniqueScannedGateIds.size;
 
-      const totalCheckpointCount =
-        session.assignment?.patrolRoute?.routeGates?.length ||
-        session.assignment?.assignmentGates?.length ||
-        0;
+      const totalCheckpointCount = isManagerSession
+        ? scannedCount
+        : session.assignment?.patrolRoute?.routeGates?.length ||
+          session.assignment?.assignmentGates?.length ||
+          0;
 
       return {
         ...session,

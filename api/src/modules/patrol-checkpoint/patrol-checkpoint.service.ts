@@ -4,6 +4,7 @@ import { HttpStatus } from '../../common/errors/HttpStatus';
 import { logger } from '../../common/logger/logger';
 import { processImagesList } from '../../common/utils/file-upload.util';
 
+import { UserRole } from '@prisma/client';
 import { patrolSessionRepository } from '../patrol-session/patrol-session.repository';
 
 import { prisma } from '../../database/prisma';
@@ -11,7 +12,113 @@ import { patrolCheckpointRepository } from './patrol-checkpoint.repository';
 import { ScanCheckpointDto } from './patrol-checkpoint.types';
 
 export class PatrolCheckpointService {
-  async scan(employeeId: string, dto: ScanCheckpointDto) {
+  async authorizeManagerScan(employeeId: string, gateIdInput: string, clientContextId?: string) {
+    if (!employeeId) {
+      throw new AppError(
+        HttpStatus.UNAUTHORIZED,
+        ErrorCodes.UNAUTHORIZED,
+        'Employee account not found.',
+      );
+    }
+
+    const userOrEmp = await prisma.user.findFirst({
+      where: { OR: [{ id: employeeId }, { employeeId: employeeId }] },
+      include: { employee: true },
+    });
+
+    if (!userOrEmp) {
+      throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'User account not found.');
+    }
+
+    let gateRecord = await prisma.gate.findFirst({
+      where: {
+        OR: [{ id: gateIdInput }, { gateCode: gateIdInput }, { qrCode: gateIdInput }],
+      },
+      include: { site: true },
+    });
+
+    if (!gateRecord) {
+      throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Checkpoint gate not found.');
+    }
+
+    if (gateRecord.isActive === false) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'This checkpoint is inactive and cannot be inspected.',
+      );
+    }
+
+    const checkpointClientId = gateRecord.site.clientId;
+
+    const hasMembership = await prisma.managerClientMembership.findFirst({
+      where: {
+        managerUserId: userOrEmp.id,
+        clientId: checkpointClientId,
+        isActive: true,
+      },
+    });
+
+    if (!hasMembership && userOrEmp.role !== UserRole.SUPER_ADMIN) {
+      throw new AppError(
+        HttpStatus.FORBIDDEN,
+        ErrorCodes.FORBIDDEN,
+        'Access denied. This checkpoint is not part of an organization assigned to your Manager account.',
+      );
+    }
+
+    if (
+      clientContextId &&
+      clientContextId !== checkpointClientId &&
+      userOrEmp.role !== UserRole.SUPER_ADMIN
+    ) {
+      throw new AppError(
+        HttpStatus.FORBIDDEN,
+        ErrorCodes.FORBIDDEN,
+        'This checkpoint belongs to another organization. Finish the current patrol or switch organization before scanning.',
+      );
+    }
+
+    let patrol = await prisma.patrolSession.findFirst({
+      where: {
+        managerUserId: userOrEmp.id,
+        status: 'IN_PROGRESS',
+      },
+    });
+
+    if (patrol) {
+      if (patrol.clientId !== checkpointClientId && userOrEmp.role !== UserRole.SUPER_ADMIN) {
+        throw new AppError(
+          HttpStatus.FORBIDDEN,
+          ErrorCodes.FORBIDDEN,
+          'This checkpoint belongs to another organization. Finish the current patrol or switch organization before scanning.',
+        );
+      }
+    } else {
+      const patrolCode = await patrolSessionRepository.getNextPatrolCode(checkpointClientId);
+      patrol = await prisma.patrolSession.create({
+        data: {
+          clientId: checkpointClientId,
+          managerUserId: userOrEmp.id,
+          status: 'IN_PROGRESS',
+          startedAt: new Date(),
+          patrolCode,
+        },
+      });
+    }
+
+    const fullSession = await patrolSessionRepository.findFullById(patrol.id);
+
+    return {
+      checkpoint: {
+        gateId: gateRecord.id,
+        gate: gateRecord,
+      },
+      patrolSession: fullSession || patrol,
+    };
+  }
+
+  async scan(employeeId: string, dto: ScanCheckpointDto, clientContextId?: string) {
     if (!employeeId) {
       throw new AppError(
         HttpStatus.UNAUTHORIZED,
@@ -21,29 +128,120 @@ export class PatrolCheckpointService {
     }
 
     // -----------------------------------------
-    // Find active patrol session for employee
+    // Check if user/employee is a Manager
     // -----------------------------------------
+    const userOrEmp = await prisma.user.findFirst({
+      where: { OR: [{ id: employeeId }, { employeeId: employeeId }] },
+      include: { employee: true },
+    });
+    const isManagerUser =
+      userOrEmp?.role === UserRole.MANAGER || userOrEmp?.employee?.role === UserRole.MANAGER;
 
     let patrol: any = null;
 
-    if (dto.patrolSessionId && !dto.patrolSessionId.startsWith('temp-')) {
-      patrol = await patrolSessionRepository.findFullById(dto.patrolSessionId);
-      // Validate employee ownership if found
-      if (patrol && patrol.assignment?.employeeId !== employeeId) {
-        patrol = null;
+    if (isManagerUser && userOrEmp) {
+      let gateRecord = await prisma.gate.findFirst({
+        where: {
+          OR: [{ id: dto.gateId }, { gateCode: dto.gateId }, { qrCode: dto.gateId }],
+        },
+        include: { site: true },
+      });
+      if (!gateRecord) {
+        throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Checkpoint gate not found.');
       }
-    }
 
-    if (!patrol) {
-      patrol = await patrolSessionRepository.findActiveByEmployee(employeeId);
-    }
+      if (gateRecord.isActive === false) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          'This checkpoint is inactive and cannot be inspected.',
+        );
+      }
 
-    if (!patrol) {
-      throw new AppError(
-        HttpStatus.BAD_REQUEST,
-        ErrorCodes.NOT_FOUND,
-        'No active patrol session in progress for this employee.',
-      );
+      const checkpointClientId = gateRecord.site.clientId;
+
+      // 1. Verify if Manager has an active membership for this checkpoint's client
+      const hasMembership = await prisma.managerClientMembership.findFirst({
+        where: {
+          managerUserId: userOrEmp.id,
+          clientId: checkpointClientId,
+          isActive: true,
+        },
+      });
+
+      if (!hasMembership && userOrEmp.role !== UserRole.SUPER_ADMIN) {
+        throw new AppError(
+          HttpStatus.FORBIDDEN,
+          ErrorCodes.FORBIDDEN,
+          'Access denied. This checkpoint is not part of an organization assigned to your Manager account.',
+        );
+      }
+
+      // 2. Verify if selected client context matches this checkpoint's client
+      if (
+        clientContextId &&
+        clientContextId !== checkpointClientId &&
+        userOrEmp.role !== UserRole.SUPER_ADMIN
+      ) {
+        throw new AppError(
+          HttpStatus.FORBIDDEN,
+          ErrorCodes.FORBIDDEN,
+          'This checkpoint belongs to another organization. Finish the current patrol or switch organization before scanning.',
+        );
+      }
+
+      const activeManagerSession = await prisma.patrolSession.findFirst({
+        where: {
+          managerUserId: userOrEmp.id,
+          status: 'IN_PROGRESS',
+        },
+      });
+
+      if (activeManagerSession) {
+        if (activeManagerSession.clientId !== checkpointClientId && userOrEmp.role !== UserRole.SUPER_ADMIN) {
+          throw new AppError(
+            HttpStatus.FORBIDDEN,
+            ErrorCodes.FORBIDDEN,
+            'This checkpoint belongs to another organization. Finish the current patrol or switch organization before scanning.',
+          );
+        }
+        patrol = activeManagerSession;
+      } else {
+        const patrolCode = await patrolSessionRepository.getNextPatrolCode(checkpointClientId);
+        patrol = await prisma.patrolSession.create({
+          data: {
+            clientId: checkpointClientId,
+            managerUserId: userOrEmp.id,
+            status: 'IN_PROGRESS',
+            startedAt: new Date(),
+            patrolCode,
+          },
+        });
+      }
+    } else {
+      // -----------------------------------------
+      // Find active patrol session for standard employee
+      // -----------------------------------------
+
+      if (dto.patrolSessionId && !dto.patrolSessionId.startsWith('temp-')) {
+        patrol = await patrolSessionRepository.findFullById(dto.patrolSessionId);
+        // Validate employee ownership if found
+        if (patrol && patrol.assignment?.employeeId !== employeeId) {
+          patrol = null;
+        }
+      }
+
+      if (!patrol) {
+        patrol = await patrolSessionRepository.findActiveByEmployee(employeeId);
+      }
+
+      if (!patrol) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.NOT_FOUND,
+          'No active patrol session in progress for this employee.',
+        );
+      }
     }
 
     const assignment = patrol.assignment as any;
@@ -128,6 +326,14 @@ export class PatrolCheckpointService {
     // Standardize dto.gateId to actual Gate.id so FK relations persist smoothly
     dto.gateId = targetGateId;
 
+    if (gateRecord && gateRecord.isActive === false) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'This checkpoint is inactive and cannot be scanned.',
+      );
+    }
+
     // -----------------------------------------
     // Validate Sub Tasks
     // -----------------------------------------
@@ -136,7 +342,7 @@ export class PatrolCheckpointService {
       where: { id: employeeId },
       select: { role: true },
     });
-    const userRole = employee?.role || 'SECURITY';
+    const userRole = isManagerUser ? UserRole.MANAGER : (employee?.role || 'SECURITY');
 
     const activeSubTasks = await prisma.gateSubTask.findMany({
       where: {
@@ -382,22 +588,25 @@ export class PatrolCheckpointService {
       patrol.id,
     );
 
-    const total = assignment.patrolRoute
-      ? assignment.patrolRoute.routeGates.length
-      : assignment.assignmentGates
+    const total = assignment?.patrolRoute
+      ? assignment.patrolRoute.routeGates?.length || 0
+      : assignment?.assignmentGates
         ? assignment.assignmentGates.length
         : 0;
 
     const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
 
+    const fullSession = await patrolSessionRepository.findFullById(patrol.id);
+
     return {
       checkpoint,
+      patrolSession: fullSession || patrol,
 
       progress: {
         completed,
-        total,
+        total: total || completed,
         percentage,
-        remaining: total - completed,
+        remaining: Math.max(0, total - completed),
       },
     };
   }

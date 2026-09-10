@@ -56,6 +56,7 @@ export class UserService {
       clientId: data.clientId || null,
       employeeId: data.employeeId || null,
       password: hashedPassword,
+      rawPassword: rawPassword,
       isActive: true,
     });
 
@@ -96,7 +97,10 @@ export class UserService {
     const rawPassword = newPassword || randomBytes(6).toString('hex');
     const hashedPassword = await hashPassword(rawPassword);
 
-    await userRepository.update(id, { password: hashedPassword });
+    await userRepository.update(id, {
+      password: hashedPassword,
+      rawPassword: rawPassword,
+    });
 
     return {
       success: true,

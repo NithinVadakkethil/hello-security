@@ -5,7 +5,7 @@ import { NextFunction, Request, Response } from 'express';
 import { currentUser } from '../../common/auth/current-user';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 
-import { scanCheckpointSchema } from './patrol-checkpoint.schema';
+import { authorizeScanSchema, scanCheckpointSchema } from './patrol-checkpoint.schema';
 import { patrolCheckpointService } from './patrol-checkpoint.service';
 
 function saveBase64Image(base64Str: string): string {
@@ -54,6 +54,29 @@ function saveBase64Image(base64Str: string): string {
 import { resolveEmployeeId } from '../../common/auth/resolve-employee';
 
 export class PatrolCheckpointController {
+  async authorizeScan(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
+      const body = authorizeScanSchema.parse(req.body);
+      const clientContextId =
+        (req.headers['x-client-context'] as string) || (req.body as any)?.clientContextId;
+
+      const result = await patrolCheckpointService.authorizeManagerScan(
+        employeeId,
+        body.gateId,
+        clientContextId,
+      );
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   async scan(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
@@ -66,10 +89,17 @@ export class PatrolCheckpointController {
         imageUrls = body.images.map((img: string) => saveBase64Image(img));
       }
 
-      const result = await patrolCheckpointService.scan(employeeId, {
-        ...body,
-        images: imageUrls,
-      });
+      const clientContextId =
+        (req.headers['x-client-context'] as string) || (req.body as any)?.clientContextId;
+
+      const result = await patrolCheckpointService.scan(
+        employeeId,
+        {
+          ...body,
+          images: imageUrls,
+        },
+        clientContextId,
+      );
 
       return res.status(HttpStatus.CREATED).json({
         success: true,

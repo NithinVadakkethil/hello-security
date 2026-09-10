@@ -858,7 +858,20 @@ export function PatrolScreen() {
   const handleComplete = async () => {
     if (!activeSession) return;
 
-    if (!hasScannedCheckpoints) {
+    const completedCount = isManager
+      ? (activeSession as any)?.checkpoints?.length || scannedGateIds.length || 0
+      : scannedGateIds.length;
+
+    if (completedCount === 0) {
+      if (isManager) {
+        Alert.alert(
+          'No Checkpoints Scanned',
+          'Scan and complete at least one checkpoint before finishing the patrol.',
+          [{ text: 'OK', style: 'default' }],
+        );
+        return;
+      }
+
       const activeSessionId = activeSession.id;
       Alert.alert(
         'No Checkpoints Scanned',
@@ -900,20 +913,62 @@ export function PatrolScreen() {
       return;
     }
 
-    const totalGates = assignment?.patrolRoute?.routeGates?.length || 0;
-    const remaining = totalGates - scannedGateIds.length;
-
     const confirmAndComplete = async () => {
       try {
         await completePatrol({
           id: activeSession.id,
-          remarks: 'Completed checkpoint sweep.',
+          remarks: 'Completed Manager Patrol Sweep.',
         });
-        Alert.alert('Patrol Completed', 'Patrol sweep finalized and logged.');
+
+        if (isManager) {
+          Alert.alert(
+            'Manager Patrol Completed',
+            `${completedCount} checkpoint${completedCount === 1 ? '' : 's'} inspected successfully.`,
+            [
+              {
+                text: 'Done',
+                onPress: async () => {
+                  await completeSession();
+                  queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
+                  queryClient.invalidateQueries({ queryKey: ['patrol-sessions'] });
+                  navigation.navigate('HomeTab');
+                },
+              },
+            ],
+          );
+        } else {
+          Alert.alert('Patrol Completed', 'Patrol sweep finalized and logged.');
+        }
       } catch (err: any) {
         Alert.alert('Error', err.message || 'Failed to complete.');
       }
     };
+
+    if (unlockedGateId) {
+      Alert.alert(
+        'Inspection In Progress',
+        'Complete or cancel the current checkpoint inspection before finishing the sweep.',
+      );
+      return;
+    }
+
+    if (isManager) {
+      Alert.alert(
+        'Finish Manager Patrol?',
+        `You have inspected ${completedCount} checkpoint${completedCount === 1 ? '' : 's'}.\nFinishing the sweep will complete this patrol session.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Finish Sweep',
+            onPress: confirmAndComplete,
+          },
+        ],
+      );
+      return;
+    }
+
+    const totalGates = assignment?.patrolRoute?.routeGates?.length || 0;
+    const remaining = totalGates - scannedGateIds.length;
 
     if (remaining > 0) {
       Alert.alert(
@@ -1023,6 +1078,32 @@ export function PatrolScreen() {
               setSubTaskResponses({});
               setActiveSubTaskIdForCamera(null);
 
+              if (isManager) {
+                Alert.alert(
+                  'Manager Inspection Completed',
+                  'Checkpoint inspection has been saved successfully.',
+                  [
+                    {
+                      text: 'CANCEL',
+                      style: 'cancel',
+                      onPress: () => {
+                        usePatrolStore.getState().lockCheckpoint();
+                        loadActiveSession();
+                      },
+                    },
+                    {
+                      text: 'SCAN ANOTHER CHECKPOINT',
+                      onPress: () => {
+                        usePatrolStore.getState().lockCheckpoint();
+                        loadActiveSession();
+                        navigation.navigate('ScannerTab');
+                      },
+                    },
+                  ],
+                );
+                return;
+              }
+
               Alert.alert(
                 'Checkpoint Locked',
                 'Verification sweep logged and checkpoint locked successfully.',
@@ -1039,8 +1120,69 @@ export function PatrolScreen() {
     );
   };
 
+  const user = useAuthStore(state => state.user);
+  const userRole =
+    (user as any)?.employee?.role || (user as any)?.role || 'SECURITY';
+  const isManager = userRole === 'MANAGER';
+
+  const managerGateId = isManager
+    ? routeParams?.checkpointId ||
+      unlockedGateId ||
+      ((activeSession as any)?.checkpoints && (activeSession as any).checkpoints[0]?.gateId)
+    : null;
+
+  const { data: managerGateDetails } = useQuery({
+    queryKey: ['gate-details', managerGateId],
+    queryFn: async () => {
+      if (!managerGateId) return null;
+      const res = (await apiClient.get(`/gates/${managerGateId}`)) as any;
+      return res.data || null;
+    },
+    enabled: isManager && !!managerGateId,
+  });
+
   // Memoized route gates list calculation
   const routeGates = useMemo(() => {
+    if (isManager) {
+      const sessionCheckpoints = (activeSession as any)?.checkpoints || [];
+      const list: any[] = [];
+      const seenGateIds = new Set<string>();
+
+      sessionCheckpoints.forEach((cp: any, idx: number) => {
+        const gId = cp.gateId || cp.gate?.id;
+        if (gId) seenGateIds.add(gId);
+        list.push({
+          id: cp.id || gId || `cp-${idx}`,
+          gateId: gId,
+          gate: cp.gate || {
+            id: gId,
+            name: `Checkpoint #${idx + 1}`,
+            gateCode: gId,
+          },
+          sequence: idx + 1,
+          isCompleted: true,
+          scannedAt: cp.scannedAt,
+          subTaskResponses: cp.subTaskResponses,
+        });
+      });
+
+      if (unlockedGateId && !seenGateIds.has(unlockedGateId)) {
+        const gateObj = managerGateDetails || routeParams?.gate;
+        list.push({
+          id: unlockedGateId,
+          gateId: unlockedGateId,
+          gate: gateObj || {
+            id: unlockedGateId,
+            name: routeParams?.checkpointName || 'Manager Inspection Checkpoint',
+            gateCode: routeParams?.checkpointCode || unlockedGateId,
+          },
+          sequence: list.length + 1,
+          isCompleted: false,
+        });
+      }
+      return list;
+    }
+
     const isDirectAssignment =
       assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
       (!assignment?.patrolRoute &&
@@ -1063,10 +1205,12 @@ export function PatrolScreen() {
         sequence: rg.sequence || idx + 1,
       }),
     );
-  }, [assignment]);
+  }, [isManager, (activeSession as any)?.checkpoints, managerGateDetails, routeParams, unlockedGateId, assignment]);
 
   const totalGates = routeGates.length;
-  const scannedCount = scannedGateIds.length;
+  const scannedCount = isManager
+    ? (activeSession as any)?.checkpoints?.length || scannedGateIds.length || 0
+    : scannedGateIds.length;
   const remainingCount = totalGates - scannedCount;
 
   const estRemainingTime = useMemo(
@@ -1076,6 +1220,7 @@ export function PatrolScreen() {
 
   const isGateUnlocked = useCallback(
     (rg: any) => {
+      if (rg.isCompleted) return false;
       if (!unlockedGateId) return false;
       const targets = [
         rg.gateId,
@@ -1091,6 +1236,7 @@ export function PatrolScreen() {
 
   const isGateCompleted = useCallback(
     (rg: any) => {
+      if (rg.isCompleted) return true;
       if (!scannedGateIds || scannedGateIds.length === 0) return false;
       const targets = [
         rg.gateId,
@@ -1215,9 +1361,7 @@ export function PatrolScreen() {
     [unlockedGateObj, unlockedGateId, routeGates, isGateCompleted],
   );
 
-  const user = useAuthStore(state => state.user);
-  const userRole =
-    (user as any)?.employee?.role || (user as any)?.role || 'SECURITY';
+
 
   const { data: fetchedSubTasksRes } = useQuery({
     queryKey: ['gate-subtasks', activeGateId, userRole],
@@ -1333,7 +1477,7 @@ export function PatrolScreen() {
         </Text>
 
         {/* NO ACTIVE SESSION */}
-        {!activeSession && (
+        {(!activeSession && !(isManager && routeGates.length > 0)) && (
           <View style={styles.startContainer}>
             {isLoadingAssignment ? (
               <ActivityIndicator
@@ -1341,6 +1485,32 @@ export function PatrolScreen() {
                 size="large"
                 style={{ marginTop: 40 }}
               />
+            ) : isManager ? (
+              <Card style={styles.emptyCard}>
+                <Text style={[styles.cardTitle, { color: colors.text, textAlign: 'center', marginBottom: 8 }]}>
+                  Manager Checkpoint Inspection
+                </Text>
+                <Text
+                  style={[styles.emptyText, { color: colors.textSecondary, textAlign: 'center' }]}
+                >
+                  Scan any site checkpoint QR code using the QR Scanner to perform a direct Manager inspection.
+                </Text>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: colors.primary,
+                    paddingHorizontal: 20,
+                    paddingVertical: 12,
+                    borderRadius: 10,
+                    alignSelf: 'center',
+                    marginTop: 16,
+                  }}
+                  onPress={() => navigation.navigate('ScannerTab')}
+                >
+                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>
+                    Open QR Scanner
+                  </Text>
+                </TouchableOpacity>
+              </Card>
             ) : assignments.length > 0 ? (
               <Card style={styles.assignmentCard}>
                 {/* ASSIGNMENT SWITCHER SELECTOR */}
@@ -1696,16 +1866,18 @@ export function PatrolScreen() {
                           );
                           if (activeTasks.length === 0) {
                             return (
-                              <View style={{ paddingVertical: 12 }}>
+                              <View style={{ paddingVertical: 14 }}>
                                 <Text
                                   style={{
-                                    fontSize: 12,
                                     color: colors.textSecondary,
+                                    fontSize: 13,
                                     fontStyle: 'italic',
+                                    lineHeight: 18,
                                   }}
                                 >
-                                  No verification tasks assigned for your role
-                                  at this checkpoint.
+                                  {isManager
+                                    ? 'ℹ No inspection tasks are configured for the Manager role at this checkpoint. You may submit this inspection with optional remarks or photo evidence.'
+                                    : 'No specific verification tasks configured for this checkpoint.'}
                                 </Text>
                               </View>
                             );

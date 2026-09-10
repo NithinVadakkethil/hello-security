@@ -47,8 +47,12 @@ export const patrolApi = {
       latitude,
       longitude,
       scannedAt,
-      subTaskResponses,
     })) as any;
+    return res.data;
+  },
+
+  authorizeManagerScan: async (gateId: string): Promise<{ checkpoint: any; patrolSession: PatrolSession }> => {
+    const res = (await apiClient.post('/patrol-checkpoints/authorize-scan', { gateId })) as any;
     return res.data;
   },
 };
