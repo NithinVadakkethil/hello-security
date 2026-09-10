@@ -308,7 +308,7 @@ export default function DashboardPage() {
                       letterSpacing: '-0.02em',
                     }}
                   >
-                    Welcome Back, {getUserDisplayName()}
+                    {getUserDisplayName()}
                   </h1>
                   <p style={{ fontSize: '1.08rem', margin: 0, opacity: 0.92 }}>
                     System status is secure. Active guard monitoring is online.
@@ -359,7 +359,7 @@ export default function DashboardPage() {
                       letterSpacing: '-0.02em',
                     }}
                   >
-                    Welcome Back, {getUserDisplayName()}
+                    {getUserDisplayName()}
                   </h1>
                   <p style={{ fontSize: '1.08rem', margin: 0, opacity: 0.92 }}>
                     System status is secure. Active guard monitoring is online.
@@ -447,7 +447,7 @@ export default function DashboardPage() {
                       letterSpacing: '-0.02em',
                     }}
                   >
-                    Welcome Back, {getUserDisplayName()}
+                    {getUserDisplayName()}
                   </h1>
                   <p style={{ margin: 0, fontSize: '1.08rem', opacity: 0.92 }}>
                     System status is secure. Active guard monitoring is online.
