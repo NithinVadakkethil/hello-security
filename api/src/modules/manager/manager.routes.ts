@@ -4,7 +4,7 @@ import { authenticate } from '../../common/auth/auth.middleware';
 import { authorize } from '../../common/auth/authorize';
 import { managerController } from './manager.controller';
 
-const router = Router();
+const router: Router = Router();
 
 router.use(authenticate);
 
