@@ -5,6 +5,8 @@ export const scanCheckpointSchema = z.object({
 
   patrolSessionId: z.string().optional(),
 
+  offlineSessionId: z.string().optional(),
+
   latitude: z.number().optional(),
 
   longitude: z.number().optional(),

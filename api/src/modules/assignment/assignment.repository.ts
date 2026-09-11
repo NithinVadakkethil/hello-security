@@ -128,6 +128,15 @@ export class AssignmentRepository {
             sequence: 'asc',
           },
         },
+        patrolSessions: {
+          where: {
+            status: 'COMPLETED',
+          },
+          orderBy: {
+            endedAt: 'desc',
+          },
+          take: 1,
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -196,6 +205,15 @@ export class AssignmentRepository {
             sequence: 'asc',
           },
         },
+        patrolSessions: {
+          where: {
+            status: 'COMPLETED',
+          },
+          orderBy: {
+            endedAt: 'desc',
+          },
+          take: 1,
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -247,8 +265,11 @@ export class AssignmentRepository {
           },
         },
         patrolSessions: {
+          where: {
+            status: 'COMPLETED',
+          },
           orderBy: {
-            createdAt: 'desc',
+            endedAt: 'desc',
           },
           take: 1,
         },

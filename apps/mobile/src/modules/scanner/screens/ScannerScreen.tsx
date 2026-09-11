@@ -20,7 +20,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -32,13 +31,12 @@ import {
 } from 'react-native-vision-camera';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { AppTabParamList } from '../../../app/navigation/types';
+import { useAuthStore } from '../../../app/store/auth-store';
 import { Button } from '../../../components/Button';
 import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
 import { Card } from '../../dashboard/components/WidgetCard';
 import { patrolApi } from '../../patrol/api/patrol.api';
 import { usePatrolStore } from '../../patrol/store/patrol-store';
-import { useAuthStore } from '../../../app/store/auth-store';
-import { useManagerStore } from '../../manager/store/manager-store';
 
 export function ScannerScreen() {
   const { colors } = useTheme();
@@ -63,7 +61,8 @@ export function ScannerScreen() {
   const isCameraActive = isFocused && appState === 'active';
 
   const user = useAuthStore(state => state.user);
-  const userRole = (user as any)?.employee?.role || (user as any)?.role || 'SECURITY';
+  const userRole =
+    (user as any)?.employee?.role || (user as any)?.role || 'SECURITY';
   const isManager = userRole === 'MANAGER';
 
   const { data: assignmentsList } = useActiveAssignments();
@@ -301,7 +300,9 @@ export function ScannerScreen() {
             scanResult?.checkpoint?.gate?.name || cleanCode;
 
           if (scanResult?.patrolSession) {
-            await usePatrolStore.getState().startSession(scanResult.patrolSession);
+            await usePatrolStore
+              .getState()
+              .startSession(scanResult.patrolSession);
           }
           await usePatrolStore.getState().unlockCheckpoint(resolvedGateId);
           setSuccessMessage(`✓ Checkpoint Unlocked: "${resolvedGateName}"`);
@@ -505,7 +506,14 @@ export function ScannerScreen() {
 
         // Workflow Rule 3: Navigate directly to Checkpoint Verification screen (PatrolTab)
         setTimeout(() => {
-          navigation.navigate('Dashboard', { screen: 'PatrolTab' });
+          navigation.navigate('Dashboard', {
+            screen: 'PatrolTab',
+            params: {
+              focusCheckpointId: gateId,
+              checkpointId: gateId,
+              checkpointName: gateName,
+            },
+          });
           isProcessingScanRef.current = false;
           setIsProcessingCode(false);
         }, 150);
@@ -715,7 +723,7 @@ export function ScannerScreen() {
         </Card>
       )}
 
-      <Card
+      {/* <Card
         style={[
           styles.quickScanCard,
           { backgroundColor: '#1a1a1e', borderColor: '#2d2d34' },
@@ -817,7 +825,7 @@ export function ScannerScreen() {
             <Text style={styles.inputButtonText}>Verify</Text>
           </TouchableOpacity>
         </View>
-      </Card>
+      </Card> */}
     </ScrollView>
   );
 }

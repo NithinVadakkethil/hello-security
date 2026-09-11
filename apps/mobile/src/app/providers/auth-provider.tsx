@@ -3,6 +3,8 @@ import { useAuthStore } from '../store/auth-store';
 import { tokenManager } from '../utils/token-manager';
 import { authClient } from '../api/api-client';
 import { ApiResponse, AuthData } from '../types/api';
+import { offlineSyncEngine } from '../services/offline-sync-engine';
+import { useOfflineStore } from '../store/offline-store';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setAuth, clearAuth, setLoading } = useAuthStore();
@@ -20,6 +22,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
             setAuth(response.data.data);
             setLoading(false);
+            await useOfflineStore.getState().loadQueue();
+            offlineSyncEngine.sync();
             return;
           } catch {
             console.log('[AuthProvider] Access token expired, attempting refresh...');
@@ -40,6 +44,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
             setAuth(user);
             setLoading(false);
+            await useOfflineStore.getState().loadQueue();
+            offlineSyncEngine.sync();
             return;
           } catch (refreshErr) {
             console.error('[AuthProvider] Session restore failed:', refreshErr);
@@ -48,9 +54,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         tokenManager.clearTokens();
         clearAuth();
+        useOfflineStore.setState({ queue: [] });
       } catch {
         tokenManager.clearTokens();
         clearAuth();
+        useOfflineStore.setState({ queue: [] });
       } finally {
         setLoading(false);
       }

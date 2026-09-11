@@ -47,6 +47,7 @@ export const patrolApi = {
       latitude,
       longitude,
       scannedAt,
+      subTaskResponses,
     })) as any;
     return res.data;
   },

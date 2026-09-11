@@ -35,9 +35,14 @@ export const usePatrolStore = create<PatrolState>((set, get) => ({
     
     if (cachedSession) {
       const elapsed = Math.floor((Date.now() - new Date(cachedSession.startedAt).getTime()) / 1000);
+      const serverScanned: string[] = Array.isArray((cachedSession as any)?.checkpoints)
+        ? (cachedSession as any).checkpoints.map((cp: any) => cp.gateId || cp.gate?.id || cp.gate?.gateCode).filter(Boolean)
+        : [];
+      const mergedScanned = Array.from(new Set([...(cachedScanned || []), ...serverScanned]));
+
       set({
         activeSession: cachedSession,
-        scannedGateIds: cachedScanned || [],
+        scannedGateIds: mergedScanned,
         unlockedGateId: cachedUnlocked || null,
         justScannedGateId: null,
         elapsedSeconds: elapsed > 0 ? elapsed : 0,
@@ -48,10 +53,30 @@ export const usePatrolStore = create<PatrolState>((set, get) => ({
   },
 
   startSession: async (session) => {
+    const { activeSession, scannedGateIds: prevScanned } = get();
     await sqliteDb.insert('patrols', 'current', session);
-    await sqliteDb.insert('checkpoints', 'current_scanned', []);
+
+    const serverScanned: string[] = Array.isArray((session as any)?.checkpoints)
+      ? (session as any).checkpoints.map((cp: any) => cp.gateId || cp.gate?.id || cp.gate?.gateCode).filter(Boolean)
+      : [];
+
+    const isSameSession = activeSession && activeSession.id === session.id;
+    const mergedScanned = isSameSession
+      ? Array.from(new Set([...prevScanned, ...serverScanned]))
+      : Array.from(new Set(serverScanned));
+
+    await sqliteDb.insert('checkpoints', 'current_scanned', mergedScanned);
     await sqliteDb.insert('checkpoints', 'current_unlocked', null);
-    set({ activeSession: session, scannedGateIds: [], unlockedGateId: null, justScannedGateId: null, elapsedSeconds: 0 });
+
+    const elapsed = Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000);
+
+    set({
+      activeSession: session,
+      scannedGateIds: mergedScanned,
+      unlockedGateId: null,
+      justScannedGateId: null,
+      elapsedSeconds: isSameSession ? (get().elapsedSeconds || elapsed) : (elapsed > 0 ? elapsed : 0),
+    });
   },
 
   pauseSession: async () => {
@@ -80,13 +105,13 @@ export const usePatrolStore = create<PatrolState>((set, get) => ({
   },
 
   scanGate: async (gateId) => {
+    if (!gateId) return;
     const { scannedGateIds } = get();
-    if (scannedGateIds.includes(gateId)) return;
 
-    const updated = [...scannedGateIds, gateId];
+    const updated = Array.from(new Set([...scannedGateIds, gateId]));
     await sqliteDb.insert('checkpoints', 'current_scanned', updated);
     await sqliteDb.insert('checkpoints', 'current_unlocked', null);
-    set({ scannedGateIds: updated, unlockedGateId: null, justScannedGateId: null }); // Locks checkpoint immediately after successful scan submission
+    set({ scannedGateIds: updated, unlockedGateId: null, justScannedGateId: null });
   },
 
   completeSession: async () => {

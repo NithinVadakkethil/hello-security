@@ -224,11 +224,18 @@ export class PatrolCheckpointService {
       // Find active patrol session for standard employee
       // -----------------------------------------
 
-      if (dto.patrolSessionId && !dto.patrolSessionId.startsWith('temp-')) {
-        patrol = await patrolSessionRepository.findFullById(dto.patrolSessionId);
-        // Validate employee ownership if found
-        if (patrol && patrol.assignment?.employeeId !== employeeId) {
-          patrol = null;
+      if (dto.patrolSessionId && !dto.patrolSessionId.startsWith('temp-') && !dto.patrolSessionId.startsWith('offline-')) {
+        const foundSession = await patrolSessionRepository.findFullById(dto.patrolSessionId);
+        if (foundSession) {
+          const isOwner =
+            foundSession.assignment?.employeeId === employeeId ||
+            foundSession.managerUserId === userOrEmp?.id ||
+            (foundSession as any).employeeId === employeeId ||
+            (userOrEmp && userOrEmp.employeeId === employeeId);
+
+          if (isOwner) {
+            patrol = foundSession;
+          }
         }
       }
 

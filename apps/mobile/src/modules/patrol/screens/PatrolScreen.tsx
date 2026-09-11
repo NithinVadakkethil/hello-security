@@ -640,16 +640,19 @@ export function PatrolScreen() {
   const scrollYRef = useRef<number>(0);
   const gateLayoutsRef = useRef<Record<string, number>>({});
   const prevSessionIdRef = useRef<string | null>(null);
+  const consumedScanTargetRef = useRef<string | null>(null);
 
-  // Initial patrol start: Reset scroll position to top (y = 0)
+  // Initial patrol start: Reset scroll position to top (y = 0) ONLY when starting a brand new patrol without target focus
   useEffect(() => {
     if (activeSession?.id && activeSession.id !== prevSessionIdRef.current) {
       prevSessionIdRef.current = activeSession.id;
-      requestAnimationFrame(() => {
-        scrollViewRef.current?.scrollTo({ y: 0, animated: false });
-      });
+      if (!justScannedGateId && !unlockedGateId && !routeParams?.focusCheckpointId && !routeParams?.checkpointId) {
+        requestAnimationFrame(() => {
+          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+        });
+      }
     }
-  }, [activeSession?.id]);
+  }, [activeSession?.id, justScannedGateId, unlockedGateId, routeParams?.focusCheckpointId, routeParams?.checkpointId]);
 
   // Memoized handlers for VerificationTaskItem to prevent unnecessary re-renders
   const handleAnswerChange = useCallback(
@@ -1208,15 +1211,6 @@ export function PatrolScreen() {
   }, [isManager, (activeSession as any)?.checkpoints, managerGateDetails, routeParams, unlockedGateId, assignment]);
 
   const totalGates = routeGates.length;
-  const scannedCount = isManager
-    ? (activeSession as any)?.checkpoints?.length || scannedGateIds.length || 0
-    : scannedGateIds.length;
-  const remainingCount = totalGates - scannedCount;
-
-  const estRemainingTime = useMemo(
-    () => (remainingCount > 0 ? `${remainingCount * 3} mins` : 'Completed'),
-    [remainingCount],
-  );
 
   const isGateUnlocked = useCallback(
     (rg: any) => {
@@ -1250,18 +1244,35 @@ export function PatrolScreen() {
     [scannedGateIds],
   );
 
+  const scannedCount = useMemo(() => {
+    if (isManager) {
+      return (activeSession as any)?.checkpoints?.length || routeGates.filter(rg => isGateCompleted(rg)).length || 0;
+    }
+    return routeGates.filter(rg => isGateCompleted(rg)).length;
+  }, [isManager, (activeSession as any)?.checkpoints, routeGates, isGateCompleted]);
+
+  const remainingCount = Math.max(0, totalGates - scannedCount);
+
+  const estRemainingTime = useMemo(
+    () => (remainingCount > 0 ? `${remainingCount * 3} mins` : 'Completed'),
+    [remainingCount],
+  );
+
   const unlockedGateObj = useMemo(
     () => routeGates.find((rg: any) => isGateUnlocked(rg)),
     [routeGates, isGateUnlocked],
   );
 
-  // Programmatic scroll ONLY after a successful QR scan (when justScannedGateId is set)
+  // Programmatic scroll to scanned or target focus checkpoint (ONE-SHOT EVENT)
   const scrollToScannedGate = useCallback(
-    (overrideY?: number) => {
-      const gateIdToScroll = justScannedGateId;
+    (targetGateId?: string, overrideY?: number) => {
+      const gateIdToScroll =
+        targetGateId ||
+        justScannedGateId ||
+        routeParams?.focusCheckpointId ||
+        routeParams?.checkpointId;
       if (!gateIdToScroll) return;
 
-      // Check if the scanned checkpoint is the last one in the route list
       const lastGate = routeGates[routeGates.length - 1];
       const isLastGateScanned =
         lastGate &&
@@ -1280,7 +1291,7 @@ export function PatrolScreen() {
 
       if (isLastGateScanned) {
         requestAnimationFrame(() => {
-          scrollViewRef.current?.scrollToEnd({ animated: false });
+          scrollViewRef.current?.scrollToEnd({ animated: true });
         });
         return;
       }
@@ -1301,55 +1312,75 @@ export function PatrolScreen() {
       }
 
       if (targetY !== null && targetY >= 0) {
-        const scrollPos = Math.max(0, targetY - 20);
+        const scrollPos = Math.max(0, targetY - 40);
         requestAnimationFrame(() => {
-          scrollViewRef.current?.scrollTo({ y: scrollPos, animated: false });
+          scrollViewRef.current?.scrollTo({ y: scrollPos, animated: true });
         });
       }
     },
-    [justScannedGateId, routeGates],
+    [
+      justScannedGateId,
+      routeParams?.focusCheckpointId,
+      routeParams?.checkpointId,
+      routeGates,
+    ],
   );
 
-  // Trigger scroll to checkpoint ONLY after a successful QR scan
+  // Trigger ONE-SHOT scroll to checkpoint ONLY after a NEW QR scan event or focus navigation
   useEffect(() => {
-    if (isFocused && activeSession && justScannedGateId) {
-      scrollToScannedGate();
+    const scanTargetId =
+      justScannedGateId ||
+      routeParams?.focusCheckpointId ||
+      routeParams?.checkpointId;
+
+    if (
+      isFocused &&
+      activeSession &&
+      scanTargetId &&
+      consumedScanTargetRef.current !== scanTargetId
+    ) {
+      scrollToScannedGate(scanTargetId);
 
       const timer1 = setTimeout(() => {
-        scrollToScannedGate();
+        scrollToScannedGate(scanTargetId);
       }, 50);
 
       const timer2 = setTimeout(() => {
-        scrollToScannedGate();
+        scrollToScannedGate(scanTargetId);
       }, 150);
 
       const timer3 = setTimeout(() => {
-        scrollToScannedGate();
+        scrollToScannedGate(scanTargetId);
       }, 400);
 
       const timer4 = setTimeout(() => {
-        scrollToScannedGate();
+        scrollToScannedGate(scanTargetId);
+        consumedScanTargetRef.current = scanTargetId;
+        if (justScannedGateId) clearJustScannedGateId();
+        if (routeParams?.focusCheckpointId || routeParams?.checkpointId) {
+          navigation.setParams({
+            focusCheckpointId: undefined,
+            checkpointId: undefined,
+          });
+        }
       }, 800);
-
-      const timer5 = setTimeout(() => {
-        scrollToScannedGate();
-        clearJustScannedGateId();
-      }, 1500);
 
       return () => {
         clearTimeout(timer1);
         clearTimeout(timer2);
         clearTimeout(timer3);
         clearTimeout(timer4);
-        clearTimeout(timer5);
       };
     }
   }, [
     isFocused,
     justScannedGateId,
+    routeParams?.focusCheckpointId,
+    routeParams?.checkpointId,
     activeSession,
     scrollToScannedGate,
     clearJustScannedGateId,
+    navigation,
   ]);
 
   const activeGateId = useMemo(
@@ -1770,10 +1801,6 @@ export function PatrolScreen() {
                     ids.forEach((id: string) => {
                       gateLayoutsRef.current[id] = y;
                     });
-
-                    if (isUnlocked && justScannedGateId) {
-                      scrollToScannedGate(y);
-                    }
                   }}
                 >
                   <Card

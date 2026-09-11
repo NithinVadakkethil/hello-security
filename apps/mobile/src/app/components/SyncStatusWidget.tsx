@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useOfflineStore } from '../store/offline-store';
+import { useAuthStore } from '../store/auth-store';
 import { offlineSyncEngine } from '../services/offline-sync-engine';
 import { Card } from '../../modules/dashboard/components/WidgetCard';
 
@@ -15,12 +16,17 @@ export function SyncStatusWidget() {
     updateMutationStatus,
     dequeue,
   } = useOfflineStore();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuthStore();
 
   const failedItems = queue.filter((m) => m.status === 'failed');
   const pendingCount = queue.filter((m) => m.status === 'pending').length;
   const syncingCount = queue.filter((m) => m.status === 'syncing').length;
 
   const handleForceSync = () => {
+    if (!isAuthenticated || isAuthLoading) {
+      Alert.alert('Authentication Required', 'Please sign in to sync pending patrol data.');
+      return;
+    }
     offlineSyncEngine.sync();
   };
 

@@ -275,6 +275,16 @@ export class AssignmentService {
     };
   }
 
+  private formatAssignmentWithCompletion(assignment: any) {
+    if (!assignment) return assignment;
+    const latestSession = assignment.patrolSessions?.[0];
+    const lastCompletedAt = latestSession?.endedAt || latestSession?.updatedAt || null;
+    return {
+      ...assignment,
+      lastCompletedAt,
+    };
+  }
+
   async getActive(employeeId: string) {
     if (!employeeId) {
       throw new AppError(
@@ -293,7 +303,7 @@ export class AssignmentService {
       );
     }
 
-    return assignments[0];
+    return this.formatAssignmentWithCompletion(assignments[0]);
   }
 
   async getActiveList(employeeId: string) {
@@ -305,7 +315,8 @@ export class AssignmentService {
       );
     }
 
-    return assignmentRepository.findEmployeeActiveAssignments(employeeId);
+    const assignments = await assignmentRepository.findEmployeeActiveAssignments(employeeId);
+    return assignments.map((a: any) => this.formatAssignmentWithCompletion(a));
   }
 
   async getEmployeeAllAssignments(employeeId: string) {
@@ -317,7 +328,8 @@ export class AssignmentService {
       );
     }
 
-    return assignmentRepository.findEmployeeAllAssignments(employeeId);
+    const assignments = await assignmentRepository.findEmployeeAllAssignments(employeeId);
+    return assignments.map((a: any) => this.formatAssignmentWithCompletion(a));
   }
 }
 

@@ -1,5 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import {
+  Activity,
   CheckCircle2,
   Clock,
   MapPin,
@@ -19,6 +20,7 @@ import {
 import { useTheme } from '../../../app/hooks/useTheme';
 import { useAuthStore } from '../../../app/store/auth-store';
 import { getRoleConfig } from '../../../app/utils/role-helpers';
+import { formatLastCompletedAt } from '../../../app/utils/date-formatter';
 import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
 import { usePatrol } from '../../patrol/hooks/usePatrol';
 import { usePatrolStore } from '../../patrol/store/patrol-store';
@@ -218,6 +220,7 @@ export function GuardDashboard() {
             ? 'Direct Checkpoints Sweep'
             : asg.patrolRoute?.name || 'Patrol Route';
           const isActiveThis = activeSession?.assignmentId === asg.id;
+          const formattedLastCompleted = formatLastCompletedAt(asg.lastCompletedAt);
 
           return (
             <Card
@@ -247,20 +250,36 @@ export function GuardDashboard() {
                   </View>
                 </View>
 
-                {/* Completed Today Badge */}
-                <View
-                  style={[
-                    styles.completedBadge,
-                    { backgroundColor: colors.success + '20' },
-                  ]}
-                >
-                  <CheckCircle2 size={12} color={colors.success} />
-                  <Text
-                    style={[styles.completedText, { color: colors.success }]}
+                {/* State Priority Badge */}
+                {isActiveThis ? (
+                  <View
+                    style={[
+                      styles.completedBadge,
+                      { backgroundColor: colors.primary + '20' },
+                    ]}
                   >
-                    Completed Today
-                  </Text>
-                </View>
+                    <Activity size={12} color={colors.primary} />
+                    <Text
+                      style={[styles.completedText, { color: colors.primary, fontSize: 11 }]}
+                    >
+                      In Progress
+                    </Text>
+                  </View>
+                ) : formattedLastCompleted ? (
+                  <View
+                    style={[
+                      styles.completedBadge,
+                      { backgroundColor: colors.success + '20' },
+                    ]}
+                  >
+                    <CheckCircle2 size={12} color={colors.success} />
+                    <Text
+                      style={[styles.completedText, { color: colors.success, fontSize: 11 }]}
+                    >
+                      {formattedLastCompleted}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
 
               <View
