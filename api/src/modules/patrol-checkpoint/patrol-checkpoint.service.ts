@@ -346,11 +346,14 @@ export class PatrolCheckpointService {
     // Validate Sub Tasks
     // -----------------------------------------
 
-    const employee = await prisma.employee.findUnique({
-      where: { id: employeeId },
-      select: { role: true },
-    });
-    const userRole = isManagerUser ? UserRole.MANAGER : (employee?.role || 'SECURITY');
+    let userRole = isManagerUser ? UserRole.MANAGER : userOrEmp?.role;
+    if (!userRole) {
+      const employee = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        select: { role: true },
+      });
+      userRole = employee?.role || 'SECURITY';
+    }
 
     await ensureGateSubTasksFromMaster(
       dto.gateId,
