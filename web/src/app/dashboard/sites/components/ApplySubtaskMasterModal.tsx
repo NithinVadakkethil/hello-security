@@ -132,12 +132,18 @@ export default function ApplySubtaskMasterModal({
     }
   };
 
-  const handleApply = async () => {
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  const handleApplyClick = () => {
     if (selectedRoles.length === 0) {
       toast.error('Please select at least one role to apply.');
       return;
     }
+    setShowConfirmModal(true);
+  };
 
+  const handleApplyConfirm = async () => {
+    setShowConfirmModal(false);
     setIsApplying(true);
     try {
       const res: any = await apiClient.post(`/sites/${siteId}/apply-subtask-master`, {
@@ -146,13 +152,15 @@ export default function ApplySubtaskMasterModal({
 
       if (res.success && res.data) {
         setExecutionResult(res.data);
-        toast.success(`Subtask master applied successfully! ${res.data.createdTasksCount} new tasks created.`);
+        toast.success(
+          `Subtask master synchronized successfully! ${res.data.createdTasksCount} created, ${res.data.updatedTasksCount} updated, ${res.data.removedTasksCount} removed.`
+        );
         if (onSuccess) onSuccess();
       } else {
-        toast.error(res.error?.message || 'Failed to apply subtask master.');
+        toast.error(res.error?.message || 'Failed to synchronize subtask master.');
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.error?.message || 'Error applying subtask master.');
+      toast.error(err.response?.data?.error?.message || 'Error synchronizing subtask master.');
     } finally {
       setIsApplying(false);
     }
@@ -208,7 +216,7 @@ export default function ApplySubtaskMasterModal({
                 Apply Subtask Master — {siteName}
               </h3>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Bulk-apply role inspection tasks across all site checkpoints idempotently
+                Synchronize role inspection tasks across all site checkpoints with Master configuration
               </span>
             </div>
           </div>
@@ -261,6 +269,51 @@ export default function ApplySubtaskMasterModal({
             </div>
           </div>
 
+          {/* Confirmation Overlay Modal */}
+          {showConfirmModal && (
+            <div
+              style={{
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1.5px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '8px',
+                padding: '18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ef4444' }}>
+                ⚠️ Confirm Subtask Master Synchronization
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)', margin: 0, lineHeight: '1.4' }}>
+                Apply Master Tasks will synchronize this role's master-generated checkpoint tasks with the current Master configuration.
+                <br /><br />
+                Tasks previously created from this Master but no longer present in the Master will be removed.
+                Manually-created checkpoint tasks will be preserved.
+                <br /><br />
+                Continue?
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmModal(false)}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '6px 14px', height: '34px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyConfirm}
+                  className="btn btn-primary"
+                  style={{ fontSize: '0.8rem', padding: '6px 16px', height: '34px', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+                >
+                  Apply & Synchronize
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Execution Completion View */}
           {executionResult ? (
             <div
@@ -278,10 +331,10 @@ export default function ApplySubtaskMasterModal({
                 <CheckCircle2 size={24} style={{ color: '#10b981' }} />
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
-                    Subtask Master Applied Successfully!
+                    Subtask Master Synchronized Successfully!
                   </div>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Processed {executionResult.checkpointCount} checkpoints for {siteName}
+                    Synchronized {executionResult.checkpointCount} checkpoints for {siteName}
                   </span>
                 </div>
               </div>
@@ -289,24 +342,37 @@ export default function ApplySubtaskMasterModal({
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '12px',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '10px',
                   background: 'var(--card-bg)',
                   padding: '14px',
                   borderRadius: '6px',
                   border: '1px solid var(--border-color)',
+                  textAlign: 'center',
                 }}
               >
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>New Tasks Created</span>
-                  <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#10b981' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Created</span>
+                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#10b981' }}>
                     +{executionResult.createdTasksCount}
                   </div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Existing Skipped</span>
-                  <div style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--text-muted)' }}>
-                    {executionResult.skippedTasksCount}
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Updated</span>
+                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#3b82f6' }}>
+                    {executionResult.updatedTasksCount}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Removed</span>
+                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#ef4444' }}>
+                    {executionResult.removedTasksCount}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Preserved Manual</span>
+                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#8b5cf6' }}>
+                    {executionResult.preservedManualTasksCount}
                   </div>
                 </div>
               </div>
@@ -324,14 +390,14 @@ export default function ApplySubtaskMasterModal({
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       fontSize: '0.8rem',
-                      padding: '4px 8px',
+                      padding: '6px 10px',
                       background: 'var(--bg-secondary)',
                       borderRadius: '4px',
                     }}
                   >
                     <span>{r.roleDisplay}</span>
-                    <span style={{ fontWeight: 600, color: r.createCount > 0 ? '#10b981' : 'var(--text-muted)' }}>
-                      {r.createCount} created, {r.skipCount} skipped
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                      +{r.createCount} created, {r.updateCount} updated, {r.removeCount} removed, {r.preserveManualCount} manual preserved
                     </span>
                   </div>
                 ))}
@@ -447,18 +513,26 @@ export default function ApplySubtaskMasterModal({
                     <span>Apply Operation Preview</span>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', textAlign: 'center' }}>
-                    <div style={{ padding: '8px', background: 'var(--card-bg)', borderRadius: '6px' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Target Checkpoints</span>
-                      <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>{previewData.checkpointCount}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', textAlign: 'center' }}>
+                    <div style={{ padding: '8px 4px', background: 'var(--card-bg)', borderRadius: '6px' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Checkpoints</span>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{previewData.checkpointCount}</div>
                     </div>
-                    <div style={{ padding: '8px', background: 'var(--card-bg)', borderRadius: '6px' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>New Tasks to Create</span>
-                      <div style={{ fontWeight: 700, fontSize: '1rem', color: '#10b981' }}>+{previewData.totalCreateCount}</div>
+                    <div style={{ padding: '8px 4px', background: 'var(--card-bg)', borderRadius: '6px' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>To Create</span>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#10b981' }}>+{previewData.totalCreateCount}</div>
                     </div>
-                    <div style={{ padding: '8px', background: 'var(--card-bg)', borderRadius: '6px' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Duplicates Skipped</span>
-                      <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-muted)' }}>{previewData.totalSkipCount}</div>
+                    <div style={{ padding: '8px 4px', background: 'var(--card-bg)', borderRadius: '6px' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>To Update</span>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#3b82f6' }}>{previewData.totalUpdateCount}</div>
+                    </div>
+                    <div style={{ padding: '8px 4px', background: 'var(--card-bg)', borderRadius: '6px' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>To Remove</span>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ef4444' }}>{previewData.totalRemoveCount}</div>
+                    </div>
+                    <div style={{ padding: '8px 4px', background: 'var(--card-bg)', borderRadius: '6px' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Preserve Manual</span>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#8b5cf6' }}>{previewData.totalPreserveManualCount}</div>
                     </div>
                   </div>
                 </div>
@@ -512,7 +586,7 @@ export default function ApplySubtaskMasterModal({
 
                 <button
                   type="button"
-                  onClick={handleApply}
+                  onClick={handleApplyClick}
                   disabled={isApplying || selectedRoles.length === 0}
                   className="btn btn-primary"
                   style={{ fontSize: '0.82rem', padding: '6px 18px', height: '36px', gap: '6px' }}
@@ -520,7 +594,7 @@ export default function ApplySubtaskMasterModal({
                   <Play size={15} />
                   <span>
                     {isApplying
-                      ? `Applying tasks to ${checkpointCount} checkpoints...`
+                      ? `Synchronizing ${checkpointCount} checkpoints...`
                       : 'Apply to All Checkpoints'}
                   </span>
                 </button>

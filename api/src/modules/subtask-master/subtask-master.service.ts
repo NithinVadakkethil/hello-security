@@ -125,46 +125,78 @@ export class SubTaskMasterService {
     const checkpointCount = gates.length;
     const gateIds = gates.map((g) => g.id);
 
-    // Fetch existing subtasks on site
-    const existingSubTasks = checkpointCount > 0
-      ? await prisma.gateSubTask.findMany({
-          where: { gateId: { in: gateIds } },
-          select: { gateId: true, role: true, taskName: true, sourceMasterItemId: true },
-        })
-      : [];
-
-    // Build lookup maps for duplicate checking
-    const existingByMasterItemId = new Set<string>();
-    const existingByCompositeKey = new Set<string>();
-
-    existingSubTasks.forEach((st) => {
-      if (st.sourceMasterItemId) {
-        existingByMasterItemId.add(`${st.gateId}:${st.sourceMasterItemId}`);
-      }
-      existingByCompositeKey.add(`${st.gateId}:${st.role}:${st.taskName.toLowerCase().trim()}`);
-    });
-
-    // Fetch masters for selected roles
     const selectedRoles = Array.from(new Set(roles));
     const roleResults: RoleApplyPreviewResult[] = [];
 
     let totalCreateCount = 0;
+    let totalUpdateCount = 0;
+    let totalRemoveCount = 0;
+    let totalPreserveManualCount = 0;
     let totalSkipCount = 0;
 
     for (const role of selectedRoles) {
       const master = await subTaskMasterRepository.findByClientAndRole(clientId, role);
       const activeItems = (master?.items || []).filter((i) => i.isActive);
+      const activeMasterItemIds = new Set(activeItems.map((i) => i.id));
+
+      const existingSubTasks = checkpointCount > 0
+        ? await prisma.gateSubTask.findMany({
+            where: { gateId: { in: gateIds }, role },
+            select: { id: true, gateId: true, role: true, taskName: true, description: true, displayOrder: true, isRequired: true, isActive: true, sourceMasterItemId: true },
+          })
+        : [];
+
+      // Count preserved manual tasks
+      const manualTasks = existingSubTasks.filter((st) => !st.sourceMasterItemId);
+      const rolePreserveManualCount = manualTasks.length;
+
+      // Identify stale master tasks to remove (soft-deactivate)
+      const staleMasterTasks = existingSubTasks.filter(
+        (st) => st.sourceMasterItemId && !activeMasterItemIds.has(st.sourceMasterItemId) && st.isActive
+      );
+      const roleRemoveCount = staleMasterTasks.length;
 
       let roleCreateCount = 0;
+      let roleUpdateCount = 0;
       let roleSkipCount = 0;
 
-      for (const item of activeItems) {
-        for (const gateId of gateIds) {
-          const hasByMasterId = existingByMasterItemId.has(`${gateId}:${item.id}`);
-          const hasByComposite = existingByCompositeKey.has(`${gateId}:${role}:${item.taskName.toLowerCase().trim()}`);
+      // Group existing by gateId
+      const gateSubTasksMap = new Map<string, typeof existingSubTasks>();
+      existingSubTasks.forEach((st) => {
+        const list = gateSubTasksMap.get(st.gateId) || [];
+        list.push(st);
+        gateSubTasksMap.set(st.gateId, list);
+      });
 
-          if (hasByMasterId || hasByComposite) {
-            roleSkipCount++;
+      for (const gateId of gateIds) {
+        const gateExisting = gateSubTasksMap.get(gateId) || [];
+        const existingByMasterId = new Map<string, typeof existingSubTasks[0]>();
+        const existingByTaskName = new Map<string, typeof existingSubTasks[0]>();
+
+        gateExisting.forEach((st) => {
+          if (st.sourceMasterItemId) {
+            existingByMasterId.set(st.sourceMasterItemId, st);
+          }
+          existingByTaskName.set(st.taskName.trim().toLowerCase(), st);
+        });
+
+        for (const item of activeItems) {
+          const matched = existingByMasterId.get(item.id) || existingByTaskName.get(item.taskName.trim().toLowerCase());
+
+          if (matched) {
+            const isIdentical =
+              matched.sourceMasterItemId === item.id &&
+              matched.taskName === item.taskName.trim() &&
+              (matched.description || '') === (item.description?.trim() || '') &&
+              matched.displayOrder === item.displayOrder &&
+              matched.isRequired === item.isRequired &&
+              matched.isActive === true;
+
+            if (isIdentical) {
+              roleSkipCount++;
+            } else {
+              roleUpdateCount++;
+            }
           } else {
             roleCreateCount++;
           }
@@ -172,6 +204,9 @@ export class SubTaskMasterService {
       }
 
       totalCreateCount += roleCreateCount;
+      totalUpdateCount += roleUpdateCount;
+      totalRemoveCount += roleRemoveCount;
+      totalPreserveManualCount += rolePreserveManualCount;
       totalSkipCount += roleSkipCount;
 
       roleResults.push({
@@ -179,6 +214,9 @@ export class SubTaskMasterService {
         roleDisplay: getRoleDisplayLabel(role),
         masterTaskCount: activeItems.length,
         createCount: roleCreateCount,
+        updateCount: roleUpdateCount,
+        removeCount: roleRemoveCount,
+        preserveManualCount: rolePreserveManualCount,
         skipCount: roleSkipCount,
       });
     }
@@ -189,13 +227,17 @@ export class SubTaskMasterService {
       checkpointCount,
       roles: roleResults,
       totalCreateCount,
+      totalUpdateCount,
+      totalRemoveCount,
+      totalPreserveManualCount,
       totalSkipCount,
     };
   }
 
   /**
-   * Executes bulk apply of subtask masters to a site's checkpoints.
-   * Safe and batched idempotent implementation.
+   * Executes bulk synchronization of subtask masters to a site's checkpoints.
+   * Runs in a transaction: creates new tasks, updates modified tasks,
+   * soft-deactivates stale master tasks, and preserves manual checkpoint tasks.
    */
   async executeApplyMaster(
     clientId: string,
@@ -224,116 +266,192 @@ export class SubTaskMasterService {
         siteName: site.name,
         checkpointCount: 0,
         createdTasksCount: 0,
+        updatedTasksCount: 0,
+        removedTasksCount: 0,
+        preservedManualTasksCount: 0,
         skippedTasksCount: 0,
         roles: [],
       };
     }
 
     const gateIds = gates.map((g) => g.id);
-
-    // Load existing subtasks on site
-    const existingSubTasks = await prisma.gateSubTask.findMany({
-      where: { gateId: { in: gateIds } },
-      select: { gateId: true, role: true, taskName: true, sourceMasterItemId: true },
-    });
-
-    const existingByMasterItemId = new Set<string>();
-    const existingByCompositeKey = new Set<string>();
-
-    existingSubTasks.forEach((st) => {
-      if (st.sourceMasterItemId) {
-        existingByMasterItemId.add(`${st.gateId}:${st.sourceMasterItemId}`);
-      }
-      existingByCompositeKey.add(`${st.gateId}:${st.role}:${st.taskName.toLowerCase().trim()}`);
-    });
-
     const selectedRoles = Array.from(new Set(roles));
-    const roleResults: RoleApplyPreviewResult[] = [];
-    const tasksToInsert: Array<{
-      gateId: string;
-      role: UserRole;
-      taskName: string;
-      description?: string | null;
-      displayOrder: number;
-      isRequired: boolean;
-      isActive: boolean;
-      sourceMasterItemId: string;
-    }> = [];
 
     let totalCreated = 0;
+    let totalUpdated = 0;
+    let totalRemoved = 0;
+    let totalPreservedManual = 0;
     let totalSkipped = 0;
 
-    for (const role of selectedRoles) {
-      const master = await subTaskMasterRepository.findByClientAndRole(clientId, role);
-      const activeItems = (master?.items || []).filter((i) => i.isActive);
+    const roleResults: RoleApplyPreviewResult[] = [];
 
-      let roleCreated = 0;
-      let roleSkipped = 0;
+    await prisma.$transaction(
+      async (tx) => {
+        for (const role of selectedRoles) {
+          const master = await subTaskMasterRepository.findByClientAndRole(clientId, role);
+          const activeItems = (master?.items || []).filter((i) => i.isActive);
+          const activeMasterItemIds = new Set(activeItems.map((i) => i.id));
 
-      for (const item of activeItems) {
-        for (const gateId of gateIds) {
-          const hasByMasterId = existingByMasterItemId.has(`${gateId}:${item.id}`);
-          const hasByComposite = existingByCompositeKey.has(`${gateId}:${role}:${item.taskName.toLowerCase().trim()}`);
+          const existingSubTasks = await tx.gateSubTask.findMany({
+            where: { gateId: { in: gateIds }, role },
+            select: {
+              id: true,
+              gateId: true,
+              role: true,
+              taskName: true,
+              description: true,
+              displayOrder: true,
+              isRequired: true,
+              isActive: true,
+              sourceMasterItemId: true,
+            },
+          });
 
-          if (hasByMasterId || hasByComposite) {
-            roleSkipped++;
-          } else {
-            roleCreated++;
-            tasksToInsert.push({
-              gateId,
-              role,
-              taskName: item.taskName.trim(),
-              description: item.description?.trim() || null,
-              displayOrder: item.displayOrder,
-              isRequired: item.isRequired,
-              isActive: item.isActive,
-              sourceMasterItemId: item.id,
+          // 1. Preserve Manual Tasks count
+          const manualTasks = existingSubTasks.filter((st) => !st.sourceMasterItemId);
+          const rolePreservedManual = manualTasks.length;
+
+          // 2. Identify and Soft-Deactivate Stale Master Tasks
+          const staleTaskIds = existingSubTasks
+            .filter((st) => st.sourceMasterItemId && !activeMasterItemIds.has(st.sourceMasterItemId) && st.isActive)
+            .map((st) => st.id);
+
+          let roleRemoved = staleTaskIds.length;
+          if (staleTaskIds.length > 0) {
+            await tx.gateSubTask.updateMany({
+              where: { id: { in: staleTaskIds } },
+              data: { isActive: false },
+            });
+          }
+
+          let roleCreated = 0;
+          let roleUpdated = 0;
+          let roleSkipped = 0;
+
+          const tasksToInsert: Array<{
+            gateId: string;
+            role: UserRole;
+            taskName: string;
+            description?: string | null;
+            displayOrder: number;
+            isRequired: boolean;
+            isActive: boolean;
+            sourceMasterItemId: string;
+          }> = [];
+
+          // Group existing subtasks by gateId
+          const gateSubTasksMap = new Map<string, typeof existingSubTasks>();
+          existingSubTasks.forEach((st) => {
+            const list = gateSubTasksMap.get(st.gateId) || [];
+            list.push(st);
+            gateSubTasksMap.set(st.gateId, list);
+          });
+
+          for (const gateId of gateIds) {
+            const gateExisting = gateSubTasksMap.get(gateId) || [];
+            const existingByMasterId = new Map<string, typeof existingSubTasks[0]>();
+            const existingByTaskName = new Map<string, typeof existingSubTasks[0]>();
+
+            gateExisting.forEach((st) => {
+              if (st.sourceMasterItemId) {
+                existingByMasterId.set(st.sourceMasterItemId, st);
+              }
+              existingByTaskName.set(st.taskName.trim().toLowerCase(), st);
             });
 
-            // Update local memory sets to avoid internal duplicates during batching
-            existingByMasterItemId.add(`${gateId}:${item.id}`);
-            existingByCompositeKey.add(`${gateId}:${role}:${item.taskName.toLowerCase().trim()}`);
+            for (const item of activeItems) {
+              const matched = existingByMasterId.get(item.id) || existingByTaskName.get(item.taskName.trim().toLowerCase());
+
+              if (matched) {
+                const isIdentical =
+                  matched.sourceMasterItemId === item.id &&
+                  matched.taskName === item.taskName.trim() &&
+                  (matched.description || '') === (item.description?.trim() || '') &&
+                  matched.displayOrder === item.displayOrder &&
+                  matched.isRequired === item.isRequired &&
+                  matched.isActive === true;
+
+                if (isIdentical) {
+                  roleSkipped++;
+                } else {
+                  roleUpdated++;
+                  await tx.gateSubTask.update({
+                    where: { id: matched.id },
+                    data: {
+                      sourceMasterItemId: item.id,
+                      taskName: item.taskName.trim(),
+                      description: item.description?.trim() || null,
+                      displayOrder: item.displayOrder,
+                      isRequired: item.isRequired,
+                      isActive: true,
+                    },
+                  });
+                }
+              } else {
+                roleCreated++;
+                tasksToInsert.push({
+                  gateId,
+                  role,
+                  taskName: item.taskName.trim(),
+                  description: item.description?.trim() || null,
+                  displayOrder: item.displayOrder,
+                  isRequired: item.isRequired,
+                  isActive: true,
+                  sourceMasterItemId: item.id,
+                });
+              }
+            }
           }
+
+          // Execute chunked insertions (500 subtask records per batch)
+          const CHUNK_SIZE = 500;
+          for (let i = 0; i < tasksToInsert.length; i += CHUNK_SIZE) {
+            const chunk = tasksToInsert.slice(i, i + CHUNK_SIZE);
+            await tx.gateSubTask.createMany({
+              data: chunk,
+              skipDuplicates: true,
+            });
+          }
+
+          totalCreated += roleCreated;
+          totalUpdated += roleUpdated;
+          totalRemoved += roleRemoved;
+          totalPreservedManual += rolePreservedManual;
+          totalSkipped += roleSkipped;
+
+          roleResults.push({
+            role,
+            roleDisplay: getRoleDisplayLabel(role),
+            masterTaskCount: activeItems.length,
+            createCount: roleCreated,
+            updateCount: roleUpdated,
+            removeCount: roleRemoved,
+            preserveManualCount: rolePreservedManual,
+            skipCount: roleSkipped,
+          });
         }
-      }
 
-      totalCreated += roleCreated;
-      totalSkipped += roleSkipped;
-
-      roleResults.push({
-        role,
-        roleDisplay: getRoleDisplayLabel(role),
-        masterTaskCount: activeItems.length,
-        createCount: roleCreated,
-        skipCount: roleSkipped,
-      });
-    }
-
-    // Execute chunked insertions (500 subtask records per batch)
-    const CHUNK_SIZE = 500;
-    for (let i = 0; i < tasksToInsert.length; i += CHUNK_SIZE) {
-      const chunk = tasksToInsert.slice(i, i + CHUNK_SIZE);
-      await prisma.gateSubTask.createMany({
-        data: chunk,
-        skipDuplicates: true,
-      });
-    }
-
-    if (userId && clientId && totalCreated > 0) {
-      await auditLogService.create({
-        userId,
-        clientId,
-        action: 'CREATE',
-        entity: 'GateSubTask',
-        entityId: site.id,
-      });
-    }
+        if (userId && clientId && (totalCreated > 0 || totalUpdated > 0 || totalRemoved > 0)) {
+          await auditLogService.create({
+            userId,
+            clientId,
+            action: 'UPDATE',
+            entity: 'GateSubTask',
+            entityId: site.id,
+          });
+        }
+      },
+      { timeout: 30000 }
+    );
 
     return {
       siteId: site.id,
       siteName: site.name,
       checkpointCount,
       createdTasksCount: totalCreated,
+      updatedTasksCount: totalUpdated,
+      removedTasksCount: totalRemoved,
+      preservedManualTasksCount: totalPreservedManual,
       skippedTasksCount: totalSkipped,
       roles: roleResults,
     };

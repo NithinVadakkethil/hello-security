@@ -33,6 +33,9 @@ export interface RoleApplyPreviewResult {
   roleDisplay: string;
   masterTaskCount: number;
   createCount: number;
+  updateCount: number;
+  removeCount: number;
+  preserveManualCount: number;
   skipCount: number;
 }
 
@@ -42,6 +45,9 @@ export interface ApplySubtaskMasterPreviewResponse {
   checkpointCount: number;
   roles: RoleApplyPreviewResult[];
   totalCreateCount: number;
+  totalUpdateCount: number;
+  totalRemoveCount: number;
+  totalPreserveManualCount: number;
   totalSkipCount: number;
 }
 
@@ -50,6 +56,9 @@ export interface ApplySubtaskMasterExecuteResponse {
   siteName: string;
   checkpointCount: number;
   createdTasksCount: number;
+  updatedTasksCount: number;
+  removedTasksCount: number;
+  preservedManualTasksCount: number;
   skippedTasksCount: number;
   roles: RoleApplyPreviewResult[];
 }
