@@ -527,6 +527,15 @@ export class PatrolSessionRepository {
       where.assignment = { ...where.assignment, employeeId: query.employeeId };
     }
 
+    if (query?.supervisorScope) {
+      where.assignment = {
+        ...where.assignment,
+        employee: {
+          role: query.supervisorScope.supervisedRole,
+        },
+      };
+    }
+
     if (query?.search && query.search.trim()) {
       const s = query.search.trim();
       where.AND = [

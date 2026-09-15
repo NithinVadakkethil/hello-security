@@ -47,7 +47,8 @@ export class SnagController {
         limit: limit ? parseInt(limit as string, 10) : 10,
       },
       user.id,
-      user.role
+      user.role,
+      user,
     );
 
     res.json({
@@ -72,9 +73,9 @@ export class SnagController {
   async get(req: Request, res: Response) {
     const user = currentUser(req);
     const clientId = user.tenantId!;
-    const id = req.params.id as string;
+    const snagId = req.params.id as string;
 
-    const snag = await snagService.get(id, clientId, user.id, user.role);
+    const snag = await snagService.get(snagId, clientId, user.id, user.role, user);
 
     res.json({
       success: true,

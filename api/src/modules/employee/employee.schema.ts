@@ -22,6 +22,7 @@ export const createEmployeeSchema = z.object({
     .default(IdentificationMethod.QR),
 
   role: z.nativeEnum(UserRole),
+  supervisedRole: z.nativeEnum(UserRole).nullable().optional(),
 });
 
 export const updateEmployeeSchema = z.object({
@@ -37,4 +38,5 @@ export const updateEmployeeSchema = z.object({
 
   status: z.nativeEnum(EmployeeStatus).optional(),
   role: z.nativeEnum(UserRole).optional(),
+  supervisedRole: z.nativeEnum(UserRole).nullable().optional(),
 });

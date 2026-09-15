@@ -122,13 +122,13 @@ export default function GateSubTasksModal({
       queryKey: ['sub-tasks', gateId, selectedRole],
       queryFn: () =>
         apiClient.get(`/gates/${gateId}/sub-tasks`, {
-          params: { role: selectedRole },
+          params: { role: selectedRole, onlyActive: 'true' },
         }),
       enabled: isOpen && !!gateId,
     },
   );
 
-  const subTasks = subTasksRes?.data || [];
+  const subTasks = (subTasksRes?.data || []).filter((t) => t.isActive);
 
   // Create Mutation
   const createMutation = useMutation({

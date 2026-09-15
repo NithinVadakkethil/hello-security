@@ -29,11 +29,13 @@ export class IncidentRepository {
     });
   }
 
-  list(clientId: string) {
+  list(clientId: string, scope?: { supervisedRole: string } | null) {
+    const where: any = { clientId };
+    if (scope) {
+      where.employee = { role: scope.supervisedRole };
+    }
     return prisma.incident.findMany({
-      where: {
-        clientId,
-      },
+      where,
       include: {
         employee: true,
         gate: {

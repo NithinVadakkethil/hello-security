@@ -13,6 +13,7 @@ export class SubTaskMasterRepository {
       },
       include: {
         items: {
+          where: { isActive: true },
           orderBy: { displayOrder: 'asc' },
         },
       },
@@ -24,6 +25,7 @@ export class SubTaskMasterRepository {
       where: { clientId },
       include: {
         items: {
+          where: { isActive: true },
           orderBy: { displayOrder: 'asc' },
         },
       },
@@ -64,21 +66,55 @@ export class SubTaskMasterRepository {
         });
       }
 
-      // Delete existing items and recreate to reflect updated list & order cleanly
-      await tx.subTaskMasterItem.deleteMany({
+      // Reconcile items to preserve IDs and avoid nullifying sourceMasterItemId on GateSubTasks
+      const existingItems = await tx.subTaskMasterItem.findMany({
         where: { masterId: master.id },
       });
 
-      if (items.length > 0) {
-        await tx.subTaskMasterItem.createMany({
-          data: items.map((item, idx) => ({
-            masterId: master.id,
-            taskName: item.taskName.trim(),
-            description: item.description?.trim() || null,
-            displayOrder: item.displayOrder ?? idx + 1,
-            isRequired: item.isRequired ?? true,
-            isActive: item.isActive ?? true,
-          })),
+      const existingById = new Map(existingItems.map((item) => [item.id, item]));
+      const existingByName = new Map(existingItems.map((item) => [item.taskName.trim().toLowerCase(), item]));
+
+      const processedItemIds = new Set<string>();
+
+      for (let idx = 0; idx < items.length; idx++) {
+        const itemDto = items[idx];
+        const normalizedName = itemDto.taskName.trim().toLowerCase();
+
+        const matched = (itemDto.id && existingById.get(itemDto.id)) || existingByName.get(normalizedName);
+
+        if (matched) {
+          processedItemIds.add(matched.id);
+          await tx.subTaskMasterItem.update({
+            where: { id: matched.id },
+            data: {
+              taskName: itemDto.taskName.trim(),
+              description: itemDto.description?.trim() || null,
+              displayOrder: itemDto.displayOrder ?? idx + 1,
+              isRequired: itemDto.isRequired ?? true,
+              isActive: itemDto.isActive ?? true,
+            },
+          });
+        } else {
+          const newItem = await tx.subTaskMasterItem.create({
+            data: {
+              masterId: master.id,
+              taskName: itemDto.taskName.trim(),
+              description: itemDto.description?.trim() || null,
+              displayOrder: itemDto.displayOrder ?? idx + 1,
+              isRequired: itemDto.isRequired ?? true,
+              isActive: itemDto.isActive ?? true,
+            },
+          });
+          processedItemIds.add(newItem.id);
+        }
+      }
+
+      // Any existing item NOT in processedItemIds was removed by user -> soft deactivate it
+      const itemsToDeactivate = existingItems.filter((i) => !processedItemIds.has(i.id) && i.isActive);
+      if (itemsToDeactivate.length > 0) {
+        await tx.subTaskMasterItem.updateMany({
+          where: { id: { in: itemsToDeactivate.map((i) => i.id) } },
+          data: { isActive: false },
         });
       }
 
@@ -86,6 +122,7 @@ export class SubTaskMasterRepository {
         where: { id: master.id },
         include: {
           items: {
+            where: { isActive: true },
             orderBy: { displayOrder: 'asc' },
           },
         },

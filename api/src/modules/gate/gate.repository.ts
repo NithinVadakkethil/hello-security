@@ -14,6 +14,9 @@ export class GateRepository {
       },
       include: {
         subTasks: {
+          where: {
+            isActive: true,
+          },
           orderBy: {
             displayOrder: 'asc',
           },
@@ -106,6 +109,9 @@ export class GateRepository {
 
     const include = {
       subTasks: {
+        where: {
+          isActive: true,
+        },
         orderBy: {
           displayOrder: 'asc' as const,
         },

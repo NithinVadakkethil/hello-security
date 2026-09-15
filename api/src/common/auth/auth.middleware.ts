@@ -39,6 +39,7 @@ export function authenticate(
       employeeId: payload.employeeId,
       email: payload.email,
       role: payload.role,
+      supervisedRole: payload.supervisedRole || null,
     };
 
     next();

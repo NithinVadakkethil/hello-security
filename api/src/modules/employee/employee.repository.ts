@@ -1,4 +1,5 @@
 import { EmployeeStatus, Prisma } from '@prisma/client';
+import { SupervisorScope } from '../../common/auth/supervisor-scope';
 
 import { prisma } from '../../database/prisma';
 
@@ -65,11 +66,12 @@ export class EmployeeRepository {
     });
   }
 
-  list(clientId: string, status?: EmployeeStatus | 'ALL') {
+  list(clientId: string, status?: EmployeeStatus | 'ALL', scope?: SupervisorScope | null) {
     return prisma.employee.findMany({
       where: {
         clientId,
         ...(status && status !== 'ALL' ? { status } : {}),
+        ...(scope ? { role: scope.supervisedRole } : {}),
       },
       include: {
         user: true,

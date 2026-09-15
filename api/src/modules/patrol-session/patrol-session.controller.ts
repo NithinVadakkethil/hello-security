@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 
 import { currentUser } from '../../common/auth/current-user';
+import { getSupervisorScope } from '../../common/auth/supervisor-scope';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 
 import { resolveEmployeeId } from '../../common/auth/resolve-employee';
@@ -54,6 +55,7 @@ export class PatrolSessionController {
     try {
       const user = currentUser(req);
       const { page, limit, search, status, tab, filter, siteId, employeeId } = req.query;
+      const supervisorScope = user.role === 'SUPERVISOR' ? getSupervisorScope(user) : null;
 
       const result = await patrolSessionService.history(user.tenantId!, {
         page: page ? parseInt(page as string, 10) : 1,
@@ -64,6 +66,7 @@ export class PatrolSessionController {
         filter: filter as string,
         siteId: siteId as string,
         employeeId: employeeId as string,
+        supervisorScope,
       });
 
       return res.json({
@@ -125,6 +128,7 @@ export class PatrolSessionController {
     try {
       const user = currentUser(req);
       const { page, limit, search, status, tab, filter, siteId, employeeId } = req.query;
+      const supervisorScope = user.role === 'SUPERVISOR' ? getSupervisorScope(user) : null;
 
       const result = await patrolSessionService.history(user.tenantId!, {
         page: page ? parseInt(page as string, 10) : 1,
@@ -135,6 +139,7 @@ export class PatrolSessionController {
         filter: filter as string,
         siteId: siteId as string,
         employeeId: employeeId as string,
+        supervisorScope,
       });
 
       return res.json({
@@ -149,7 +154,8 @@ export class PatrolSessionController {
 
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await patrolSessionService.findById(req.params.id as string);
+      const user = currentUser(req);
+      const result = await patrolSessionService.findById(req.params.id as string, user);
 
       if (!result) {
         return res.status(HttpStatus.NOT_FOUND).json({
@@ -179,6 +185,7 @@ export class PatrolSessionController {
           verificationStatus,
           supervisorRemarks,
         },
+        user,
       );
 
       return res.json({

@@ -55,6 +55,7 @@ export class AuthService {
       employeeId: user.employeeId,
       email: user.email,
       role: user.role,
+      supervisedRole: user.supervisedRole || null,
     };
 
     const accessToken = signAccessToken(payload);
@@ -119,6 +120,7 @@ export class AuthService {
         employeeId: user.employeeId,
         email: user.email,
         role: user.role,
+        supervisedRole: user.supervisedRole || null,
         firstName: (user as any).employee?.firstName || null,
         lastName: (user as any).employee?.lastName || null,
         companyName: (user as any).client?.companyName || null,
@@ -179,6 +181,7 @@ export class AuthService {
       employeeId: user.employeeId,
       email: user.email,
       role: user.role,
+      supervisedRole: user.supervisedRole || null,
     };
 
     const newAccessToken = signAccessToken(userPayload);
@@ -203,6 +206,7 @@ export class AuthService {
         employeeId: user.employeeId,
         email: user.email,
         role: user.role,
+        supervisedRole: user.supervisedRole || null,
         firstName: (user as any).employee?.firstName || null,
         lastName: (user as any).employee?.lastName || null,
         companyName: (user as any).client?.companyName || null,
@@ -230,6 +234,7 @@ export class AuthService {
       employeeId: user.employeeId,
       email: user.email,
       role: user.role,
+      supervisedRole: user.supervisedRole || null,
       firstName: (user as any).employee?.firstName || null,
       lastName: (user as any).employee?.lastName || null,
       companyName: (user as any).client?.companyName || null,

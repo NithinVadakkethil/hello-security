@@ -6,6 +6,7 @@ export interface AuthUser {
   employeeId: string | null;
   email: string;
   role: UserRole;
+  supervisedRole?: UserRole | null;
   firstName?: string | null;
   lastName?: string | null;
   name?: string | null;

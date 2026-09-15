@@ -9,6 +9,7 @@ export interface CreateEmployeeDto {
   joiningDate?: Date | null;
   identificationMethod?: IdentificationMethod;
   role: UserRole;
+  supervisedRole?: UserRole | null;
 }
 
 export interface UpdateEmployeeDto {
@@ -19,4 +20,5 @@ export interface UpdateEmployeeDto {
   joiningDate?: Date | null;
   status?: EmployeeStatus;
   role?: UserRole;
+  supervisedRole?: UserRole | null;
 }

@@ -134,13 +134,15 @@ export default function SubtaskMasterSettings() {
             role: m.role,
             name: m.name || `${m.role} Master`,
             description: m.description || '',
-            items: (m.items || []).map((i: any) => ({
-              id: i.id,
-              taskName: i.taskName,
-              description: i.description || '',
-              isRequired: i.isRequired ?? true,
-              isActive: i.isActive ?? true,
-            })),
+            items: (m.items || [])
+              .filter((i: any) => i.isActive ?? true)
+              .map((i: any) => ({
+                id: i.id,
+                taskName: i.taskName,
+                description: i.description || '',
+                isRequired: i.isRequired ?? true,
+                isActive: i.isActive ?? true,
+              })),
           };
         });
         setMastersMap(map);
@@ -206,6 +208,7 @@ export default function SubtaskMasterSettings() {
     const cleanItems = currentItems
       .filter((i) => i.taskName.trim().length > 0)
       .map((item, idx) => ({
+        id: item.id,
         taskName: item.taskName.trim(),
         description: item.description.trim() || undefined,
         displayOrder: idx + 1,

@@ -12,6 +12,7 @@ export interface CurrentUser {
   employeeId: string | null;
   email: string;
   role: UserRole;
+  supervisedRole?: UserRole | null;
 }
 
 declare global {

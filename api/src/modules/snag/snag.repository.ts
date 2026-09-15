@@ -107,6 +107,7 @@ export class SnagRepository {
       ...(filters.priority && { priority: filters.priority }),
       ...(filters.category && { category: { contains: filters.category, mode: 'insensitive' } }),
       ...(filters.subCategory && { subCategory: { contains: filters.subCategory, mode: 'insensitive' } }),
+      ...(filters.supervisorScope && { employee: { role: filters.supervisorScope.supervisedRole } }),
     };
 
     if (filters.search) {

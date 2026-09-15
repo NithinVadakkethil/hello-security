@@ -14,31 +14,45 @@ import { FormInput, Select } from '../../../components/ui/FormControls';
 import Modal from '../../../components/ui/Modal';
 import { apiClient } from '../../../lib/axios';
 
-const schema = z.object({
-  firstName: z.string().trim().min(1, 'First name is required'),
-  lastName: z.string().optional().or(z.literal('')),
-  email: z
-    .string()
-    .trim()
-    .min(1, 'Email is required')
-    .email('Please enter a valid email address'),
-  phone: z.string().optional(),
-  designation: z.string().optional(),
-  joiningDate: z.string().optional(),
-  identificationMethod: z.enum(['QR', 'RFID']),
-  role: z.enum([
-    'SUPER_ADMIN',
-    'CLIENT_ADMIN',
-    'MANAGER',
-    'SUPERVISOR',
-    'SECURITY',
-    'CLEANER',
-    'SERVICE_ENGINEER',
-    'TECHNICIAN',
-    'LIFE_GUARD',
-    'PLUMBER',
-  ]),
-});
+const schema = z
+  .object({
+    firstName: z.string().trim().min(1, 'First name is required'),
+    lastName: z.string().optional().or(z.literal('')),
+    email: z
+      .string()
+      .trim()
+      .min(1, 'Email is required')
+      .email('Please enter a valid email address'),
+    phone: z.string().optional(),
+    designation: z.string().optional(),
+    joiningDate: z.string().optional(),
+    identificationMethod: z.enum(['QR', 'RFID']),
+    role: z.enum([
+      'SUPER_ADMIN',
+      'CLIENT_ADMIN',
+      'MANAGER',
+      'SUPERVISOR',
+      'SECURITY',
+      'CLEANER',
+      'SERVICE_ENGINEER',
+      'TECHNICIAN',
+      'LIFE_GUARD',
+      'PLUMBER',
+    ]),
+    supervisedRole: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.role === 'SUPERVISOR') {
+        return !!data.supervisedRole;
+      }
+      return true;
+    },
+    {
+      message: 'Supervised operational role is required for Supervisor.',
+      path: ['supervisedRole'],
+    },
+  );
 
 type FormValues = z.infer<typeof schema>;
 
@@ -53,14 +67,18 @@ export default function NewEmployeePage() {
     register,
     handleSubmit,
     setError,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema as any),
     defaultValues: {
       identificationMethod: 'QR',
       role: 'SECURITY',
+      supervisedRole: 'SECURITY',
     },
   });
+
+  const selectedRole = watch('role');
 
   const createEmployeeMutation = useMutation({
     mutationFn: (values: FormValues) => {
@@ -256,6 +274,27 @@ export default function NewEmployeePage() {
               {...register('identificationMethod')}
             /> */}
           </div>
+
+          {selectedRole === 'SUPERVISOR' && (
+            <div style={{ marginTop: '4px' }}>
+              <Select
+                label="Supervised Operational Role (Scope) *"
+                options={[
+                  { value: 'SECURITY', label: 'Security Guard' },
+                  { value: 'CLEANER', label: 'House Keeping / Cleaner' },
+                  { value: 'TECHNICIAN', label: 'Technician' },
+                  { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+                  { value: 'LIFE_GUARD', label: 'Life Guard' },
+                  { value: 'PLUMBER', label: 'Plumber' },
+                ]}
+                error={(errors as any).supervisedRole?.message}
+                {...register('supervisedRole')}
+              />
+              <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                This supervisor will strictly see and manage operational data (patrols, reviews, observations, snags) for guards in this specific role.
+              </p>
+            </div>
+          )}
 
           {/* <Select
             label="Security Portal Role"

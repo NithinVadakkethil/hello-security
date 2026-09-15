@@ -15,6 +15,8 @@ import { generateCode } from '../../common/utils/code-generator';
 
 import { employeeRepository } from './employee.repository';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './employee.types';
+import { CurrentUser } from '../../common/auth/current-user';
+import { getSupervisorScope } from '../../common/auth/supervisor-scope';
 
 export class EmployeeService {
   async create(clientId: string, dto: CreateEmployeeDto) {
@@ -98,6 +100,14 @@ export class EmployeeService {
     // Generate temporary password
     const temporaryPassword = randomBytes(6).toString('hex');
 
+    if (dto.role === 'SUPERVISOR' && !dto.supervisedRole) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Supervised operational role is required when creating a Supervisor.',
+      );
+    }
+
     const hashedPassword = await hashPassword(temporaryPassword);
 
     const employee = await prisma.$transaction(
@@ -115,6 +125,7 @@ export class EmployeeService {
 
             designation: dto.designation,
             role: dto.role,
+            supervisedRole: dto.role === 'SUPERVISOR' ? (dto.supervisedRole || null) : null,
 
             joiningDate: dto.joiningDate,
 
@@ -131,6 +142,7 @@ export class EmployeeService {
               password: hashedPassword,
               rawPassword: temporaryPassword,
               role: dto.role,
+              supervisedRole: dto.role === 'SUPERVISOR' ? (dto.supervisedRole || null) : null,
             },
           });
         }
@@ -145,8 +157,9 @@ export class EmployeeService {
     };
   }
 
-  async list(clientId: string, status?: EmployeeStatus | 'ALL') {
-    return employeeRepository.list(clientId, status);
+  async list(clientId: string, status?: EmployeeStatus | 'ALL', user?: CurrentUser) {
+    const scope = user?.role === 'SUPERVISOR' ? getSupervisorScope(user) : null;
+    return employeeRepository.list(clientId, status, scope);
   }
 
   async get(id: string) {
@@ -169,6 +182,19 @@ export class EmployeeService {
     // Strip email from dto to ensure email remains immutable after creation
     const { email, ...cleanDto } = dto as any;
 
+    const targetRole = cleanDto.role !== undefined ? cleanDto.role : existing.role;
+    if (targetRole === 'SUPERVISOR' && cleanDto.supervisedRole === null && !existing.supervisedRole) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Supervised operational role is required for Supervisor.',
+      );
+    }
+
+    if (targetRole !== 'SUPERVISOR') {
+      cleanDto.supervisedRole = null;
+    }
+
     return prisma.$transaction(async (tx) => {
       const updatedEmp = await tx.employee.update({
         where: { id },
@@ -176,10 +202,13 @@ export class EmployeeService {
         include: { user: true },
       });
 
-      if (cleanDto.role && existing.user) {
+      if (existing.user) {
         await tx.user.update({
           where: { id: existing.user.id },
-          data: { role: cleanDto.role },
+          data: {
+            role: updatedEmp.role,
+            supervisedRole: updatedEmp.supervisedRole,
+          },
         });
       }
 

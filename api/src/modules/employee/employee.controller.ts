@@ -33,7 +33,7 @@ export class EmployeeController {
 
       const status = req.query.status as EmployeeStatus | 'ALL' | undefined;
 
-      const employees = await employeeService.list(user.tenantId!, status);
+      const employees = await employeeService.list(user.tenantId!, status, user);
 
       return res.json({
         success: true,

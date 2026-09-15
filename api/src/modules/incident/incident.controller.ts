@@ -87,7 +87,7 @@ export class IncidentController {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const result = await incidentService.list(user.tenantId!);
+      const result = await incidentService.list(user.tenantId!, user);
 
       return res.json({
         success: true,
@@ -100,7 +100,8 @@ export class IncidentController {
 
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await incidentService.findById(req.params.id as string);
+      const user = currentUser(req);
+      const result = await incidentService.findById(req.params.id as string, user);
 
       if (!result) {
         return res.status(404).json({

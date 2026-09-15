@@ -15,24 +15,38 @@ import { ApiResponse } from '../../../../types/api';
 import { FormInput, Select } from '../../../../components/ui/FormControls';
 import LoadingState from '../../../../components/ui/LoadingState';
 
-const schema = z.object({
-  firstName: z.string().min(2, 'First name is required (min 2 characters)'),
-  lastName: z.string().optional().or(z.literal('')),
-  email: z.string().email('Please enter a valid email address').optional().or(z.literal('')),
-  phone: z.string().optional(),
-  designation: z.string().optional(),
-  joiningDate: z.string().optional(),
-  role: z.enum([
-    'SECURITY',
-    'CLEANER',
-    'SERVICE_ENGINEER',
-    'TECHNICIAN',
-    'LIFE_GUARD',
-    'PLUMBER',
-    'SUPERVISOR',
-    'MANAGER',
-  ]),
-});
+const schema = z
+  .object({
+    firstName: z.string().min(2, 'First name is required (min 2 characters)'),
+    lastName: z.string().optional().or(z.literal('')),
+    email: z.string().email('Please enter a valid email address').optional().or(z.literal('')),
+    phone: z.string().optional(),
+    designation: z.string().optional(),
+    joiningDate: z.string().optional(),
+    role: z.enum([
+      'SECURITY',
+      'CLEANER',
+      'SERVICE_ENGINEER',
+      'TECHNICIAN',
+      'LIFE_GUARD',
+      'PLUMBER',
+      'SUPERVISOR',
+      'MANAGER',
+    ]),
+    supervisedRole: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.role === 'SUPERVISOR') {
+        return !!data.supervisedRole;
+      }
+      return true;
+    },
+    {
+      message: 'Supervised operational role is required for Supervisor.',
+      path: ['supervisedRole'],
+    },
+  );
 
 type FormValues = z.infer<typeof schema>;
 
@@ -54,10 +68,13 @@ export default function EditEmployeePage() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema as any),
   });
+
+  const selectedRole = watch('role');
 
   useEffect(() => {
     if (employee) {
@@ -69,6 +86,7 @@ export default function EditEmployeePage() {
         designation: employee.designation || '',
         joiningDate: employee.joiningDate ? new Date(employee.joiningDate).toISOString().split('T')[0] : '',
         role: employee.role || employee.user?.role || 'SECURITY',
+        supervisedRole: employee.supervisedRole || employee.user?.supervisedRole || 'SECURITY',
       });
     }
   }, [employee, reset]);
@@ -202,6 +220,27 @@ export default function EditEmployeePage() {
               {...register('role')}
             />
           </div>
+
+          {selectedRole === 'SUPERVISOR' && (
+            <div style={{ marginTop: '4px' }}>
+              <Select
+                label="Supervised Operational Role (Scope) *"
+                options={[
+                  { value: 'SECURITY', label: 'Security Guard' },
+                  { value: 'CLEANER', label: 'House Keeping / Cleaner' },
+                  { value: 'TECHNICIAN', label: 'Technician' },
+                  { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+                  { value: 'LIFE_GUARD', label: 'Life Guard' },
+                  { value: 'PLUMBER', label: 'Plumber' },
+                ]}
+                error={(errors as any).supervisedRole?.message}
+                {...register('supervisedRole')}
+              />
+              <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                Changing the supervised role will immediately update the data visible to this supervisor. No historical patrol data will be deleted.
+              </p>
+            </div>
+          )}
 
           <button
             type="submit"

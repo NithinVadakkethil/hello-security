@@ -20,7 +20,7 @@ export class GateSubTaskController {
 
   async list(req: Request, res: Response) {
     const gateId = req.params.gateId as string;
-    const onlyActive = req.query.onlyActive === 'true';
+    const onlyActive = req.query.onlyActive !== 'false';
     const role = req.query.role as any;
 
     const subTasks = await gateSubTaskService.list(gateId, onlyActive, role);

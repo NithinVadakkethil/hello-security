@@ -9,6 +9,8 @@ export interface CompletePatrolDto {
   completedAt?: string;
 }
 
+import { SupervisorScope } from '../../common/auth/supervisor-scope';
+
 export interface ListPatrolSessionsQuery {
   page?: number;
   limit?: number;
@@ -18,4 +20,5 @@ export interface ListPatrolSessionsQuery {
   filter?: 'all' | 'pending' | 'today' | 'yesterday' | 'completed' | string;
   siteId?: string;
   employeeId?: string;
+  supervisorScope?: SupervisorScope | null;
 }

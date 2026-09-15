@@ -9,6 +9,8 @@ import { prisma } from '../../database/prisma';
 
 import { assignmentRepository } from '../assignment/assignment.repository';
 import { patrolSessionRepository } from './patrol-session.repository';
+import { CurrentUser } from '../../common/auth/current-user';
+import { getSupervisorScope } from '../../common/auth/supervisor-scope';
 import { ListPatrolSessionsQuery } from './patrol-session.types';
 
 export class PatrolSessionService {
@@ -255,8 +257,23 @@ export class PatrolSessionService {
     return patrolSessionRepository.cancel(id);
   }
 
-  async findById(id: string) {
-    return patrolSessionRepository.findFullById(id);
+  async findById(id: string, user?: CurrentUser) {
+    const session = await patrolSessionRepository.findFullById(id);
+    if (!session) return null;
+
+    if (user && user.role === 'SUPERVISOR') {
+      const scope = getSupervisorScope(user);
+      const officerRole = session.assignment?.employee?.role;
+      if (scope && officerRole && officerRole !== scope.supervisedRole) {
+        throw new AppError(
+          HttpStatus.FORBIDDEN,
+          ErrorCodes.FORBIDDEN,
+          'You are not authorized to view patrol details for this employee role.',
+        );
+      }
+    }
+
+    return session;
   }
 
   async verify(
@@ -266,6 +283,7 @@ export class PatrolSessionService {
       verificationStatus: 'VERIFIED' | 'NOT_VERIFIED';
       supervisorRemarks?: string;
     },
+    user?: CurrentUser,
   ) {
     const patrol = await patrolSessionRepository.findById(id);
 
@@ -275,6 +293,18 @@ export class PatrolSessionService {
         ErrorCodes.NOT_FOUND,
         'Patrol session not found.',
       );
+    }
+
+    if (user && user.role === 'SUPERVISOR') {
+      const scope = getSupervisorScope(user);
+      const officerRole = patrol.assignment?.employee?.role;
+      if (scope && officerRole && officerRole !== scope.supervisedRole) {
+        throw new AppError(
+          HttpStatus.FORBIDDEN,
+          ErrorCodes.FORBIDDEN,
+          'You are not authorized to verify patrols for this employee role.',
+        );
+      }
     }
 
     if (

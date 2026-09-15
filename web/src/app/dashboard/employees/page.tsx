@@ -24,6 +24,7 @@ interface Employee {
   phone?: string | null;
   designation?: string | null;
   role: string;
+  supervisedRole?: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   identificationMethod: 'QR' | 'RFID';
   createdAt: string;
@@ -208,7 +209,32 @@ export default function EmployeesPage() {
         </span>
       ),
     },
-    { key: 'designation', label: 'Designation / Role', sortable: true },
+    {
+      key: 'designation',
+      label: 'Designation / Role',
+      sortable: true,
+      render: (row: Employee) => (
+        <div>
+          <div>{row.designation || row.role}</div>
+          {row.role === 'SUPERVISOR' && (
+            <span
+              style={{
+                display: 'inline-block',
+                marginTop: '4px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '12px',
+                backgroundColor: row.supervisedRole ? 'rgba(59, 130, 246, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                color: row.supervisedRole ? '#3b82f6' : '#ef4444',
+              }}
+            >
+              {row.supervisedRole ? `Supervises: ${row.supervisedRole}` : 'Scope Unconfigured'}
+            </span>
+          )}
+        </div>
+      ),
+    },
     { key: 'email', label: 'Email Address' },
     { key: 'phone', label: 'Phone' },
     {

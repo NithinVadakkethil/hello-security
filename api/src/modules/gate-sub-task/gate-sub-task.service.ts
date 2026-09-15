@@ -121,7 +121,7 @@ export class GateSubTaskService {
     return subTask;
   }
 
-  async list(gateIdInput: string, onlyActive = false, role?: UserRole) {
+  async list(gateIdInput: string, onlyActive = true, role?: UserRole) {
     const gate = await resolveGateRecord(gateIdInput);
     if (!gate) {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
@@ -175,7 +175,7 @@ export class GateSubTaskService {
   async delete(id: string, userId?: string, clientId?: string) {
     await this.get(id);
 
-    await gateSubTaskRepository.delete(id);
+    await gateSubTaskRepository.update(id, { isActive: false });
 
     if (userId && clientId) {
       await auditLogService.create({

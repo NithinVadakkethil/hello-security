@@ -147,6 +147,7 @@ model User {
   password String
   rawPassword String?
   role     UserRole
+  supervisedRole UserRole?
 
   isActive  Boolean   @default(true)
   lastLogin DateTime?
@@ -202,6 +203,8 @@ model Employee {
 
   role UserRole @default(SECURITY)
 
+  supervisedRole UserRole?
+
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
@@ -213,6 +216,7 @@ model Employee {
   snags Snag[]
 
   @@unique([clientId, employeeNumber])
+  @@index([clientId, supervisedRole])
 }
 
 model Site {

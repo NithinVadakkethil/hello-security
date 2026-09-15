@@ -55,6 +55,7 @@ export class SubTaskMasterService {
     const cleanItems = (dto.items || [])
       .filter((item) => item.taskName && item.taskName.trim().length > 0)
       .map((item, idx) => ({
+        id: item.id,
         taskName: item.taskName.trim(),
         description: item.description?.trim() || undefined,
         displayOrder: item.displayOrder ?? idx + 1,
@@ -136,8 +137,13 @@ export class SubTaskMasterService {
 
     for (const role of selectedRoles) {
       const master = await subTaskMasterRepository.findByClientAndRole(clientId, role);
-      const activeItems = (master?.items || []).filter((i) => i.isActive);
+      const allItems = master?.items || [];
+      const activeItems = allItems.filter((i) => i.isActive);
       const activeMasterItemIds = new Set(activeItems.map((i) => i.id));
+
+      const inactiveItems = allItems.filter((i) => !i.isActive);
+      const inactiveMasterItemIds = new Set(inactiveItems.map((i) => i.id));
+      const inactiveItemsByName = new Map(inactiveItems.map((i) => [i.taskName.trim().toLowerCase(), i]));
 
       const existingSubTasks = checkpointCount > 0
         ? await prisma.gateSubTask.findMany({
@@ -146,19 +152,11 @@ export class SubTaskMasterService {
           })
         : [];
 
-      // Count preserved manual tasks
-      const manualTasks = existingSubTasks.filter((st) => !st.sourceMasterItemId);
-      const rolePreserveManualCount = manualTasks.length;
-
-      // Identify stale master tasks to remove (soft-deactivate)
-      const staleMasterTasks = existingSubTasks.filter(
-        (st) => st.sourceMasterItemId && !activeMasterItemIds.has(st.sourceMasterItemId) && st.isActive
-      );
-      const roleRemoveCount = staleMasterTasks.length;
-
       let roleCreateCount = 0;
       let roleUpdateCount = 0;
       let roleSkipCount = 0;
+      let roleRemoveCount = 0;
+      let rolePreserveManualCount = 0;
 
       // Group existing by gateId
       const gateSubTasksMap = new Map<string, typeof existingSubTasks>();
@@ -180,10 +178,13 @@ export class SubTaskMasterService {
           existingByTaskName.set(st.taskName.trim().toLowerCase(), st);
         });
 
+        const processedGateSubTaskIds = new Set<string>();
+
         for (const item of activeItems) {
           const matched = existingByMasterId.get(item.id) || existingByTaskName.get(item.taskName.trim().toLowerCase());
 
           if (matched) {
+            processedGateSubTaskIds.add(matched.id);
             const isIdentical =
               matched.sourceMasterItemId === item.id &&
               matched.taskName === item.taskName.trim() &&
@@ -199,6 +200,24 @@ export class SubTaskMasterService {
             }
           } else {
             roleCreateCount++;
+          }
+        }
+
+        // Process remaining subtasks for this gate
+        for (const st of gateExisting) {
+          if (processedGateSubTaskIds.has(st.id)) continue;
+
+          const isStaleMaster =
+            (st.sourceMasterItemId && !activeMasterItemIds.has(st.sourceMasterItemId)) ||
+            inactiveMasterItemIds.has(st.sourceMasterItemId || '') ||
+            inactiveItemsByName.has(st.taskName.trim().toLowerCase());
+
+          if (isStaleMaster) {
+            if (st.isActive) {
+              roleRemoveCount++;
+            }
+          } else if (!st.sourceMasterItemId) {
+            rolePreserveManualCount++;
           }
         }
       }
@@ -311,17 +330,37 @@ export class SubTaskMasterService {
           const manualTasks = existingSubTasks.filter((st) => !st.sourceMasterItemId);
           const rolePreservedManual = manualTasks.length;
 
-          // 2. Identify and Soft-Deactivate Stale Master Tasks
+          // 2. Identify and Process Stale Master Tasks (Hybrid Deletion)
           const staleTaskIds = existingSubTasks
             .filter((st) => st.sourceMasterItemId && !activeMasterItemIds.has(st.sourceMasterItemId) && st.isActive)
             .map((st) => st.id);
 
           let roleRemoved = staleTaskIds.length;
           if (staleTaskIds.length > 0) {
-            await tx.gateSubTask.updateMany({
-              where: { id: { in: staleTaskIds } },
-              data: { isActive: false },
+            // Find which stale tasks have historical patrol responses
+            const usedResponses = await tx.patrolSubTaskResponse.groupBy({
+              by: ['gateSubTaskId'],
+              where: { gateSubTaskId: { in: staleTaskIds } },
             });
+            const usedTaskIds = new Set(usedResponses.map((r) => r.gateSubTaskId));
+
+            const unusedStaleTaskIds = staleTaskIds.filter((id) => !usedTaskIds.has(id));
+            const usedStaleTaskIds = staleTaskIds.filter((id) => usedTaskIds.has(id));
+
+            // Unused stale tasks -> hard delete
+            if (unusedStaleTaskIds.length > 0) {
+              await tx.gateSubTask.deleteMany({
+                where: { id: { in: unusedStaleTaskIds } },
+              });
+            }
+
+            // Historically used stale tasks -> soft delete (archive)
+            if (usedStaleTaskIds.length > 0) {
+              await tx.gateSubTask.updateMany({
+                where: { id: { in: usedStaleTaskIds } },
+                data: { isActive: false },
+              });
+            }
           }
 
           let roleCreated = 0;

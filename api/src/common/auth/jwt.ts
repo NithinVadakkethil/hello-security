@@ -11,6 +11,7 @@ export interface JwtPayload {
   employeeId: string | null;
   email: string;
   role: UserRole;
+  supervisedRole?: UserRole | null;
 }
 
 export function signAccessToken(payload: JwtPayload): string {

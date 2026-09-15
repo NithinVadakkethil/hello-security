@@ -41,6 +41,8 @@ export interface CompleteSnagJobDto {
   longitude?: number;
 }
 
+import { SupervisorScope } from '../../common/auth/supervisor-scope';
+
 export interface SnagFilterDto {
   siteId?: string;
   gateId?: string;
@@ -56,4 +58,5 @@ export interface SnagFilterDto {
   endDate?: string;
   page?: number;
   limit?: number;
+  supervisorScope?: SupervisorScope | null;
 }

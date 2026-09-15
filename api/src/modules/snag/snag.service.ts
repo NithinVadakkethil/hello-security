@@ -2,6 +2,8 @@ import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 import { OPERATIONAL_ROLES } from '../../common/auth/constants';
+import { CurrentUser } from '../../common/auth/current-user';
+import { getSupervisorScope } from '../../common/auth/supervisor-scope';
 import { auditLogRepository } from '../audit-log/audit-log.repository';
 import { snagRepository } from './snag.repository';
 import { AddSnagCommentDto, AssignSnagDto, CompleteSnagJobDto, CreateSnagDto, SnagFilterDto, UpdateSnagStatusDto } from './snag.types';
@@ -23,10 +25,13 @@ export class SnagService {
     return snag;
   }
 
-  async list(clientId: string, filters: SnagFilterDto = {}, userId?: string, userRole?: string) {
+  async list(clientId: string, filters: SnagFilterDto = {}, userId?: string, userRole?: string, currentUser?: CurrentUser) {
     const isFieldUser = userRole && (OPERATIONAL_ROLES as readonly string[]).includes(userRole);
     if (isFieldUser || filters.assignedToId === 'me') {
       filters.assignedToId = userId;
+    }
+    if (currentUser && currentUser.role === 'SUPERVISOR') {
+      filters.supervisorScope = getSupervisorScope(currentUser);
     }
     return snagRepository.list(clientId, filters);
   }
@@ -35,7 +40,7 @@ export class SnagService {
     return snagRepository.getStats(clientId);
   }
 
-  async get(id: string, clientId: string, userId?: string, userRole?: string) {
+  async get(id: string, clientId: string, userId?: string, userRole?: string, currentUser?: CurrentUser) {
     const snag = await snagRepository.findById(id);
 
     if (!snag || snag.clientId !== clientId) {
@@ -44,6 +49,17 @@ export class SnagService {
         ErrorCodes.NOT_FOUND,
         'Snag report not found.',
       );
+    }
+
+    if (currentUser && currentUser.role === 'SUPERVISOR') {
+      const scope = getSupervisorScope(currentUser);
+      if (scope && (snag.employee as any)?.role && (snag.employee as any).role !== scope.supervisedRole) {
+        throw new AppError(
+          HttpStatus.FORBIDDEN,
+          ErrorCodes.FORBIDDEN,
+          'You are not authorized to view snag reports for this employee role.',
+        );
+      }
     }
 
     const isFieldUser = userRole && (OPERATIONAL_ROLES as readonly string[]).includes(userRole);

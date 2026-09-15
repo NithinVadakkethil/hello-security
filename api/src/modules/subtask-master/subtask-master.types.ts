@@ -1,6 +1,7 @@
 import { UserRole } from '@prisma/client';
 
 export interface CreateSubTaskMasterItemDto {
+  id?: string;
   taskName: string;
   description?: string;
   displayOrder?: number;

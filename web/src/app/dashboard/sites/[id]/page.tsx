@@ -355,7 +355,13 @@ export default function SiteDetailPage() {
             title="Configure Verification Sub-Tasks"
           >
             <CheckSquare size={14} />
-            <span>Sub Tasks ({(row as any).subTasks?.length || 0})</span>
+            <span>
+              Sub Tasks (
+              {Array.isArray((row as any).subTasks)
+                ? (row as any).subTasks.filter((st: any) => st.isActive ?? true).length
+                : 0}
+              )
+            </span>
           </button>
           <button
             onClick={() => handleOpenEditGate(row)}
@@ -707,6 +713,7 @@ export default function SiteDetailPage() {
         siteName={site?.name || ''}
         checkpointCount={gatePagination.total || gates.length || 0}
         onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['sub-tasks'] });
           queryClient.invalidateQueries({ queryKey: ['gates', id] });
           queryClient.invalidateQueries({ queryKey: ['site', id] });
         }}
