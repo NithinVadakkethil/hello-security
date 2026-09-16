@@ -6,7 +6,20 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Edit, Plus, MapPin, ToggleLeft, ToggleRight, QrCode, CheckSquare, Upload, FileCheck } from 'lucide-react';
+import {
+  ArrowLeft,
+  Edit,
+  Plus,
+  MapPin,
+  ToggleLeft,
+  ToggleRight,
+  QrCode,
+  CheckSquare,
+  Upload,
+  FileCheck,
+  ChevronRight,
+  Layers,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -53,9 +66,16 @@ interface Gate {
   isActive: boolean;
 }
 
+interface FloorSummary {
+  floor: string;
+  totalCheckpoints: number;
+  activeCheckpoints: number;
+  inactiveCheckpoints: number;
+}
+
 const gateSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
-  description: z.string().optional(),
+  description: z.string().trim().min(1, 'Floor is required'),
   latitude: z.any().optional(),
   longitude: z.any().optional(),
   sequence: z.any(),
@@ -109,13 +129,19 @@ export default function SiteDetailPage() {
   const [isBulkQrModalOpen, setIsBulkQrModalOpen] = useState(false);
   const [isApplyMasterModalOpen, setIsApplyMasterModalOpen] = useState(false);
 
-  // Dynamic Pagination & Search state for gates synced via URL
+  // Dynamic Pagination, Search & Floor state for gates synced via URL
   const gatePage = searchParams.get('gatePage') ? Number(searchParams.get('gatePage')) : 1;
   const gateSearch = searchParams.get('gateSearch') || '';
+  const gateFloor = searchParams.get('gateFloor') || null;
   const rawLimit = searchParams.get('gateLimit');
   const gateLimit: number | 'all' = rawLimit === 'all' ? 'all' : (rawLimit ? Number(rawLimit) : 10);
 
-  const updateUrlParams = (newPage: number, newSearch: string, newLimit?: number | 'all') => {
+  const updateUrlParams = (
+    newPage: number,
+    newSearch: string,
+    newLimit?: number | 'all',
+    newFloor?: string | null,
+  ) => {
     const current = new URLSearchParams(Array.from(searchParams.entries()));
 
     if (newPage > 1) {
@@ -139,6 +165,13 @@ export default function SiteDetailPage() {
       current.delete('gateLimit');
     }
 
+    const floorVal = newFloor !== undefined ? newFloor : gateFloor;
+    if (floorVal) {
+      current.set('gateFloor', floorVal);
+    } else {
+      current.delete('gateFloor');
+    }
+
     const query = current.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
@@ -155,15 +188,27 @@ export default function SiteDetailPage() {
     updateUrlParams(1, gateSearch, newLimit);
   };
 
+  const handleSelectFloor = (floorName: string | null) => {
+    updateUrlParams(1, '', undefined, floorName);
+  };
+
   // Fetch Site Details
   const { data: siteRes, isLoading: isSiteLoading } = useQuery<ApiResponse<Site>>({
     queryKey: ['site', id],
     queryFn: () => apiClient.get(`/sites/${id}`),
   });
 
-  // Fetch Site Gates (Paginated & Searched)
-  const { data: gatesRes, isLoading: isGatesLoading } = useQuery<ApiResponse<Gate[]> & { pagination?: any }>({
-    queryKey: ['gates', id, gatePage, gateSearch, gateLimit],
+  // Fetch Site Floor Summaries
+  const { data: floorsRes, isLoading: isFloorsLoading } = useQuery<ApiResponse<FloorSummary[]>>({
+    queryKey: ['floors', id],
+    queryFn: () => apiClient.get('/gates/floors', { params: { siteId: id } }),
+  });
+
+  // Fetch Site Gates (Paginated, Searched & Floor-Filtered)
+  const { data: gatesRes, isLoading: isGatesLoading } = useQuery<
+    ApiResponse<Gate[]> & { pagination?: any }
+  >({
+    queryKey: ['gates', id, gatePage, gateSearch, gateLimit, gateFloor],
     queryFn: () =>
       apiClient.get('/gates', {
         params: {
@@ -171,12 +216,14 @@ export default function SiteDetailPage() {
           page: gateLimit === 'all' ? undefined : gatePage,
           limit: gateLimit === 'all' ? undefined : gateLimit,
           search: gateSearch.trim() || undefined,
+          floor: gateFloor || undefined,
         },
       }),
     placeholderData: (previousData) => previousData,
   });
 
   const site = siteRes?.data;
+  const floorSummaries = floorsRes?.data || [];
   const gates = Array.isArray(gatesRes?.data)
     ? gatesRes.data
     : (gatesRes?.data as any)?.items || [];
@@ -210,6 +257,7 @@ export default function SiteDetailPage() {
     mutationFn: (values: GateValues) => apiClient.post('/gates', { ...values, siteId: id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['gates', id] });
+      queryClient.invalidateQueries({ queryKey: ['floors', id] });
       toast.success('Security gate checkpoint added successfully!');
       setIsGateModalOpen(false);
       resetGate();
@@ -225,6 +273,7 @@ export default function SiteDetailPage() {
       apiClient.patch(`/gates/${gateId}`, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['gates', id] });
+      queryClient.invalidateQueries({ queryKey: ['floors', id] });
       toast.success('Gate checkpoint settings updated.');
       setIsGateModalOpen(false);
       setEditingGate(null);
@@ -241,6 +290,7 @@ export default function SiteDetailPage() {
       apiClient.patch(`/gates/${gateId}/${isActive ? 'activate' : 'deactivate'}`),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ['gates'] });
+      queryClient.invalidateQueries({ queryKey: ['floors', id] });
       queryClient.invalidateQueries({ queryKey: ['patrol-routes'] });
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
       queryClient.invalidateQueries({ queryKey: ['checkpoints'] });
@@ -256,7 +306,7 @@ export default function SiteDetailPage() {
   const handleOpenAddGate = async () => {
     if (limits && limits.remainingCheckpoints === 0) {
       toast.error(
-        `Checkpoint creation limit reached. Maximum allowed across client: ${limits.maxCheckpoints}. Current count: ${limits.currentCheckpointCount}.`
+        `Checkpoint creation limit reached. Maximum allowed across client: ${limits.maxCheckpoints}. Current count: ${limits.currentCheckpointCount}.`,
       );
       return;
     }
@@ -274,7 +324,7 @@ export default function SiteDetailPage() {
 
     resetGate({
       name: '',
-      description: '',
+      description: gateFloor || 'Ground Floor',
       latitude: undefined,
       longitude: undefined,
       sequence: nextSeq,
@@ -286,7 +336,7 @@ export default function SiteDetailPage() {
     setEditingGate(gate);
     resetGate({
       name: gate.name,
-      description: gate.description || '',
+      description: gate.description || 'Ground Floor',
       latitude: gate.latitude ?? undefined,
       longitude: gate.longitude ?? undefined,
       sequence: gate.sequence,
@@ -301,7 +351,7 @@ export default function SiteDetailPage() {
   const onSubmitGate = (values: GateValues) => {
     const payload = {
       name: values.name,
-      description: values.description || undefined,
+      description: values.description ? values.description.trim() : undefined,
       sequence: Number(values.sequence),
       latitude: values.latitude === '' || values.latitude === undefined ? undefined : Number(values.latitude),
       longitude: values.longitude === '' || values.longitude === undefined ? undefined : Number(values.longitude),
@@ -313,10 +363,33 @@ export default function SiteDetailPage() {
     }
   };
 
+  // Base Columns for Checkpoints Table
   const gateColumns = [
     { key: 'sequence', label: 'Seq #', sortable: true },
     { key: 'gateCode', label: 'Gate Code', sortable: true },
     { key: 'name', label: 'Gate / Checkpoint Name', sortable: true },
+    ...(gateSearch !== ''
+      ? [
+          {
+            key: 'floor',
+            label: 'Floor',
+            render: (row: Gate) => (
+              <span
+                style={{
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  color: 'var(--primary)',
+                }}
+              >
+                {row.description || 'Unassigned Floor'}
+              </span>
+            ),
+          },
+        ]
+      : []),
     {
       key: 'coordinates',
       label: 'GPS Coordinates',
@@ -328,7 +401,6 @@ export default function SiteDetailPage() {
         </span>
       ),
     },
-    { key: 'description', label: 'Checkpoint Description' },
     {
       key: 'isActive',
       label: 'Status',
@@ -496,7 +568,7 @@ export default function SiteDetailPage() {
         </div>
       </div>
 
-      {/* Gates / Checkpoint List */}
+      {/* Gates / Checkpoint List with Floor Grouping */}
       <div className="glass-card" style={{ padding: '28px', marginTop: '32px' }}>
         {limits && (
           <div
@@ -527,11 +599,12 @@ export default function SiteDetailPage() {
           </div>
         )}
 
+        {/* Top Control Bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h3 style={{ fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>Security Gates & Patrol Checkpoints</h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-              Chronological check-in sequence for guard patrols.
+              Floor-based checkpoint organization and check-in sequence.
             </p>
           </div>
 
@@ -539,7 +612,7 @@ export default function SiteDetailPage() {
             <SearchBar
               value={gateSearch}
               onChange={handleGateSearchChange}
-              placeholder="Search checkpoints by name or ID..."
+              placeholder="Search checkpoints by name, ID or floor..."
             />
             <button onClick={() => setIsBulkQrModalOpen(true)} className="btn btn-secondary" style={{ gap: '8px' }}>
               <QrCode size={16} />
@@ -560,26 +633,139 @@ export default function SiteDetailPage() {
           </div>
         </div>
 
-        <DataTable
-          columns={gateColumns}
-          data={gates}
-          isLoading={isGatesLoading}
-          emptyMessage={
-            gateSearch
-              ? 'No security gate checkpoints found matching your search.'
-              : "No gate checkpoints registered for this site yet. Click 'Add Checkpoint' or 'Import Checkpoints' to create them."
-          }
-        />
+        {/* VIEW 1: GLOBAL SEARCH RESULTS VIEW */}
+        {gateSearch !== '' ? (
+          <div>
+            <div style={{ marginBottom: '16px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+              Search results for &ldquo;<strong>{gateSearch}</strong>&rdquo; across all floors:
+            </div>
+            <DataTable
+              columns={gateColumns}
+              data={gates}
+              isLoading={isGatesLoading}
+              emptyMessage="No security gate checkpoints found matching your search."
+            />
+            <Pagination
+              currentPage={gatePage}
+              totalPages={gatePagination.totalPages}
+              onPageChange={handleGatePageChange}
+              pageSize={gateLimit}
+              pageSizeOptions={[10, 25, 50, 100, 'all']}
+              onPageSizeChange={handleGateLimitChange}
+              totalRecords={gatePagination.total}
+            />
+          </div>
+        ) : gateFloor === null ? (
+          /* VIEW 2: FLOOR SUMMARY LIST VIEW */
+          <div>
+            <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '16px', color: 'var(--text-secondary)' }}>
+              Floors
+            </h4>
+            {isFloorsLoading ? (
+              <LoadingState message="Loading floor summaries..." variant="card" />
+            ) : floorSummaries.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '32px' }}>
+                No gate checkpoints registered for this site yet. Click &apos;Add Checkpoint&apos; or &apos;Import Checkpoints&apos; to create them.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {floorSummaries.map((f) => (
+                  <div
+                    key={f.floor}
+                    onClick={() => handleSelectFloor(f.floor)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '16px 20px',
+                      borderRadius: '8px',
+                      background: 'var(--surface-color)',
+                      border: '1px solid var(--border-color)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    className="floor-card-hover"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div
+                        style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '8px',
+                          background: 'rgba(59, 130, 246, 0.1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--primary)',
+                        }}
+                      >
+                        <Layers size={20} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>{f.floor}</h4>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px', display: 'block' }}>
+                          {f.activeCheckpoints} Active &bull; {f.inactiveCheckpoints} Inactive
+                        </span>
+                      </div>
+                    </div>
 
-        <Pagination
-          currentPage={gatePage}
-          totalPages={gatePagination.totalPages}
-          onPageChange={handleGatePageChange}
-          pageSize={gateLimit}
-          pageSizeOptions={[10, 25, 50, 100, 'all']}
-          onPageSizeChange={handleGateLimitChange}
-          totalRecords={gatePagination.total}
-        />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <span
+                        style={{
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          padding: '4px 10px',
+                          borderRadius: '12px',
+                          background: 'var(--bg-primary)',
+                          border: '1px solid var(--border-color)',
+                        }}
+                      >
+                        {f.totalCheckpoints} Checkpoints
+                      </span>
+                      <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* VIEW 3: FLOOR DRILLDOWN CHECKPOINT LIST VIEW */
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  onClick={() => handleSelectFloor(null)}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '0.8rem', gap: '6px' }}
+                >
+                  <ArrowLeft size={14} />
+                  <span>All Floors</span>
+                </button>
+                <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>
+                  {gateFloor} ({gatePagination.total} Checkpoints)
+                </h4>
+              </div>
+            </div>
+
+            <DataTable
+              columns={gateColumns}
+              data={gates}
+              isLoading={isGatesLoading}
+              emptyMessage={`No checkpoints found on ${gateFloor}.`}
+            />
+
+            <Pagination
+              currentPage={gatePage}
+              totalPages={gatePagination.totalPages}
+              onPageChange={handleGatePageChange}
+              pageSize={gateLimit}
+              pageSizeOptions={[10, 25, 50, 100, 'all']}
+              onPageSizeChange={handleGateLimitChange}
+              totalRecords={gatePagination.total}
+            />
+          </div>
+        )}
       </div>
 
       {/* ADD/EDIT GATE CHECKPOINT MODAL */}
@@ -590,10 +776,17 @@ export default function SiteDetailPage() {
       >
         <form onSubmit={handleGateSubmit(onSubmitGate)} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <FormInput
-            label="Checkpoint / Gate Name"
+            label="Checkpoint / Gate Name *"
             placeholder="e.g. Back Loading Dock Gate B"
             error={gateErrors.name?.message as string | undefined}
             {...registerGate('name')}
+          />
+
+          <FormInput
+            label="Floor *"
+            placeholder="e.g. Ground Floor, Basement, 1st Floor, Roof"
+            error={gateErrors.description?.message as string | undefined}
+            {...registerGate('description')}
           />
 
           <FormInput
@@ -620,16 +813,6 @@ export default function SiteDetailPage() {
               placeholder="e.g. -122.4194"
               error={gateErrors.longitude?.message as string | undefined}
               {...registerGate('longitude')}
-            />
-          </div>
-
-          <div>
-            <label className="form-label">Description / Guard Note (Optional)</label>
-            <textarea
-              className="form-input"
-              style={{ minHeight: '80px', resize: 'vertical' }}
-              placeholder="Location guidance, lockbox combination, etc."
-              {...registerGate('description')}
             />
           </div>
 
@@ -693,6 +876,7 @@ export default function SiteDetailPage() {
         siteName={site?.name || ''}
         onImportSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['gates', id] });
+          queryClient.invalidateQueries({ queryKey: ['floors', id] });
           queryClient.invalidateQueries({ queryKey: ['site', id] });
         }}
       />
@@ -715,6 +899,7 @@ export default function SiteDetailPage() {
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['sub-tasks'] });
           queryClient.invalidateQueries({ queryKey: ['gates', id] });
+          queryClient.invalidateQueries({ queryKey: ['floors', id] });
           queryClient.invalidateQueries({ queryKey: ['site', id] });
         }}
       />

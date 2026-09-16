@@ -79,7 +79,7 @@ export const CANONICAL_IMPORT_COLUMNS: CanonicalColumn[] = [
   { field: 'sequence', excelHeader: 'Sequence Number', aliases: ['sequencenumber', 'sequence', 'patrolorder', 'order'] },
   { field: 'role', excelHeader: 'Role', aliases: ['role', 'userrole', 'assignedrole'] },
   { field: 'taskName', excelHeader: 'Subtask', aliases: ['subtask', 'subtaskname', 'taskname', 'task', 'checkpointsubtask'] },
-  { field: 'description', excelHeader: 'Description', aliases: ['description', 'desc', 'guardnote', 'instruction'] },
+  { field: 'description', excelHeader: 'Floor', aliases: ['floor', 'description', 'desc', 'guardnote', 'instruction'] },
   { field: 'latitude', excelHeader: 'Latitude', aliases: ['latitude', 'lat'] },
   { field: 'longitude', excelHeader: 'Longitude', aliases: ['longitude', 'lng', 'lon'] },
 ];
@@ -150,7 +150,7 @@ export class SiteImportService {
           exportRows.push({
             'Sequence Number': gate.sequence,
             'Checkpoint Name': gate.name,
-            'Description': gate.description || '',
+            'Floor': gate.description || '',
             'Latitude': gate.latitude !== null && gate.latitude !== undefined ? gate.latitude : '',
             'Longitude': gate.longitude !== null && gate.longitude !== undefined ? gate.longitude : '',
           });

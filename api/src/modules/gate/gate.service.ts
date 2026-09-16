@@ -115,8 +115,38 @@ export class GateService {
     });
   }
 
-  async list(siteId?: string, isActive?: boolean, clientId?: string, page?: number, limit?: number, search?: string) {
-    return gateRepository.list(siteId, isActive, clientId, page, limit, search);
+  async list(
+    siteId?: string,
+    isActive?: boolean,
+    clientId?: string,
+    page?: number,
+    limit?: number,
+    search?: string,
+    floor?: string,
+  ) {
+    return gateRepository.list(siteId, isActive, clientId, page, limit, search, floor);
+  }
+
+  async getFloors(siteId: string, userTenantId?: string) {
+    const site = await siteRepository.findById(siteId);
+
+    if (!site) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Site not found.',
+      );
+    }
+
+    if (userTenantId && site.clientId !== userTenantId) {
+      throw new AppError(
+        HttpStatus.FORBIDDEN,
+        ErrorCodes.FORBIDDEN,
+        'Access to site floors denied.',
+      );
+    }
+
+    return gateRepository.getFloors(siteId, userTenantId);
   }
 
   async getNextSequence(siteId: string) {

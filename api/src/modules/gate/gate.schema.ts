@@ -5,7 +5,7 @@ export const createGateSchema = z.object({
 
   name: z.string().min(2).max(100),
 
-  description: z.string().optional(),
+  description: z.string().trim().min(1, 'Floor is required').max(100),
 
   latitude: z.number().optional(),
 

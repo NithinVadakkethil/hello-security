@@ -39,11 +39,12 @@ export class GateController {
       const page = req.query.page ? Number(req.query.page) : undefined;
       const limit = req.query.limit ? Number(req.query.limit) : undefined;
       const search = req.query.search as string | undefined;
+      const floor = req.query.floor as string | undefined;
 
       const isSuperAdmin = user.role === 'SUPER_ADMIN';
       const clientId = isSuperAdmin || !user.tenantId ? undefined : user.tenantId;
 
-      const result = await gateService.list(siteId, isActive, clientId, page, limit, search);
+      const result = await gateService.list(siteId, isActive, clientId, page, limit, search, floor);
 
       if (Array.isArray(result)) {
         return res.status(HttpStatus.OK).json({
@@ -56,6 +57,33 @@ export class GateController {
         success: true,
         data: result.items,
         pagination: result.pagination,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getFloors(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const siteId = req.query.siteId as string;
+
+      if (!siteId) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          'siteId query parameter is required.',
+        );
+      }
+
+      const isSuperAdmin = user.role === 'SUPER_ADMIN';
+      const clientId = isSuperAdmin || !user.tenantId ? undefined : user.tenantId;
+
+      const result = await gateService.getFloors(siteId, clientId);
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data: result,
       });
     } catch (error) {
       return next(error);

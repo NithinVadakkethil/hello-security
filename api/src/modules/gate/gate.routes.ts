@@ -26,6 +26,14 @@ router.get(
 );
 
 router.get(
+  '/floors',
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN, UserRole.MANAGER, UserRole.SUPERVISOR),
+  gateController.getFloors.bind(gateController),
+);
+
+
+router.get(
   '/next-sequence',
   authenticate,
   authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN),

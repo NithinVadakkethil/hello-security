@@ -93,19 +93,109 @@ export class GateRepository {
     });
   }
 
-  async list(siteId?: string, isActive?: boolean, clientId?: string, page?: number, limit?: number, search?: string) {
-    const where = {
+  async getFloors(siteId: string, clientId?: string) {
+    const where: any = {
+      siteId,
+      ...(clientId && { site: { clientId } }),
+    };
+
+    const gates = await prisma.gate.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        isActive: true,
+      },
+    });
+
+    const floorMap = new Map<
+      string,
+      {
+        floor: string;
+        totalCheckpoints: number;
+        activeCheckpoints: number;
+        inactiveCheckpoints: number;
+      }
+    >();
+
+    for (const gate of gates) {
+      const rawFloor = (gate.description && gate.description.trim()) || 'Unassigned Floor';
+      const key = rawFloor.toLowerCase();
+
+      if (!floorMap.has(key)) {
+        floorMap.set(key, {
+          floor: rawFloor,
+          totalCheckpoints: 0,
+          activeCheckpoints: 0,
+          inactiveCheckpoints: 0,
+        });
+      }
+
+      const item = floorMap.get(key)!;
+      item.totalCheckpoints++;
+      if (gate.isActive) {
+        item.activeCheckpoints++;
+      } else {
+        item.inactiveCheckpoints++;
+      }
+    }
+
+    const floors = Array.from(floorMap.values());
+    floors.sort((a, b) => {
+      if (a.floor === 'Unassigned Floor') return 1;
+      if (b.floor === 'Unassigned Floor') return -1;
+      return a.floor.localeCompare(b.floor, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    return floors;
+  }
+
+  async list(
+    siteId?: string,
+    isActive?: boolean,
+    clientId?: string,
+    page?: number,
+    limit?: number,
+    search?: string,
+    floor?: string,
+  ) {
+    const where: any = {
       ...(siteId && { siteId }),
       ...(isActive !== undefined && { isActive }),
       ...(clientId && !siteId && { site: { clientId } }),
-      ...(search && {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' as const } },
-          { gateCode: { contains: search, mode: 'insensitive' as const } },
-          { description: { contains: search, mode: 'insensitive' as const } },
-        ],
-      }),
     };
+
+    if (floor) {
+      if (
+        floor === 'Unassigned Floor' ||
+        floor === 'No Floor Assigned' ||
+        floor.trim() === ''
+      ) {
+        where.OR = [
+          { description: null },
+          { description: '' },
+        ];
+      } else {
+        where.description = { contains: floor.trim(), mode: 'insensitive' as const };
+      }
+    }
+
+    if (search && search.trim() !== '') {
+      const s = search.trim();
+      const searchOR = [
+        { name: { contains: s, mode: 'insensitive' as const } },
+        { gateCode: { contains: s, mode: 'insensitive' as const } },
+        { description: { contains: s, mode: 'insensitive' as const } },
+      ];
+
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, { OR: searchOR }];
+        delete where.OR;
+      } else {
+        where.OR = searchOR;
+      }
+    }
 
     const include = {
       subTasks: {
