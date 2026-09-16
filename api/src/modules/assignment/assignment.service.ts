@@ -1,6 +1,7 @@
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
+import { prisma } from '../../database/prisma';
 
 import { employeeRepository } from '../employee/employee.repository';
 import { gateRepository } from '../gate/gate.repository';
@@ -331,6 +332,194 @@ export class AssignmentService {
     const assignments = await assignmentRepository.findEmployeeAllAssignments(employeeId);
     return assignments.map((a: any) => this.formatAssignmentWithCompletion(a));
   }
+
+  async listEmployeeSummaries(
+    clientId: string,
+    query: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: string;
+      role?: string;
+    },
+  ) {
+    const page = query.page ? Math.max(1, Number(query.page)) : 1;
+    const limit = query.limit ? Math.max(1, Math.min(100, Number(query.limit))) : 10;
+    const search = query.search ? String(query.search) : undefined;
+    const status = query.status ? String(query.status) : 'ALL';
+    const role = query.role ? String(query.role) : 'ALL';
+
+    return assignmentRepository.listEmployeeSummaries(clientId, {
+      page,
+      limit,
+      search,
+      status,
+      role,
+    });
+  }
+
+  async getEmployeeAssignments(clientId: string, employeeId: string) {
+    if (!employeeId) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Employee ID is required.',
+      );
+    }
+
+    const result = await assignmentRepository.getEmployeeWithAssignments(
+      clientId,
+      employeeId,
+    );
+
+    if (!result) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Employee not found or access denied.',
+      );
+    }
+
+    const assignmentsWithCompletion = result.assignments.map((a: any) =>
+      this.formatAssignmentWithCompletion(a),
+    );
+
+    return {
+      employee: result.employee,
+      assignments: assignmentsWithCompletion,
+    };
+  }
+
+  async deactivateEmployeeAssignments(clientId: string, employeeId: string) {
+    if (!employeeId) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Employee ID is required.',
+      );
+    }
+
+    const employee = await employeeRepository.findById(employeeId);
+    if (!employee || employee.clientId !== clientId) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Employee not found or access denied.',
+      );
+    }
+
+    const activePatrol = await prisma.patrolSession.findFirst({
+      where: {
+        clientId,
+        assignment: {
+          employeeId,
+          clientId,
+        },
+        status: {
+          in: ['IN_PROGRESS', 'PAUSED'],
+        },
+      },
+    });
+
+    if (activePatrol) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Assignments cannot be deactivated while this employee has an active patrol session in progress.',
+      );
+    }
+
+    const result = await assignmentRepository.deactivateEmployeeAssignments(
+      clientId,
+      employeeId,
+    );
+
+    return {
+      message: `${result.count} assignment(s) for ${employee.firstName} ${employee.lastName || ''}`.trim() + ' deactivated successfully.',
+      deactivatedCount: result.count,
+    };
+  }
+
+  async activateEmployeeAssignments(clientId: string, employeeId: string) {
+    if (!employeeId) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Employee ID is required.',
+      );
+    }
+
+    const employee = await employeeRepository.findById(employeeId);
+    if (!employee || employee.clientId !== clientId) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Employee not found or access denied.',
+      );
+    }
+
+    const inactiveAssignments = await prisma.guardAssignment.findMany({
+      where: {
+        employeeId,
+        clientId,
+        isActive: false,
+      },
+      include: {
+        site: { select: { id: true, name: true, isActive: true } },
+        shift: { select: { id: true, name: true, isActive: true } },
+        patrolRoute: { select: { id: true, name: true, isActive: true } },
+      },
+    });
+
+    if (inactiveAssignments.length === 0) {
+      return {
+        message: 'No inactive assignments found for this employee.',
+        activatedCount: 0,
+        skippedCount: 0,
+      };
+    }
+
+    const now = new Date();
+    const eligibleIds: string[] = [];
+    let skippedCount = 0;
+
+    for (const asg of inactiveAssignments) {
+      if (asg.effectiveTo && new Date(asg.effectiveTo) < now) {
+        skippedCount++;
+        continue;
+      }
+      if (!asg.site?.isActive || !asg.shift?.isActive) {
+        skippedCount++;
+        continue;
+      }
+      if (asg.patrolRouteId && !asg.patrolRoute?.isActive) {
+        skippedCount++;
+        continue;
+      }
+      eligibleIds.push(asg.id);
+    }
+
+    if (eligibleIds.length === 0) {
+      return {
+        message: 'No eligible assignments could be activated (all inactive assignments are expired or associated with inactive sites/shifts/routes).',
+        activatedCount: 0,
+        skippedCount,
+      };
+    }
+
+    const result = await assignmentRepository.activateEmployeeAssignments(
+      clientId,
+      eligibleIds,
+    );
+
+    const skippedMsg = skippedCount > 0 ? ` (${skippedCount} expired/inactive assignment(s) skipped)` : '';
+    return {
+      message: `${result.count} assignment(s) for ${employee.firstName} ${employee.lastName || ''}`.trim() + ` activated successfully${skippedMsg}.`,
+      activatedCount: result.count,
+      skippedCount,
+    };
+  }
 }
 
 export const assignmentService = new AssignmentService();
+

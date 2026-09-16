@@ -110,7 +110,7 @@ export function LoginScreen() {
             render={({ field: { onChange, value } }) => (
               <Input
                 label="Email Address"
-                placeholder="officer@hellosecurity.com"
+                placeholder="officer@helloorbit.com"
                 value={value}
                 onChangeText={onChange}
                 error={errors.email?.message}

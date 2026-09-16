@@ -46,11 +46,40 @@ router.get(
 );
 
 router.get(
+  '/employees',
+  authenticate,
+  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
+  assignmentController.listEmployeeSummaries.bind(assignmentController),
+);
+
+router.get(
+  '/employees/:employeeId',
+  authenticate,
+  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
+  assignmentController.getEmployeeAssignments.bind(assignmentController),
+);
+
+router.patch(
+  '/employees/:employeeId/deactivate',
+  authenticate,
+  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
+  assignmentController.deactivateEmployeeAssignments.bind(assignmentController),
+);
+
+router.patch(
+  '/employees/:employeeId/activate',
+  authenticate,
+  authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
+  assignmentController.activateEmployeeAssignments.bind(assignmentController),
+);
+
+router.get(
   '/:id',
   authenticate,
   authorize(UserRole.CLIENT_ADMIN, UserRole.SUPER_ADMIN),
   assignmentController.get.bind(assignmentController),
 );
+
 
 router.patch(
   '/:id',

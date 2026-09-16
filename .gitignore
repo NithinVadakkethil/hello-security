@@ -97,6 +97,11 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
+*.jks
+*.pepk
+key.properties
+signing.properties
+keystores/
 
 # node.js
 #

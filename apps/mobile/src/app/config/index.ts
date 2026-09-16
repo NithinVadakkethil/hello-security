@@ -12,6 +12,5 @@ const PRODUCTION_API_URL = 'https://orbit.helloentry.com/api/v1';
 
 export const Config = {
   API_URL: __DEV__ ? LOCAL_API_URL : PRODUCTION_API_URL,
-  // API_URL: PRODUCTION_API_URL,
   TIMEOUT: 60000,
 };

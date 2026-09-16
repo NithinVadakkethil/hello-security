@@ -1,4 +1,4 @@
-package com.hellosecurity
+package com.helloorbit
 
 import android.app.Application
 import com.facebook.react.PackageList

@@ -152,6 +152,86 @@ export class AssignmentController {
       return next(error);
     }
   }
+
+  async listEmployeeSummaries(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const result = await assignmentService.listEmployeeSummaries(
+        user.tenantId!,
+        req.query as any,
+      );
+
+      return res.json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getEmployeeAssignments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const employeeId = req.params.employeeId as string;
+      const result = await assignmentService.getEmployeeAssignments(
+        user.tenantId!,
+        employeeId,
+      );
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async deactivateEmployeeAssignments(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const user = currentUser(req);
+      const employeeId = req.params.employeeId as string;
+      const result = await assignmentService.deactivateEmployeeAssignments(
+        user.tenantId!,
+        employeeId,
+      );
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async activateEmployeeAssignments(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const user = currentUser(req);
+      const employeeId = req.params.employeeId as string;
+      const result = await assignmentService.activateEmployeeAssignments(
+        user.tenantId!,
+        employeeId,
+      );
+
+      return res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export const assignmentController = new AssignmentController();
+

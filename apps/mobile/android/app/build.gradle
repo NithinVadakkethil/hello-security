@@ -72,14 +72,20 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def keyPropertiesFile = rootProject.file('key.properties')
+def keyProperties = new Properties()
+if (keyPropertiesFile.exists()) {
+    keyProperties.load(new FileInputStream(keyPropertiesFile))
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.hellosecurity"
+    namespace "com.helloorbit"
     defaultConfig {
-        applicationId "com.hellosecurity"
+        applicationId "com.helloorbit"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -92,15 +98,34 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (keyProperties['storeFile'] != null &&
+                keyProperties['storePassword'] != null &&
+                keyProperties['keyAlias'] != null &&
+                keyProperties['keyPassword'] != null) {
+                storeFile rootProject.file(keyProperties['storeFile'])
+                storePassword keyProperties['storePassword']
+                keyAlias keyProperties['keyAlias']
+                keyPassword keyProperties['keyPassword']
+            } else if (System.getenv("HELLO_ORBIT_UPLOAD_STORE_FILE") != null) {
+                storeFile rootProject.file(System.getenv("HELLO_ORBIT_UPLOAD_STORE_FILE"))
+                storePassword System.getenv("HELLO_ORBIT_UPLOAD_STORE_PASSWORD")
+                keyAlias System.getenv("HELLO_ORBIT_UPLOAD_KEY_ALIAS")
+                keyPassword System.getenv("HELLO_ORBIT_UPLOAD_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            manifestPlaceholders = [usesCleartextTraffic: "true"]
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (signingConfigs.release.storeFile == null) {
+                throw new GradleException("Release signing configuration is missing or incomplete in key.properties / environment. Fallback to debug signing is strictly prohibited.")
+            }
+            signingConfig signingConfigs.release
+            manifestPlaceholders = [usesCleartextTraffic: "false"]
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }

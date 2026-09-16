@@ -2,14 +2,16 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ChevronDown, Eye, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
+
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
 
-import ConfirmationDialog from '../../components/ui/ConfirmationDialog';
 import DataTable from '../../components/ui/DataTable';
+
 import { FormInput, Select } from '../../components/ui/FormControls';
 import Modal from '../../components/ui/Modal';
 import Pagination from '../../components/ui/Pagination';
@@ -17,7 +19,6 @@ import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
 import { apiClient } from '../../lib/axios';
 import { ApiResponse } from '../../types/api';
-import { formatPatrolDate } from '../../../lib/date-formatter';
 
 interface Employee {
   id: string;
@@ -31,7 +32,7 @@ interface Employee {
   } | null;
 }
 
-function getRoleLabel(emp: {
+export function getRoleLabel(emp: {
   designation?: string | null;
   user?: { role: string } | null;
 }): string {
@@ -91,45 +92,31 @@ interface GateItem {
   siteId: string;
 }
 
-interface Assignment {
+interface EmployeeSummary {
   id: string;
   employeeId: string;
-  siteId: string;
-  shiftId: string;
-  assignmentType?: string | null;
-  patrolRouteId?: string | null;
-  effectiveFrom: string;
-  effectiveTo?: string | null;
-  isActive: boolean;
-  createdAt: string;
-  employee: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    employeeNumber: string;
-    designation?: string | null;
-    user?: {
-      role: string;
-    } | null;
+  employeeCode: string;
+  employeeName: string;
+  designation?: string | null;
+  role: string;
+  employeeStatus: string;
+  totalAssignments: number;
+  activeAssignments: number;
+  inactiveAssignments: number;
+  status: 'ACTIVE' | 'INACTIVE';
+  sites: { id: string; name: string }[];
+  shifts: { id: string; name: string; startTime: string; endTime: string }[];
+}
+
+interface SummaryApiResponse {
+  success: boolean;
+  data: EmployeeSummary[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalEmployees: number;
+    totalPages: number;
   };
-  site: {
-    id: string;
-    name: string;
-  };
-  shift: {
-    id: string;
-    name: string;
-    startTime: string;
-    endTime: string;
-  };
-  patrolRoute?: {
-    id: string;
-    name: string;
-  } | null;
-  assignmentGates?: {
-    id: string;
-    gate: GateItem;
-  }[];
 }
 
 const assignmentSchema = z.object({
@@ -148,12 +135,58 @@ export default function AssignmentsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [roleFilter, setRoleFilter] = useState('ALL');
 
   // Dialog / Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(
-    null,
-  );
+  const [confirmEmployee, setConfirmEmployee] = useState<{
+    summary: EmployeeSummary;
+    action: 'ACTIVATE' | 'DEACTIVATE';
+  } | null>(null);
+
+  // Deactivate Employee Assignments mutation
+  const deactivateEmployeeMutation = useMutation({
+    mutationFn: (employeeId: string) =>
+      apiClient.patch(`/assignments/employees/${employeeId}/deactivate`),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['assignment-employees'] });
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      const msg =
+        res?.data?.message ||
+        res?.message ||
+        'Assignments deactivated successfully.';
+      toast.success(msg);
+      setConfirmEmployee(null);
+    },
+    onError: (err: any) => {
+      toast.error(
+        err.response?.data?.message ||
+          'Failed to deactivate employee assignments.',
+      );
+    },
+  });
+
+  // Activate Employee Assignments mutation
+  const activateEmployeeMutation = useMutation({
+    mutationFn: (employeeId: string) =>
+      apiClient.patch(`/assignments/employees/${employeeId}/activate`),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['assignment-employees'] });
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      const msg =
+        res?.data?.message ||
+        res?.message ||
+        'Assignments activated successfully.';
+      toast.success(msg);
+      setConfirmEmployee(null);
+    },
+    onError: (err: any) => {
+      toast.error(
+        err.response?.data?.message ||
+          'Failed to activate employee assignments.',
+      );
+    },
+  });
 
   // New assignment states
   const [assignmentType, setAssignmentType] = useState<
@@ -189,24 +222,13 @@ export default function AssignmentsPage() {
     };
   }, []);
 
-  const [confirmStatus, setConfirmStatus] = useState<{
-    isOpen: boolean;
-    assignmentId: string;
-    guardName: string;
-    targetStatus: boolean;
-  }>({
-    isOpen: false,
-    assignmentId: '',
-    guardName: '',
-    targetStatus: false,
-  });
-
-  // Query Guard Assignments
-  const { data: assignmentsRes, isLoading } = useQuery<
-    ApiResponse<Assignment[]>
-  >({
-    queryKey: ['assignments'],
-    queryFn: () => apiClient.get('/assignments'),
+  // Query Employee Summaries (Level 1)
+  const { data: summaryRes, isLoading } = useQuery<SummaryApiResponse>({
+    queryKey: ['assignment-employees', page, search, statusFilter, roleFilter],
+    queryFn: () =>
+      apiClient.get('/assignments/employees', {
+        params: { page, limit: 10, search, status: statusFilter, role: roleFilter },
+      }),
   });
 
   // Query dependencies for dropdowns
@@ -231,17 +253,11 @@ export default function AssignmentsPage() {
   });
 
   const activeEmployees = (employeesRes?.data || []).filter(
-    (e) => e.status === 'ACTIVE' || e.id === editingAssignment?.employeeId,
+    (e) => e.status === 'ACTIVE',
   );
-  const activeSites = (sitesRes?.data || []).filter(
-    (s) => s.isActive || s.id === editingAssignment?.siteId,
-  );
-  const activeShifts = (shiftsRes?.data || []).filter(
-    (s) => s.isActive || s.id === editingAssignment?.shiftId,
-  );
-  const activeRoutes = (routesRes?.data || []).filter(
-    (r) => r.isActive || r.id === editingAssignment?.patrolRouteId,
-  );
+  const activeSites = (sitesRes?.data || []).filter((s) => s.isActive);
+  const activeShifts = (shiftsRes?.data || []).filter((s) => s.isActive);
+  const activeRoutes = (routesRes?.data || []).filter((r) => r.isActive);
 
   const siteOptions = [
     { value: '', label: '-- Select Monitored Site --' },
@@ -256,7 +272,6 @@ export default function AssignmentsPage() {
     })),
   ];
 
-  // Dynamic route & gates selection based on selected site in react-hook-form
   const {
     register,
     handleSubmit,
@@ -282,6 +297,16 @@ export default function AssignmentsPage() {
   });
 
   const siteGates = gatesRes?.data || [];
+
+  const { data: siteFloorsRes } = useQuery<
+    ApiResponse<{ floor: string; totalCheckpoints: number; activeCheckpoints: number }[]>
+  >({
+    queryKey: ['floors', selectedFormSiteId],
+    queryFn: () => apiClient.get('/gates/floors', { params: { siteId: selectedFormSiteId } }),
+    enabled: !!selectedFormSiteId && assignmentType === 'DIRECT_CHECKPOINTS',
+  });
+
+  const siteFloors = siteFloorsRes?.data || [];
 
   const availableRoutesForSite = activeRoutes.filter(
     (r) => selectedFormSiteId && r.siteId === selectedFormSiteId,
@@ -320,6 +345,7 @@ export default function AssignmentsPage() {
       return apiClient.post('/assignments', payload);
     },
     onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['assignment-employees'] });
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
       const data = res?.data || res;
       if (typeof data?.createdCount === 'number') {
@@ -345,68 +371,7 @@ export default function AssignmentsPage() {
     },
   });
 
-  // Update Assignment mutation
-  const updateAssignmentMutation = useMutation({
-    mutationFn: ({ id, values }: { id: string; values: AssignmentValues }) => {
-      const payload: any = {
-        siteId: values.siteId,
-        shiftId: values.shiftId,
-        assignmentType,
-        effectiveFrom: new Date(values.effectiveFrom).toISOString(),
-      };
-      if (assignmentType === 'ROUTE') {
-        if (selectedRouteIds.length > 0) {
-          payload.patrolRouteId = selectedRouteIds[0];
-        } else if (values.patrolRouteId) {
-          payload.patrolRouteId = values.patrolRouteId;
-        }
-      } else {
-        payload.gateIds = selectedGateIds;
-      }
-      if (values.effectiveTo) {
-        payload.effectiveTo = new Date(values.effectiveTo).toISOString();
-      } else {
-        payload.effectiveTo = null;
-      }
-      return apiClient.patch(`/assignments/${id}`, payload);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      toast.success('Assignment settings saved.');
-      setIsModalOpen(false);
-      setEditingAssignment(null);
-      reset();
-    },
-    onError: (err: any) => {
-      toast.error(
-        err.response?.data?.message || 'Failed to update assignment.',
-      );
-    },
-  });
-
-  // Toggle Status mutation
-  const toggleStatusMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
-      apiClient.patch(
-        `/assignments/${id}/${isActive ? 'activate' : 'deactivate'}`,
-      ),
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      toast.success(
-        `Assignment successfully ${vars.isActive ? 'activated' : 'deactivated'}.`,
-      );
-      setConfirmStatus((prev) => ({ ...prev, isOpen: false }));
-    },
-    onError: (err: any) => {
-      toast.error(
-        err.response?.data?.message || 'Failed to toggle assignment status.',
-      );
-      setConfirmStatus((prev) => ({ ...prev, isOpen: false }));
-    },
-  });
-
   const handleOpenAdd = () => {
-    setEditingAssignment(null);
     setAssignmentType('ROUTE');
     setSelectedEmployeeIds([]);
     setSelectedRouteIds([]);
@@ -423,42 +388,8 @@ export default function AssignmentsPage() {
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (assignment: Assignment) => {
-    setEditingAssignment(assignment);
-    setAssignmentType(
-      assignment.assignmentType === 'DIRECT_CHECKPOINTS'
-        ? 'DIRECT_CHECKPOINTS'
-        : 'ROUTE',
-    );
-    setSelectedEmployeeIds([assignment.employeeId]);
-    setSelectedRouteIds(
-      assignment.patrolRouteId ? [assignment.patrolRouteId] : [],
-    );
-    setSelectedGateIds(
-      assignment.assignmentGates?.map((ag) => ag.gate.id) || [],
-    );
-    setIsRouteDropdownOpen(false);
-    reset({
-      employeeId: assignment.employeeId,
-      siteId: assignment.siteId,
-      shiftId: assignment.shiftId,
-      patrolRouteId: assignment.patrolRouteId || '',
-      effectiveFrom: new Date(assignment.effectiveFrom)
-        .toISOString()
-        .split('T')[0],
-      effectiveTo: assignment.effectiveTo
-        ? new Date(assignment.effectiveTo).toISOString().split('T')[0]
-        : '',
-    });
-    setIsModalOpen(true);
-  };
-
   const onSubmit = (values: AssignmentValues) => {
-    if (
-      !editingAssignment &&
-      selectedEmployeeIds.length === 0 &&
-      !values.employeeId
-    ) {
+    if (selectedEmployeeIds.length === 0 && !values.employeeId) {
       toast.error('Please select at least one staff member.');
       return;
     }
@@ -480,80 +411,19 @@ export default function AssignmentsPage() {
       return;
     }
 
-    if (editingAssignment) {
-      updateAssignmentMutation.mutate({ id: editingAssignment.id, values });
-    } else {
-      createAssignmentMutation.mutate(values);
-    }
+    createAssignmentMutation.mutate(values);
   };
 
-  const handleConfirmStatusChange = () => {
-    toggleStatusMutation.mutate({
-      id: confirmStatus.assignmentId,
-      isActive: confirmStatus.targetStatus,
-    });
-  };
-
-  // Local filtering & pagination
-  let assignments = assignmentsRes?.data || [];
-
-  if (!Array.isArray(assignments)) {
-    assignments = [];
-  }
-
-  const normalize = (val?: string | null) => (val ?? '').toLowerCase();
-
-  if (search) {
-    const s = search.trim().toLowerCase();
-    assignments = assignments.filter((c) => {
-      const firstName = normalize(c?.employee?.firstName);
-      const lastName = normalize(c?.employee?.lastName);
-      const fullName = `${firstName} ${lastName}`.trim();
-      const empNumber = normalize(c?.employee?.employeeNumber);
-      const siteName = normalize(c?.site?.name);
-      const shiftName = normalize(c?.shift?.name);
-      const routeName = normalize(c?.patrolRoute?.name);
-
-      const matchesGate = (c?.assignmentGates || []).some(
-        (ag) =>
-          normalize(ag?.gate?.name).includes(s) ||
-          normalize(ag?.gate?.gateCode).includes(s),
-      );
-
-      return (
-        firstName.includes(s) ||
-        lastName.includes(s) ||
-        fullName.includes(s) ||
-        empNumber.includes(s) ||
-        siteName.includes(s) ||
-        shiftName.includes(s) ||
-        routeName.includes(s) ||
-        matchesGate
-      );
-    });
-  }
-
-  if (statusFilter !== 'ALL') {
-    const activeBool = statusFilter === 'ACTIVE';
-    assignments = assignments.filter((c) => c.isActive === activeBool);
-  }
-
-  const limit = 10;
-  const totalPages = Math.max(1, Math.ceil(assignments.length / limit));
-  const paginatedAssignments = assignments.slice(
-    (page - 1) * limit,
-    page * limit,
-  );
+  const employeeSummaries = summaryRes?.data || [];
+  const totalPages = summaryRes?.pagination?.totalPages || 1;
 
   const columns = [
     {
       key: 'employee',
-      label: 'Security Guard',
-      render: (row: Assignment) => (
+      label: 'Employee',
+      render: (row: EmployeeSummary) => (
         <div>
-          <p style={{ fontWeight: 600, margin: 0 }}>
-            {row.employee.firstName} {row.employee.lastName}
-          </p>
+          <p style={{ fontWeight: 600, margin: 0 }}>{row.employeeName}</p>
           <span
             style={{
               fontSize: '0.75rem',
@@ -561,148 +431,210 @@ export default function AssignmentsPage() {
               fontFamily: 'monospace',
             }}
           >
-            ID: {row.employee.employeeNumber}
+            ID: {row.employeeCode}
           </span>
         </div>
       ),
     },
     {
-      key: 'site',
-      label: 'Monitored Site',
-      render: (row: Assignment) => row.site.name,
-    },
-    {
-      key: 'shift',
-      label: 'Shift slot',
-      render: (row: Assignment) => (
-        <div>
-          <p style={{ margin: 0, fontWeight: 500 }}>{row.shift.name}</p>
-          <span
-            style={{
-              fontSize: '0.75rem',
-              color: 'var(--text-muted)',
-              fontFamily: 'monospace',
-            }}
-          >
-            {row.shift.startTime} - {row.shift.endTime}
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: 'type',
-      label: 'Assignment Workflow',
-      render: (row: Assignment) => (
-        <span
-          style={{
-            fontSize: '0.75rem',
-            fontWeight: 700,
-            padding: '3px 8px',
-            borderRadius: '4px',
-            background:
-              row.assignmentType === 'DIRECT_CHECKPOINTS'
-                ? 'rgba(59, 130, 246, 0.15)'
-                : 'rgba(16, 185, 129, 0.15)',
-            color:
-              row.assignmentType === 'DIRECT_CHECKPOINTS'
-                ? 'var(--primary)'
-                : 'var(--success)',
-          }}
-        >
-          {row.assignmentType === 'DIRECT_CHECKPOINTS'
-            ? '🚧 Checkpoints'
-            : '🗺️ Patrol Route'}
+      key: 'role',
+      label: 'Role',
+      render: (row: EmployeeSummary) => (
+        <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>
+          {getRoleLabel({ designation: row.designation, user: { role: row.role } })}
         </span>
       ),
     },
     {
-      key: 'patrolRoute',
-      label: 'Assigned Target',
-      render: (row: Assignment) => {
-        if (row.assignmentType === 'DIRECT_CHECKPOINTS') {
-          const count = row.assignmentGates?.length || 0;
-          return (
-            <div>
-              <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem' }}>
-                {count} Checkpoint{count === 1 ? '' : 's'}
-              </p>
-              {row.assignmentGates && row.assignmentGates.length > 0 && (
-                <span
-                  style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}
-                >
-                  {row.assignmentGates
-                    .map((ag) => ag.gate.name)
-                    .slice(0, 2)
-                    .join(', ')}
-                  {row.assignmentGates.length > 2 ? '...' : ''}
-                </span>
-              )}
-            </div>
-          );
+      key: 'sites',
+      label: 'Monitored Site(s)',
+      render: (row: EmployeeSummary) => {
+        if (!row.sites || row.sites.length === 0) {
+          return <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>None</span>;
         }
+        const firstSite = row.sites[0].name;
+        const extraCount = row.sites.length - 1;
+        const allSitesTooltip = row.sites.map((s) => s.name).join(', ');
+
         return (
-          <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>
-            {row.patrolRoute?.name || 'N/A'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{firstSite}</span>
+            {extraCount > 0 && (
+              <span
+                title={allSitesTooltip}
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  color: 'var(--primary)',
+                  cursor: 'help',
+                }}
+              >
+                +{extraCount} more
+              </span>
+            )}
+          </div>
         );
       },
     },
     {
-      key: 'dates',
-      label: 'Effective Period',
-      render: (row: Assignment) => (
-        <span style={{ fontSize: '0.85rem' }}>
-          {formatPatrolDate(row.effectiveFrom)} -{' '}
-          {row.effectiveTo
-            ? formatPatrolDate(row.effectiveTo)
-            : 'Continuous'}
+      key: 'shifts',
+      label: 'Shift(s)',
+      render: (row: EmployeeSummary) => {
+        if (!row.shifts || row.shifts.length === 0) {
+          return <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>None</span>;
+        }
+        const firstShift = row.shifts[0].name;
+        const extraCount = row.shifts.length - 1;
+        const allShiftsTooltip = row.shifts
+          .map((s) => `${s.name} (${s.startTime}-${s.endTime})`)
+          .join(', ');
+
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{firstShift}</span>
+            {extraCount > 0 && (
+              <span
+                title={allShiftsTooltip}
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  background: 'rgba(100, 116, 139, 0.15)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'help',
+                }}
+              >
+                +{extraCount} more
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'assignments',
+      label: 'Assignments',
+      render: (row: EmployeeSummary) => (
+        <span
+          style={{
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            padding: '3px 8px',
+            borderRadius: '6px',
+            background: 'var(--surface-color)',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          {row.totalAssignments} Assignment{row.totalAssignments === 1 ? '' : 's'}
         </span>
       ),
     },
     {
-      key: 'isActive',
+      key: 'active',
+      label: 'Active',
+      render: (row: EmployeeSummary) => (
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+          <span
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              padding: '2px 6px',
+              borderRadius: '4px',
+              background: 'rgba(16, 185, 129, 0.15)',
+              color: 'var(--success)',
+            }}
+          >
+            {row.activeAssignments} Active
+          </span>
+          {row.inactiveAssignments > 0 && (
+            <span
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                padding: '2px 6px',
+                borderRadius: '4px',
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: 'var(--danger)',
+              }}
+            >
+              {row.inactiveAssignments} Inactive
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
       label: 'Status',
-      render: (row: Assignment) => <StatusChip status={row.isActive} />,
+      render: (row: EmployeeSummary) => (
+        <StatusChip status={row.status === 'ACTIVE'} />
+      ),
     },
     {
       key: 'actions',
       label: 'Actions',
-      render: (row: Assignment) => (
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button
-            onClick={() => handleOpenEdit(row)}
-            className="btn btn-secondary"
-            style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px' }}
-          >
-            <Edit2 size={14} />
-            <span>Edit</span>
-          </button>
-          <button
-            onClick={() =>
-              setConfirmStatus({
-                isOpen: true,
-                assignmentId: row.id,
-                guardName: `${row.employee.firstName} ${row.employee.lastName}`,
-                targetStatus: !row.isActive,
-              })
-            }
-            className="btn btn-secondary"
-            style={{
-              padding: '6px 10px',
-              fontSize: '0.8rem',
-              gap: '4px',
-              color: row.isActive ? 'var(--danger)' : 'var(--success)',
-            }}
-          >
-            {row.isActive ? (
-              <ToggleLeft size={16} />
-            ) : (
-              <ToggleRight size={16} />
-            )}
-            <span>{row.isActive ? 'Deactivate' : 'Activate'}</span>
-          </button>
-        </div>
-      ),
+      render: (row: EmployeeSummary) => {
+        const isRowActive = row.activeAssignments > 0;
+        const isPending =
+          (deactivateEmployeeMutation.isPending &&
+            confirmEmployee?.summary.employeeId === row.employeeId) ||
+          (activateEmployeeMutation.isPending &&
+            confirmEmployee?.summary.employeeId === row.employeeId);
+
+        return (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Link
+              href={`/dashboard/assignments/${row.employeeId}`}
+              className="btn btn-secondary"
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.8rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <Eye size={14} />
+              <span>View Details</span>
+            </Link>
+            <button
+              onClick={() =>
+                setConfirmEmployee({
+                  summary: row,
+                  action: isRowActive ? 'DEACTIVATE' : 'ACTIVATE',
+                })
+              }
+              disabled={isPending}
+              className="btn btn-secondary"
+              style={{
+                padding: '6px 10px',
+                fontSize: '0.8rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                color: isRowActive ? 'var(--danger)' : 'var(--success)',
+                opacity: isPending ? 0.6 : 1,
+              }}
+              title={
+                isRowActive
+                  ? 'Deactivate Employee Assignments'
+                  : 'Activate Employee Assignments'
+              }
+            >
+              {isRowActive ? (
+                <ToggleLeft size={16} />
+              ) : (
+                <ToggleRight size={16} />
+              )}
+              <span>{isRowActive ? 'Deactivate' : 'Activate'}</span>
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -753,7 +685,7 @@ export default function AssignmentsPage() {
             gap: '12px',
             flexWrap: 'wrap',
             width: '100%',
-            maxWidth: '640px',
+            maxWidth: '740px',
           }}
         >
           <SearchBar
@@ -762,8 +694,28 @@ export default function AssignmentsPage() {
               setSearch(val);
               setPage(1);
             }}
-            placeholder="Search assignments by guard name, site or shift..."
+            placeholder="Search by employee name or ID..."
           />
+
+          <select
+            value={roleFilter}
+            onChange={(e) => {
+              setRoleFilter(e.target.value);
+              setPage(1);
+            }}
+            className="form-input"
+            style={{ maxWidth: '170px' }}
+          >
+            <option value="ALL">All Roles</option>
+            <option value="SECURITY">Security Guard</option>
+            <option value="SUPERVISOR">Supervisor</option>
+            <option value="TECHNICIAN">Technician</option>
+            <option value="CLEANER">House Keeping</option>
+            <option value="SERVICE_ENGINEER">Service Engineer</option>
+            <option value="LIFE_GUARD">Lifeguard</option>
+            <option value="PLUMBER">Plumber</option>
+            <option value="MANAGER">Manager</option>
+          </select>
 
           <select
             value={statusFilter}
@@ -772,11 +724,11 @@ export default function AssignmentsPage() {
               setPage(1);
             }}
             className="form-input"
-            style={{ maxWidth: '180px' }}
+            style={{ maxWidth: '190px' }}
           >
-            <option value="ALL">All Statuses</option>
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Inactive</option>
+            <option value="ALL">All Assignments</option>
+            <option value="ACTIVE">Has Active Assignments</option>
+            <option value="INACTIVE">Inactive Assignments</option>
           </select>
         </div>
 
@@ -792,9 +744,9 @@ export default function AssignmentsPage() {
 
       <DataTable
         columns={columns}
-        data={paginatedAssignments}
+        data={employeeSummaries}
         isLoading={isLoading}
-        emptyMessage="No guard assignments registered."
+        emptyMessage="No employee assignments found for the selected filters."
       />
 
       <Pagination
@@ -803,18 +755,163 @@ export default function AssignmentsPage() {
         onPageChange={(p) => setPage(p)}
       />
 
-      {/* CREATE / EDIT ASSIGNMENT MODAL */}
+      {/* STATUS TOGGLE CONFIRMATION MODAL */}
+      <Modal
+        isOpen={!!confirmEmployee}
+        onClose={() => setConfirmEmployee(null)}
+        title={
+          confirmEmployee?.action === 'DEACTIVATE'
+            ? 'Deactivate Assignments?'
+            : 'Activate Assignments?'
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.95rem',
+              lineHeight: 1.5,
+              color: 'var(--text-color)',
+            }}
+          >
+            {confirmEmployee?.action === 'DEACTIVATE'
+              ? `This will deactivate all active assignments for ${confirmEmployee?.summary.employeeName}.`
+              : `This will reactivate eligible inactive assignments for ${confirmEmployee?.summary.employeeName}.`}
+          </p>
+
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              background:
+                confirmEmployee?.action === 'DEACTIVATE'
+                  ? 'rgba(239, 68, 68, 0.08)'
+                  : 'rgba(16, 185, 129, 0.08)',
+              border:
+                confirmEmployee?.action === 'DEACTIVATE'
+                  ? '1px solid rgba(239, 68, 68, 0.2)'
+                  : '1px solid rgba(16, 185, 129, 0.2)',
+            }}
+          >
+            {confirmEmployee?.action === 'DEACTIVATE' ? (
+              <>
+                <p
+                  style={{
+                    margin: 0,
+                    fontWeight: 600,
+                    color: 'var(--danger)',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  {confirmEmployee.summary.activeAssignments}{' '}
+                  {confirmEmployee.summary.activeAssignments === 1
+                    ? 'active assignment'
+                    : 'active assignments'}{' '}
+                  will be deactivated.
+                </p>
+                <p
+                  style={{
+                    margin: '4px 0 0 0',
+                    fontSize: '0.82rem',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  The employee account and patrol history will not be deleted.
+                </p>
+              </>
+            ) : (
+              <>
+                <p
+                  style={{
+                    margin: 0,
+                    fontWeight: 600,
+                    color: 'var(--success)',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  {confirmEmployee?.summary.inactiveAssignments}{' '}
+                  {confirmEmployee?.summary.inactiveAssignments === 1
+                    ? 'inactive assignment'
+                    : 'inactive assignments'}{' '}
+                  will be evaluated for reactivation.
+                </p>
+                <p
+                  style={{
+                    margin: '4px 0 0 0',
+                    fontSize: '0.82rem',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  Expired or inactive route assignments will be safely skipped.
+                </p>
+              </>
+            )}
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px',
+              marginTop: '8px',
+            }}
+          >
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setConfirmEmployee(null)}
+              disabled={
+                deactivateEmployeeMutation.isPending ||
+                activateEmployeeMutation.isPending
+              }
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className={`btn ${confirmEmployee?.action === 'DEACTIVATE' ? 'btn-danger' : 'btn-primary'}`}
+              style={
+                confirmEmployee?.action === 'DEACTIVATE'
+                  ? { background: 'var(--danger)', color: '#fff' }
+                  : {}
+              }
+              onClick={() => {
+                if (confirmEmployee) {
+                  if (confirmEmployee.action === 'DEACTIVATE') {
+                    deactivateEmployeeMutation.mutate(
+                      confirmEmployee.summary.employeeId,
+                    );
+                  } else {
+                    activateEmployeeMutation.mutate(
+                      confirmEmployee.summary.employeeId,
+                    );
+                  }
+                }
+              }}
+              disabled={
+                deactivateEmployeeMutation.isPending ||
+                activateEmployeeMutation.isPending
+              }
+            >
+              {deactivateEmployeeMutation.isPending ||
+              activateEmployeeMutation.isPending
+                ? 'Processing...'
+                : confirmEmployee?.action === 'DEACTIVATE'
+                ? 'Deactivate'
+                : 'Activate'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* CREATE ASSIGNMENT MODAL */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
           setIsRouteDropdownOpen(false);
         }}
-        title={
-          editingAssignment
-            ? 'Edit Guard Duty Assignment'
-            : 'Assign Guard Staff'
-        }
+        title="Assign Guard Staff"
       >
         <form
           onSubmit={handleSubmit(onSubmit)}
@@ -850,126 +947,113 @@ export default function AssignmentsPage() {
           </div>
 
           {/* GUARD EMPLOYEE SELECTION */}
-          {!editingAssignment ? (
-            <div>
-              <label className="form-label">
-                Select Security Guard Staff (Multiple allowed)
-              </label>
-              <div
-                style={{
-                  maxHeight: '140px',
-                  overflowY: 'auto',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '6px',
-                  padding: '8px',
-                  background: 'var(--surface-color)',
-                }}
-              >
-                {activeEmployees.length === 0 ? (
-                  <p
+          <div>
+            <label className="form-label">
+              Select Security Guard Staff (Multiple allowed)
+            </label>
+            <div
+              style={{
+                maxHeight: '140px',
+                overflowY: 'auto',
+                border: '1px solid var(--border-color)',
+                borderRadius: '6px',
+                padding: '8px',
+                background: 'var(--surface-color)',
+              }}
+            >
+              {activeEmployees.length === 0 ? (
+                <p
+                  style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--text-muted)',
+                    margin: 0,
+                  }}
+                >
+                  No active guards available.
+                </p>
+              ) : (
+                <>
+                  <label
                     style={{
-                      fontSize: '0.8rem',
-                      color: 'var(--text-muted)',
-                      margin: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 8px',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      borderBottom: '1px solid var(--border-color)',
+                      marginBottom: '4px',
+                      background: isAllGuardsSelected
+                        ? 'rgba(59, 130, 246, 0.15)'
+                        : 'transparent',
                     }}
                   >
-                    No active guards available.
-                  </p>
-                ) : (
-                  <>
-                    <label
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '6px 8px',
-                        cursor: 'pointer',
-                        borderRadius: '4px',
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        borderBottom: '1px solid var(--border-color)',
-                        marginBottom: '4px',
-                        background: isAllGuardsSelected
-                          ? 'rgba(59, 130, 246, 0.15)'
-                          : 'transparent',
+                    <input
+                      type="checkbox"
+                      checked={isAllGuardsSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = isSomeGuardsSelected;
                       }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isAllGuardsSelected}
-                        ref={(el) => {
-                          if (el) el.indeterminate = isSomeGuardsSelected;
-                        }}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedEmployeeIds(
-                              activeEmployees.map((emp) => emp.id),
-                            );
-                          } else {
-                            setSelectedEmployeeIds([]);
-                          }
-                        }}
-                      />
-                      <span>Select All ({activeEmployees.length})</span>
-                    </label>
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedEmployeeIds(
+                            activeEmployees.map((emp) => emp.id),
+                          );
+                        } else {
+                          setSelectedEmployeeIds([]);
+                        }
+                      }}
+                    />
+                    <span>Select All ({activeEmployees.length})</span>
+                  </label>
 
-                    {activeEmployees.map((emp) => {
-                      const isSelected = selectedEmployeeIds.includes(emp.id);
-                      return (
-                        <label
-                          key={emp.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '4px 6px',
-                            cursor: 'pointer',
-                            borderRadius: '4px',
-                            fontSize: '0.85rem',
-                            background: isSelected
-                              ? 'rgba(59, 130, 246, 0.1)'
-                              : 'transparent',
+                  {activeEmployees.map((emp) => {
+                    const isSelected = selectedEmployeeIds.includes(emp.id);
+                    return (
+                      <label
+                        key={emp.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '4px 6px',
+                          cursor: 'pointer',
+                          borderRadius: '4px',
+                          fontSize: '0.85rem',
+                          background: isSelected
+                            ? 'rgba(59, 130, 246, 0.1)'
+                            : 'transparent',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedEmployeeIds((prev) => [
+                                ...prev,
+                                emp.id,
+                              ]);
+                            } else {
+                              setSelectedEmployeeIds((prev) =>
+                                prev.filter((id) => id !== emp.id),
+                              );
+                            }
                           }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedEmployeeIds((prev) => [
-                                  ...prev,
-                                  emp.id,
-                                ]);
-                              } else {
-                                setSelectedEmployeeIds((prev) =>
-                                  prev.filter((id) => id !== emp.id),
-                                );
-                              }
-                            }}
-                          />
-                          <span>
-                            {emp.firstName} {emp.lastName} &mdash;{' '}
-                            {getRoleLabel(emp)} ({emp.employeeNumber})
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </>
-                )}
-              </div>
+                        />
+                        <span>
+                          {emp.firstName} {emp.lastName} &mdash;{' '}
+                          {getRoleLabel(emp)} ({emp.employeeNumber})
+                        </span>
+                      </label>
+                    );
+                  })}
+                </>
+              )}
             </div>
-          ) : (
-            <div>
-              <label className="form-label">Assigned Employee</label>
-              <input
-                type="text"
-                className="form-input"
-                disabled
-                style={{ opacity: 0.7 }}
-                value={`${editingAssignment.employee.firstName} ${editingAssignment.employee.lastName} \u2014 ${getRoleLabel(editingAssignment.employee)} (${editingAssignment.employee.employeeNumber})`}
-              />
-            </div>
-          )}
+          </div>
 
           <div
             style={{
@@ -1172,16 +1256,51 @@ export default function AssignmentsPage() {
                   No checkpoints registered at this site.
                 </p>
               ) : (
-                <div
-                  style={{
-                    maxHeight: '140px',
-                    overflowY: 'auto',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '6px',
-                    padding: '8px',
-                    background: 'var(--surface-color)',
-                  }}
-                >
+                <>
+                  {siteFloors.length > 0 && (
+                    <div style={{ marginBottom: '10px' }}>
+                      <select
+                        onChange={async (e) => {
+                          const chosenFloor = e.target.value;
+                          if (!chosenFloor) return;
+                          try {
+                            const res: any = await apiClient.get('/gates', {
+                              params: { siteId: selectedFormSiteId, floor: chosenFloor, isActive: true },
+                            });
+                            const floorGates: GateItem[] = Array.isArray(res?.data)
+                              ? res.data
+                              : res?.data?.items || [];
+                            const floorGateIds = floorGates.map((g) => g.id);
+                            setSelectedGateIds((prev) => Array.from(new Set([...prev, ...floorGateIds])));
+                            toast.success(`Selected ${floorGateIds.length} active checkpoint(s) on ${chosenFloor}`);
+                          } catch (err) {
+                            toast.error('Failed to load floor checkpoints.');
+                          }
+                        }}
+                        className="form-input"
+                        style={{ fontSize: '0.85rem' }}
+                        defaultValue=""
+                      >
+                        <option value="">-- Bulk Select Checkpoints by Floor --</option>
+                        {siteFloors.map((f) => (
+                          <option key={f.floor} value={f.floor}>
+                            🏢 {f.floor} ({f.activeCheckpoints} active checkpoints)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      maxHeight: '140px',
+                      overflowY: 'auto',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '6px',
+                      padding: '8px',
+                      background: 'var(--surface-color)',
+                    }}
+                  >
                   {siteGates.map((gate) => {
                     const isChecked = selectedGateIds.includes(gate.id);
                     return (
@@ -1220,9 +1339,10 @@ export default function AssignmentsPage() {
                     );
                   })}
                 </div>
-              )}
-            </div>
-          )}
+              </>
+            )}
+          </div>
+        )}
 
           <div
             style={{
@@ -1250,38 +1370,14 @@ export default function AssignmentsPage() {
             type="submit"
             className="btn btn-primary"
             style={{ width: '100%', marginTop: '12px' }}
-            disabled={
-              createAssignmentMutation.isPending ||
-              updateAssignmentMutation.isPending
-            }
+            disabled={createAssignmentMutation.isPending}
           >
-            {createAssignmentMutation.isPending ||
-            updateAssignmentMutation.isPending
+            {createAssignmentMutation.isPending
               ? 'Saving assignments...'
-              : editingAssignment
-                ? 'Save Assignment'
-                : 'Add Assignment'}
+              : 'Add Assignment'}
           </button>
         </form>
       </Modal>
-
-      {/* CONFIRM STATUS TOGGLE */}
-      <ConfirmationDialog
-        isOpen={confirmStatus.isOpen}
-        onClose={() => setConfirmStatus((prev) => ({ ...prev, isOpen: false }))}
-        onConfirm={handleConfirmStatusChange}
-        title={
-          confirmStatus.targetStatus
-            ? 'Activate Assignment'
-            : 'Deactivate Assignment'
-        }
-        description={`Are you sure you want to ${
-          confirmStatus.targetStatus ? 'activate' : 'deactivate'
-        } assignment for guard "${confirmStatus.guardName}"?`}
-        confirmText={confirmStatus.targetStatus ? 'Activate' : 'Deactivate'}
-        isDanger={!confirmStatus.targetStatus}
-        isLoading={toggleStatusMutation.isPending}
-      />
     </div>
   );
 }

@@ -821,6 +821,13 @@ export function PatrolScreen() {
   const hasScannedCheckpoints =
     scannedGateIds.length > 0 || unlockedGateId !== null;
 
+  const navigateToHome = () => {
+    if (navigation.canGoBack()) {
+      navigation.popToTop();
+    }
+    navigation.navigate('Dashboard', { screen: 'HomeTab' });
+  };
+
   const handleQuitPatrol = () => {
     const activeSessionId = activeSession?.id;
     Alert.alert(
@@ -842,7 +849,7 @@ export function PatrolScreen() {
               queryClient.invalidateQueries({
                 queryKey: ['active-assignments'],
               });
-              navigation.navigate('HomeTab');
+              navigateToHome();
             } catch (err: any) {
               await completeSession();
               queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
@@ -850,7 +857,7 @@ export function PatrolScreen() {
               queryClient.invalidateQueries({
                 queryKey: ['active-assignments'],
               });
-              navigation.navigate('HomeTab');
+              navigateToHome();
             }
           },
         },
@@ -897,7 +904,7 @@ export function PatrolScreen() {
                 queryClient.invalidateQueries({
                   queryKey: ['active-assignments'],
                 });
-                navigation.navigate('Home');
+                navigateToHome();
               } catch (err: any) {
                 await completeSession();
                 queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
@@ -907,7 +914,7 @@ export function PatrolScreen() {
                 queryClient.invalidateQueries({
                   queryKey: ['active-assignments'],
                 });
-                navigation.navigate('Home');
+                navigateToHome();
               }
             },
           },
@@ -920,8 +927,20 @@ export function PatrolScreen() {
       try {
         await completePatrol({
           id: activeSession.id,
-          remarks: 'Completed Manager Patrol Sweep.',
+          remarks: isManager
+            ? 'Completed Manager Patrol Sweep.'
+            : 'Completed Patrol Sweep.',
         });
+
+        const onFinishDismiss = async () => {
+          await completeSession();
+          queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
+          queryClient.invalidateQueries({ queryKey: ['patrol-sessions'] });
+          queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+          queryClient.invalidateQueries({ queryKey: ['patrol-session', 'history'] });
+          navigateToHome();
+        };
 
         if (isManager) {
           Alert.alert(
@@ -930,17 +949,21 @@ export function PatrolScreen() {
             [
               {
                 text: 'Done',
-                onPress: async () => {
-                  await completeSession();
-                  queryClient.invalidateQueries({ queryKey: ['patrol-session'] });
-                  queryClient.invalidateQueries({ queryKey: ['patrol-sessions'] });
-                  navigation.navigate('HomeTab');
-                },
+                onPress: onFinishDismiss,
               },
             ],
           );
         } else {
-          Alert.alert('Patrol Completed', 'Patrol sweep finalized and logged.');
+          Alert.alert(
+            'Patrol Completed',
+            'Patrol sweep finalized and logged.',
+            [
+              {
+                text: 'OK',
+                onPress: onFinishDismiss,
+              },
+            ],
+          );
         }
       } catch (err: any) {
         Alert.alert('Error', err.message || 'Failed to complete.');
