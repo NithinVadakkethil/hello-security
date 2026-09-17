@@ -6,6 +6,7 @@ export interface CreateEmployeeDto {
   email: string;
   phone?: string | null;
   designation?: string | null;
+  companyName?: string | null;
   joiningDate?: Date | null;
   identificationMethod?: IdentificationMethod;
   role: UserRole;
@@ -17,6 +18,7 @@ export interface UpdateEmployeeDto {
   lastName?: string | null;
   phone?: string | null;
   designation?: string | null;
+  companyName?: string | null;
   joiningDate?: Date | null;
   status?: EmployeeStatus;
   role?: UserRole;

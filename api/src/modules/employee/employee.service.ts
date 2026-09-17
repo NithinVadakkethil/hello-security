@@ -124,6 +124,7 @@ export class EmployeeService {
             phone: dto.phone,
 
             designation: dto.designation,
+            companyName: dto.companyName || null,
             role: dto.role,
             supervisedRole: dto.role === 'SUPERVISOR' ? (dto.supervisedRole || null) : null,
 
@@ -157,9 +158,9 @@ export class EmployeeService {
     };
   }
 
-  async list(clientId: string, status?: EmployeeStatus | 'ALL', user?: CurrentUser) {
+  async list(clientId: string, status?: EmployeeStatus | 'ALL', user?: CurrentUser, search?: string) {
     const scope = user?.role === 'SUPERVISOR' ? getSupervisorScope(user) : null;
-    return employeeRepository.list(clientId, status, scope);
+    return employeeRepository.list(clientId, status, scope, search);
   }
 
   async get(id: string) {

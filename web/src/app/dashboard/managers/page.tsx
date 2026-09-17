@@ -354,26 +354,26 @@ export default function ManagersPage() {
         <div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
             <UserCheck size={24} style={{ color: '#2563EB' }} />
-            {isSuperAdmin ? 'Centralized Managers Directory' : 'Organization Managers'}
+            {isSuperAdmin ? 'Community Managers Directory' : 'Community Managers'}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: '0.25rem 0 0 0' }}>
             {isSuperAdmin
-              ? 'Manage multi-client Centralized Managers overseeing Client Admin organizations.'
-              : 'Manage read-only monitoring & inspection managers assigned to your organization.'}
+              ? 'Manage multi-client Community Managers overseeing projects.'
+              : 'Manage read-only monitoring & inspection community managers assigned to your project.'}
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => setIsEnrollOpen(true)} style={{ gap: '6px' }}>
           <Plus size={16} />
-          <span>{isSuperAdmin ? 'Create Centralized Manager' : 'Enroll Manager'}</span>
+          <span>{isSuperAdmin ? 'Create Community Manager' : 'Enroll Community Manager'}</span>
         </button>
       </div>
 
       <div className="card" style={{ background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-        <DataTable columns={columns} data={managers} isLoading={isLoading} emptyMessage="No Centralized Managers enrolled yet." />
+        <DataTable columns={columns} data={managers} isLoading={isLoading} emptyMessage="No Community Managers enrolled yet." />
       </div>
 
       {/* Modal 1: Create / Enroll Manager */}
-      <Modal isOpen={isEnrollOpen} onClose={() => setIsEnrollOpen(false)} title={isSuperAdmin ? 'Create Centralized Manager' : 'Enroll Manager'}>
+      <Modal isOpen={isEnrollOpen} onClose={() => setIsEnrollOpen(false)} title={isSuperAdmin ? 'Create Community Manager' : 'Enroll Community Manager'}>
         <form
           onSubmit={handleSubmit((data) => {
             if (isSuperAdmin) {
@@ -391,7 +391,7 @@ export default function ManagersPage() {
           {isSuperAdmin && (
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
-                Assigned Client Admins ({selectedClientIds.length} selected)
+                Assigned Projects ({selectedClientIds.length} selected)
               </label>
               <div
                 style={{
@@ -429,7 +429,7 @@ export default function ManagersPage() {
           )}
 
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
-            ℹ️ If this email already belongs to an existing Manager account, access to selected organizations will be granted without resetting credentials.
+            ℹ️ If this email already belongs to an existing Community Manager account, access to selected projects will be granted without resetting credentials.
           </p>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
@@ -437,7 +437,7 @@ export default function ManagersPage() {
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={superEnrollMutation.isPending || clientEnrollMutation.isPending}>
-              {superEnrollMutation.isPending || clientEnrollMutation.isPending ? 'Saving...' : isSuperAdmin ? 'Create Manager' : 'Enroll Manager'}
+              {superEnrollMutation.isPending || clientEnrollMutation.isPending ? 'Saving...' : isSuperAdmin ? 'Create Community Manager' : 'Enroll Community Manager'}
             </button>
           </div>
         </form>
@@ -448,7 +448,7 @@ export default function ManagersPage() {
         <Modal isOpen={!!manageAccessManager} onClose={() => setManageAccessManager(null)} title={`Manage Access — ${manageAccessManager.name}`}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-              Select the Client Admin organizations this Centralized Manager is authorized to monitor ({accessClientIds.length} selected).
+              Select the projects this Community Manager is authorized to monitor ({accessClientIds.length} selected).
             </p>
 
             <div
@@ -508,7 +508,7 @@ export default function ManagersPage() {
 
       {/* Modal 3: View Profile Details */}
       {viewProfileManager && (
-        <Modal isOpen={!!viewProfileManager} onClose={() => setViewProfileManager(null)} title="Centralized Manager Profile">
+        <Modal isOpen={!!viewProfileManager} onClose={() => setViewProfileManager(null)} title="Community Manager Profile">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <div

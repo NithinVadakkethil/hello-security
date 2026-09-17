@@ -55,9 +55,10 @@ export interface SelectedClientData {
 
 interface OrganizationHeroCardProps {
   client: SelectedClientData;
+  periodLabel?: string;
 }
 
-export default function OrganizationHeroCard({ client }: OrganizationHeroCardProps) {
+export default function OrganizationHeroCard({ client, periodLabel }: OrganizationHeroCardProps) {
   const router = useRouter();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -142,7 +143,9 @@ export default function OrganizationHeroCard({ client }: OrganizationHeroCardPro
           </div>
           <div className="kpi-info">
             <span className="kpi-value">{client.metrics.completedPatrolsCount}</span>
-            <span className="kpi-label">Completed Patrols</span>
+            <span className="kpi-label">
+              Completed Patrols {periodLabel && <small style={{ fontSize: '10px', color: '#10B981' }}>({periodLabel})</small>}
+            </span>
           </div>
         </button>
 

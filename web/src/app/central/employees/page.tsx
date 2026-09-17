@@ -51,7 +51,7 @@ export default function CentralEmployeesPage() {
 
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>(searchParams?.get('role') || '');
-  const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
 
   useEffect(() => {
@@ -139,7 +139,7 @@ export default function CentralEmployeesPage() {
 
   // Filter employees locally for status filter
   const filteredEmployees = employees.filter((emp) => {
-    if (selectedStatus !== 'ALL' && emp.status !== selectedStatus) return false;
+    if (statusFilter !== 'ALL' && emp.status !== statusFilter) return false;
     return true;
   });
 
@@ -265,7 +265,7 @@ export default function CentralEmployeesPage() {
       <div>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Employees</h1>
         <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-          Read-only employee directory for selected organization.
+          Read-only employee directory for selected project.
         </p>
       </div>
 
@@ -278,87 +278,63 @@ export default function CentralEmployeesPage() {
         onSelectOrganization={handleSelectOrganization}
       />
 
-      {/* Role Summary Filter Chips */}
-      <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
+      {/* Role Filter Chips */}
+      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
         <button
           type="button"
-          onClick={() => {
-            setSelectedRole('');
-            setPage(1);
-          }}
-          className={`btn ${selectedRole === '' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{
-            padding: '8px 16px',
-            fontSize: '0.85rem',
-            borderRadius: '20px',
-            whiteSpace: 'nowrap',
-            cursor: 'pointer',
-          }}
+          onClick={() => setSelectedRole('ALL')}
+          className={`btn ${selectedRole === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: '20px', whiteSpace: 'nowrap' }}
         >
-          All Employees ({roleCounts.total})
+          All Roles ({roleCounts.total})
         </button>
-
-        {roleCounts.byRole.map((r) => {
-          const isSelected = selectedRole === r.role;
-          return (
-            <button
-              key={r.role}
-              type="button"
-              onClick={() => {
-                setSelectedRole(r.role);
-                setPage(1);
-              }}
-              className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.85rem',
-                borderRadius: '20px',
-                whiteSpace: 'nowrap',
-                cursor: 'pointer',
-              }}
-            >
-              {getRoleLabel(r.role)} ({r.count})
-            </button>
-          );
-        })}
+        {roleCounts.byRole.map((r) => (
+          <button
+            key={r.role}
+            type="button"
+            onClick={() => setSelectedRole(r.role)}
+            className={`btn ${selectedRole === r.role ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: '20px', whiteSpace: 'nowrap' }}
+          >
+            {getRoleLabel(r.role)} ({r.count})
+          </button>
+        ))}
       </div>
 
-      {/* Search & Filter Toolbar */}
+      {/* Table Filters & Search Bar */}
       <div
-        className="glass-card"
         style={{
-          padding: '16px 20px',
-          borderRadius: '12px',
           display: 'flex',
           flexWrap: 'wrap',
-          gap: '12px',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: '12px',
         }}
       >
-        <SearchBar
-          value={search}
-          onChange={(val) => {
-            setSearch(val);
-            setPage(1);
-          }}
-          placeholder="Search employees by name, ID number or email..."
-        />
-
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <select
-            value={selectedStatus}
-            onChange={(e) => {
-              setSelectedStatus(e.target.value);
+        <div style={{ flex: '1', minWidth: '260px' }}>
+          <SearchBar
+            value={search}
+            onChange={(v) => {
+              setSearch(v);
               setPage(1);
             }}
-            className="form-input"
-            style={{ maxWidth: '160px', fontSize: '0.85rem' }}
+            placeholder="Search by name, employee code, or email..."
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="input-select"
+            style={{ padding: '8px 12px', fontSize: '0.85rem', borderRadius: '8px' }}
           >
             <option value="ALL">All Statuses</option>
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Inactive</option>
-            <option value="SUSPENDED">Suspended</option>
+            <option value="ACTIVE">Active Only</option>
+            <option value="INACTIVE">Inactive Only</option>
           </select>
         </div>
       </div>
@@ -368,7 +344,7 @@ export default function CentralEmployeesPage() {
         columns={columns}
         data={paginatedEmployees}
         isLoading={isEmployeesLoading}
-        emptyMessage="No employees found for this organization."
+        emptyMessage="No employees found for this project."
       />
 
       {/* Pagination */}
@@ -482,7 +458,7 @@ export default function CentralEmployeesPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
-                    ORGANIZATION
+                    PROJECT
                   </span>
                   <p style={{ margin: '2px 0 0 0', fontWeight: 600, color: 'var(--text-primary)' }}>
                     {selectedEmployee.client?.companyName || 'N/A'}

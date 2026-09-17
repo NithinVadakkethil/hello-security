@@ -59,14 +59,14 @@ export function CentralCompanyHeader({
           }}
         >
           <ArrowLeft size={16} />
-          <span>All Organizations</span>
+          <span>All Projects</span>
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
           <span>{moduleName}</span>
           <span>/</span>
           <strong style={{ color: 'var(--text-primary)', fontSize: '14px' }}>
-            {currentOrg?.companyName || 'Selected Organization'}
+            {currentOrg?.companyName || 'Selected Project'}
           </strong>
         </div>
       </div>
@@ -109,7 +109,7 @@ export function CentralCompanyHeader({
             )}
           </div>
           <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>
-            {currentOrg?.companyName || 'Switch Organization'}
+            {currentOrg?.companyName || 'Switch Project'}
           </span>
           <ChevronDown size={14} style={{ color: '#2563EB' }} />
         </button>
@@ -131,7 +131,7 @@ export function CentralCompanyHeader({
             }}
           >
             <div style={{ padding: '8px 14px', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Switch Assigned Organization
+              Switch Assigned Project
             </div>
             {organizations.map((org) => {
               const isSelected = org.id === selectedClientId;

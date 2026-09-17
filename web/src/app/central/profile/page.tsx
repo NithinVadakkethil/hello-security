@@ -26,10 +26,10 @@ export default function CentralProfilePage() {
     <div style={{ maxWidth: '680px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div>
         <h1 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: 'var(--text-primary)' }}>
-          Central Manager Profile
+          Community Manager Profile
         </h1>
         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-          Global login identity & multi-organization assignments.
+          Global login identity & multi-project assignments.
         </p>
       </div>
 
@@ -57,7 +57,7 @@ export default function CentralProfilePage() {
               {user?.email}
             </h2>
             <span className="badge badge-info" style={{ marginTop: '4px', fontSize: '11px', fontWeight: '800' }}>
-              CENTRALIZED MANAGER (READ-ONLY)
+              COMMUNITY MANAGER (READ-ONLY)
             </span>
           </div>
         </div>
@@ -66,7 +66,7 @@ export default function CentralProfilePage() {
 
         <div>
           <h3 style={{ fontSize: '14px', fontWeight: '800', marginBottom: '10px' }}>
-            Assigned Client Admin Organizations ({assignedClients.length})
+            Assigned Projects ({assignedClients.length})
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

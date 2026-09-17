@@ -22,6 +22,7 @@ const schema = z
     email: z.string().email('Please enter a valid email address').optional().or(z.literal('')),
     phone: z.string().optional(),
     designation: z.string().optional(),
+    companyName: z.string().optional(),
     joiningDate: z.string().optional(),
     role: z.enum([
       'SECURITY',
@@ -84,6 +85,7 @@ export default function EditEmployeePage() {
         email: employee.email || '',
         phone: employee.phone || '',
         designation: employee.designation || '',
+        companyName: employee.companyName || '',
         joiningDate: employee.joiningDate ? new Date(employee.joiningDate).toISOString().split('T')[0] : '',
         role: employee.role || employee.user?.role || 'SECURITY',
         supervisedRole: employee.supervisedRole || employee.user?.supervisedRole || 'SECURITY',
@@ -103,6 +105,11 @@ export default function EditEmployeePage() {
       }
       if (!payload.designation || !payload.designation.trim()) {
         payload.designation = null;
+      }
+      if (!payload.companyName || !payload.companyName.trim()) {
+        payload.companyName = null;
+      } else {
+        payload.companyName = payload.companyName.trim();
       }
       if (payload.joiningDate) {
         payload.joiningDate = new Date(payload.joiningDate).toISOString();
@@ -198,28 +205,35 @@ export default function EditEmployeePage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <FormInput
+              label="Company Name (Optional)"
+              placeholder="e.g. ABC Security Services LLC"
+              error={(errors as any).companyName?.message}
+              {...register('companyName')}
+            />
+
+            <FormInput
               label="Joining Date"
               type="date"
               error={errors.joiningDate?.message}
               {...register('joiningDate')}
             />
-
-            <Select
-              label="Operational Role / App Role *"
-              options={[
-                { value: 'SECURITY', label: 'Security Guard' },
-                { value: 'CLEANER', label: 'House Keeping' },
-                { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
-                { value: 'TECHNICIAN', label: 'Technician' },
-                { value: 'LIFE_GUARD', label: 'Life Guard' },
-                { value: 'PLUMBER', label: 'Plumber' },
-                { value: 'SUPERVISOR', label: 'Supervisor' },
-                { value: 'MANAGER', label: 'Manager' },
-              ]}
-              error={errors.role?.message}
-              {...register('role')}
-            />
           </div>
+
+          <Select
+            label="Operational Role / App Role *"
+            options={[
+              { value: 'SECURITY', label: 'Security Guard' },
+              { value: 'CLEANER', label: 'House Keeping' },
+              { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+              { value: 'TECHNICIAN', label: 'Technician' },
+              { value: 'LIFE_GUARD', label: 'Life Guard' },
+              { value: 'PLUMBER', label: 'Plumber' },
+              { value: 'SUPERVISOR', label: 'Supervisor' },
+              { value: 'MANAGER', label: 'Manager' },
+            ]}
+            error={errors.role?.message}
+            {...register('role')}
+          />
 
           {selectedRole === 'SUPERVISOR' && (
             <div style={{ marginTop: '4px' }}>

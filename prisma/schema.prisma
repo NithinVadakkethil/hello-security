@@ -191,6 +191,8 @@ model Employee {
 
   designation String?
 
+  companyName String?
+
   joiningDate DateTime?
 
   identificationMethod IdentificationMethod @default(QR)

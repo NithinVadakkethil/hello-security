@@ -87,12 +87,12 @@ export function ManagerDashboard({
     return (
       <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
         <Building2 size={48} color={colors.textSecondary} />
-        <Text style={[styles.title, { color: colors.text }]}>No Active Organization</Text>
+        <Text style={[styles.title, { color: colors.text }]}>No Active Project</Text>
         <TouchableOpacity
           style={[styles.switchBtn, { backgroundColor: colors.primary }]}
           onPress={onSwitchOrganization}
         >
-          <Text style={styles.switchBtnText}>Select Organization</Text>
+          <Text style={styles.switchBtnText}>Select Project</Text>
         </TouchableOpacity>
       </View>
     );
@@ -127,7 +127,7 @@ export function ManagerDashboard({
           <View style={styles.bannerInfo}>
             <View style={styles.roleBadgeRow}>
               <Shield size={12} color={colors.primary} />
-              <Text style={[styles.roleBadgeText, { color: colors.primary }]}>MANAGER CONTEXT</Text>
+              <Text style={[styles.roleBadgeText, { color: colors.primary }]}>COMMUNITY MANAGER</Text>
             </View>
             <Text style={[styles.companyTitle, { color: colors.text }]} numberOfLines={1}>
               {activeClient.companyName}
@@ -154,7 +154,7 @@ export function ManagerDashboard({
           <QrCode size={28} color="#ffffff" />
         </View>
         <View style={styles.scanTextBox}>
-          <Text style={styles.scanTitle}>Manager Checkpoint Scan</Text>
+          <Text style={styles.scanTitle}>Community Manager Checkpoint Scan</Text>
           <Text style={styles.scanSubtitle}>
             Scan any site checkpoint in {activeClient.companyName}
           </Text>
@@ -162,7 +162,7 @@ export function ManagerDashboard({
       </TouchableOpacity>
 
       {/* Statistics Section */}
-      <Text style={[styles.sectionHeading, { color: colors.text }]}>Organization Monitoring Overview</Text>
+      <Text style={[styles.sectionHeading, { color: colors.text }]}>Project Monitoring Overview</Text>
 
       {loading ? (
         <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} />

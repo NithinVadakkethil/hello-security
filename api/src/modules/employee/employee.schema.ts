@@ -15,6 +15,8 @@ export const createEmployeeSchema = z.object({
 
   designation: z.string().trim().nullable().optional(),
 
+  companyName: z.string().trim().max(150, 'Company name cannot exceed 150 characters').nullable().optional(),
+
   joiningDate: z.coerce.date().nullable().optional(),
 
   identificationMethod: z
@@ -33,6 +35,8 @@ export const updateEmployeeSchema = z.object({
   phone: z.string().trim().nullable().optional(),
 
   designation: z.string().trim().nullable().optional(),
+
+  companyName: z.string().trim().max(150, 'Company name cannot exceed 150 characters').nullable().optional(),
 
   joiningDate: z.coerce.date().nullable().optional(),
 

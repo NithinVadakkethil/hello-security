@@ -36,6 +36,58 @@ export class CentralManagerService {
   }
 
 
+  private async calculateWeightedCompliance(
+    clientIds: string[],
+    dateFilter?: any,
+  ): Promise<number> {
+    const hasDateFilter = dateFilter && Object.keys(dateFilter).length > 0;
+    const sessions = await prisma.patrolSession.findMany({
+      where: {
+        clientId: { in: clientIds },
+        status: 'COMPLETED',
+        ...(hasDateFilter ? { endedAt: dateFilter } : {}),
+      },
+      select: {
+        assignment: {
+          select: {
+            assignmentType: true,
+            patrolRoute: { select: { routeGates: { select: { gateId: true } } } },
+            assignmentGates: { select: { gateId: true } },
+          },
+        },
+        checkpoints: { select: { gateId: true } },
+      },
+    });
+
+    let totalExpectedSum = 0;
+    let totalCompletedSum = 0;
+
+    for (const s of sessions) {
+      const isDirect =
+        (s.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+        (!s.assignment?.patrolRoute && (s.assignment?.assignmentGates?.length || 0) > 0);
+
+      const expectedGateIds: string[] = isDirect
+        ? (s.assignment?.assignmentGates || []).map((ag) => ag.gateId).filter(Boolean)
+        : (s.assignment?.patrolRoute?.routeGates || []).map((rg) => rg.gateId).filter(Boolean);
+
+      const expectedGatesSet = new Set(expectedGateIds);
+      const expectedCount = expectedGatesSet.size;
+
+      const scannedGateIds = (s.checkpoints || []).map((cp) => cp.gateId).filter(Boolean);
+      const completedCount = new Set(scannedGateIds.filter((id) => expectedGatesSet.has(id))).size;
+
+      if (expectedCount > 0) {
+        totalExpectedSum += expectedCount;
+        totalCompletedSum += completedCount;
+      }
+    }
+
+    return totalExpectedSum > 0
+      ? Math.round((totalCompletedSum / totalExpectedSum) * 100)
+      : 100;
+  }
+
   async getClientDashboard(
     user: { id: string; role: string },
     clientId: string,
@@ -43,6 +95,10 @@ export class CentralManagerService {
   ) {
     await assertCentralManagerClientAccess(user, clientId);
     const { from, to } = this.parseDateRange(params.dateFrom, params.dateTo);
+    const dateFilter: any = {};
+    if (from) dateFilter.gte = from;
+    if (to) dateFilter.lte = to;
+    const hasDateFilter = Object.keys(dateFilter).length > 0;
 
     const client = await prisma.client.findUnique({
       where: { id: clientId },
@@ -65,21 +121,22 @@ export class CentralManagerService {
       recentPatrols,
       recentObservations,
       recentSnags,
+      complianceRate,
     ] = await Promise.all([
       prisma.employee.count({ where: { clientId, status: 'ACTIVE' } }),
       prisma.patrolSession.count({ where: { clientId, status: 'IN_PROGRESS' } }),
       prisma.patrolSession.count({
-        where: { clientId, status: 'COMPLETED', endedAt: { gte: from, lte: to } },
+        where: { clientId, status: 'COMPLETED', ...(hasDateFilter ? { endedAt: dateFilter } : {}) },
       }),
       prisma.incident.count({
-        where: { clientId, status: { in: ['OPEN', 'REVIEWED'] }, createdAt: { gte: from, lte: to } },
+        where: { clientId, status: 'OPEN', ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
       }),
       prisma.snag.count({
-        where: { clientId, status: { in: ['OPEN', 'IN_PROGRESS'] }, createdAt: { gte: from, lte: to } },
+        where: { clientId, status: 'OPEN', ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
       }),
       prisma.snag.groupBy({
         by: ['category'],
-        where: { clientId, createdAt: { gte: from, lte: to } },
+        where: { clientId, ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
         _count: { _all: true },
       }),
       prisma.patrolSession.findMany({
@@ -104,6 +161,7 @@ export class CentralManagerService {
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
+      this.calculateWeightedCompliance([clientId], hasDateFilter ? dateFilter : undefined),
     ]);
 
     return {
@@ -115,7 +173,7 @@ export class CentralManagerService {
         completedPatrolsCount,
         openObservationsCount,
         openSnagsCount,
-        complianceRate: completedPatrolsCount > 0 ? 96 : 100,
+        complianceRate,
       },
       snagCategoryBreakdown: snagCategoriesGroup.map((g) => ({
         category: g.category || 'General',
@@ -284,7 +342,7 @@ export class CentralManagerService {
       openSnagsCount,
       totalSnagsCount,
       closedSnagsCount,
-      completedCheckpointCount,
+      globalComplianceRate,
     ] = await Promise.all([
       prisma.site.count({
         where: { clientId: { in: authorizedClientIds }, isActive: true },
@@ -332,21 +390,8 @@ export class CentralManagerService {
           ...(hasDateFilter ? { createdAt: dateFilter } : {}),
         },
       }),
-      prisma.patrolCheckpoint.count({
-        where: {
-          patrolSession: {
-            clientId: { in: authorizedClientIds },
-            status: 'COMPLETED',
-            ...(hasDateFilter ? { endedAt: dateFilter } : {}),
-          },
-        },
-      }),
+      this.calculateWeightedCompliance(authorizedClientIds, hasDateFilter ? dateFilter : undefined),
     ]);
-
-    const globalComplianceRate =
-      completedPatrolsCount > 0
-        ? Math.min(100, Math.round(92 + (completedCheckpointCount % 8)))
-        : 100;
 
     // 3. Deep Analytics for Selected Client
     const targetClientObj = clients.find((c) => c.id === targetClientId) || clients[0];
@@ -366,6 +411,7 @@ export class CentralManagerService {
       employeeRolesGroup,
       urgentSnags,
       urgentIncidents,
+      cCompliance,
     ] = await Promise.all([
       prisma.employee.count({
         where: { clientId: targetClientId, status: 'ACTIVE' },
@@ -463,10 +509,8 @@ export class CentralManagerService {
         orderBy: { createdAt: 'desc' },
         take: 4,
       }),
+      this.calculateWeightedCompliance([targetClientId], hasDateFilter ? dateFilter : undefined),
     ]);
-
-    const cCompliance =
-      cCompletedPatrols > 0 ? Math.min(100, Math.round(94 + (cTotalObs % 5))) : 100;
 
     const snagDistribution = snagCategoriesGroup.map((g) => ({
       category: g.category || 'General',

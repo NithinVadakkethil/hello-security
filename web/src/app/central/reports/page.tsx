@@ -292,7 +292,7 @@ export default function CentralReportsPage() {
         <div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Reports & Analytics</h1>
           <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-            Select an assigned organization to view operational patrol reports, checkpoint compliance, and inspection audits.
+            Select an assigned project to view operational patrol reports, checkpoint compliance, and inspection audits.
           </p>
         </div>
 
@@ -314,7 +314,7 @@ export default function CentralReportsPage() {
       <div>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Reports & Analytics</h1>
         <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-          Read-only inspection reports & compliance metrics for selected organization.
+          Read-only inspection reports & compliance metrics for selected project.
         </p>
       </div>
 

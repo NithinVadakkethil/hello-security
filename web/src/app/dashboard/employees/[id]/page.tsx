@@ -23,6 +23,7 @@ interface Employee {
   email?: string | null;
   phone?: string | null;
   designation?: string | null;
+  companyName?: string | null;
   role?: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   identificationMethod: 'QR' | 'RFID';
@@ -166,6 +167,11 @@ export default function EmployeeDetailPage() {
             <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '20px' }}>Employee Specifications</h3>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>COMPANY NAME</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{employee.companyName || '—'}</p>
+              </div>
+
               <div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>DESIGNATION</p>
                 <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{employee.designation || 'Security Officer'}</p>

@@ -66,10 +66,10 @@ export function CentralManagerOrganizationSelector({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div>
           <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: 'var(--text-primary)' }}>
-            Select Organization
+            Select Project
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-            Choose an assigned organization to view its {moduleName.toLowerCase()}.
+            Choose an assigned project to view its {moduleName.toLowerCase()}.
           </p>
         </div>
 
@@ -87,7 +87,7 @@ export function CentralManagerOrganizationSelector({
                 opacity: 0.6,
               }}
             >
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Loading organizations...</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Loading projects...</span>
             </div>
           ))}
         </div>
@@ -110,10 +110,10 @@ export function CentralManagerOrganizationSelector({
       >
         <AlertTriangle size={40} style={{ color: '#dc2626' }} />
         <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
-          Unable to Load Assigned Organizations
+          Unable to Load Assigned Projects
         </h3>
         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, maxWidth: '420px' }}>
-          {error || 'Unable to load assigned organizations. Please try again.'}
+          {error || 'Unable to load assigned projects. Please try again.'}
         </p>
         {onRetry && (
           <button onClick={onRetry} className="btn btn-primary" style={{ marginTop: '8px', fontSize: '13px' }}>
@@ -139,10 +139,10 @@ export function CentralManagerOrganizationSelector({
       >
         <Building2 size={40} style={{ color: 'var(--text-muted)' }} />
         <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
-          No Organizations Assigned
+          No Projects Assigned
         </h3>
         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, maxWidth: '420px' }}>
-          No active Client Admin organizations are currently assigned to your Centralized Manager account. Please contact Super Admin to assign clients.
+          No active projects are currently assigned to your Community Manager account. Please contact Super Admin to assign clients.
         </p>
       </div>
     );
@@ -153,10 +153,10 @@ export function CentralManagerOrganizationSelector({
       <div>
         <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <ModuleIcon size={22} style={{ color: '#2563EB' }} />
-          <span>Select Organization</span>
+          <span>Select Project</span>
         </h2>
         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-          Choose an organization to view its {moduleName.toLowerCase()}.
+          Choose a project to view its {moduleName.toLowerCase()}.
         </p>
       </div>
 
@@ -261,7 +261,7 @@ export function CentralManagerOrganizationSelector({
                       </span>
                     </div>
                     <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      Active personnel across organization
+                      Active personnel across project
                     </span>
                   </div>
                 )}
@@ -318,7 +318,7 @@ export function CentralManagerOrganizationSelector({
                         {org.metrics.reports.completedPatrols}
                       </span>
                       <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                        Completed Patrols
+                        Completed Patrols <small style={{ fontSize: '10px', color: 'var(--text-muted)' }}>(All-Time)</small>
                       </span>
                     </div>
                     <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>

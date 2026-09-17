@@ -119,7 +119,7 @@ export default function CentralDashboardPage() {
     return (
       <div className="dashboard-loading-container">
         <RefreshCw className="spin-icon" size={32} />
-        <p>Loading Centralized Manager Executive Dashboard...</p>
+        <p>Loading Community Manager Executive Dashboard...</p>
         <style jsx>{`
           .dashboard-loading-container {
             display: flex;
@@ -181,13 +181,25 @@ export default function CentralDashboardPage() {
   const clientsList = dashboardData?.clients || [];
   const selectedClient: SelectedClientData | null = dashboardData?.selectedClient || null;
 
+  const getDatePeriodLabel = () => {
+    switch (dateRange) {
+      case 'TODAY': return 'Today';
+      case 'YESTERDAY': return 'Yesterday';
+      case 'LAST_7_DAYS': return 'Last 7 Days';
+      case 'LAST_30_DAYS': return 'Last 30 Days';
+      case 'THIS_MONTH': return 'This Month';
+      case 'CUSTOM': return customFrom && customTo ? `${customFrom} to ${customTo}` : 'Custom Range';
+      default: return 'This Month';
+    }
+  };
+
   return (
     <div className="central-dashboard-root">
       {/* Page Header */}
       <div className="dashboard-header-row">
         <div>
           <h1 className="page-header-title">Executive Dashboard</h1>
-          <p className="page-header-subtitle">Multi-organization operational overview & analytics</p>
+          <p className="page-header-subtitle">Multi-project operational overview & analytics</p>
         </div>
 
         {/* Date Range Selector */}
@@ -236,7 +248,7 @@ export default function CentralDashboardPage() {
           </div>
           <div className="kpi-text-box">
             <span className="global-kpi-value">{global.organizationsCount}</span>
-            <span className="global-kpi-label">Organizations</span>
+            <span className="global-kpi-label">Projects</span>
           </div>
         </div>
 
@@ -264,7 +276,7 @@ export default function CentralDashboardPage() {
           </div>
           <div className="kpi-text-box">
             <span className="global-kpi-value">{global.completedPatrols}</span>
-            <span className="global-kpi-label">Completed Patrols</span>
+            <span className="global-kpi-label">Completed Patrols ({getDatePeriodLabel()})</span>
           </div>
         </button>
 
@@ -319,13 +331,13 @@ export default function CentralDashboardPage() {
             selectedClientId={selectedClient.id}
             onSelectClient={handleSelectClient}
           />
-          <OrganizationHeroCard client={selectedClient} />
+          <OrganizationHeroCard client={selectedClient} periodLabel={getDatePeriodLabel()} />
         </div>
       ) : (
         <div className="no-orgs-empty-card">
           <Building2 size={48} style={{ color: 'var(--text-muted)', marginBottom: '12px' }} />
-          <h3>No Organizations Assigned</h3>
-          <p>You currently have no assigned client organizations to manage.</p>
+          <h3>No Projects Assigned</h3>
+          <p>You currently have no assigned projects to manage.</p>
         </div>
       )}
 

@@ -66,12 +66,25 @@ export class EmployeeRepository {
     });
   }
 
-  list(clientId: string, status?: EmployeeStatus | 'ALL', scope?: SupervisorScope | null) {
+  list(clientId: string, status?: EmployeeStatus | 'ALL', scope?: SupervisorScope | null, search?: string) {
+    const searchTrimmed = search?.trim();
     return prisma.employee.findMany({
       where: {
         clientId,
         ...(status && status !== 'ALL' ? { status } : {}),
         ...(scope ? { role: scope.supervisedRole } : {}),
+        ...(searchTrimmed
+          ? {
+              OR: [
+                { firstName: { contains: searchTrimmed, mode: 'insensitive' } },
+                { lastName: { contains: searchTrimmed, mode: 'insensitive' } },
+                { employeeNumber: { contains: searchTrimmed, mode: 'insensitive' } },
+                { email: { contains: searchTrimmed, mode: 'insensitive' } },
+                { phone: { contains: searchTrimmed, mode: 'insensitive' } },
+                { companyName: { contains: searchTrimmed, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
       },
       include: {
         user: true,

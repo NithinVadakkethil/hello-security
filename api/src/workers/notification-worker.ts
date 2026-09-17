@@ -224,13 +224,82 @@ export async function processCompletedPatrolNotification(
         sess.assignment?.assignmentGates &&
         sess.assignment.assignmentGates.length > 0);
 
-    const scannedCount = new Set((sess.checkpoints || []).map((cp: any) => cp.gateId)).size;
-    const totalGates = isManager
-      ? scannedCount
-      : isDirectAssignment
-        ? sess.assignment?.assignmentGates?.length || 0
-        : sess.assignment?.patrolRoute?.routeGates?.length || 0;
-    const compliancePercentage = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
+    // Build Scanned Gate Map from actual PatrolCheckpoint records
+    const scannedGateMap = new Map<string, { scannedAt: string; scannedAtDate: Date }>();
+    (sess.checkpoints || []).forEach((cp: any) => {
+      if (cp.gateId && !scannedGateMap.has(cp.gateId)) {
+        scannedGateMap.set(cp.gateId, {
+          scannedAt: formatTime(cp.scannedAt),
+          scannedAtDate: cp.scannedAt,
+        });
+      }
+    });
+
+    // Build Expected Gates List preserving sequence order
+    let expectedGatesList: Array<{ gateId: string; name: string; sequence: number }> = [];
+
+    if (isManager) {
+      // For Manager Patrol Sweeps, expected = scanned checkpoints
+      expectedGatesList = (sess.checkpoints || []).map((cp: any, idx: number) => ({
+        gateId: cp.gateId,
+        name: cp.gate?.name || `Checkpoint #${idx + 1}`,
+        sequence: cp.gate?.sequence || idx + 1,
+      }));
+    } else if (isDirectAssignment) {
+      expectedGatesList = (sess.assignment?.assignmentGates || [])
+        .slice()
+        .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+        .map((ag: any, idx: number) => ({
+          gateId: ag.gateId,
+          name: ag.gate?.name || `Checkpoint #${idx + 1}`,
+          sequence: ag.sequence || idx + 1,
+        }));
+    } else if (sess.assignment?.patrolRoute?.routeGates) {
+      expectedGatesList = (sess.assignment.patrolRoute.routeGates || [])
+        .slice()
+        .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+        .map((rg: any, idx: number) => ({
+          gateId: rg.gateId,
+          name: rg.gate?.name || `Checkpoint #${idx + 1}`,
+          sequence: rg.sequence || idx + 1,
+        }));
+    }
+
+    // Fallback if expectedGatesList is empty but checkpoints were scanned
+    if (expectedGatesList.length === 0 && (sess.checkpoints || []).length > 0) {
+      expectedGatesList = (sess.checkpoints || []).map((cp: any, idx: number) => ({
+        gateId: cp.gateId,
+        name: cp.gate?.name || `Checkpoint #${idx + 1}`,
+        sequence: cp.gate?.sequence || idx + 1,
+      }));
+    }
+
+    // Determine Scanned Expected Checkpoints Count (excluding out-of-assignment scans from completing expected gates)
+    let scannedExpectedCount = 0;
+    const mergedCheckpoints: Array<{ name: string; sequence: number; scannedAt?: string; isScanned?: boolean }> = [];
+
+    expectedGatesList.forEach((eg) => {
+      const scanInfo = scannedGateMap.get(eg.gateId);
+      if (scanInfo) {
+        scannedExpectedCount++;
+        mergedCheckpoints.push({
+          name: eg.name,
+          sequence: eg.sequence,
+          scannedAt: scanInfo.scannedAt,
+          isScanned: true,
+        });
+      } else {
+        mergedCheckpoints.push({
+          name: eg.name,
+          sequence: eg.sequence,
+          scannedAt: 'Not Scanned',
+          isScanned: false,
+        });
+      }
+    });
+
+    const totalGates = expectedGatesList.length;
+    const compliancePercentage = totalGates > 0 ? Math.round((scannedExpectedCount / totalGates) * 100) : 100;
 
     const observations: Array<{ title: string; description?: string }> = [];
     (sess.checkpoints || []).forEach((cp: any) => {
@@ -244,7 +313,7 @@ export async function processCompletedPatrolNotification(
       });
     });
 
-    totalCheckpointsScanned += scannedCount;
+    totalCheckpointsScanned += scannedExpectedCount;
     totalCheckpointsCount += totalGates;
     totalObservationsCount += observations.length;
     totalComplianceSum += compliancePercentage;
@@ -256,25 +325,21 @@ export async function processCompletedPatrolNotification(
     return {
       routeName,
       patrolCode: sess.patrolCode,
-      scannedCount,
+      scannedCount: scannedExpectedCount,
       totalCount: totalGates,
       compliancePercentage,
       observationsCount: observations.length,
       completedAt: formatTime(sess.endedAt),
       reportDownloadUrl,
       webAppReportsUrl,
-      checkpoints: (sess.checkpoints || []).map((cp: any, idx: number) => ({
-        name: cp.gate?.name || `Checkpoint #${idx + 1}`,
-        sequence: cp.gate?.sequence || idx + 1,
-        scannedAt: formatTime(cp.scannedAt),
-      })),
+      checkpoints: mergedCheckpoints,
       observations,
     };
   });
 
   const overallCompliancePercentage =
-    completedSessions.length > 0
-      ? Math.round(totalComplianceSum / completedSessions.length)
+    totalCheckpointsCount > 0
+      ? Math.round((totalCheckpointsScanned / totalCheckpointsCount) * 100)
       : 100;
 
   const emailHtml = buildConsolidatedRouteCycleEmailHtml({

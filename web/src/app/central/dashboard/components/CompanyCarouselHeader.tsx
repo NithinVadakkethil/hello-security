@@ -39,9 +39,9 @@ export default function CompanyCarouselHeader({
   return (
     <div className="carousel-header-bar">
       <div className="carousel-title-group">
-        <span className="carousel-label">Select Organization</span>
+        <span className="carousel-label">Select Project</span>
         <span className="carousel-counter">
-          Company {currentIdx + 1} of {clients.length}
+          Project {currentIdx + 1} of {clients.length}
         </span>
       </div>
 
@@ -66,7 +66,7 @@ export default function CompanyCarouselHeader({
             type="button"
             onClick={handlePrev}
             className="carousel-arrow-btn"
-            aria-label="Previous Company"
+            aria-label="Previous Project"
           >
             <ChevronLeft size={18} />
           </button>
@@ -74,7 +74,7 @@ export default function CompanyCarouselHeader({
             type="button"
             onClick={handleNext}
             className="carousel-arrow-btn"
-            aria-label="Next Company"
+            aria-label="Next Project"
           >
             <ChevronRight size={18} />
           </button>

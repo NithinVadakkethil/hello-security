@@ -25,6 +25,7 @@ const schema = z
       .email('Please enter a valid email address'),
     phone: z.string().optional(),
     designation: z.string().optional(),
+    companyName: z.string().optional(),
     joiningDate: z.string().optional(),
     identificationMethod: z.enum(['QR', 'RFID']),
     role: z.enum([
@@ -88,6 +89,11 @@ export default function NewEmployeePage() {
       }
       if (!payload.lastName) {
         delete payload.lastName;
+      }
+      if (payload.companyName && payload.companyName.trim()) {
+        payload.companyName = payload.companyName.trim();
+      } else {
+        delete payload.companyName;
       }
       if (payload.joiningDate) {
         payload.joiningDate = new Date(payload.joiningDate).toISOString();
@@ -244,36 +250,35 @@ export default function NewEmployeePage() {
             }}
           >
             <FormInput
+              label="Company Name (Optional)"
+              placeholder="e.g. ABC Security Services LLC"
+              error={(errors as any).companyName?.message}
+              {...register('companyName')}
+            />
+
+            <FormInput
               label="Joining Date"
               type="date"
               error={errors.joiningDate?.message}
               {...register('joiningDate')}
             />
-            <Select
-              label="App User / Operational Field Role *"
-              options={[
-                { value: 'SECURITY', label: 'Security Guard' },
-                { value: 'CLEANER', label: 'House Keeping' },
-                { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
-                { value: 'TECHNICIAN', label: 'Technician' },
-                { value: 'LIFE_GUARD', label: 'Life Guard' },
-                { value: 'PLUMBER', label: 'Plumber' },
-                { value: 'SUPERVISOR', label: 'Supervisor' },
-                { value: 'MANAGER', label: 'Manager' },
-              ]}
-              error={errors.role?.message}
-              {...register('role')}
-            />
-            {/* <Select
-              label="Identification Method"
-              options={[
-                { value: 'QR', label: 'QR Code scanning' },
-                { value: 'RFID', label: 'RFID card scanning' },
-              ]}
-              error={errors.identificationMethod?.message}
-              {...register('identificationMethod')}
-            /> */}
           </div>
+
+          <Select
+            label="App User / Operational Field Role *"
+            options={[
+              { value: 'SECURITY', label: 'Security Guard' },
+              { value: 'CLEANER', label: 'House Keeping' },
+              { value: 'SERVICE_ENGINEER', label: 'Service Engineer' },
+              { value: 'TECHNICIAN', label: 'Technician' },
+              { value: 'LIFE_GUARD', label: 'Life Guard' },
+              { value: 'PLUMBER', label: 'Plumber' },
+              { value: 'SUPERVISOR', label: 'Supervisor' },
+              { value: 'MANAGER', label: 'Manager' },
+            ]}
+            error={errors.role?.message}
+            {...register('role')}
+          />
 
           {selectedRole === 'SUPERVISOR' && (
             <div style={{ marginTop: '4px' }}>

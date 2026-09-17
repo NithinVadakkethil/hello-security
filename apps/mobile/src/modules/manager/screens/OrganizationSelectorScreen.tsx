@@ -134,9 +134,9 @@ export function OrganizationSelectorScreen({ onSelectClient }: Props) {
           </View>
 
           <View>
-            <Text style={[styles.title, { color: colors.text }]}>Select Organization</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Select Project</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Choose client context for monitoring & inspection
+              Choose project context for monitoring & inspection
             </Text>
           </View>
         </View>
@@ -151,7 +151,7 @@ export function OrganizationSelectorScreen({ onSelectClient }: Props) {
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Loading assigned organizations...
+            Loading assigned projects...
           </Text>
         </View>
       ) : error ? (
@@ -171,10 +171,10 @@ export function OrganizationSelectorScreen({ onSelectClient }: Props) {
         <View style={styles.centerContainer}>
           <Building2 size={48} color={colors.textSecondary} />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            No Organizations Assigned
+            No Projects Assigned
           </Text>
           <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-            No organizations are currently assigned to your Manager account. Please contact your Client Administrator.
+            No projects are currently assigned to your Community Manager account. Please contact your Client Administrator.
           </Text>
           <TouchableOpacity
             style={[styles.retryBtn, { backgroundColor: colors.primary, marginTop: 16 }]}
@@ -183,7 +183,7 @@ export function OrganizationSelectorScreen({ onSelectClient }: Props) {
               fetchClients();
             }}
           >
-            <Text style={styles.retryBtnText}>Refresh Organizations</Text>
+            <Text style={styles.retryBtnText}>Refresh Projects</Text>
           </TouchableOpacity>
         </View>
       ) : (

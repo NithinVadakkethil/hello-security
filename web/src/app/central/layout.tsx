@@ -59,7 +59,7 @@ export default function CentralManagerLayout({
 
   const getHeaderTitle = () => {
     const activeItem = menuItems.find((item) => pathname.startsWith(item.href));
-    return activeItem ? activeItem.label : 'Central Manager Portal';
+    return activeItem ? activeItem.label : 'Community Manager Portal';
   };
 
   if (!mounted) return null;
@@ -115,7 +115,7 @@ export default function CentralManagerLayout({
                 textAlign: 'center',
               }}
             >
-              Centralized Manager Portal
+              Community Manager Portal
             </p>
           </div>
 
@@ -153,7 +153,7 @@ export default function CentralManagerLayout({
                   {user?.email}
                 </p>
                 <p className="user-role" style={{ color: '#2563EB', fontWeight: '800', fontSize: '10px' }}>
-                  CENTRAL MANAGER
+                  COMMUNITY MANAGER
                 </p>
               </div>
             </Link>

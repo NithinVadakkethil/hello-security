@@ -23,6 +23,7 @@ interface Employee {
   email?: string | null;
   phone?: string | null;
   designation?: string | null;
+  companyName?: string | null;
   role: string;
   supervisedRole?: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
@@ -92,8 +93,13 @@ export default function EmployeesPage() {
 
   // Query Employees List
   const { data: employeesRes, isLoading } = useQuery<ApiResponse<Employee[]>>({
-    queryKey: ['employees'],
-    queryFn: () => apiClient.get('/employees'),
+    queryKey: ['employees', search, statusFilter],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (statusFilter !== 'ALL') params.set('status', statusFilter);
+      return apiClient.get(`/employees?${params.toString()}`);
+    },
     refetchOnMount: true,
     staleTime: 0,
   });
@@ -159,7 +165,8 @@ export default function EmployeesPage() {
         (c.firstName && c.firstName.toLowerCase().includes(s)) ||
         (c.lastName && c.lastName.toLowerCase().includes(s)) ||
         (c.employeeNumber && c.employeeNumber.toLowerCase().includes(s)) ||
-        (c.email && c.email.toLowerCase().includes(s))
+        (c.email && c.email.toLowerCase().includes(s)) ||
+        (c.companyName && c.companyName.toLowerCase().includes(s))
     );
   }
 
@@ -238,12 +245,11 @@ export default function EmployeesPage() {
     { key: 'email', label: 'Email Address' },
     { key: 'phone', label: 'Phone' },
     {
-      key: 'identificationMethod',
-      label: 'ID Method',
+      key: 'companyName',
+      label: 'COMPANY NAME',
+      sortable: true,
       render: (row: Employee) => (
-        <span style={{ fontSize: '0.8rem', padding: '2px 6px', background: 'var(--bg-tertiary)', borderRadius: '4px', fontWeight: 500 }}>
-          {row.identificationMethod}
-        </span>
+        <span>{row.companyName || '—'}</span>
       ),
     },
     {

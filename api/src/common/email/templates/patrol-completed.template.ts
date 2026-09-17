@@ -1,3 +1,10 @@
+export interface CheckpointItem {
+  name: string;
+  sequence: number;
+  scannedAt?: string;
+  isScanned?: boolean;
+}
+
 export interface PatrolCompletedEmailData {
   patrolCode: string;
   officerName: string;
@@ -12,7 +19,7 @@ export interface PatrolCompletedEmailData {
   compliancePercentage: number;
   observationsCount: number;
   supervisorStatus: string;
-  checkpoints: Array<{ name: string; sequence: number; scannedAt?: string }>;
+  checkpoints: CheckpointItem[];
   observations: Array<{ title: string; description?: string; severity?: string }>;
   reportDownloadUrl?: string;
   webAppReportsUrl?: string;
@@ -28,7 +35,7 @@ export interface RouteSummaryItem {
   completedAt: string;
   reportDownloadUrl?: string;
   webAppReportsUrl?: string;
-  checkpoints: Array<{ name: string; sequence: number; scannedAt?: string }>;
+  checkpoints: CheckpointItem[];
   observations: Array<{ title: string; description?: string }>;
 }
 
@@ -50,13 +57,26 @@ export interface ConsolidatedRouteCycleEmailData {
 
 export function buildPatrolCompletedEmailHtml(data: PatrolCompletedEmailData): string {
   const checkpointsListHtml = data.checkpoints
-    .map(
-      (cp) =>
-        `<li style="margin-bottom: 6px; color: #334155; font-size: 14px;">
-          <span style="color: #16a34a; font-weight: bold; margin-right: 6px;">✓</span>
-          <strong>${cp.name}</strong>
-        </li>`,
-    )
+    .map((cp) => {
+      const isCompleted = cp.isScanned !== false && cp.scannedAt && cp.scannedAt !== 'Not Scanned';
+      if (isCompleted) {
+        return `<li style="margin-bottom: 6px; color: #334155; font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <span style="color: #16a34a; font-weight: bold; margin-right: 6px;">✓</span>
+            <strong>${cp.name}</strong>
+          </div>
+          <span style="color: #64748b; font-size: 12px; font-weight: 500;">${cp.scannedAt}</span>
+        </li>`;
+      } else {
+        return `<li style="margin-bottom: 6px; color: #475569; font-size: 14px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <span style="color: #dc2626; font-weight: bold; margin-right: 6px;">✕</span>
+            <span style="color: #475569;">${cp.name}</span>
+          </div>
+          <span style="color: #dc2626; font-size: 12px; font-weight: 700;">Not Scanned</span>
+        </li>`;
+      }
+    })
     .join('');
 
   const observationsListHtml =
@@ -169,7 +189,7 @@ export function buildPatrolCompletedEmailHtml(data: PatrolCompletedEmailData): s
 
       <!-- Checkpoint Summary Section -->
       <h3 style="font-size: 15px; color: #0f172a; margin: 20px 0 10px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">CHECKPOINT SUMMARY</h3>
-      <ul style="padding-left: 20px; margin-top: 0; margin-bottom: 24px;">
+      <ul style="padding-left: 0; margin-top: 0; margin-bottom: 24px; list-style-type: none;">
         ${checkpointsListHtml}
       </ul>
 
@@ -194,13 +214,26 @@ export function buildConsolidatedRouteCycleEmailHtml(data: ConsolidatedRouteCycl
   const routesSummaryHtml = data.routes
     .map((r, idx) => {
       const checkpointsList = r.checkpoints
-        .map(
-          (cp) =>
-            `<li style="margin-bottom: 4px; color: #334155; font-size: 13px;">
-              <span style="color: #16a34a; font-weight: bold; margin-right: 4px;">✓</span>
-              <strong>${cp.name}</strong> ${cp.scannedAt ? `<span style="color: #94a3b8; font-size: 11px;">(${cp.scannedAt})</span>` : ''}
-            </li>`,
-        )
+        .map((cp) => {
+          const isCompleted = cp.isScanned !== false && cp.scannedAt && cp.scannedAt !== 'Not Scanned';
+          if (isCompleted) {
+            return `<li style="margin-bottom: 6px; color: #334155; font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <span style="color: #16a34a; font-weight: bold; margin-right: 6px;">✓</span>
+                <strong>${cp.name}</strong>
+              </div>
+              <span style="color: #64748b; font-size: 11px; font-weight: 500;">${cp.scannedAt}</span>
+            </li>`;
+          } else {
+            return `<li style="margin-bottom: 6px; color: #475569; font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <span style="color: #dc2626; font-weight: bold; margin-right: 6px;">✕</span>
+                <span style="color: #475569;">${cp.name}</span>
+              </div>
+              <span style="color: #dc2626; font-size: 11px; font-weight: 700;">Not Scanned</span>
+            </li>`;
+          }
+        })
         .join('');
 
       return `
@@ -245,7 +278,7 @@ export function buildConsolidatedRouteCycleEmailHtml(data: ConsolidatedRouteCycl
 
         <!-- Checkpoints list for this route -->
         <div style="font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Checkpoints</div>
-        <ul style="padding-left: 16px; margin: 0; list-style-type: none;">
+        <ul style="padding-left: 0; margin: 0; list-style-type: none;">
           ${checkpointsList}
         </ul>
       </div>

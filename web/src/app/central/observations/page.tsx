@@ -209,7 +209,7 @@ export default function CentralObservationsPage() {
       <div>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Observation Reports</h1>
         <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-          Read-only operational observation logs for selected organization.
+          Read-only operational observation logs for selected project.
         </p>
       </div>
 
