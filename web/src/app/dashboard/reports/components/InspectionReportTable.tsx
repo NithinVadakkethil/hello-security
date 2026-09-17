@@ -210,17 +210,27 @@ export default function InspectionReportTable({
                   (!row.assignment?.patrolRoute &&
                     (row.assignment?.assignmentGates?.length || 0) > 0);
 
-                const totalGates = isDirectAssignment
-                  ? row.assignment?.assignmentGates?.length || 0
-                  : row.assignment?.patrolRoute?.routeGates?.length || 0;
+                const isManagerSession = !row.assignment && !!(row as any).managerUserId;
 
-                const scannedCount = new Set(
-                  (row.checkpoints || []).map((cp: any) => cp.gateId || cp.id),
-                ).size;
+                const expectedGateIds: string[] = isManagerSession
+                  ? Array.from(new Set((row.checkpoints || []).map((cp: any) => cp.gateId || cp.gate?.id).filter(Boolean)))
+                  : isDirectAssignment
+                  ? (row.assignment?.assignmentGates || []).map((ag: any) => ag.gateId || ag.gate?.id).filter(Boolean)
+                  : (row.assignment?.patrolRoute?.routeGates || []).map((rg: any) => rg.gateId || rg.gate?.id).filter(Boolean);
+
+                const expectedGatesSet = new Set(expectedGateIds);
+                const totalGates = expectedGatesSet.size;
+
+                const scannedGateIds = (row.checkpoints || []).map((cp: any) => cp.gateId || cp.gate?.id).filter(Boolean);
+                const scannedAssignedCount = new Set(scannedGateIds.filter((id: string) => expectedGatesSet.has(id))).size;
+
+                const completedCount = isManagerSession
+                  ? (row.checkpoints?.length ? totalGates : 0)
+                  : scannedAssignedCount;
 
                 const compliancePct =
                   totalGates > 0
-                    ? Math.round((scannedCount / totalGates) * 100)
+                    ? Math.round((completedCount / totalGates) * 100)
                     : 100;
                 // const durationMins = row.totalDuration
                 //   ? Math.round(row.totalDuration / 60)
@@ -318,7 +328,7 @@ export default function InspectionReportTable({
                         }}
                       >
                         <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>
-                          {scannedCount} / {totalGates} ({compliancePct}%)
+                          {totalGates > 0 ? `${completedCount} / ${totalGates} (${compliancePct}%)` : '0 / 0 (N/A)'}
                         </span>
                         <div
                           style={{
@@ -331,7 +341,7 @@ export default function InspectionReportTable({
                         >
                           <div
                             style={{
-                              width: `${Math.min(100, compliancePct)}%`,
+                              width: `${compliancePct}%`,
                               height: '100%',
                               backgroundColor:
                                 compliancePct === 100 ? '#10b981' : '#3b82f6',

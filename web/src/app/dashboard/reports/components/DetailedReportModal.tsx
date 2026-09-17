@@ -53,9 +53,21 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
       };
     });
 
-  const totalGates = routeGates.length;
-  const scannedCount = scans.length;
-  const compliancePct = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
+  const isManagerSession = !report.assignment && !!(report as any).managerUserId;
+  const expectedGateIds: string[] = isManagerSession
+    ? Array.from(new Set((scans || []).map((cp: any) => cp.gateId || cp.gate?.id).filter(Boolean)))
+    : isDirectAssignment
+    ? (report.assignment?.assignmentGates || []).map((ag: any) => ag.gateId || ag.gate?.id).filter(Boolean)
+    : (report.assignment?.patrolRoute?.routeGates || []).map((rg: any) => rg.gateId || rg.gate?.id).filter(Boolean);
+
+  const expectedGatesSet = new Set(expectedGateIds);
+  const totalGates = expectedGatesSet.size;
+
+  const scannedGateIds = (scans || []).map((cp: any) => cp.gateId || cp.gate?.id).filter(Boolean);
+  const scannedAssignedCount = new Set(scannedGateIds.filter((id: string) => expectedGatesSet.has(id))).size;
+
+  const completedCount = isManagerSession ? (scans.length ? totalGates : 0) : scannedAssignedCount;
+  const compliancePct = totalGates > 0 ? Math.round((completedCount / totalGates) * 100) : 100;
   const durationMins = report.totalDuration ? Math.round(report.totalDuration / 60) : 0;
 
   const handlePrintSingle = () => {
@@ -169,7 +181,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <span style={{ fontSize: '0.88rem', fontWeight: 700 }}>Inspection Compliance Score</span>
             <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary)' }}>
-              {compliancePct}% ({scannedCount} of {totalGates} Completed)
+              {compliancePct}% ({completedCount} of {totalGates} Completed)
             </span>
           </div>
           <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>

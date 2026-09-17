@@ -339,9 +339,23 @@ export class ReportService {
         ? (cpSites.length > 1 ? `${cpSites.length} Sites (${cpSites.join(', ')})` : (cpSites[0] || 'N/A'))
         : (session.assignment?.site?.name || 'N/A');
       const routeName = isManager ? 'Manager Inspection' : (session.assignment?.patrolRoute?.name || 'Direct Checkpoints');
-      const uniqueGateIds = new Set(session.checkpoints.map((cp) => cp.gateId).filter(Boolean));
-      const scannedCount = uniqueGateIds.size;
-      const totalGates = isManager ? scannedCount : (session.assignment?.patrolRoute?.routeGates?.length || session.assignment?.assignmentGates?.length || 0);
+      const isDirect =
+        (session.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+        (!session.assignment?.patrolRoute && (session.assignment?.assignmentGates?.length || 0) > 0);
+
+      const expectedGateIds: string[] = isManager
+        ? Array.from(new Set((session.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean)))
+        : isDirect
+        ? (session.assignment?.assignmentGates || []).map((ag: any) => ag.gateId).filter(Boolean)
+        : (session.assignment?.patrolRoute?.routeGates || []).map((rg: any) => rg.gateId).filter(Boolean);
+
+      const expectedGatesSet = new Set(expectedGateIds);
+      const totalGates = expectedGatesSet.size;
+
+      const scannedGateIds = (session.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean);
+      const scannedAssignedCount = new Set(scannedGateIds.filter((id) => expectedGatesSet.has(id))).size;
+
+      const scannedCount = isManager ? (session.checkpoints?.length ? totalGates : 0) : scannedAssignedCount;
       const compliance = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
       const durationMins = session.totalDuration ? Math.round(session.totalDuration / 60) : 0;
       const incidentCount = session.incidents?.length || 0;

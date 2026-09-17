@@ -128,6 +128,12 @@ export class ReportRepository {
   async getAnalytics(clientId: string | undefined, query: ReportQueryDto): Promise<AnalyticsResult> {
     const where = this.buildWhereClause(clientId, query);
 
+    const clientFilter = clientId
+      ? Array.isArray(clientId)
+        ? { clientId: { in: clientId } }
+        : { clientId }
+      : {};
+
     const [
       totalInspections,
       completedInspections,
@@ -137,7 +143,6 @@ export class ReportRepository {
       totalGuardsCount,
       totalSitesCount,
       totalCheckpointsCount,
-      totalIncidentsCount,
     ] = await Promise.all([
       prisma.patrolSession.count({ where }),
       prisma.patrolSession.count({ where: { ...where, status: 'COMPLETED' } }),
@@ -149,30 +154,89 @@ export class ReportRepository {
           id: true,
           totalDuration: true,
           status: true,
-          checkpoints: { select: { id: true } },
+          checkpoints: { select: { id: true, gateId: true } },
           assignment: {
             select: {
               employeeId: true,
               siteId: true,
-              patrolRoute: { select: { _count: { select: { routeGates: true } } } },
-              assignmentGates: { select: { id: true } },
+              assignmentType: true,
+              patrolRoute: {
+                select: {
+                  routeGates: { select: { gateId: true } },
+                },
+              },
+              assignmentGates: { select: { gateId: true } },
             },
           },
+          incidents: { select: { id: true } },
+          snags: { select: { id: true } },
         },
       }),
-      prisma.employee.count({ where: clientId ? { clientId } : {} }),
-      prisma.site.count({ where: clientId ? { clientId } : {} }),
-      prisma.gate.count({ where: clientId ? { site: { clientId } } : {} }),
-      prisma.incident.count({ where: clientId ? { clientId } : {} }),
+      prisma.employee.count({
+        where: {
+          status: 'ACTIVE',
+          role: 'SECURITY',
+          ...clientFilter,
+          ...(query.siteId ? { assignments: { some: { siteId: query.siteId, isActive: true } } } : {}),
+          ...(query.employeeId ? { id: query.employeeId } : {}),
+        },
+      }),
+      prisma.site.count({
+        where: {
+          isActive: true,
+          ...clientFilter,
+          ...(query.siteId ? { id: query.siteId } : {}),
+        },
+      }),
+      prisma.gate.count({
+        where: {
+          isActive: true,
+          ...(clientId ? { site: clientFilter } : {}),
+          ...(query.siteId ? { siteId: query.siteId } : {}),
+          ...(query.gateId ? { id: query.gateId } : {}),
+        },
+      }),
     ]);
 
-    // Calculate Average Duration
-    const completedSessions = sessions.filter((s) => s.status === 'COMPLETED' && s.totalDuration);
+    // Calculate Average Duration for Completed Sessions
+    const completedSessions = sessions.filter((s) => s.status === 'COMPLETED' && s.totalDuration && s.totalDuration > 0);
     const totalDurationSec = completedSessions.reduce((acc, curr) => acc + (curr.totalDuration || 0), 0);
     const averageDurationMins = completedSessions.length ? Math.round(totalDurationSec / completedSessions.length / 60) : 0;
 
-    // Calculate Compliance Rate
-    const complianceRate = totalInspections ? Math.round((completedInspections / totalInspections) * 100) : 0;
+    // Total Issues Reported (Incidents + Snags in filtered sessions)
+    let totalIssuesReported = 0;
+    for (const s of sessions) {
+      totalIssuesReported += (s.incidents?.length || 0) + (s.snags?.length || 0);
+    }
+
+    // Calculate Overall Weighted Compliance Rate
+    let totalExpectedSum = 0;
+    let totalCompletedSum = 0;
+
+    for (const s of sessions) {
+      const isDirect =
+        (s.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+        (!s.assignment?.patrolRoute && (s.assignment?.assignmentGates?.length || 0) > 0);
+
+      const expectedGateIds: string[] = isDirect
+        ? (s.assignment?.assignmentGates || []).map((ag) => ag.gateId).filter(Boolean)
+        : (s.assignment?.patrolRoute?.routeGates || []).map((rg) => rg.gateId).filter(Boolean);
+
+      const expectedGatesSet = new Set(expectedGateIds);
+      const expectedCount = expectedGatesSet.size;
+
+      const scannedGateIds = (s.checkpoints || []).map((cp) => cp.gateId).filter(Boolean);
+      const completedCount = new Set(scannedGateIds.filter((id) => expectedGatesSet.has(id))).size;
+
+      if (expectedCount > 0) {
+        totalExpectedSum += expectedCount;
+        totalCompletedSum += completedCount;
+      }
+    }
+
+    const complianceRate = totalExpectedSum > 0
+      ? Math.round((totalCompletedSum / totalExpectedSum) * 100)
+      : 100;
 
     return {
       totalInspections,
@@ -184,7 +248,7 @@ export class ReportRepository {
       totalCheckpoints: totalCheckpointsCount,
       complianceRate,
       averageDurationMins,
-      totalIssuesReported: totalIncidentsCount,
+      totalIssuesReported,
     };
   }
 
