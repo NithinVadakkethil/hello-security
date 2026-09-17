@@ -361,11 +361,14 @@ export class PatrolCheckpointService {
       (gateRecord as any)?.site?.clientId,
     );
 
+    const sessionStartedAt = patrol?.startedAt ? new Date(patrol.startedAt) : undefined;
+
     const activeSubTasks = await prisma.gateSubTask.findMany({
       where: {
         gateId: dto.gateId,
         isActive: true,
         role: userRole,
+        ...(sessionStartedAt ? { createdAt: { lte: sessionStartedAt } } : {}),
       },
     });
 
