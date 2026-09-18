@@ -134,7 +134,7 @@ function buildCheckpointEntry(
     : [];
   const responses: any[] = Array.isArray(scan?.subTaskResponses)
     ? scan.subTaskResponses.filter((res: any) =>
-        isRoleMatching(res.gateSubTask?.role || res.role, officerRole),
+        isRoleMatching(res.gateSubTask?.role || res.roleSnapshot || res.role, officerRole),
       )
     : [];
 
@@ -179,9 +179,9 @@ function buildCheckpointEntry(
     for (const res of responses) {
       combinedTasks.push({
         id: res.id || res.gateSubTaskId,
-        title: res.gateSubTask?.taskName || res.taskName || 'Verification Task',
-        role: res.gateSubTask?.role || res.role || 'SECURITY',
-        isRequired: res.gateSubTask?.isRequired ?? res.isRequired ?? false,
+        title: res.gateSubTask?.taskName || res.taskNameSnapshot || res.taskName || 'Verification Task',
+        role: res.gateSubTask?.role || res.roleSnapshot || res.role || 'SECURITY',
+        isRequired: res.gateSubTask?.isRequired ?? res.isRequiredSnapshot ?? res.isRequired ?? false,
         answer: res.answer || 'UNANSWERED',
         remarks: res.remarks || null,
         images: deduplicateImages(Array.isArray(res.images) ? res.images : []),

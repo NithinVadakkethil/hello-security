@@ -127,10 +127,6 @@ export class GateSubTaskService {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
     }
 
-    if (role) {
-      await ensureGateSubTasksFromMaster(gate.id, role, gate.site?.clientId);
-    }
-
     return gateSubTaskRepository.listByGate(gate.id, onlyActive, role);
   }
 

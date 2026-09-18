@@ -486,35 +486,51 @@ export class PatrolCheckpointService {
                 }
               }
 
-              await tx.patrolSubTaskResponse.upsert({
-                where: {
-                  patrolCheckpointId_gateSubTaskId: {
-                    patrolCheckpointId: cp.id,
-                    gateSubTaskId: resp.gateSubTaskId,
+              const subTaskInfo = resp.gateSubTaskId
+                ? await tx.gateSubTask.findUnique({
+                    where: { id: resp.gateSubTaskId },
+                  })
+                : null;
+
+              const existingResp = resp.gateSubTaskId
+                ? await tx.patrolSubTaskResponse.findFirst({
+                    where: { patrolCheckpointId: cp.id, gateSubTaskId: resp.gateSubTaskId },
+                  })
+                : null;
+
+              if (existingResp) {
+                await tx.patrolSubTaskResponse.update({
+                  where: { id: existingResp.id },
+                  data: {
+                    answer: resp.answer,
+                    remarks: resp.remarks?.trim() || null,
+                    images: resp.images || [],
+                    answeredAt,
+                    taskNameSnapshot: subTaskInfo?.taskName || existingResp.taskNameSnapshot,
+                    roleSnapshot: subTaskInfo?.role || existingResp.roleSnapshot,
+                    descriptionSnapshot: subTaskInfo?.description || existingResp.descriptionSnapshot,
+                    isRequiredSnapshot: subTaskInfo?.isRequired ?? existingResp.isRequiredSnapshot ?? true,
                   },
-                },
-                create: {
-                  patrolCheckpointId: cp.id,
-                  gateSubTaskId: resp.gateSubTaskId,
-                  answer: resp.answer,
-                  remarks: resp.remarks?.trim() || null,
-                  images: resp.images || [],
-                  answeredAt,
-                },
-                update: {
-                  answer: resp.answer,
-                  remarks: resp.remarks?.trim() || null,
-                  images: resp.images || [],
-                  answeredAt,
-                },
-              });
+                });
+              } else {
+                await tx.patrolSubTaskResponse.create({
+                  data: {
+                    patrolCheckpointId: cp.id,
+                    gateSubTaskId: resp.gateSubTaskId || undefined,
+                    answer: resp.answer,
+                    remarks: resp.remarks?.trim() || null,
+                    images: resp.images || [],
+                    answeredAt,
+                    taskNameSnapshot: subTaskInfo?.taskName || null,
+                    roleSnapshot: subTaskInfo?.role || null,
+                    descriptionSnapshot: subTaskInfo?.description || null,
+                    isRequiredSnapshot: subTaskInfo?.isRequired ?? true,
+                  },
+                });
+              }
 
               // AUTOMATIC OBSERVATION REPORT (INCIDENT) GENERATION IF TASK ANSWER IS NO
               if (resp.answer === 'NO') {
-                const subTaskInfo = await tx.gateSubTask.findUnique({
-                  where: { id: resp.gateSubTaskId },
-                });
-
                 const taskTitle =
                   subTaskInfo?.taskName || 'Verification Sub-Task';
                 const taskDesc = subTaskInfo?.description || '';

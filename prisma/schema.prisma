@@ -666,19 +666,22 @@ model SubTaskMasterItem {
 }
 
 model PatrolSubTaskResponse {
-  id                 String           @id @default(cuid())
-  patrolCheckpointId String
-  patrolCheckpoint   PatrolCheckpoint @relation(fields: [patrolCheckpointId], references: [id], onDelete: Cascade)
-  gateSubTaskId      String
-  gateSubTask        GateSubTask      @relation(fields: [gateSubTaskId], references: [id], onDelete: Cascade)
-  answer             String           // "YES" | "NO"
-  remarks            String?
-  images             String[]         @default([])
-  answeredAt         DateTime         @default(now())
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id                  String           @id @default(cuid())
+  patrolCheckpointId  String
+  patrolCheckpoint    PatrolCheckpoint @relation(fields: [patrolCheckpointId], references: [id], onDelete: Cascade)
+  gateSubTaskId       String?
+  gateSubTask         GateSubTask?     @relation(fields: [gateSubTaskId], references: [id], onDelete: SetNull)
+  taskNameSnapshot    String?
+  roleSnapshot        UserRole?
+  descriptionSnapshot String?
+  isRequiredSnapshot  Boolean?         @default(true)
+  answer              String           // "YES" | "NO"
+  remarks             String?
+  images              String[]         @default([])
+  answeredAt          DateTime         @default(now())
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
-  @@unique([patrolCheckpointId, gateSubTaskId])
   @@index([patrolCheckpointId])
   @@index([gateSubTaskId])
 }
