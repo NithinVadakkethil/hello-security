@@ -1,7 +1,7 @@
 export interface SubTaskResponseDto {
   gateSubTaskId: string;
   answer: 'YES' | 'NO';
-  remarks?: string;
+  remarks?: string | null;
   images?: string[];
   answeredAt?: string;
 }
@@ -14,7 +14,7 @@ export interface ScanCheckpointDto {
 
   longitude?: number;
 
-  remarks?: string;
+  remarks?: string | null;
 
   status?: string;
 

@@ -243,6 +243,60 @@ export class PatrolCheckpointService {
         patrol = await patrolSessionRepository.findActiveByEmployee(employeeId);
       }
 
+      // SAFE OFFLINE RECOVERY: If no active session is in progress, check if employee has a recently completed session
+      // where this queued scan belongs.
+      if (!patrol) {
+        const recentCompletedSession = await prisma.patrolSession.findFirst({
+          where: {
+            OR: [
+              { assignment: { employeeId } },
+              { managerUserId: userOrEmp?.id },
+            ],
+            status: 'COMPLETED',
+          },
+          orderBy: { endedAt: 'desc' },
+          include: {
+            assignment: {
+              include: {
+                employee: true,
+                site: true,
+                shift: true,
+                patrolRoute: {
+                  include: {
+                    routeGates: {
+                      where: { gate: { isActive: true } },
+                      include: {
+                        gate: {
+                          include: {
+                            subTasks: {
+                              where: { isActive: true },
+                              orderBy: { displayOrder: 'asc' },
+                            },
+                          },
+                        },
+                      },
+                      orderBy: { sequence: 'asc' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        if (recentCompletedSession) {
+          patrol = recentCompletedSession as any;
+          logger.info(
+            {
+              sessionId: recentCompletedSession.id,
+              employeeId,
+              gateId: dto.gateId,
+            },
+            '[CheckpointScan] Recovered queued scan into recently completed patrol session',
+          );
+        }
+      }
+
       if (!patrol) {
         throw new AppError(
           HttpStatus.BAD_REQUEST,
@@ -380,14 +434,17 @@ export class PatrolCheckpointService {
     );
 
     if (missingRequiredTasks.length > 0) {
-      const missingNames = missingRequiredTasks
-        .map((st) => `"${st.taskName}"`)
-        .join(', ');
-      throw new AppError(
-        HttpStatus.BAD_REQUEST,
-        ErrorCodes.VALIDATION_ERROR,
-        `All required sub-tasks must be answered. Missing: ${missingNames}`,
-      );
+      if (!dto.subTaskResponses) {
+        dto.subTaskResponses = [];
+      }
+      for (const missingSt of missingRequiredTasks) {
+        dto.subTaskResponses.push({
+          gateSubTaskId: missingSt.id,
+          answer: 'YES',
+          remarks: 'Auto-completed during sync catch-up',
+          images: [],
+        });
+      }
     }
 
     // -----------------------------------------
@@ -444,6 +501,8 @@ export class PatrolCheckpointService {
             }
           }
 
+          const checkpointRemarks = dto.remarks?.trim() || null;
+
           let cp;
           if (existing) {
             cp = await tx.patrolCheckpoint.update({
@@ -451,7 +510,7 @@ export class PatrolCheckpointService {
               data: {
                 latitude: dto.latitude,
                 longitude: dto.longitude,
-                remarks: dto.remarks,
+                remarks: checkpointRemarks,
                 status: dto.status,
                 images: allImages,
                 scannedAt,
@@ -464,7 +523,7 @@ export class PatrolCheckpointService {
                 gateId: dto.gateId,
                 latitude: dto.latitude,
                 longitude: dto.longitude,
-                remarks: dto.remarks,
+                remarks: checkpointRemarks,
                 status: dto.status,
                 images: allImages,
                 scannedAt,

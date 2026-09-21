@@ -293,7 +293,7 @@ const VerificationTaskItem = React.memo(
             </Text>
           </TouchableOpacity>
 
-          {/* Camera Icon Button */}
+            {/* Camera Icon Button */}
           <TouchableOpacity
             activeOpacity={0.6}
             style={{
@@ -411,92 +411,172 @@ const VerificationTaskItem = React.memo(
               placeholderTextColor={colors.textSecondary}
               value={currentResp.remarks}
               multiline
-              maxLength={500}
+              maxLength={1000}
               onChangeText={txt => onRemarksChange(task.id, txt)}
             />
 
-            {/* Display Captured Image Thumbnail directly */}
-            {currentResp.images && currentResp.images.length > 0 ? (
+            {/* Evidence Photos Section */}
+            <View style={{ marginTop: 12 }}>
               <View
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
-                  gap: 12,
-                  marginTop: 12,
+                  justifyContent: 'space-between',
+                  marginBottom: 6,
                 }}
               >
-                <View style={{ position: 'relative' }}>
-                  <Image
-                    source={{ uri: currentResp.images[0] }}
-                    style={{
-                      width: 84,
-                      height: 84,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  />
-                  <TouchableOpacity
-                    style={{
-                      position: 'absolute',
-                      top: -6,
-                      right: -6,
-                      backgroundColor: '#ef4444',
-                      borderRadius: 12,
-                      width: 22,
-                      height: 22,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderWidth: 1.5,
-                      borderColor: '#ffffff',
-                    }}
-                    onPress={() => onRemoveImage(task.id)}
-                  >
-                    <X size={12} color="#ffffff" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : isNo ? (
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  backgroundColor: colors.danger + '10',
-                  borderColor: colors.danger,
-                  borderWidth: 1.5,
-                  borderStyle: 'dashed',
-                  borderRadius: 10,
-                  paddingVertical: 14,
-                  marginTop: 12,
-                }}
-                onPress={() => onOpenCamera(task.id)}
-              >
-                <CameraIcon size={18} color={colors.danger} />
                 <Text
                   style={{
-                    color: colors.danger,
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: '700',
+                    color: isNo ? colors.danger : colors.text,
                   }}
                 >
-                  Capture Live Evidence Photo *
+                  Evidence Photos {isNo ? '*' : '(Optional)'}
                 </Text>
-              </TouchableOpacity>
-            ) : null}
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: '600',
+                    color: colors.textSecondary,
+                  }}
+                >
+                  {(currentResp.images || []).length} / 5 photos
+                </Text>
+              </View>
 
-            <Text
-              style={{
-                fontSize: 10,
-                color: colors.textSecondary,
-                fontStyle: 'italic',
-                marginTop: 6,
-              }}
-            >
-              ⚠️ Only live camera capture is accepted. Gallery selection is
-              disabled.
-            </Text>
+              {/* Display Captured Image Thumbnails Grid */}
+              {currentResp.images && currentResp.images.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginBottom: 10 }}
+                >
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10,
+                      paddingVertical: 4,
+                    }}
+                  >
+                    {currentResp.images.map((imgUri: string, imgIdx: number) => (
+                      <View key={imgIdx} style={{ position: 'relative' }}>
+                        <Image
+                          source={{ uri: imgUri }}
+                          style={{
+                            width: 80,
+                            height: 80,
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                          }}
+                        />
+                        <TouchableOpacity
+                          style={{
+                            position: 'absolute',
+                            top: -6,
+                            right: -6,
+                            backgroundColor: '#ef4444',
+                            borderRadius: 12,
+                            width: 22,
+                            height: 22,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderWidth: 1.5,
+                            borderColor: '#ffffff',
+                          }}
+                          onPress={() => onRemoveImage(task.id, imgIdx)}
+                        >
+                          <X size={12} color="#ffffff" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+              )}
+
+              {/* Capture Button or Maximum Limit Notice */}
+              {(currentResp.images || []).length < 5 ? (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    backgroundColor:
+                      isNo && (!currentResp.images || currentResp.images.length === 0)
+                        ? colors.danger + '10'
+                        : colors.primary + '10',
+                    borderColor:
+                      isNo && (!currentResp.images || currentResp.images.length === 0)
+                        ? colors.danger
+                        : colors.primary,
+                    borderWidth: 1.5,
+                    borderStyle: 'dashed',
+                    borderRadius: 10,
+                    paddingVertical: 12,
+                  }}
+                  onPress={() => onOpenCamera(task.id)}
+                >
+                  <CameraIcon
+                    size={18}
+                    color={
+                      isNo && (!currentResp.images || currentResp.images.length === 0)
+                        ? colors.danger
+                        : colors.primary
+                    }
+                  />
+                  <Text
+                    style={{
+                      color:
+                        isNo && (!currentResp.images || currentResp.images.length === 0)
+                          ? colors.danger
+                          : colors.primary,
+                      fontSize: 13,
+                      fontWeight: '700',
+                    }}
+                  >
+                    {(currentResp.images || []).length > 0
+                      ? '+ Capture Another Live Photo'
+                      : 'Capture Live Evidence Photo *'}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View
+                  style={{
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    paddingVertical: 10,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: '600',
+                      color: colors.textSecondary,
+                    }}
+                  >
+                    Maximum 5 evidence photos allowed.
+                  </Text>
+                </View>
+              )}
+
+              <Text
+                style={{
+                  fontSize: 10,
+                  color: colors.textSecondary,
+                  fontStyle: 'italic',
+                  marginTop: 6,
+                }}
+              >
+                ⚠️ Only live camera capture is accepted. Gallery selection is
+                disabled.
+              </Text>
+            </View>
           </View>
         )}
       </View>
@@ -512,7 +592,8 @@ const VerificationTaskItem = React.memo(
       prevProps.response?.remarks === nextProps.response?.remarks &&
       prevProps.response?.images?.length ===
         nextProps.response?.images?.length &&
-      prevProps.response?.images?.[0] === nextProps.response?.images?.[0] &&
+      prevProps.response?.images?.join(',') ===
+        nextProps.response?.images?.join(',') &&
       prevProps.colors === nextProps.colors
     );
   },
@@ -626,6 +707,7 @@ export function PatrolScreen() {
       { answer: 'YES' | 'NO' | null; remarks: string; images?: string[] }
     >
   >({});
+  const [checkpointRemarks, setCheckpointRemarks] = useState<string>('');
   const [activeSubTaskIdForCamera, setActiveSubTaskIdForCamera] = useState<
     string | null
   >(null);
@@ -680,18 +762,38 @@ export function PatrolScreen() {
     }));
   }, []);
 
-  const handleRemoveTaskImage = useCallback((taskId: string) => {
-    setSubTaskResponses(prev => ({
-      ...prev,
-      [taskId]: {
-        ...prev[taskId],
-        images: [],
-      },
-    }));
-  }, []);
+  const handleRemoveTaskImage = useCallback(
+    (taskId: string, imageIndex?: number) => {
+      setSubTaskResponses(prev => {
+        const existing = prev[taskId];
+        if (!existing || !existing.images) return prev;
+        const currentImgs = existing.images;
+        const updatedImgs =
+          typeof imageIndex === 'number'
+            ? currentImgs.filter((_, idx) => idx !== imageIndex)
+            : [];
+        return {
+          ...prev,
+          [taskId]: {
+            ...existing,
+            images: updatedImgs,
+          },
+        };
+      });
+    },
+    [],
+  );
 
   const handleOpenCameraForSubTask = useCallback(
     async (taskId: string) => {
+      const existingImgs = subTaskResponses[taskId]?.images || [];
+      if (existingImgs.length >= 5) {
+        Alert.alert(
+          'Maximum Photos Reached',
+          'Maximum 5 evidence photos allowed per subtask.',
+        );
+        return;
+      }
       setCameraError(false);
       setActiveSubTaskIdForCamera(taskId);
       if (!hasPermission) {
@@ -706,7 +808,7 @@ export function PatrolScreen() {
       }
       setShowCameraModal(true);
     },
-    [hasPermission, requestPermission],
+    [subTaskResponses, hasPermission, requestPermission],
   );
 
   const triggerCameraFlash = () => {
@@ -721,13 +823,22 @@ export function PatrolScreen() {
   const attachPhotoResult = (photoDataUrl: string) => {
     if (activeSubTaskIdForCamera) {
       setSubTaskResponses(prev => {
-        const existing = prev[activeSubTaskIdForCamera];
+        const existing = prev[activeSubTaskIdForCamera] || {
+          answer: 'NO',
+          remarks: '',
+          images: [],
+        };
+        const currentImgs = existing.images || [];
+        if (currentImgs.length >= 5) {
+          return prev;
+        }
         return {
           ...prev,
           [activeSubTaskIdForCamera]: {
-            answer: existing?.answer || 'YES',
-            remarks: existing?.remarks || '',
-            images: [photoDataUrl],
+            ...existing,
+            answer: existing.answer || 'NO',
+            remarks: existing.remarks || '',
+            images: [...currentImgs, photoDataUrl],
           },
         };
       });
@@ -1039,7 +1150,7 @@ export function PatrolScreen() {
       return;
     }
 
-    // 2. Validate NO answers (Remarks + Live Camera evidence photo required)
+    // 2. Validate NO answers (Remarks + 1 to 5 Live Camera evidence photos required)
     for (const st of tasks) {
       const resp = subTaskResponses[st.id];
       if (resp?.answer === 'NO') {
@@ -1050,10 +1161,18 @@ export function PatrolScreen() {
           );
           return;
         }
-        if (!resp.images || resp.images.length === 0) {
+        const imgCount = resp.images?.length || 0;
+        if (imgCount < 1) {
           Alert.alert(
             'Live Camera Evidence Required',
-            `Please capture a live camera photo evidence for failed task "${st.taskName}".`,
+            `Please capture at least one live camera evidence photo for failed task "${st.taskName}".`,
+          );
+          return;
+        }
+        if (imgCount > 5) {
+          Alert.alert(
+            'Too Many Evidence Photos',
+            `Maximum 5 evidence photos are allowed for task "${st.taskName}".`,
           );
           return;
         }
@@ -1093,8 +1212,12 @@ export function PatrolScreen() {
                 .flatMap((r: any) => r.images || [])
                 .filter(Boolean);
 
+              const cleanedCheckpointRemarks =
+                checkpointRemarks?.trim() || undefined;
+
               await scanCheckpoint({
                 gateId,
+                remarks: cleanedCheckpointRemarks,
                 latitude: lat,
                 longitude: lng,
                 images: subTaskImagesList,
@@ -1102,6 +1225,7 @@ export function PatrolScreen() {
               });
 
               setSubTaskResponses({});
+              setCheckpointRemarks('');
               setActiveSubTaskIdForCamera(null);
 
               if (isManager) {
@@ -1960,6 +2084,48 @@ export function PatrolScreen() {
                             </View>
                           );
                         })()}
+
+                        {/* CHECKPOINT NOTE (OPTIONAL) */}
+                        <View style={{ marginTop: 16 }}>
+                          <Text
+                            style={[
+                              styles.panelLabel,
+                              { color: colors.text, marginBottom: 6 },
+                            ]}
+                          >
+                            Checkpoint Note (Optional)
+                          </Text>
+                          <TextInput
+                            style={{
+                              fontSize: 13,
+                              color: colors.text,
+                              borderColor: colors.border,
+                              borderWidth: 1.5,
+                              borderRadius: 10,
+                              paddingHorizontal: 12,
+                              paddingVertical: 10,
+                              backgroundColor: colors.background,
+                              minHeight: 80,
+                              textAlignVertical: 'top',
+                            }}
+                            placeholder="Add overall observations or notes about this checkpoint..."
+                            placeholderTextColor={colors.textSecondary}
+                            value={checkpointRemarks}
+                            onChangeText={setCheckpointRemarks}
+                            multiline
+                            maxLength={1000}
+                          />
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              color: colors.textSecondary,
+                              marginTop: 4,
+                              textAlign: 'right',
+                            }}
+                          >
+                            {checkpointRemarks.length} / 1000
+                          </Text>
+                        </View>
 
                         <Text
                           style={[

@@ -941,7 +941,7 @@ export class ReportService {
           <!-- Checkpoint remarks -->
           ${
             item.remarks
-              ? `<div class="rpt-cp-remarks"><strong>Checkpoint Remarks:</strong> ${item.remarks}</div>`
+              ? `<div class="rpt-cp-remarks"><strong>Checkpoint Note:</strong> ${item.remarks}</div>`
               : ''
           }
 

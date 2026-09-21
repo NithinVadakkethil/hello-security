@@ -20,6 +20,7 @@ import {
 import { useTheme } from '../../../app/hooks/useTheme';
 import { useAuthStore } from '../../../app/store/auth-store';
 import { getRoleConfig } from '../../../app/utils/role-helpers';
+import { getEmployeeDisplayName } from '../../../app/utils/user-helpers';
 import { formatLastCompletedAt } from '../../../app/utils/date-formatter';
 import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
 import { usePatrol } from '../../patrol/hooks/usePatrol';
@@ -59,9 +60,7 @@ export function GuardDashboard() {
     (user as any)?.employee?.role || (user as any)?.role || 'SECURITY';
   const roleObj = getRoleConfig(empRole);
   const RoleIcon = roleObj.icon;
-  const firstNameStr =
-    (user as any)?.employee?.firstName || user?.email?.split('@')[0] || 'User';
-  const greetingRoleName = `${firstNameStr}`;
+  const greetingRoleName = getEmployeeDisplayName(user);
 
   const currentTimeStr = new Date().toLocaleTimeString([], {
     hour: '2-digit',

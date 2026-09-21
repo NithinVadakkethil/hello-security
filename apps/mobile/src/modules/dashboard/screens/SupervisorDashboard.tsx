@@ -26,6 +26,7 @@ import { useTheme } from '../../../app/hooks/useTheme';
 import { formatPatrolDate } from '../../../app/utils/date-formatter';
 import { AppTabParamList } from '../../../app/navigation/types';
 import { useAuthStore } from '../../../app/store/auth-store';
+import { getEmployeeDisplayName } from '../../../app/utils/user-helpers';
 import { useIncidents } from '../../incident/hooks/useIncident';
 import { dashboardApi } from '../api/dashboard.api';
 import { DashboardSkeleton } from '../components/SkeletonLoader';
@@ -272,7 +273,7 @@ export function SupervisorDashboard() {
           Welcome back,
         </Text>
         <Text style={[styles.name, { color: colors.text }]}>
-          {user?.email.split('@')[0]}
+          {getEmployeeDisplayName(user)}
         </Text>
       </View>
 

@@ -496,7 +496,7 @@ export function PatrolDetailsScreen() {
                         { color: colors.textSecondary },
                       ]}
                     >
-                      Sweep Note / Checkpoint Remarks:
+                      Checkpoint Note:
                     </Text>
 
                     {editingCpId !== cp.id && (
