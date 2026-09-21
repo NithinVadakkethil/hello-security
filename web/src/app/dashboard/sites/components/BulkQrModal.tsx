@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
-import { Download, Printer, AlertTriangle } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import { AlertTriangle, Download, Printer } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import Modal from '../../../components/ui/Modal';
 import { apiClient } from '../../../lib/axios';
+import CheckpointQrSticker from './CheckpointQrSticker';
 
 interface GateItem {
   id: string;
@@ -34,14 +35,20 @@ export default function BulkQrModal({
   companyName = 'HELLO ORBIT',
   totalCheckpointsCount,
 }: BulkQrModalProps) {
-  const [paperFormat, setPaperFormat] = useState<'52x40' | '40x52'>('52x40');
-  const [rangeType, setRangeType] = useState<'ALL' | 'PRESET' | 'BATCH' | 'CUSTOM'>('ALL');
-  
+  const [rangeType, setRangeType] = useState<
+    'ALL' | 'PRESET' | 'BATCH' | 'CUSTOM'
+  >('ALL');
+
   const [presetCount, setPresetCount] = useState<number>(10);
-  const [selectedBatch, setSelectedBatch] = useState<{ from: number; to: number }>({ from: 1, to: Math.min(50, totalCheckpointsCount || 50) });
-  
+  const [selectedBatch, setSelectedBatch] = useState<{
+    from: number;
+    to: number;
+  }>({ from: 1, to: Math.min(50, totalCheckpointsCount || 50) });
+
   const [customFrom, setCustomFrom] = useState<string>('1');
-  const [customTo, setCustomTo] = useState<string>(String(totalCheckpointsCount || 10));
+  const [customTo, setCustomTo] = useState<string>(
+    String(totalCheckpointsCount || 10),
+  );
 
   // Progress & Generation states
   const [isGenerating, setIsGenerating] = useState(false);
@@ -50,7 +57,9 @@ export default function BulkQrModal({
 
   // Hidden off-screen DOM ref for HTML-to-Image capture of batch QR labels
   const hiddenLabelRef = useRef<HTMLDivElement>(null);
-  const [activeRenderGate, setActiveRenderGate] = useState<GateItem | null>(null);
+  const [activeRenderGate, setActiveRenderGate] = useState<GateItem | null>(
+    null,
+  );
   const [activeRenderQrUrl, setActiveRenderQrUrl] = useState<string>('');
 
   // Update default range if totalCheckpointsCount changes
@@ -92,13 +101,30 @@ export default function BulkQrModal({
     const fromNum = parseInt(customFrom, 10);
     const toNum = parseInt(customTo, 10);
     if (isNaN(fromNum) || isNaN(toNum) || fromNum < 1 || toNum < fromNum) {
-      return { from: 0, to: 0, count: 0, error: 'End sequence must be greater than or equal to start sequence.' };
+      return {
+        from: 0,
+        to: 0,
+        count: 0,
+        error: 'End sequence must be greater than or equal to start sequence.',
+      };
     }
     if (toNum > total) {
-      return { from: fromNum, to: toNum, count: toNum - fromNum + 1, error: `End sequence cannot exceed total site checkpoints (${total}).` };
+      return {
+        from: fromNum,
+        to: toNum,
+        count: toNum - fromNum + 1,
+        error: `End sequence cannot exceed total site checkpoints (${total}).`,
+      };
     }
     return { from: fromNum, to: toNum, count: toNum - fromNum + 1 };
-  }, [rangeType, presetCount, selectedBatch, customFrom, customTo, totalCheckpointsCount]);
+  }, [
+    rangeType,
+    presetCount,
+    selectedBatch,
+    customFrom,
+    customTo,
+    totalCheckpointsCount,
+  ]);
 
   if (!isOpen) return null;
 
@@ -120,7 +146,8 @@ export default function BulkQrModal({
   };
 
   const handleGeneratePdf = async (shouldPrint = false) => {
-    if (effectiveRange.error || effectiveRange.count <= 0 || isGenerating) return;
+    if (effectiveRange.error || effectiveRange.count <= 0 || isGenerating)
+      return;
 
     try {
       setIsGenerating(true);
@@ -136,7 +163,8 @@ export default function BulkQrModal({
         },
       });
 
-      const items: GateItem[] = apiRes.data?.data?.items || apiRes.data?.items || [];
+      const items: GateItem[] =
+        apiRes.data?.data?.items || apiRes.data?.items || [];
 
       if (!items || items.length === 0) {
         toast.error('No checkpoints found in the selected sequence range.');
@@ -144,13 +172,12 @@ export default function BulkQrModal({
         return;
       }
 
-      const isLandscape = paperFormat === '52x40';
-      const widthMm = isLandscape ? 52 : 40;
-      const heightMm = isLandscape ? 40 : 52;
+      const widthMm = 52;
+      const heightMm = 40;
       const dimensions: [number, number] = [widthMm, heightMm];
 
       const pdf = new jsPDF({
-        orientation: isLandscape ? 'landscape' : 'portrait',
+        orientation: 'landscape',
         unit: 'mm',
         format: dimensions,
         compress: true,
@@ -162,7 +189,9 @@ export default function BulkQrModal({
         const currentNum = i + 1;
         const total = items.length;
 
-        setProgressMsg(`Generating QR ${currentNum} of ${total} (${gate.name})...`);
+        setProgressMsg(
+          `Generating QR ${currentNum} of ${total} (${gate.name})...`,
+        );
         setProgressPercent(Math.round((currentNum / total) * 100));
 
         // Fetch QR image
@@ -188,16 +217,25 @@ export default function BulkQrModal({
         });
 
         if (i > 0) {
-          pdf.addPage(dimensions, isLandscape ? 'landscape' : 'portrait');
+          pdf.addPage(dimensions, 'landscape');
         }
 
-        pdf.addImage(imgData, 'PNG', 0, 0, widthMm, heightMm, undefined, 'FAST');
+        pdf.addImage(
+          imgData,
+          'PNG',
+          0,
+          0,
+          widthMm,
+          heightMm,
+          undefined,
+          'FAST',
+        );
 
         // Short pause to ensure smooth event loop execution
         await new Promise((resolve) => setTimeout(resolve, 15));
       }
 
-      const fileName = `bulk-qr-${siteName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-seq-${effectiveRange.from}-to-${effectiveRange.to}-${paperFormat}.pdf`;
+      const fileName = `bulk-qr-${siteName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-seq-${effectiveRange.from}-to-${effectiveRange.to}-52x40.pdf`;
 
       if (shouldPrint) {
         setProgressMsg('Opening print preview...');
@@ -221,13 +259,18 @@ export default function BulkQrModal({
         toast.success(`Prepared ${items.length} QR labels for print!`);
       } else {
         pdf.save(fileName);
-        toast.success(`Downloaded bulk PDF with ${items.length} QR labels (${fileName})!`);
+        toast.success(
+          `Downloaded bulk PDF with ${items.length} QR labels (${fileName})!`,
+        );
       }
 
       onClose();
     } catch (err: any) {
       console.error('Bulk QR Generation Error:', err);
-      toast.error(err.response?.data?.message || 'Failed to generate bulk QR PDF. Please try again.');
+      toast.error(
+        err.response?.data?.message ||
+          'Failed to generate bulk QR PDF. Please try again.',
+      );
     } finally {
       setIsGenerating(false);
       setProgressPercent(0);
@@ -257,10 +300,24 @@ export default function BulkQrModal({
           }}
         >
           <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+            <div
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                fontWeight: 700,
+              }}
+            >
               SITE SCOPE: {siteName}
             </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 800, marginTop: '2px', color: 'var(--text-primary)' }}>
+            <div
+              style={{
+                fontSize: '1.1rem',
+                fontWeight: 800,
+                marginTop: '2px',
+                color: 'var(--text-primary)',
+              }}
+            >
               {totalCheckpointsCount} Total Registered Checkpoints
             </div>
           </div>
@@ -278,62 +335,64 @@ export default function BulkQrModal({
           </div>
         </div>
 
-        {/* Media Format Selector */}
-        <div>
-          <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', display: 'block', textTransform: 'uppercase' }}>
-            Printer Media Size Format:
-          </label>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              type="button"
-              disabled={isGenerating}
-              onClick={() => setPaperFormat('52x40')}
-              style={{
-                flex: 1,
-                padding: '10px',
-                borderRadius: '8px',
-                border: paperFormat === '52x40' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                backgroundColor: paperFormat === '52x40' ? 'var(--primary-glow)' : 'var(--surface-color)',
-                color: 'var(--text-primary)',
-                fontWeight: 700,
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                textAlign: 'center',
-              }}
-            >
-              52 × 40 mm (Box P Thermal Label)
-            </button>
-            <button
-              type="button"
-              disabled={isGenerating}
-              onClick={() => setPaperFormat('40x52')}
-              style={{
-                flex: 1,
-                padding: '10px',
-                borderRadius: '8px',
-                border: paperFormat === '40x52' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                backgroundColor: paperFormat === '40x52' ? 'var(--primary-glow)' : 'var(--surface-color)',
-                color: 'var(--text-primary)',
-                fontWeight: 700,
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                textAlign: 'center',
-              }}
-            >
-              40 × 52 mm (Vertical Portrait)
-            </button>
-          </div>
-        </div>
+        {/* Media Format Indicator */}
+        {/* <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            backgroundColor: 'var(--surface-color)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '8px',
+            padding: '6px 12px',
+            fontSize: '0.78rem',
+          }}
+        >
+          <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>
+            Printer Media Size:
+          </span>
+          <span
+            style={{
+              padding: '4px 10px',
+              borderRadius: '6px',
+              border: '1px solid #000000',
+              backgroundColor: '#f1f5f9',
+              color: '#000000',
+              fontWeight: 800,
+              fontSize: '0.78rem',
+            }}
+          >
+            52 × 40 mm (2.05" × 1.57") [Box P]
+          </span>
+        </div> */}
 
         {/* Range Selection Tabs */}
         <div>
-          <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', display: 'block', textTransform: 'uppercase' }}>
+          <label
+            style={{
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              color: 'var(--text-muted)',
+              marginBottom: '8px',
+              display: 'block',
+              textTransform: 'uppercase',
+            }}
+          >
             Select Checkpoint Range:
           </label>
 
           {/* Quick Presets */}
           <div style={{ marginBottom: '14px' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '6px' }}>Quick Presets:</div>
+            <div
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--text-secondary)',
+                fontWeight: 600,
+                marginBottom: '6px',
+              }}
+            >
+              Quick Presets:
+            </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button
                 type="button"
@@ -343,7 +402,8 @@ export default function BulkQrModal({
                 style={{
                   fontSize: '0.8rem',
                   padding: '6px 12px',
-                  backgroundColor: rangeType === 'ALL' ? 'var(--primary)' : undefined,
+                  backgroundColor:
+                    rangeType === 'ALL' ? 'var(--primary)' : undefined,
                   color: rangeType === 'ALL' ? '#ffffff' : undefined,
                 }}
               >
@@ -362,8 +422,14 @@ export default function BulkQrModal({
                   style={{
                     fontSize: '0.8rem',
                     padding: '6px 12px',
-                    backgroundColor: rangeType === 'PRESET' && presetCount === num ? 'var(--primary)' : undefined,
-                    color: rangeType === 'PRESET' && presetCount === num ? '#ffffff' : undefined,
+                    backgroundColor:
+                      rangeType === 'PRESET' && presetCount === num
+                        ? 'var(--primary)'
+                        : undefined,
+                    color:
+                      rangeType === 'PRESET' && presetCount === num
+                        ? '#ffffff'
+                        : undefined,
                   }}
                 >
                   First {num} (1–{Math.min(num, totalCheckpointsCount)})
@@ -375,12 +441,31 @@ export default function BulkQrModal({
           {/* Dynamic 50-item Print Batches */}
           {batchRanges.length > 0 && (
             <div style={{ marginBottom: '14px' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '6px' }}>
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 600,
+                  marginBottom: '6px',
+                }}
+              >
                 Print Batches (50 Checkpoints per Batch):
               </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', maxHeight: '120px', overflowY: 'auto', padding: '4px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '8px',
+                  flexWrap: 'wrap',
+                  maxHeight: '120px',
+                  overflowY: 'auto',
+                  padding: '4px',
+                }}
+              >
                 {batchRanges.map((b) => {
-                  const isSelected = rangeType === 'BATCH' && selectedBatch.from === b.from && selectedBatch.to === b.to;
+                  const isSelected =
+                    rangeType === 'BATCH' &&
+                    selectedBatch.from === b.from &&
+                    selectedBatch.to === b.to;
                   return (
                     <button
                       key={`${b.from}-${b.to}`}
@@ -394,7 +479,9 @@ export default function BulkQrModal({
                       style={{
                         fontSize: '0.78rem',
                         padding: '4px 10px',
-                        backgroundColor: isSelected ? 'var(--primary)' : undefined,
+                        backgroundColor: isSelected
+                          ? 'var(--primary)'
+                          : undefined,
                         color: isSelected ? '#ffffff' : undefined,
                       }}
                     >
@@ -430,9 +517,27 @@ export default function BulkQrModal({
             </button>
 
             {rangeType === 'CUSTOM' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', backgroundColor: 'var(--bg-secondary)', padding: '12px', borderRadius: '8px' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '12px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  padding: '12px',
+                  borderRadius: '8px',
+                }}
+              >
                 <div>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>From Sequence:</label>
+                  <label
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-muted)',
+                      display: 'block',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    From Sequence:
+                  </label>
                   <input
                     type="number"
                     min={1}
@@ -445,7 +550,16 @@ export default function BulkQrModal({
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>To Sequence:</label>
+                  <label
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-muted)',
+                      display: 'block',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    To Sequence:
+                  </label>
                   <input
                     type="number"
                     min={1}
@@ -467,27 +581,62 @@ export default function BulkQrModal({
           style={{
             padding: '14px',
             borderRadius: '8px',
-            backgroundColor: effectiveRange.error ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-secondary)',
-            border: effectiveRange.error ? '1px solid #ef4444' : '1px solid var(--border-color)',
+            backgroundColor: effectiveRange.error
+              ? 'rgba(239, 68, 68, 0.1)'
+              : 'var(--bg-secondary)',
+            border: effectiveRange.error
+              ? '1px solid #ef4444'
+              : '1px solid var(--border-color)',
             display: 'flex',
             flexDirection: 'column',
             gap: '6px',
           }}
         >
           {effectiveRange.error ? (
-            <div style={{ color: '#ef4444', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div
+              style={{
+                color: '#ef4444',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
               <AlertTriangle size={16} />
               <span>{effectiveRange.error}</span>
             </div>
           ) : (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 700 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Selected Sequence Range:</span>
-                <span style={{ color: 'var(--primary)' }}>Sequence {effectiveRange.from} – {effectiveRange.to}</span>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                }}
+              >
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  Selected Sequence Range:
+                </span>
+                <span style={{ color: 'var(--primary)' }}>
+                  Sequence {effectiveRange.from} – {effectiveRange.to}
+                </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 700 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Total QR Labels to Generate:</span>
-                <span style={{ color: 'var(--text-primary)' }}>{effectiveRange.count} QR Codes</span>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                }}
+              >
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  Total QR Labels to Generate:
+                </span>
+                <span style={{ color: 'var(--text-primary)' }}>
+                  {effectiveRange.count} QR Codes
+                </span>
               </div>
             </>
           )}
@@ -495,19 +644,47 @@ export default function BulkQrModal({
 
         {/* Large Export Confirmation Warning */}
         {effectiveRange.count > 100 && !effectiveRange.error && (
-          <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', fontSize: '0.8rem', color: '#d97706', fontWeight: 600 }}>
-            ⚠️ You are about to generate QR codes for {effectiveRange.count} checkpoints. This may take a few moments to compile into high-DPI printable PDF pages.
+          <div
+            style={{
+              padding: '12px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              fontSize: '0.8rem',
+              color: '#d97706',
+              fontWeight: 600,
+            }}
+          >
+            ⚠️ You are about to generate QR codes for {effectiveRange.count}{' '}
+            checkpoints. This may take a few moments to compile into high-DPI
+            printable PDF pages.
           </div>
         )}
 
         {/* Generation Progress Indicator */}
         {isGenerating && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                color: 'var(--primary)',
+              }}
+            >
               <span>{progressMsg}</span>
               <span>{progressPercent}%</span>
             </div>
-            <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+            <div
+              style={{
+                width: '100%',
+                height: '8px',
+                backgroundColor: 'var(--bg-tertiary)',
+                borderRadius: '4px',
+                overflow: 'hidden',
+              }}
+            >
               <div
                 style={{
                   width: `${progressPercent}%`,
@@ -521,7 +698,14 @@ export default function BulkQrModal({
         )}
 
         {/* Modal Action Buttons */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '12px',
+            marginTop: '8px',
+          }}
+        >
           <button
             type="button"
             disabled={isGenerating}
@@ -533,7 +717,11 @@ export default function BulkQrModal({
 
           <button
             type="button"
-            disabled={isGenerating || Boolean(effectiveRange.error) || effectiveRange.count <= 0}
+            disabled={
+              isGenerating ||
+              Boolean(effectiveRange.error) ||
+              effectiveRange.count <= 0
+            }
             onClick={() => handleGeneratePdf(true)}
             className="btn btn-secondary"
             style={{ gap: '6px' }}
@@ -544,7 +732,11 @@ export default function BulkQrModal({
 
           <button
             type="button"
-            disabled={isGenerating || Boolean(effectiveRange.error) || effectiveRange.count <= 0}
+            disabled={
+              isGenerating ||
+              Boolean(effectiveRange.error) ||
+              effectiveRange.count <= 0
+            }
             onClick={() => handleGeneratePdf(false)}
             className="btn btn-primary"
             style={{ gap: '6px' }}
@@ -557,117 +749,26 @@ export default function BulkQrModal({
 
       {/*
         OFF-SCREEN CHECKPOINT QR TEMPLATE FOR BULK CAPTURE
-        Reuses the exact approved 52x40 / 40x52 layout as CheckpointQrModal
+        Reuses the exact approved CheckpointQrSticker 52x40 mm Box P component
       */}
-      <div style={{ position: 'fixed', left: '-9999px', top: '-9999px', pointerEvents: 'none', zIndex: -1 }}>
+      <div
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: '-9999px',
+          pointerEvents: 'none',
+          zIndex: -1,
+        }}
+      >
         {activeRenderGate && (
-          <div
+          <CheckpointQrSticker
             ref={hiddenLabelRef}
-            style={{
-              width: paperFormat === '52x40' ? '384px' : '280px',
-              height: paperFormat === '52x40' ? '280px' : '384px',
-              padding: '8px 10px',
-              backgroundColor: '#ffffff',
-              border: '2px solid #000000',
-              borderRadius: '6px',
-              boxSizing: 'border-box',
-              color: '#000000',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-              display: 'flex',
-              flexDirection: paperFormat === '52x40' ? 'row' : 'column',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '6px',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Left Column / Header: Company & Site Name */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: paperFormat === '52x40' ? 'column' : 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                writingMode: paperFormat === '52x40' ? 'vertical-rl' : undefined,
-                transform: paperFormat === '52x40' ? 'rotate(180deg)' : undefined,
-                whiteSpace: 'nowrap',
-                gap: '6px',
-                height: paperFormat === '52x40' ? '100%' : undefined,
-                padding: '0 4px',
-              }}
-            >
-              <div style={{ fontSize: '0.88rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#000000' }}>
-                {companyName || 'HELLO ORBIT'}
-              </div>
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#000000' }}>
-                {siteName || 'Monitored Site'}
-              </div>
-            </div>
-
-            {/* Center: QR Code Image */}
-            <div
-              style={{
-                backgroundColor: '#ffffff',
-                padding: '4px',
-                borderRadius: '10px',
-                border: '2px solid #000000',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto',
-              }}
-            >
-              {activeRenderQrUrl && (
-                <img
-                  src={activeRenderQrUrl}
-                  alt={`QR Code for ${activeRenderGate.name}`}
-                  style={{
-                    width: paperFormat === '52x40' ? '185px' : '180px',
-                    height: paperFormat === '52x40' ? '185px' : '180px',
-                    display: 'block',
-                    borderRadius: '6px',
-                  }}
-                />
-              )}
-            </div>
-
-            {/* Right Column / Footer: Gate Name & Monospace Code */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: paperFormat === '52x40' ? 'column' : 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                writingMode: paperFormat === '52x40' ? 'vertical-rl' : undefined,
-                transform: paperFormat === '52x40' ? 'rotate(180deg)' : undefined,
-                whiteSpace: 'nowrap',
-                gap: '8px',
-                height: paperFormat === '52x40' ? '100%' : undefined,
-                padding: '0 4px',
-              }}
-            >
-              <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#000000' }}>
-                {activeRenderGate.name}
-              </div>
-
-              <div
-                style={{
-                  display: 'inline-block',
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                  fontSize: '0.70rem',
-                  fontWeight: 800,
-                  color: '#000000',
-                  backgroundColor: '#f1f5f9',
-                  border: '1.5px solid #000000',
-                  padding: '4px 10px',
-                  borderRadius: '4px',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                {activeRenderGate.gateCode}
-              </div>
-            </div>
-          </div>
+            companyName={companyName}
+            siteName={siteName}
+            gateName={activeRenderGate.name}
+            gateCode={activeRenderGate.gateCode}
+            qrDataUrl={activeRenderQrUrl}
+          />
         )}
       </div>
     </Modal>
