@@ -45,6 +45,10 @@ git pull origin manager/centralized
 NEW_SHA=$(git rev-parse HEAD)
 echo "PRODUCTION_NEW_SHA=$NEW_SHA"
 
+echo "Ensuring .env points to production database (orbitdb)..."
+sed -i 's|hello_orbit_prod_clone|orbitdb|g' .env || true
+sed -i 's|hello_security|orbitdb|g' .env || true
+
 echo "=== STEP 2: FRESH PRODUCTION DATABASE BACKUP ==="
 mkdir -p /var/backups
 BACKUP_FILE="/var/backups/orbitdb_before_release_{timestamp}.dump"
