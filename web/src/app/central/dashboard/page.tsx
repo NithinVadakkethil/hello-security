@@ -29,7 +29,7 @@ const ROLE_LABELS: Record<string, string> = {
   CLEANER: 'House Keeping',
   SERVICE_ENGINEER: 'Service Engineer',
   SUPERVISOR: 'Supervisor',
-  MANAGER: 'Manager',
+  MANAGER: 'Community Manager',
   LIFE_GUARD: 'Lifeguard',
   PLUMBER: 'Plumber',
 };
@@ -44,7 +44,7 @@ export default function CentralDashboardPage() {
   const searchParams = useSearchParams();
   const clientId = searchParams?.get('clientId') || '';
 
-  const [dateRange, setDateRange] = useState<string>('THIS_MONTH');
+  const [dateRange, setDateRange] = useState<string>('ALL');
   const [customFrom, setCustomFrom] = useState<string>('');
   const [customTo, setCustomTo] = useState<string>('');
 
@@ -58,7 +58,10 @@ export default function CentralDashboardPage() {
     let from: string | undefined;
     let to: string | undefined;
 
-    if (dateRange === 'TODAY') {
+    if (dateRange === 'ALL') {
+      from = undefined;
+      to = undefined;
+    } else if (dateRange === 'TODAY') {
       from = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
     } else if (dateRange === 'YESTERDAY') {
@@ -76,6 +79,9 @@ export default function CentralDashboardPage() {
       from = d.toISOString();
     } else if (dateRange === 'THIS_MONTH') {
       from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    } else if (dateRange === 'THIS_YEAR') {
+      from = new Date(now.getFullYear(), 0, 1).toISOString();
+      to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
     } else if (dateRange === 'CUSTOM' && customFrom && customTo) {
       from = new Date(customFrom).toISOString();
       to = new Date(customTo).toISOString();
@@ -181,15 +187,17 @@ export default function CentralDashboardPage() {
   const clientsList = dashboardData?.clients || [];
   const selectedClient: SelectedClientData | null = dashboardData?.selectedClient || null;
 
-  const getDatePeriodLabel = () => {
+  const getDatePeriodLabel = (): string | undefined => {
     switch (dateRange) {
+      case 'ALL': return undefined;
       case 'TODAY': return 'Today';
       case 'YESTERDAY': return 'Yesterday';
       case 'LAST_7_DAYS': return 'Last 7 Days';
       case 'LAST_30_DAYS': return 'Last 30 Days';
       case 'THIS_MONTH': return 'This Month';
+      case 'THIS_YEAR': return 'This Year';
       case 'CUSTOM': return customFrom && customTo ? `${customFrom} to ${customTo}` : 'Custom Range';
-      default: return 'This Month';
+      default: return undefined;
     }
   };
 
@@ -208,14 +216,23 @@ export default function CentralDashboardPage() {
             <Calendar size={16} className="date-icon" />
             <select
               value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDateRange(val);
+                if (val !== 'CUSTOM') {
+                  setCustomFrom('');
+                  setCustomTo('');
+                }
+              }}
               className="date-select-input"
             >
-              <option value="THIS_MONTH">This Month</option>
+              <option value="ALL">All</option>
               <option value="TODAY">Today</option>
               <option value="YESTERDAY">Yesterday</option>
               <option value="LAST_7_DAYS">Last 7 Days</option>
               <option value="LAST_30_DAYS">Last 30 Days</option>
+              <option value="THIS_MONTH">This Month</option>
+              <option value="THIS_YEAR">This Year</option>
               <option value="CUSTOM">Custom Range</option>
             </select>
           </div>
@@ -276,7 +293,9 @@ export default function CentralDashboardPage() {
           </div>
           <div className="kpi-text-box">
             <span className="global-kpi-value">{global.completedPatrols}</span>
-            <span className="global-kpi-label">Completed Patrols ({getDatePeriodLabel()})</span>
+            <span className="global-kpi-label">
+              Completed Patrols{getDatePeriodLabel() ? ` (${getDatePeriodLabel()})` : ''}
+            </span>
           </div>
         </button>
 

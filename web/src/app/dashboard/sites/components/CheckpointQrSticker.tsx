@@ -19,6 +19,10 @@ export const CheckpointQrSticker = forwardRef<
   HTMLDivElement,
   CheckpointQrStickerProps
 >(({ companyName = 'HELLO ORBIT', siteName, gateName, gateCode, qrDataUrl }, ref) => {
+  const isLongGateName = gateName.length > 25;
+  const isMediumGateName = gateName.length > 15;
+  const gateFontSize = isLongGateName ? '0.92rem' : isMediumGateName ? '0.98rem' : '1.08rem';
+
   return (
     <div
       ref={ref}
@@ -51,10 +55,11 @@ export const CheckpointQrSticker = forwardRef<
           justifyContent: 'center',
           writingMode: 'vertical-rl',
           transform: 'rotate(180deg)',
-          whiteSpace: 'nowrap',
           gap: '6px',
           height: '100%',
+          maxHeight: '260px',
           padding: '0 4px',
+          overflow: 'hidden',
         }}
       >
         <div
@@ -64,6 +69,7 @@ export const CheckpointQrSticker = forwardRef<
             textTransform: 'uppercase',
             letterSpacing: '0.04em',
             color: '#000000',
+            whiteSpace: 'nowrap',
           }}
         >
           {companyName || 'HELLO ORBIT'}
@@ -72,18 +78,23 @@ export const CheckpointQrSticker = forwardRef<
           style={{
             fontFamily:
               'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            fontSize: '0.72rem',
+            fontSize: '0.92rem',
             fontWeight: 800,
             textTransform: 'uppercase',
-            letterSpacing: '0.04em',
+            letterSpacing: '0.03em',
             color: '#000000',
+            textAlign: 'center',
+            lineHeight: 1.15,
+            whiteSpace: 'normal',
+            maxHeight: '170px',
+            wordBreak: 'break-word',
           }}
         >
           {(siteName || 'Monitored Site').toUpperCase()}
         </div>
       </div>
 
-      {/* Center Column: Perfectly Proportioned Square QR Code (185px) */}
+      {/* Center Column: Perfectly Proportioned Square QR Code (146px) */}
       <div
         style={{
           backgroundColor: '#ffffff',
@@ -94,6 +105,7 @@ export const CheckpointQrSticker = forwardRef<
           alignItems: 'center',
           justifyContent: 'center',
           margin: '0 auto',
+          flexShrink: 0,
         }}
       >
         {qrDataUrl ? (
@@ -101,8 +113,8 @@ export const CheckpointQrSticker = forwardRef<
             src={qrDataUrl}
             alt={`QR Code for ${gateName}`}
             style={{
-              width: '185px',
-              height: '185px',
+              width: '146px',
+              height: '146px',
               display: 'block',
               borderRadius: '6px',
             }}
@@ -110,8 +122,8 @@ export const CheckpointQrSticker = forwardRef<
         ) : (
           <div
             style={{
-              width: '185px',
-              height: '185px',
+              width: '146px',
+              height: '146px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -134,21 +146,28 @@ export const CheckpointQrSticker = forwardRef<
           justifyContent: 'center',
           writingMode: 'vertical-rl',
           transform: 'rotate(180deg)',
-          whiteSpace: 'nowrap',
           gap: '8px',
           height: '100%',
+          maxHeight: '260px',
           padding: '0 4px',
+          overflow: 'hidden',
+          flex: 1,
         }}
       >
         <div
           style={{
             fontFamily:
               'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            fontSize: '0.86rem',
+            fontSize: gateFontSize,
             fontWeight: 800,
             textTransform: 'uppercase',
-            letterSpacing: '0.04em',
+            letterSpacing: '0.03em',
             color: '#000000',
+            textAlign: 'center',
+            lineHeight: 1.2,
+            whiteSpace: 'normal',
+            maxHeight: '190px',
+            wordBreak: 'break-word',
           }}
         >
           {(gateName || '').toUpperCase()}
@@ -166,6 +185,8 @@ export const CheckpointQrSticker = forwardRef<
             border: '1.5px solid #000000',
             padding: '4px 10px',
             borderRadius: '6px',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
           }}
         >
           CHECKPOINT ID: {gateCode}
@@ -178,6 +199,7 @@ export const CheckpointQrSticker = forwardRef<
           height: '100%',
           borderLeft: '1.5px dashed #000000',
           margin: '0 3px',
+          flexShrink: 0,
         }}
       />
 
@@ -194,6 +216,7 @@ export const CheckpointQrSticker = forwardRef<
           gap: '6px',
           height: '100%',
           padding: '0 4px',
+          flexShrink: 0,
         }}
       >
         <div

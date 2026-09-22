@@ -22,7 +22,7 @@ const ROLE_LABELS: Record<string, string> = {
   CLEANER: 'House Keeping',
   SERVICE_ENGINEER: 'Service Engineer',
   SUPERVISOR: 'Supervisor',
-  MANAGER: 'Manager',
+  MANAGER: 'Community Manager',
   LIFE_GUARD: 'Lifeguard',
   PLUMBER: 'Plumber',
 };
@@ -53,6 +53,8 @@ export default function CentralEmployeesPage() {
   const [selectedRole, setSelectedRole] = useState<string>(searchParams?.get('role') || '');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
+
+  const isAllRoles = !selectedRole || selectedRole === 'ALL' || selectedRole === 'All Roles';
 
   useEffect(() => {
     const roleParam = searchParams?.get('role') || '';
@@ -103,7 +105,9 @@ export default function CentralEmployeesPage() {
     try {
       const params = new URLSearchParams();
       params.set('clientId', targetClientId);
-      if (roleFilter) params.set('role', roleFilter);
+      if (roleFilter && roleFilter !== 'ALL' && roleFilter !== 'All Roles') {
+        params.set('role', roleFilter);
+      }
       if (searchQuery) params.set('search', searchQuery);
 
       const res: any = await apiClient.get(`/central-manager/employees?${params.toString()}`);
@@ -122,6 +126,19 @@ export default function CentralEmployeesPage() {
       fetchEmployees(clientId, selectedRole, search);
     }
   }, [clientId, selectedRole, search]);
+
+  const handleRoleChange = (role: string) => {
+    setSelectedRole(role);
+    setPage(1);
+    const newParams = new URLSearchParams(searchParams?.toString() || '');
+    if (!role || role === 'ALL' || role === 'All Roles') {
+      newParams.delete('role');
+    } else {
+      newParams.set('role', role);
+    }
+    const queryString = newParams.toString();
+    router.replace(`/central/employees${queryString ? `?${queryString}` : ''}`);
+  };
 
   const handleSelectOrganization = (id: string) => {
     setSelectedRole('');
@@ -282,23 +299,26 @@ export default function CentralEmployeesPage() {
       <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
         <button
           type="button"
-          onClick={() => setSelectedRole('ALL')}
-          className={`btn ${selectedRole === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => handleRoleChange('')}
+          className={`btn ${isAllRoles ? 'btn-primary' : 'btn-secondary'}`}
           style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: '20px', whiteSpace: 'nowrap' }}
         >
           All Roles ({roleCounts.total})
         </button>
-        {roleCounts.byRole.map((r) => (
-          <button
-            key={r.role}
-            type="button"
-            onClick={() => setSelectedRole(r.role)}
-            className={`btn ${selectedRole === r.role ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: '20px', whiteSpace: 'nowrap' }}
-          >
-            {getRoleLabel(r.role)} ({r.count})
-          </button>
-        ))}
+        {roleCounts.byRole.map((r) => {
+          const isSelected = !isAllRoles && selectedRole === r.role;
+          return (
+            <button
+              key={r.role}
+              type="button"
+              onClick={() => handleRoleChange(r.role)}
+              className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: '20px', whiteSpace: 'nowrap' }}
+            >
+              {getRoleLabel(r.role)} ({r.count})
+            </button>
+          );
+        })}
       </div>
 
       {/* Table Filters & Search Bar */}
