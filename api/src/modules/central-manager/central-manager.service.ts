@@ -3,6 +3,7 @@ import { assertCentralManagerClientAccess } from '../../common/auth/central-mana
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
+import { compareEmployeesByRoleOrder } from '../../common/utils/role-order.util';
 import { prisma } from '../../database/prisma';
 import { reportService } from '../report/report.service';
 import { ReportQueryDto } from '../report/report.types';
@@ -215,22 +216,21 @@ export class CentralManagerService {
         : {}),
     };
 
-    const [total, data] = await Promise.all([
-      prisma.employee.count({ where }),
-      prisma.employee.findMany({
-        where,
-        include: {
-          client: { select: { id: true, companyName: true, clientCode: true } },
-          assignments: {
-            where: { isActive: true },
-            include: { site: { select: { name: true } } },
-          },
+    const allMatchingEmployees = await prisma.employee.findMany({
+      where,
+      include: {
+        client: { select: { id: true, companyName: true, clientCode: true } },
+        assignments: {
+          where: { isActive: true },
+          include: { site: { select: { name: true } } },
         },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-    ]);
+      },
+    });
+
+    allMatchingEmployees.sort(compareEmployeesByRoleOrder);
+
+    const total = allMatchingEmployees.length;
+    const data = params.limit ? allMatchingEmployees.slice(skip, skip + limit) : allMatchingEmployees;
 
     return {
       data,

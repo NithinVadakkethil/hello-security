@@ -15,6 +15,8 @@ import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
 import ConfirmationDialog from '../../components/ui/ConfirmationDialog';
 
+import { compareEmployeesByRoleOrder } from '@/lib/role-order';
+
 interface Employee {
   id: string;
   employeeNumber: string;
@@ -174,7 +176,7 @@ export default function EmployeesPage() {
     employees = employees.filter((c) => c.status === statusFilter);
   }
 
-  // Active-first sorting rule
+  // Role-priority sorting rule
   const sortedEmployees = [...employees].sort((a, b) => {
     const aIsActive = a.status === 'ACTIVE';
     const bIsActive = b.status === 'ACTIVE';
@@ -182,13 +184,12 @@ export default function EmployeesPage() {
       return aIsActive ? -1 : 1;
     }
 
+    if (sortBy === 'createdAt') {
+      return compareEmployeesByRoleOrder(a, b);
+    }
+
     let aVal: any = a[sortBy as keyof Employee] ?? '';
     let bVal: any = b[sortBy as keyof Employee] ?? '';
-
-    if (sortBy === 'createdAt') {
-      aVal = new Date(a.createdAt).getTime();
-      bVal = new Date(b.createdAt).getTime();
-    }
 
     if (typeof aVal === 'string') {
       return sortOrder === 'asc'

@@ -14,6 +14,7 @@ import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
+import { compareEmployeesByRoleOrder } from '@/lib/role-order';
 
 const ROLE_LABELS: Record<string, string> = {
   SECURITY: 'Security Guard',
@@ -154,11 +155,13 @@ export default function CentralEmployeesPage() {
     router.push('/central/employees');
   };
 
-  // Filter employees locally for status filter
-  const filteredEmployees = employees.filter((emp) => {
-    if (statusFilter !== 'ALL' && emp.status !== statusFilter) return false;
-    return true;
-  });
+  // Filter employees locally for status filter and sort by role priority
+  const filteredEmployees = employees
+    .filter((emp) => {
+      if (statusFilter !== 'ALL' && emp.status !== statusFilter) return false;
+      return true;
+    })
+    .sort(compareEmployeesByRoleOrder);
 
   // Pagination calculation
   const limit = pageSize === 'all' ? filteredEmployees.length : Number(pageSize);

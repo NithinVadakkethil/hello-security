@@ -1,4 +1,5 @@
 import { prisma } from '../../database/prisma';
+import { getRolePriority } from '../../common/utils/role-order.util';
 
 export class AssignmentRepository {
   create(data: any) {
@@ -441,6 +442,12 @@ export class AssignmentRepository {
         id: true,
         firstName: true,
         lastName: true,
+        role: true,
+        user: {
+          select: {
+            role: true,
+          },
+        },
         assignments: {
           where: {
             clientId,
@@ -453,13 +460,23 @@ export class AssignmentRepository {
       },
     });
 
-    // Step 2: Perform global active-first, inactive-last sorting before pagination
+    // Step 2: Perform global active-first position, then role-priority and name sorting before pagination
     matchingEmployees.sort((a, b) => {
       const aActive = a.assignments.length > 0 ? 1 : 0;
       const bActive = b.assignments.length > 0 ? 1 : 0;
       if (aActive !== bActive) {
         return bActive - aActive; // Active employees (1) come before inactive (0)
       }
+
+      const roleA = a.role || a.user?.role;
+      const roleB = b.role || b.user?.role;
+      const pA = getRolePriority(roleA);
+      const pB = getRolePriority(roleB);
+
+      if (pA !== pB) {
+        return pA - pB;
+      }
+
       const nameA = `${a.firstName || ''} ${a.lastName || ''}`.trim().toLowerCase();
       const nameB = `${b.firstName || ''} ${b.lastName || ''}`.trim().toLowerCase();
       return nameA.localeCompare(nameB);

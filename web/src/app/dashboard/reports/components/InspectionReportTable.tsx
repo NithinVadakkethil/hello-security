@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowUpDown, Eye } from 'lucide-react';
 import Pagination from '../../../components/ui/Pagination';
 import StatusChip from '../../../components/ui/StatusChip';
 import { formatPatrolDateTime } from '@/lib/date-formatter';
+import { formatEmployeeRole } from '@/lib/role-order';
 
 export interface InspectionRow {
   id: string;
@@ -19,6 +20,7 @@ export interface InspectionRow {
       lastName: string;
       employeeNumber: string;
       photo?: string | null;
+      role?: string | null;
     };
     site: {
       name: string;
@@ -158,6 +160,7 @@ export default function InspectionReportTable({
                 </div>
               </th>
               <th style={{ padding: '12px 16px' }}>Security Officer</th>
+              <th style={{ padding: '12px 16px' }}>Role</th>
               <th style={{ padding: '12px 16px' }}>Monitored Site</th>
               <th style={{ padding: '12px 16px' }}>Route / Target</th>
               <th style={{ padding: '12px 16px' }}>Status</th>
@@ -304,6 +307,26 @@ export default function InspectionReportTable({
                           </div>
                         </div>
                       </div>
+                    </td>
+                    <td style={{ padding: '14px 16px' }}>
+                      <span
+                        style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: 'var(--bg-tertiary, rgba(148, 163, 184, 0.12))',
+                          color: 'var(--text-primary)',
+                          display: 'inline-block',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {formatEmployeeRole(
+                          row.assignment?.employee?.role ||
+                            (row as any).employee?.role ||
+                            (row as any).managerUser?.role,
+                        )}
+                      </span>
                     </td>
                     <td style={{ padding: '14px 16px', fontWeight: 500 }}>
                       {row.assignment?.site?.name || 'N/A'}

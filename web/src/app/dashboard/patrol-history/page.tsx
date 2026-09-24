@@ -7,7 +7,7 @@ export default function PatrolHistoryRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/dashboard/patrol-sessions?tab=history');
+    router.replace('/dashboard/completed-patrols');
   }, [router]);
 
   return null;

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Search, Calendar, Filter, RefreshCw, Download, Printer } from 'lucide-react';
+import SearchableSelect, { SearchableOption } from './SearchableSelect';
 
 export interface FilterState {
   datePreset: string;
@@ -20,9 +21,9 @@ interface AdvancedFilterPanelProps {
   onReset: () => void;
   onExportCsv: () => void;
   onPrint: () => void;
-  employees: { id: string; firstName: string; lastName: string }[];
+  employees: { id: string; firstName: string; lastName: string; employeeNumber?: string; employeeCode?: string; email?: string }[];
   sites: { id: string; name: string }[];
-  checkpoints: { id: string; name: string; gateCode?: string }[];
+  checkpoints: { id: string; name: string; gateCode?: string; code?: string; floor?: string }[];
   isExporting?: boolean;
 }
 
@@ -56,6 +57,27 @@ export default function AdvancedFilterPanel({
   checkpoints,
   isExporting = false,
 }: AdvancedFilterPanelProps) {
+  const officerOptions: SearchableOption[] = employees.map((emp) => {
+    const name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || '—';
+    const code = emp.employeeNumber || emp.employeeCode || undefined;
+    return {
+      id: emp.id,
+      label: name,
+      subLabel: code ? `${code}` : undefined,
+      searchValues: [name, code, emp.email],
+    };
+  });
+
+  const checkpointOptions: SearchableOption[] = checkpoints.map((gate) => {
+    const code = gate.gateCode || gate.code || undefined;
+    return {
+      id: gate.id,
+      label: gate.name,
+      subLabel: code ? `${code}` : undefined,
+      searchValues: [gate.name, code, gate.floor],
+    };
+  });
+
   return (
     <div className="glass-card" style={{ padding: '24px', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Top Bar: Title & Primary Actions */}
@@ -195,28 +217,18 @@ export default function AdvancedFilterPanel({
           </div>
         </div>
 
-        {/* Security Officer Select */}
+        {/* Security Officer Searchable Select */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Security Officer</label>
-          <select
+          <SearchableSelect
             value={filters.employeeId}
-            onChange={(e) => onFilterChange({ employeeId: e.target.value })}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              backgroundColor: 'var(--bg-color)',
-              color: 'var(--text-primary)',
-              fontSize: '0.85rem',
-            }}
-          >
-            <option value="">All Security Officers</option>
-            {employees.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.firstName} {emp.lastName}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => onFilterChange({ employeeId: val })}
+            options={officerOptions}
+            defaultLabel="All Security Officers"
+            searchPlaceholder="Search security officers..."
+            emptyMessage="No security officers found."
+            ariaLabel="Select Security Officer"
+          />
         </div>
 
         {/* Monitored Site Select */}
@@ -243,32 +255,20 @@ export default function AdvancedFilterPanel({
           </select>
         </div>
 
-        {/* Checkpoint / Gate Select */}
+        {/* Checkpoint / Gate Searchable Select */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
             Checkpoint / Gate
           </label>
-          <select
+          <SearchableSelect
             value={filters.gateId}
-            onChange={(e) => onFilterChange({ gateId: e.target.value })}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              backgroundColor: 'var(--bg-color)',
-              color: 'var(--text-primary)',
-              fontSize: '0.85rem',
-            }}
-          >
-            <option value="">
-              {filters.siteId ? 'All Checkpoints in Site' : 'All Checkpoints'}
-            </option>
-            {checkpoints.map((gate) => (
-              <option key={gate.id} value={gate.id}>
-                {gate.name} {gate.gateCode ? `(${gate.gateCode})` : ''}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => onFilterChange({ gateId: val })}
+            options={checkpointOptions}
+            defaultLabel={filters.siteId ? 'All Checkpoints in Site' : 'All Checkpoints'}
+            searchPlaceholder="Search checkpoints..."
+            emptyMessage="No checkpoints found."
+            ariaLabel="Select Checkpoint or Gate"
+          />
         </div>
 
         {/* Status Select */}

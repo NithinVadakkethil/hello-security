@@ -67,6 +67,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
   const scannedAssignedCount = new Set(scannedGateIds.filter((id: string) => expectedGatesSet.has(id))).size;
 
   const completedCount = isManagerSession ? (scans.length ? totalGates : 0) : scannedAssignedCount;
+  const unscannedCount = Math.max(0, totalGates - completedCount);
   const compliancePct = totalGates > 0 ? Math.round((completedCount / totalGates) * 100) : 100;
   const durationMins = report.totalDuration ? Math.round(report.totalDuration / 60) : 0;
 
@@ -138,40 +139,109 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
         </div>
 
         {/* Inspection Meta Information */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-          <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Security Officer</div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-              {report.assignment?.employee?.firstName} {report.assignment?.employee?.lastName}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-              ID: {report.assignment?.employee?.employeeNumber}
-            </div>
-          </div>
+        {(() => {
+          const emp = report.assignment?.employee || report.employee;
+          const mgrEmp = report.managerUser?.employee;
+          const officerName = emp
+            ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.name || emp.email || '—'
+            : mgrEmp
+            ? `${mgrEmp.firstName || ''} ${mgrEmp.lastName || ''}`.trim() || '—'
+            : report.managerUser?.email || (report.user ? `${report.user.firstName || ''} ${report.user.lastName || ''}`.trim() || report.user.name : '') || (report.officerName && report.officerName !== 'Inspector' ? report.officerName : '—');
+          const officerCode = emp?.employeeNumber || emp?.employeeCode || mgrEmp?.employeeNumber || report.employeeCode || null;
 
-          <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Monitored Site</div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{report.assignment?.site?.name}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              {report.assignment?.site?.address || 'Standard Location'}
-            </div>
-          </div>
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+              <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Security Officer / Inspector</div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{officerName}</div>
+                {officerCode && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                    ID: {officerCode}
+                  </div>
+                )}
+              </div>
 
-          <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Route / Target</div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-              {report.assignment?.patrolRoute?.name || '🚧 Direct Checkpoints'}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              Shift: {report.assignment?.shift?.startTime} - {report.assignment?.shift?.endTime}
-            </div>
-          </div>
+              <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Monitored Site</div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{report.assignment?.site?.name || 'N/A'}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  {report.assignment?.site?.address || 'Standard Location'}
+                </div>
+              </div>
 
-          <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Status & Duration</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
-              <StatusChip status={report.status} />
-              <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{durationMins} mins</span>
+              <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Route / Target</div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                  {report.assignment?.patrolRoute?.name || '🚧 Direct Checkpoints'}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  Shift: {report.assignment?.shift?.startTime || '—'} - {report.assignment?.shift?.endTime || '—'}
+                </div>
+              </div>
+
+              <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Status & Duration</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                  <StatusChip status={report.status} />
+                  <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{durationMins} mins</span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Checkpoint Scan Summary */}
+        <div>
+          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+            Checkpoint Scan Summary
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px' }}>
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                backgroundColor: 'var(--bg-color)',
+              }}
+            >
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>
+                Total Checkpoints
+              </div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary, #3b82f6)', marginTop: '2px' }}>
+                {totalGates}
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: '8px',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                backgroundColor: 'rgba(16, 185, 129, 0.05)',
+              }}
+            >
+              <div style={{ fontSize: '0.72rem', color: '#10b981', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>
+                Scanned
+              </div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981', marginTop: '2px' }}>
+                {completedCount}
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: '8px',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                backgroundColor: 'rgba(239, 68, 68, 0.05)',
+              }}
+            >
+              <div style={{ fontSize: '0.72rem', color: '#ef4444', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>
+                Unscanned
+              </div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ef4444', marginTop: '2px' }}>
+                {unscannedCount}
+              </div>
             </div>
           </div>
         </div>

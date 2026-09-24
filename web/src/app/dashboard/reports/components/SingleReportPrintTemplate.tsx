@@ -634,12 +634,16 @@ export default function SingleReportPrintTemplate({
 
   if (!report || !mounted) return null;
 
-  const guardName = report.assignment?.employee
-    ? `${report.assignment.employee.firstName} ${report.assignment.employee.lastName}`
-    : '';
+  const emp = report.assignment?.employee || report.employee;
+  const mgrEmp = report.managerUser?.employee;
+  const guardName = emp
+    ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.name || emp.email || '—'
+    : mgrEmp
+    ? `${mgrEmp.firstName || ''} ${mgrEmp.lastName || ''}`.trim() || '—'
+    : report.managerUser?.email || (report.user ? `${report.user.firstName || ''} ${report.user.lastName || ''}`.trim() || report.user.name : '') || (report.officerName && report.officerName !== 'Inspector' ? report.officerName : '—');
 
   const officerRole =
-    report.assignment?.employee?.role || report.employeeRole || 'SECURITY';
+    emp?.role || mgrEmp?.role || report.employeeRole || (report.managerUserId ? 'MANAGER' : 'SECURITY');
 
   const checkpointsTimeline = buildCheckpointTimeline(
     report,

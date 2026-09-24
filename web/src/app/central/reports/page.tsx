@@ -14,6 +14,23 @@ import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
 import { formatPatrolDateTime } from '@/lib/date-formatter';
 
+const ROLE_LABELS: Record<string, string> = {
+  SECURITY: 'Security Guard',
+  SECURITY_GUARD: 'Security Guard',
+  TECHNICIAN: 'Technician',
+  CLEANER: 'House Keeping',
+  SERVICE_ENGINEER: 'Service Engineer',
+  SUPERVISOR: 'Supervisor',
+  MANAGER: 'Community Manager',
+  LIFE_GUARD: 'Lifeguard',
+  PLUMBER: 'Plumber',
+};
+
+function getRoleLabel(role?: string): string {
+  if (!role) return 'Security Guard';
+  return ROLE_LABELS[role.toUpperCase()] || role.replace('_', ' ');
+}
+
 export default function CentralReportsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -182,17 +199,51 @@ export default function CentralReportsPage() {
       key: 'officer',
       label: 'Employee / Inspector',
       render: (row: any) => {
-        const officerName = row.user
-          ? `${row.user.firstName || ''} ${row.user.lastName || ''}`.trim() || row.user.name || row.user.email
-          : row.officerName || 'Inspector';
-        return <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{officerName}</span>;
+        const emp = row.assignment?.employee || row.employee;
+        const mgrEmp = row.managerUser?.employee;
+
+        let officerName = '—';
+        let empCode: string | null = null;
+
+        if (emp) {
+          officerName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.name || emp.email || '—';
+          empCode = emp.employeeNumber || emp.employeeCode || null;
+        } else if (mgrEmp) {
+          officerName = `${mgrEmp.firstName || ''} ${mgrEmp.lastName || ''}`.trim() || '—';
+          empCode = mgrEmp.employeeNumber || null;
+        } else if (row.managerUser?.email) {
+          officerName = row.managerUser.email;
+        } else if (row.user) {
+          officerName = `${row.user.firstName || ''} ${row.user.lastName || ''}`.trim() || row.user.name || row.user.email || '—';
+        } else if (row.officerName && row.officerName !== 'Inspector') {
+          officerName = row.officerName;
+        }
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>{officerName}</span>
+            {empCode && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                {empCode}
+              </span>
+            )}
+          </div>
+        );
       },
     },
     {
       key: 'role',
       label: 'Role',
       render: (row: any) => {
-        const userRole = row.user?.role || row.userRole || row.role || 'SECURITY_GUARD';
+        const rawRole =
+          row.assignment?.employee?.role ||
+          row.employee?.role ||
+          row.managerUser?.employee?.role ||
+          row.user?.role ||
+          row.userRole ||
+          row.role ||
+          (row.managerUserId ? 'MANAGER' : 'SECURITY_GUARD');
+
         return (
           <span
             style={{
@@ -205,7 +256,7 @@ export default function CentralReportsPage() {
               textTransform: 'uppercase',
             }}
           >
-            {userRole.replace('_', ' ')}
+            {getRoleLabel(rawRole)}
           </span>
         );
       },

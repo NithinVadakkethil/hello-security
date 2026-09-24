@@ -1,5 +1,6 @@
 import { EmployeeStatus, Prisma } from '@prisma/client';
 import { SupervisorScope } from '../../common/auth/supervisor-scope';
+import { compareEmployeesByRoleOrder } from '../../common/utils/role-order.util';
 
 import { prisma } from '../../database/prisma';
 
@@ -66,9 +67,9 @@ export class EmployeeRepository {
     });
   }
 
-  list(clientId: string, status?: EmployeeStatus | 'ALL', scope?: SupervisorScope | null, search?: string) {
+  async list(clientId: string, status?: EmployeeStatus | 'ALL', scope?: SupervisorScope | null, search?: string) {
     const searchTrimmed = search?.trim();
-    return prisma.employee.findMany({
+    const employees = await prisma.employee.findMany({
       where: {
         clientId,
         ...(status && status !== 'ALL' ? { status } : {}),
@@ -89,11 +90,9 @@ export class EmployeeRepository {
       include: {
         user: true,
       },
-      orderBy: [
-        { status: 'asc' },
-        { createdAt: 'desc' },
-      ],
     });
+
+    return employees.sort(compareEmployeesByRoleOrder);
   }
 
   delete(id: string) {

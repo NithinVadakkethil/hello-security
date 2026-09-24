@@ -383,15 +383,18 @@ export class ReportService {
 
   buildPatrolReportHtml(report: any): string {
     const isManagerSession = !!report.managerUserId;
-    const guardName = isManagerSession
-      ? `${report.managerUser?.employee?.firstName || report.managerUser?.email || 'Manager'} ${report.managerUser?.employee?.lastName || ''}`.trim()
-      : report.assignment?.employee
-      ? `${report.assignment.employee.firstName} ${report.assignment.employee.lastName || ''}`.trim()
-      : '';
+    const emp = report.assignment?.employee || report.employee;
+    const mgrEmp = report.managerUser?.employee;
+
+    const guardName = emp
+      ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.name || emp.email || '—'
+      : mgrEmp
+      ? `${mgrEmp.firstName || ''} ${mgrEmp.lastName || ''}`.trim() || '—'
+      : report.managerUser?.email || (report.user ? `${report.user.firstName || ''} ${report.user.lastName || ''}`.trim() || report.user.name : '') || (report.officerName && report.officerName !== 'Inspector' ? report.officerName : '—');
 
     const officerRole = isManagerSession
       ? 'MANAGER'
-      : (report.assignment?.employee?.role || report.employeeRole || 'SECURITY');
+      : (emp?.role || report.employeeRole || 'SECURITY');
 
     const checkpointsTimeline = buildCheckpointTimeline(
       report,

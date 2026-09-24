@@ -10,6 +10,7 @@ export class DashboardRepository {
       routes,
       assignments,
       activePatrols,
+      completedPatrols,
       clientInfo,
     ] = await Promise.all([
       prisma.employee.count({
@@ -65,6 +66,13 @@ export class DashboardRepository {
         },
       }),
 
+      prisma.patrolSession.count({
+        where: {
+          ...(clientId && { clientId }),
+          status: 'COMPLETED',
+        },
+      }),
+
       clientId
         ? prisma.client.findUnique({
             where: { id: clientId },
@@ -88,6 +96,7 @@ export class DashboardRepository {
       routes,
       assignments,
       activePatrols,
+      completedPatrols,
       clientBranding: clientInfo
         ? {
             companyName: clientInfo.companyName,

@@ -117,12 +117,9 @@ export default function PatrolSessionDetailPage() {
   const queryClient = useQueryClient();
 
   const queryStr = searchParams.toString();
-  const backHref = queryStr
-    ? `/dashboard/patrol-sessions?${queryStr}`
-    : '/dashboard/patrol-sessions';
-
-  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
-  const [completeRemarks, setCompleteRemarks] = useState('');
+  const fromCompleted =
+    searchParams.get('from') === 'completed' ||
+    searchParams.get('tab') === 'history';
 
   // Fetch Patrol Session details
   const {
@@ -139,6 +136,13 @@ export default function PatrolSessionDetailPage() {
   });
 
   const session = sessionRes?.data;
+  const isCompletedSession = fromCompleted || session?.status === 'COMPLETED';
+  const baseBackPath = isCompletedSession
+    ? '/dashboard/completed-patrols'
+    : '/dashboard/active-patrols';
+  const backHref = queryStr ? `${baseBackPath}?${queryStr}` : baseBackPath;
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [completeRemarks, setCompleteRemarks] = useState('');
 
   // Pause mutation
   const pauseMutation = useMutation({

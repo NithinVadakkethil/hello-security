@@ -551,9 +551,11 @@ export class PatrolCheckpointService {
                   })
                 : null;
 
-              const existingResp = resp.gateSubTaskId
+              const validGateSubTaskId = subTaskInfo ? resp.gateSubTaskId : undefined;
+
+              const existingResp = validGateSubTaskId
                 ? await tx.patrolSubTaskResponse.findFirst({
-                    where: { patrolCheckpointId: cp.id, gateSubTaskId: resp.gateSubTaskId },
+                    where: { patrolCheckpointId: cp.id, gateSubTaskId: validGateSubTaskId },
                   })
                 : null;
 
@@ -565,8 +567,8 @@ export class PatrolCheckpointService {
                     remarks: resp.remarks?.trim() || null,
                     images: resp.images || [],
                     answeredAt,
-                    taskNameSnapshot: subTaskInfo?.taskName || existingResp.taskNameSnapshot,
-                    roleSnapshot: subTaskInfo?.role || existingResp.roleSnapshot,
+                    taskNameSnapshot: subTaskInfo?.taskName || existingResp.taskNameSnapshot || 'Verification Sub-Task',
+                    roleSnapshot: subTaskInfo?.role || existingResp.roleSnapshot || userRole,
                     descriptionSnapshot: subTaskInfo?.description || existingResp.descriptionSnapshot,
                     isRequiredSnapshot: subTaskInfo?.isRequired ?? existingResp.isRequiredSnapshot ?? true,
                   },
@@ -575,13 +577,13 @@ export class PatrolCheckpointService {
                 await tx.patrolSubTaskResponse.create({
                   data: {
                     patrolCheckpointId: cp.id,
-                    gateSubTaskId: resp.gateSubTaskId || undefined,
+                    gateSubTaskId: validGateSubTaskId,
                     answer: resp.answer,
                     remarks: resp.remarks?.trim() || null,
                     images: resp.images || [],
                     answeredAt,
-                    taskNameSnapshot: subTaskInfo?.taskName || null,
-                    roleSnapshot: subTaskInfo?.role || null,
+                    taskNameSnapshot: subTaskInfo?.taskName || (resp as any).taskName || 'Verification Sub-Task',
+                    roleSnapshot: subTaskInfo?.role || userRole,
                     descriptionSnapshot: subTaskInfo?.description || null,
                     isRequiredSnapshot: subTaskInfo?.isRequired ?? true,
                   },

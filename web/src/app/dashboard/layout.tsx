@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   Calendar,
+  CheckCircle2,
   FileText,
   LogOut,
   MapPin,
@@ -90,15 +91,15 @@ export default function DashboardLayout({
           icon: FileText,
         },
         {
-          href: '/dashboard/patrol-sessions',
+          href: '/dashboard/active-patrols',
           label: 'Active Patrols',
           icon: Activity,
         },
-        // {
-        //   href: '/dashboard/patrol-history',
-        //   label: 'Patrol History',
-        //   icon: Clock,
-        // },
+        {
+          href: '/dashboard/completed-patrols',
+          label: 'Completed Patrols',
+          icon: CheckCircle2,
+        },
         {
           href: '/dashboard/incidents',
           label: 'Observation Reports',

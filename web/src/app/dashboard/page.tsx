@@ -5,6 +5,7 @@ import {
   Activity,
   ArrowRight,
   Calendar,
+  CheckCircle2,
   Clock,
   FileText,
   Lock,
@@ -29,6 +30,7 @@ interface DashboardCounts {
   routes: number;
   assignments: number;
   activePatrols: number;
+  completedPatrols: number;
 }
 
 interface SuperAdminDashboardData {
@@ -179,7 +181,7 @@ export default function DashboardPage() {
               </Link>
 
               <Link
-                href="/dashboard/patrol-sessions"
+                href="/dashboard/active-patrols"
                 style={cardStyle}
                 className="stat-card-solid hover-effect"
                 aria-label="View Active Patrols"
@@ -193,6 +195,26 @@ export default function DashboardPage() {
                   <div className="stat-info">
                     <p style={labelStyle}>Active Patrols</p>
                     <h3 style={valueStyle}>{counts?.activePatrols ?? 0}</h3>
+                  </div>
+                </div>
+                <ArrowRight size={16} className="card-arrow" />
+              </Link>
+
+              <Link
+                href="/dashboard/completed-patrols"
+                style={cardStyle}
+                className="stat-card-solid hover-effect"
+                aria-label="View Completed Patrols"
+              >
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
+                >
+                  <div className="stat-icon-wrapper emerald">
+                    <CheckCircle2 size={20} />
+                  </div>
+                  <div className="stat-info">
+                    <p style={labelStyle}>Completed Patrols</p>
+                    <h3 style={valueStyle}>{counts?.completedPatrols ?? 0}</h3>
                   </div>
                 </div>
                 <ArrowRight size={16} className="card-arrow" />
@@ -518,7 +540,7 @@ export default function DashboardPage() {
             right: 24px;
             z-index: 10;
             display: grid;
-            grid-template-columns: repeat(6, minmax(0, 1fr));
+            grid-template-columns: repeat(7, minmax(0, 1fr));
             gap: 14px;
           }
           .stat-card-solid {
@@ -614,9 +636,12 @@ export default function DashboardPage() {
             margin-top: 24px;
           }
 
-          @media (max-width: 1279px) {
+          @media (max-width: 1399px) {
             .hero-large-container {
-              min-height: 420px !important;
+              min-height: 440px !important;
+            }
+            .floating-kpi-overlay {
+              grid-template-columns: repeat(4, minmax(0, 1fr));
             }
           }
           @media (max-width: 1023px) {
@@ -683,6 +708,9 @@ export default function DashboardPage() {
           }
           .stat-icon-wrapper.green {
             background: #10b981;
+          }
+          .stat-icon-wrapper.emerald {
+            background: #059669;
           }
           .stat-icon-wrapper.cyan {
             background: #06b6d4;

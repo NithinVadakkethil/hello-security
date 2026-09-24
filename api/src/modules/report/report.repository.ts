@@ -106,6 +106,22 @@ export class ReportRepository {
           },
         },
         {
+          managerUser: {
+            OR: [
+              { email: { contains: s, mode: 'insensitive' } },
+              {
+                employee: {
+                  OR: [
+                    { firstName: { contains: s, mode: 'insensitive' } },
+                    { lastName: { contains: s, mode: 'insensitive' } },
+                    { employeeNumber: { contains: s, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+        {
           assignment: {
             site: {
               name: { contains: s, mode: 'insensitive' },
