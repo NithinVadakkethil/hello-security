@@ -401,11 +401,10 @@ export class ReportService {
       guardName,
       officerRole,
     );
-    const incidents = report.incidents || [];
     const snags = report.snags || [];
-
     const totalGates = checkpointsTimeline.length;
     const scannedCount = checkpointsTimeline.filter((c) => c.scanned).length;
+    const pendingGatesCount = Math.max(totalGates - scannedCount, 0);
     const gateCompliancePct =
       totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
 
@@ -420,8 +419,7 @@ export class ReportService {
         if (t.answer === 'YES') {
           allTasksYes++;
           allTasksCompleted++;
-        }
-        if (t.answer === 'NO') {
+        } else if (t.answer === 'NO') {
           allTasksNo++;
           allTasksCompleted++;
         }
@@ -430,7 +428,8 @@ export class ReportService {
 
     const taskCompliancePct =
       allTasksTotal > 0 ? Math.round((allTasksYes / allTasksTotal) * 100) : 100;
-    const totalIssuesCount = snags.length + incidents.length;
+    const completedTasksCount = allTasksCompleted;
+    const notCompletedTasksCount = Math.max(allTasksTotal - completedTasksCount, 0);
 
     const employeeId = isManagerSession
       ? (report.managerUser?.employee?.employeeNumber || 'MGR')
@@ -579,7 +578,7 @@ export class ReportService {
 
     .rpt-summary-grid {
       display: grid;
-      grid-template-columns: repeat(6, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 4px;
       margin-bottom: 10px;
     }
@@ -879,24 +878,20 @@ export class ReportService {
         <div class="rpt-kpi-val">${scannedCount} / ${totalGates}</div>
       </div>
       <div class="rpt-kpi-box">
+        <div class="rpt-kpi-label">Pending Gates to Scan</div>
+        <div class="rpt-kpi-val">${pendingGatesCount}</div>
+      </div>
+      <div class="rpt-kpi-box">
         <div class="rpt-kpi-label">Gate Compliance</div>
         <div class="rpt-kpi-val blue">${gateCompliancePct}%</div>
       </div>
       <div class="rpt-kpi-box">
-        <div class="rpt-kpi-label">Task Compliance</div>
-        <div class="rpt-kpi-val blue">${taskCompliancePct}%</div>
+        <div class="rpt-kpi-label">Completed Tasks</div>
+        <div class="rpt-kpi-val green">${completedTasksCount}</div>
       </div>
       <div class="rpt-kpi-box">
-        <div class="rpt-kpi-label">Completed</div>
-        <div class="rpt-kpi-val green">${allTasksYes}</div>
-      </div>
-      <div class="rpt-kpi-box">
-        <div class="rpt-kpi-label">Not Completed</div>
-        <div class="rpt-kpi-val red">${allTasksNo}</div>
-      </div>
-      <div class="rpt-kpi-box">
-        <div class="rpt-kpi-label">Issues Reported</div>
-        <div class="rpt-kpi-val red">${totalIssuesCount}</div>
+        <div class="rpt-kpi-label">Not Completed Tasks</div>
+        <div class="rpt-kpi-val red">${notCompletedTasksCount}</div>
       </div>
     </div>
 

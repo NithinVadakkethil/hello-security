@@ -14,8 +14,71 @@ import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
-import ReadOnlyDetailModal, { FormattedDescriptionBlock, MediaGallerySection } from '../../components/ui/ReadOnlyDetailModal';
+import ReadOnlyDetailModal, { MediaGallerySection } from '../../components/ui/ReadOnlyDetailModal';
 import { formatPatrolDateTime } from '@/lib/date-formatter';
+import { formatEmployeeRole } from '@/lib/role-order';
+
+export function parseObservationDetails(descriptionText?: string, remarksField?: string) {
+  let subTaskCards: { key: string; value: string }[] = [];
+  let extractedDescription: string = (remarksField || '').trim();
+
+  if (descriptionText && descriptionText.trim()) {
+    const text = descriptionText.trim();
+    const isStructured =
+      text.includes('Sub-Task Answer:') ||
+      text.includes('Task Description:') ||
+      text.includes('Officer Role:') ||
+      text.includes('Remarks:') ||
+      text.includes('Checkpoint:') ||
+      text.includes('Patrol Session:');
+
+    if (isStructured) {
+      const keyRegex = /(Sub-Task Answer|Task Description|Officer Role|Remarks|Checkpoint|Patrol Session|Answer):/gi;
+      const matches = Array.from(text.matchAll(keyRegex));
+
+      if (matches.length > 0) {
+        for (let i = 0; i < matches.length; i++) {
+          const match = matches[i];
+          const rawKey = match[1];
+          const startIndex = (match.index || 0) + match[0].length;
+          const endIndex = i + 1 < matches.length ? matches[i + 1].index : text.length;
+          let value = text.slice(startIndex, endIndex).trim().replace(/[,;]$/, '');
+
+          const keyUpper = rawKey.toUpperCase().trim();
+
+          // 1. Completely remove TASK DESCRIPTION
+          if (keyUpper === 'TASK DESCRIPTION') {
+            continue;
+          }
+
+          // 2. Remove REMARKS from cards, but extract its value for the Description section if not already set
+          if (keyUpper === 'REMARKS') {
+            if (!extractedDescription && value && value.toUpperCase() !== 'N/A') {
+              extractedDescription = value;
+            }
+            continue;
+          }
+
+          // Format Officer Role value if applicable
+          if (keyUpper === 'OFFICER ROLE' && value) {
+            value = formatEmployeeRole(value);
+          }
+
+          subTaskCards.push({ key: rawKey, value });
+        }
+      } else if (!extractedDescription) {
+        extractedDescription = text;
+      }
+    } else if (!extractedDescription) {
+      extractedDescription = text;
+    }
+  }
+
+  return {
+    subTaskCards,
+    descriptionText: extractedDescription,
+  };
+}
 
 export default function CentralObservationsPage() {
   const router = useRouter();
@@ -145,19 +208,24 @@ export default function CentralObservationsPage() {
       key: 'reporter',
       label: 'Reported By',
       render: (row: any) => {
-        const reporterName = row.user ? `${row.user.firstName || ''} ${row.user.lastName || ''}`.trim() || row.user.name || row.user.email : 'Inspector';
+        const reporterName = row.employee
+          ? `${row.employee.firstName || ''} ${row.employee.lastName || ''}`.trim()
+          : row.user
+          ? `${row.user.firstName || ''} ${row.user.lastName || ''}`.trim() || row.user.name || row.user.email
+          : 'Inspector';
+        const rawRole = row.employee?.role || row.user?.role || 'SECURITY';
+        const displayRole = formatEmployeeRole(rawRole);
         return (
           <div>
-            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{reporterName}</div>
+            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{reporterName || 'Inspector'}</div>
             <span
               style={{
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                color: '#2563eb',
-                textTransform: 'uppercase',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
               }}
             >
-              {(row.user?.role || 'SECURITY').replace('_', ' ')}
+              {displayRole}
             </span>
           </div>
         );
@@ -313,116 +381,198 @@ export default function CentralObservationsPage() {
         icon={<AlertTriangle size={22} style={{ color: '#d97706' }} />}
         maxWidth="780px"
       >
-        {selectedObservation && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {/* Top Summary Row */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: '16px',
-                padding: '16px',
-                borderRadius: '12px',
-                backgroundColor: 'var(--surface-color, #f8fafc)',
-                border: '1px solid var(--border-color, #e2e8f0)',
-              }}
-            >
-              <div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  TYPE / CATEGORY
-                </span>
-                <p style={{ margin: '4px 0 0 0', fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
-                  {selectedObservation.type || 'Observation'}
-                </p>
+        {selectedObservation && (() => {
+          const { subTaskCards, descriptionText } = parseObservationDetails(
+            selectedObservation.description,
+            selectedObservation.remarks,
+          );
+          const reporterName = selectedObservation.employee
+            ? `${selectedObservation.employee.firstName || ''} ${selectedObservation.employee.lastName || ''}`.trim()
+            : selectedObservation.user
+            ? `${selectedObservation.user.firstName || ''} ${selectedObservation.user.lastName || ''}`.trim() || selectedObservation.user.name || selectedObservation.user.email
+            : 'Inspector';
+          const reporterRole = formatEmployeeRole(
+            selectedObservation.employee?.role || selectedObservation.user?.role || 'SECURITY',
+          );
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Top Summary Row */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '16px',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  backgroundColor: 'var(--surface-color, #f8fafc)',
+                  border: '1px solid var(--border-color, #e2e8f0)',
+                }}
+              >
+                <div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    TYPE / CATEGORY
+                  </span>
+                  <p style={{ margin: '4px 0 0 0', fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
+                    {selectedObservation.type || 'Observation'}
+                  </p>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    STATUS
+                  </span>
+                  <div style={{ marginTop: '4px' }}>
+                    <StatusChip status={selectedObservation.status || 'OPEN'} />
+                  </div>
+                </div>
               </div>
+
+              {/* Description & Details Sub-Task Cards (if structured keys exist) */}
+              {subTaskCards.length > 0 && (
+                <div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '8px' }}>
+                    DESCRIPTION & DETAILS
+                  </span>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                      gap: '12px',
+                      backgroundColor: 'var(--surface-color, #f8fafc)',
+                      border: '1px solid var(--border-color, #e2e8f0)',
+                      borderRadius: '10px',
+                      padding: '14px',
+                    }}
+                  >
+                    {subTaskCards.map((card, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          backgroundColor: 'var(--bg-card, #ffffff)',
+                          border: '1px solid var(--border-color, #e2e8f0)',
+                          borderRadius: '8px',
+                          padding: '10px 12px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            color: 'var(--text-secondary, #64748b)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                          }}
+                        >
+                          {card.key}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            color: 'var(--text-primary, #0f172a)',
+                            marginTop: '2px',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {card.value || '—'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Location & Reported By Grid */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '16px',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  backgroundColor: 'var(--bg-card, #ffffff)',
+                  border: '1px solid var(--border-color, #e2e8f0)',
+                }}
+              >
+                <div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                    CHECKPOINT
+                  </span>
+                  <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {selectedObservation.gate?.name || 'N/A'}
+                  </p>
+                  {selectedObservation.gate?.gateCode && (
+                    <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                      ({selectedObservation.gate.gateCode})
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                    SITE
+                  </span>
+                  <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {selectedObservation.gate?.site?.name || selectedObservation.site?.name || 'N/A'}
+                  </p>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                    REPORTED BY
+                  </span>
+                  <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {reporterName || 'Inspector'}
+                  </p>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Role: {reporterRole}
+                  </span>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                    DATE & TIME
+                  </span>
+                  <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {formatPatrolDateTime(selectedObservation.createdAt)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Attached Media Section */}
               <div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  STATUS
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '8px' }}>
+                  ATTACHED MEDIA ({selectedObservation.images?.length || 0})
                 </span>
-                <div style={{ marginTop: '4px' }}>
-                  <StatusChip status={selectedObservation.status || 'OPEN'} />
+                <MediaGallerySection images={selectedObservation.images} />
+              </div>
+
+              {/* Description Section below Attached Media */}
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '8px' }}>
+                  DESCRIPTION
+                </span>
+                <div
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: '10px',
+                    backgroundColor: 'var(--surface-color, #f8fafc)',
+                    border: '1px solid var(--border-color, #e2e8f0)',
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    color: descriptionText ? 'var(--text-primary, #0f172a)' : 'var(--text-secondary, #64748b)',
+                    fontStyle: descriptionText ? 'normal' : 'italic',
+                    lineHeight: 1.6,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {descriptionText || 'No description provided.'}
                 </div>
               </div>
             </div>
-
-            {/* Description Section */}
-            <div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '8px' }}>
-                DESCRIPTION & DETAILS
-              </span>
-              <FormattedDescriptionBlock text={selectedObservation.description} />
-            </div>
-
-            {/* Location & Reported By Grid */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '16px',
-                padding: '16px',
-                borderRadius: '12px',
-                backgroundColor: 'var(--bg-card, #ffffff)',
-                border: '1px solid var(--border-color, #e2e8f0)',
-              }}
-            >
-              <div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
-                  CHECKPOINT
-                </span>
-                <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {selectedObservation.gate?.name || 'N/A'}
-                </p>
-                {selectedObservation.gate?.gateCode && (
-                  <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
-                    ({selectedObservation.gate.gateCode})
-                  </span>
-                )}
-              </div>
-
-              <div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
-                  SITE
-                </span>
-                <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {selectedObservation.gate?.site?.name || selectedObservation.site?.name || 'N/A'}
-                </p>
-              </div>
-
-              <div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
-                  REPORTED BY
-                </span>
-                <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {selectedObservation.employee
-                    ? `${selectedObservation.employee.firstName || ''} ${selectedObservation.employee.lastName || ''}`.trim()
-                    : selectedObservation.user
-                    ? `${selectedObservation.user.firstName || ''} ${selectedObservation.user.lastName || ''}`.trim() || selectedObservation.user.name || selectedObservation.user.email
-                    : 'Inspector'}
-                </p>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  Role: {selectedObservation.employee?.role || selectedObservation.user?.role || 'SECURITY'}
-                </span>
-              </div>
-
-              <div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
-                  DATE & TIME
-                </span>
-                <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {formatPatrolDateTime(selectedObservation.createdAt)}
-                </p>
-              </div>
-            </div>
-
-            {/* Attached Media Section */}
-            <div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '8px' }}>
-                ATTACHED MEDIA ({selectedObservation.images?.length || 0})
-              </span>
-              <MediaGallerySection images={selectedObservation.images} />
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </ReadOnlyDetailModal>
     </div>
   );

@@ -76,25 +76,28 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Inspection Report: ${report.patrolCode}`}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '10px 0' }}>
-        {/* Actions Bar */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button
-            type="button"
-            onClick={handlePrintSingle}
-            className="btn btn-primary"
-            style={{ fontSize: '0.85rem', padding: '8px 16px', gap: '6px' }}
-          >
-            <Printer size={16} />
-            <span>Print Audit Report</span>
-          </button>
-        </div>
-
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Inspection Report: ${report.patrolCode}`}
+      className="rpt-wide-modal"
+      headerContent={
+        <button
+          type="button"
+          onClick={handlePrintSingle}
+          className="btn btn-primary"
+          style={{ fontSize: '0.85rem', padding: '6px 14px', gap: '6px', display: 'inline-flex', alignItems: 'center' }}
+        >
+          <Printer size={15} />
+          <span>Print Audit Report</span>
+        </button>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '10px 0' }}>
         {/* Company & Executive Header */}
         <div
           style={{
-            padding: '20px',
+            padding: '16px 20px',
             borderRadius: '12px',
             backgroundColor: 'var(--surface-color)',
             border: '1px solid var(--border-color)',
@@ -138,7 +141,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
           </div>
         </div>
 
-        {/* Inspection Meta Information */}
+        {/* Inspection Meta Information - 2 Column Grid on Desktop */}
         {(() => {
           const emp = report.assignment?.employee || report.employee;
           const mgrEmp = report.managerUser?.employee;
@@ -150,40 +153,40 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
           const officerCode = emp?.employeeNumber || emp?.employeeCode || mgrEmp?.employeeNumber || report.employeeCode || null;
 
           return (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-              <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Security Officer / Inspector</div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{officerName}</div>
+            <div className="rpt-meta-grid">
+              <div className="rpt-meta-card">
+                <div className="rpt-meta-label">Security Officer / Inspector</div>
+                <div className="rpt-meta-val">{officerName}</div>
                 {officerCode && (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                  <div className="rpt-meta-sub" style={{ fontFamily: 'monospace' }}>
                     ID: {officerCode}
                   </div>
                 )}
               </div>
 
-              <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Monitored Site</div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{report.assignment?.site?.name || 'N/A'}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              <div className="rpt-meta-card">
+                <div className="rpt-meta-label">Monitored Site</div>
+                <div className="rpt-meta-val">{report.assignment?.site?.name || 'N/A'}</div>
+                <div className="rpt-meta-sub">
                   {report.assignment?.site?.address || 'Standard Location'}
                 </div>
               </div>
 
-              <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Route / Target</div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+              <div className="rpt-meta-card">
+                <div className="rpt-meta-label">Route / Target</div>
+                <div className="rpt-meta-val">
                   {report.assignment?.patrolRoute?.name || '🚧 Direct Checkpoints'}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                <div className="rpt-meta-sub">
                   Shift: {report.assignment?.shift?.startTime || '—'} - {report.assignment?.shift?.endTime || '—'}
                 </div>
               </div>
 
-              <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Status & Duration</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+              <div className="rpt-meta-card">
+                <div className="rpt-meta-label">Status & Duration</div>
+                <div className="rpt-meta-status-row">
                   <StatusChip status={report.status} />
-                  <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{durationMins} mins</span>
+                  <span className="rpt-meta-duration">{durationMins} mins</span>
                 </div>
               </div>
             </div>
@@ -195,7 +198,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
           <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
             Checkpoint Scan Summary
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px' }}>
+          <div className="rpt-summary-cards-row">
             <div
               style={{
                 padding: '12px 14px',
@@ -429,6 +432,74 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
 
       {/* Single Report Print Template */}
       <SingleReportPrintTemplate report={report} />
+
+      <style jsx global>{`
+        .rpt-wide-modal {
+          width: 90vw !important;
+          max-width: 1200px !important;
+          max-height: 90vh !important;
+        }
+        @media (max-width: 1024px) {
+          .rpt-wide-modal {
+            width: 94vw !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .rpt-wide-modal {
+            width: calc(100vw - 24px) !important;
+          }
+        }
+        .rpt-meta-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 16px;
+        }
+        @media (max-width: 640px) {
+          .rpt-meta-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+        .rpt-meta-card {
+          padding: 14px;
+          border-radius: 8px;
+          border: 1px solid var(--border-color);
+          background-color: var(--bg-color);
+        }
+        .rpt-meta-label {
+          font-size: 0.75rem;
+          color: var(--text-muted);
+          margin-bottom: 4px;
+        }
+        .rpt-meta-val {
+          font-weight: 700;
+          font-size: 0.95rem;
+        }
+        .rpt-meta-sub {
+          font-size: 0.75rem;
+          color: var(--text-secondary);
+          margin-top: 2px;
+        }
+        .rpt-meta-status-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 2px;
+        }
+        .rpt-meta-duration {
+          font-weight: 700;
+          font-size: 0.9rem;
+        }
+        .rpt-summary-cards-row {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+        }
+        @media (max-width: 640px) {
+          .rpt-summary-cards-row {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </Modal>
   );
 }

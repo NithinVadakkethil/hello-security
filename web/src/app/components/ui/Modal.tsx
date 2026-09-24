@@ -6,9 +6,24 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  maxWidth?: string;
+  width?: string;
+  className?: string;
+  containerStyle?: React.CSSProperties;
+  headerContent?: React.ReactNode;
 }
 
-export default function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export default function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+  maxWidth,
+  width,
+  className,
+  containerStyle,
+  headerContent,
+}: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -22,14 +37,26 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
 
   if (!isOpen) return null;
 
+  const customStyle: React.CSSProperties = {
+    ...containerStyle,
+    ...(maxWidth ? { maxWidth } : {}),
+    ...(width ? { width } : {}),
+  };
+
   return (
     <div className="modal-overlay">
-      <div className="glass-card modal-container">
+      <div
+        className={`glass-card modal-container ${className || ''}`}
+        style={customStyle}
+      >
         <div className="modal-header">
           <h3 className="modal-title">{title}</h3>
-          <button onClick={onClose} className="modal-close-btn" aria-label="Close modal">
-            <X size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {headerContent}
+            <button onClick={onClose} className="modal-close-btn" aria-label="Close modal">
+              <X size={18} />
+            </button>
+          </div>
         </div>
         <div className="modal-content-body">{children}</div>
       </div>
