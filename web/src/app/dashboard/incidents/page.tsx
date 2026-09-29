@@ -65,10 +65,18 @@ interface Incident {
   patrolSession?: PatrolSession | null;
 }
 
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
+
 export default function IncidentsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!DEMO_KAIZEN_FEATURES.observations) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
 
   const page = searchParams.get('page') ? Number(searchParams.get('page')) : 1;
   const search = searchParams.get('search') || '';

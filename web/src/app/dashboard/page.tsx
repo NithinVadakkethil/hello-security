@@ -532,7 +532,7 @@ export default function DashboardPage() {
             </button>
           </div>
         ) : null}
-        <style jsx>{`
+        <style>{`
           .floating-kpi-overlay {
             position: absolute;
             bottom: 24px;

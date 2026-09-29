@@ -48,10 +48,14 @@ import { useAuthStore } from '../../../app/store/auth-store';
 import { useOfflineStore } from '../../../app/store/offline-store';
 import { Button } from '../../../components/Button';
 import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
+import { DEMO_KAIZEN_FEATURES } from '../../../app/config/demo-config';
 import { Card } from '../../dashboard/components/WidgetCard';
 import { ReportIssueBottomSheet } from '../components/ReportIssueBottomSheet';
 import { usePatrol } from '../hooks/usePatrol';
 import { usePatrolStore } from '../store/patrol-store';
+import { attendanceService } from '../../attendance/services/attendance-service';
+import { secureFaceCache } from '../../face/services/secure-face-cache';
+import { faceEnrollmentApi } from '../../face/api/face-enrollment.api';
 
 // ==========================================
 // Isolated Timer Display (Prevents full-screen 1s re-renders)
@@ -182,7 +186,7 @@ const VerificationTaskItem = React.memo(
           </Text>
         ) : null}
 
-        {/* Action Control Row: YES / NO + Camera + Voice Note */}
+        {/* Action Control Row: YES / NO */}
         <View
           style={{
             flexDirection: 'row',
@@ -197,7 +201,7 @@ const VerificationTaskItem = React.memo(
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              paddingHorizontal: 12,
+              paddingHorizontal: 16,
               paddingVertical: 9,
               borderRadius: 8,
               borderWidth: 1.5,
@@ -248,7 +252,7 @@ const VerificationTaskItem = React.memo(
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              paddingHorizontal: 12,
+              paddingHorizontal: 16,
               paddingVertical: 9,
               borderRadius: 8,
               borderWidth: 1.5,
@@ -292,86 +296,10 @@ const VerificationTaskItem = React.memo(
               No
             </Text>
           </TouchableOpacity>
-
-            {/* Camera Icon Button */}
-          <TouchableOpacity
-            activeOpacity={0.6}
-            style={{
-              paddingHorizontal: 10,
-              paddingVertical: 9,
-              borderRadius: 8,
-              borderWidth: 1.5,
-              borderColor:
-                currentResp.images && currentResp.images.length > 0
-                  ? colors.primary
-                  : colors.border,
-              backgroundColor:
-                currentResp.images && currentResp.images.length > 0
-                  ? colors.primary + '20'
-                  : colors.background,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-            }}
-            onPress={() => onOpenCamera(task.id)}
-          >
-            <CameraIcon
-              size={18}
-              color={
-                currentResp.images && currentResp.images.length > 0
-                  ? colors.primary
-                  : colors.textSecondary
-              }
-            />
-            {currentResp.images && currentResp.images.length > 0 && (
-              <View
-                style={{
-                  backgroundColor: colors.primary,
-                  borderRadius: 10,
-                  paddingHorizontal: 5,
-                  paddingVertical: 1,
-                }}
-              >
-                <Text
-                  style={{
-                    color: '#ffffff',
-                    fontSize: 10,
-                    fontWeight: '800',
-                  }}
-                >
-                  {currentResp.images.length}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* Voice Note Icon Button (Placeholder) */}
-          <TouchableOpacity
-            activeOpacity={0.6}
-            style={{
-              paddingHorizontal: 10,
-              paddingVertical: 9,
-              borderRadius: 8,
-              borderWidth: 1.5,
-              borderColor: colors.border,
-              backgroundColor: colors.background,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            onPress={() => {
-              Alert.alert(
-                '🎤 Voice Note',
-                'Voice note recording feature is coming soon in a future release.',
-              );
-            }}
-          >
-            <Mic size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
         </View>
 
-        {/* EXPANDED REMARKS & EVIDENCE SECTION FOR BOTH YES AND NO */}
-        {(isYes || isNo) && (
+        {/* IF NO IS SELECTED: SHOW OPTIONAL DESCRIPTION FIELD BELOW SUBTASK */}
+        {isNo && (
           <View
             style={{
               marginTop: 14,
@@ -380,26 +308,21 @@ const VerificationTaskItem = React.memo(
               borderTopColor: colors.border,
             }}
           >
-            {/* Reason / Remarks TextInput */}
             <Text
               style={{
                 fontSize: 12,
                 fontWeight: '700',
-                color: isNo ? colors.danger : colors.text,
+                color: colors.text,
                 marginBottom: 6,
               }}
             >
-              Reason / Remarks {isNo ? '*' : '(Optional)'}
+              Description (Optional)
             </Text>
             <TextInput
               style={{
                 fontSize: 13,
                 color: colors.text,
-                borderColor: isNo
-                  ? currentResp.remarks?.trim()
-                    ? colors.border
-                    : colors.danger + '80'
-                  : colors.border,
+                borderColor: colors.border,
                 borderWidth: 1.5,
                 borderRadius: 8,
                 paddingHorizontal: 12,
@@ -407,176 +330,13 @@ const VerificationTaskItem = React.memo(
                 backgroundColor: colors.background,
                 minHeight: 54,
               }}
-              placeholder="Enter remarks..."
+              placeholder="Enter description..."
               placeholderTextColor={colors.textSecondary}
               value={currentResp.remarks}
               multiline
               maxLength={1000}
               onChangeText={txt => onRemarksChange(task.id, txt)}
             />
-
-            {/* Evidence Photos Section */}
-            <View style={{ marginTop: 12 }}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: 6,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: '700',
-                    color: isNo ? colors.danger : colors.text,
-                  }}
-                >
-                  Evidence Photos {isNo ? '*' : '(Optional)'}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: '600',
-                    color: colors.textSecondary,
-                  }}
-                >
-                  {(currentResp.images || []).length} / 5 photos
-                </Text>
-              </View>
-
-              {/* Display Captured Image Thumbnails Grid */}
-              {currentResp.images && currentResp.images.length > 0 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={{ marginBottom: 10 }}
-                >
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 10,
-                      paddingVertical: 4,
-                    }}
-                  >
-                    {currentResp.images.map((imgUri: string, imgIdx: number) => (
-                      <View key={imgIdx} style={{ position: 'relative' }}>
-                        <Image
-                          source={{ uri: imgUri }}
-                          style={{
-                            width: 80,
-                            height: 80,
-                            borderRadius: 10,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                          }}
-                        />
-                        <TouchableOpacity
-                          style={{
-                            position: 'absolute',
-                            top: -6,
-                            right: -6,
-                            backgroundColor: '#ef4444',
-                            borderRadius: 12,
-                            width: 22,
-                            height: 22,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderWidth: 1.5,
-                            borderColor: '#ffffff',
-                          }}
-                          onPress={() => onRemoveImage(task.id, imgIdx)}
-                        >
-                          <X size={12} color="#ffffff" />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
-                </ScrollView>
-              )}
-
-              {/* Capture Button or Maximum Limit Notice */}
-              {(currentResp.images || []).length < 5 ? (
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    backgroundColor:
-                      isNo && (!currentResp.images || currentResp.images.length === 0)
-                        ? colors.danger + '10'
-                        : colors.primary + '10',
-                    borderColor:
-                      isNo && (!currentResp.images || currentResp.images.length === 0)
-                        ? colors.danger
-                        : colors.primary,
-                    borderWidth: 1.5,
-                    borderStyle: 'dashed',
-                    borderRadius: 10,
-                    paddingVertical: 12,
-                  }}
-                  onPress={() => onOpenCamera(task.id)}
-                >
-                  <CameraIcon
-                    size={18}
-                    color={
-                      isNo && (!currentResp.images || currentResp.images.length === 0)
-                        ? colors.danger
-                        : colors.primary
-                    }
-                  />
-                  <Text
-                    style={{
-                      color:
-                        isNo && (!currentResp.images || currentResp.images.length === 0)
-                          ? colors.danger
-                          : colors.primary,
-                      fontSize: 13,
-                      fontWeight: '700',
-                    }}
-                  >
-                    {(currentResp.images || []).length > 0
-                      ? '+ Capture Another Live Photo'
-                      : 'Capture Live Evidence Photo *'}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View
-                  style={{
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    paddingVertical: 10,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: '600',
-                      color: colors.textSecondary,
-                    }}
-                  >
-                    Maximum 5 evidence photos allowed.
-                  </Text>
-                </View>
-              )}
-
-              <Text
-                style={{
-                  fontSize: 10,
-                  color: colors.textSecondary,
-                  fontStyle: 'italic',
-                  marginTop: 6,
-                }}
-              >
-                ⚠️ Only live camera capture is accepted. Gallery selection is
-                disabled.
-              </Text>
-            </View>
           </View>
         )}
       </View>
@@ -901,6 +661,30 @@ export function PatrolScreen() {
 
   const handleStart = async (resolveExisting = false) => {
     try {
+      const empId = user?.employeeId || (user as any)?.employee?.id || '';
+      const asgId = assignment?.id || '';
+      if (empId && asgId) {
+        const attRecord = attendanceService.getAttendance(empId, asgId);
+        if (!attRecord) {
+          Alert.alert(
+            'Attendance Required',
+            'Please mark your attendance using face verification before starting your shift.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Mark Attendance',
+                onPress: () =>
+                  navigation.navigate('FaceVerification', {
+                    mode: 'MARK_ATTENDANCE',
+                    assignment,
+                  }),
+              },
+            ]
+          );
+          return;
+        }
+      }
+
       await startPatrol({
         assignmentId: assignment?.id,
         resolveExistingPatrol: resolveExisting,
@@ -926,6 +710,62 @@ export function PatrolScreen() {
       } else {
         Alert.alert('Error starting patrol', err.message || 'Please try again.');
       }
+    }
+  };
+
+  const isUnlockingRef = useRef(false);
+
+  const handleUnlockCheckpoint = async (checkpointParams?: any) => {
+    if (isUnlockingRef.current) return;
+    isUnlockingRef.current = true;
+
+    try {
+      const empId = user?.employeeId || (user as any)?.employee?.id;
+      if (!user?.id || !empId) {
+        Alert.alert('Authentication Error', 'User session missing. Please log in again.');
+        return;
+      }
+
+      // Check face registration status
+      let isRegistered = false;
+      const localCache = await secureFaceCache.getSecureCache(user.id, empId);
+      if (localCache && localCache.template && localCache.template.length > 0) {
+        isRegistered = true;
+      } else {
+        try {
+          const serverStatus = await faceEnrollmentApi.getStatus();
+          if (serverStatus?.status === 'REGISTERED') {
+            isRegistered = true;
+          }
+        } catch (err) {
+          console.warn('[PatrolScreen] Could not check online face status:', err);
+        }
+      }
+
+      if (!isRegistered) {
+        Alert.alert(
+          'Face Verification Required',
+          'Please register your face before starting checkpoint verification.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Register Face',
+              onPress: () => navigation.navigate('FaceRegistration'),
+            },
+          ]
+        );
+        return;
+      }
+
+      // Open Face Verification with CHECKPOINT_UNLOCK mode
+      navigation.navigate('FaceVerification', {
+        mode: 'CHECKPOINT_UNLOCK',
+        checkpointParams,
+      });
+    } finally {
+      setTimeout(() => {
+        isUnlockingRef.current = false;
+      }, 800);
     }
   };
 
@@ -1150,31 +990,33 @@ export function PatrolScreen() {
       return;
     }
 
-    // 2. Validate NO answers (Remarks + 1 to 5 Live Camera evidence photos required)
-    for (const st of tasks) {
-      const resp = subTaskResponses[st.id];
-      if (resp?.answer === 'NO') {
-        if (!resp.remarks || !resp.remarks.trim()) {
-          Alert.alert(
-            'Remarks Required',
-            `Please enter the reason/remarks for failed task "${st.taskName}".`,
-          );
-          return;
-        }
-        const imgCount = resp.images?.length || 0;
-        if (imgCount < 1) {
-          Alert.alert(
-            'Live Camera Evidence Required',
-            `Please capture at least one live camera evidence photo for failed task "${st.taskName}".`,
-          );
-          return;
-        }
-        if (imgCount > 5) {
-          Alert.alert(
-            'Too Many Evidence Photos',
-            `Maximum 5 evidence photos are allowed for task "${st.taskName}".`,
-          );
-          return;
+    // 2. Validate NO answers (Skipped in demo mode: optional description, no photo requirement)
+    if (DEMO_KAIZEN_FEATURES.incidents) {
+      for (const st of tasks) {
+        const resp = subTaskResponses[st.id];
+        if (resp?.answer === 'NO') {
+          if (!resp.remarks || !resp.remarks.trim()) {
+            Alert.alert(
+              'Remarks Required',
+              `Please enter the reason/remarks for failed task "${st.taskName}".`,
+            );
+            return;
+          }
+          const imgCount = resp.images?.length || 0;
+          if (imgCount < 1) {
+            Alert.alert(
+              'Live Camera Evidence Required',
+              `Please capture at least one live camera evidence photo for failed task "${st.taskName}".`,
+            );
+            return;
+          }
+          if (imgCount > 5) {
+            Alert.alert(
+              'Too Many Evidence Photos',
+              `Maximum 5 evidence photos are allowed for task "${st.taskName}".`,
+            );
+            return;
+          }
         }
       }
     }
@@ -1200,7 +1042,7 @@ export function PatrolScreen() {
                 return {
                   gateSubTaskId: st.id,
                   answer: (val.answer || 'YES') as 'YES' | 'NO',
-                  remarks: val.remarks?.trim() || undefined,
+                  remarks: val.answer === 'NO' ? (val.remarks?.trim() || undefined) : undefined,
                   images:
                     val.images && val.images.length > 0
                       ? val.images
@@ -1246,7 +1088,7 @@ export function PatrolScreen() {
                       onPress: () => {
                         usePatrolStore.getState().lockCheckpoint();
                         loadActiveSession();
-                        navigation.navigate('ScannerTab');
+                        handleUnlockCheckpoint();
                       },
                     },
                   ],
@@ -1685,7 +1527,7 @@ export function PatrolScreen() {
                     alignSelf: 'center',
                     marginTop: 16,
                   }}
-                  onPress={() => navigation.navigate('ScannerTab')}
+                  onPress={() => handleUnlockCheckpoint()}
                 >
                   <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>
                     Open QR Scanner
@@ -2127,34 +1969,38 @@ export function PatrolScreen() {
                           </Text>
                         </View>
 
-                        <Text
-                          style={[
-                            styles.panelLabel,
-                            { color: colors.text, marginTop: 16 },
-                          ]}
-                        >
-                          Report Independent Issue (Optional)
-                        </Text>
-                        <TouchableOpacity
-                          style={[
-                            styles.actionBtn,
-                            {
-                              borderColor: colors.warning,
-                              backgroundColor: colors.warning + '10',
-                            },
-                          ]}
-                          onPress={() => setShowReportIssueSheet(true)}
-                        >
-                          <ShieldAlert size={16} color={colors.warning} />
-                          <Text
-                            style={[
-                              styles.actionBtnText,
-                              { color: colors.warning },
-                            ]}
-                          >
-                            Report an Issue (Incident / Snag)
-                          </Text>
-                        </TouchableOpacity>
+                        {DEMO_KAIZEN_FEATURES.incidents && (
+                          <>
+                            <Text
+                              style={[
+                                styles.panelLabel,
+                                { color: colors.text, marginTop: 16 },
+                              ]}
+                            >
+                              Report Independent Issue (Optional)
+                            </Text>
+                            <TouchableOpacity
+                              style={[
+                                styles.actionBtn,
+                                {
+                                  borderColor: colors.warning,
+                                  backgroundColor: colors.warning + '10',
+                                },
+                              ]}
+                              onPress={() => setShowReportIssueSheet(true)}
+                            >
+                              <ShieldAlert size={16} color={colors.warning} />
+                              <Text
+                                style={[
+                                  styles.actionBtnText,
+                                  { color: colors.warning },
+                                ]}
+                              >
+                                Report an Issue (Incident / Snag)
+                              </Text>
+                            </TouchableOpacity>
+                          </>
+                        )}
 
                         <Button
                           title="Submit & Lock Checkpoint"
@@ -2180,7 +2026,7 @@ export function PatrolScreen() {
                             { backgroundColor: colors.primary },
                           ]}
                           onPress={() =>
-                            navigation.navigate('Scanner', {
+                            handleUnlockCheckpoint({
                               checkpointId: rg.gateId || rg.gate?.id || rg.id,
                               checkpointCode: rg.gate?.gateCode,
                               checkpointName: rg.gate?.name,
@@ -2241,22 +2087,24 @@ export function PatrolScreen() {
       )}
 
       {/* Report Issue Bottom Sheet */}
-      <ReportIssueBottomSheet
-        visible={showReportIssueSheet}
-        onClose={() => setShowReportIssueSheet(false)}
-        onSelectIncident={() =>
-          navigation.navigate('ReportIncident', {
-            gateId: unlockedGateId,
-            patrolSessionId: activeSession?.id,
-          })
-        }
-        onSelectSnag={() =>
-          navigation.navigate('ReportSnag', {
-            gateId: unlockedGateId,
-            patrolSessionId: activeSession?.id,
-          })
-        }
-      />
+      {DEMO_KAIZEN_FEATURES.incidents && (
+        <ReportIssueBottomSheet
+          visible={showReportIssueSheet}
+          onClose={() => setShowReportIssueSheet(false)}
+          onSelectIncident={() =>
+            navigation.navigate('ReportIncident', {
+              gateId: unlockedGateId,
+              patrolSessionId: activeSession?.id,
+            })
+          }
+          onSelectSnag={() =>
+            navigation.navigate('ReportSnag', {
+              gateId: unlockedGateId,
+              patrolSessionId: activeSession?.id,
+            })
+          }
+        />
+      )}
 
       {/* CAMERA VIEWFINDER MODAL */}
       <Modal visible={showCameraModal} animationType="slide">

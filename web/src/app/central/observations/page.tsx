@@ -80,10 +80,18 @@ export function parseObservationDetails(descriptionText?: string, remarksField?:
   };
 }
 
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
+
 export default function CentralObservationsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clientId = searchParams?.get('clientId') || '';
+
+  useEffect(() => {
+    if (!DEMO_KAIZEN_FEATURES.observations) {
+      router.replace('/central/dashboard');
+    }
+  }, [router]);
 
   const [organizations, setOrganizations] = useState<OrganizationMetric[]>([]);
   const [isOrgsLoading, setIsOrgsLoading] = useState(true);

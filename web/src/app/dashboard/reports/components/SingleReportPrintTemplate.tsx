@@ -737,7 +737,7 @@ export default function SingleReportPrintTemplate({
       <table className="rpt-details-table">
         <tbody>
           <tr>
-            <td className="rpt-details-label">Security Officer</td>
+            <td className="rpt-details-label">Officer</td>
             <td className="rpt-details-val">{guardName}</td>
             <td className="rpt-details-label">Company Name</td>
             <td className="rpt-details-val">{clientCompanyName}</td>
@@ -821,12 +821,6 @@ export default function SingleReportPrintTemplate({
 
       {checkpointsTimeline.map((item, cpIdx) => {
         const tasksList = item.tasks;
-        const taskTotal = tasksList.length;
-        const taskYes = tasksList.filter((t: any) => t.answer === 'YES').length;
-        const taskNo = tasksList.filter((t: any) => t.answer === 'NO').length;
-        const taskCompleted = taskYes + taskNo;
-        const taskCompliance =
-          taskTotal > 0 ? Math.round((taskYes / taskTotal) * 100) : 100;
 
         return (
           <div key={`cp-${item.gate?.id || cpIdx}`} className="rpt-cp-card">
@@ -856,10 +850,10 @@ export default function SingleReportPrintTemplate({
             {/* Sub-header bar */}
             <div className="rpt-task-summary-bar">
               <span>Task Verification Checklist</span>
-              <span>
+              {/* <span>
                 Completed: {taskCompleted} / {taskTotal} | YES: {taskYes} | NO:{' '}
                 {taskNo} | Compliance: {taskCompliance}%
-              </span>
+              </span> */}
             </div>
 
             {/* Checkpoint remarks */}

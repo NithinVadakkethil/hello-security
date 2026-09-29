@@ -31,8 +31,18 @@ interface Category {
   _count?: { snags: number };
 }
 
+import { useRouter } from 'next/navigation';
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
+
 export default function SnagCategoriesPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
+
+  React.useEffect(() => {
+    if (!DEMO_KAIZEN_FEATURES.snagCategories) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [catName, setCatName] = useState('');
   const [catDesc, setCatDesc] = useState('');

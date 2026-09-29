@@ -20,6 +20,7 @@ import { ProtectedRoute } from '../components/protected-route';
 import { useTheme } from '../providers/theme-provider';
 import { useAuthStore } from '../store/auth-store';
 import { clearTokens } from '../utils/token';
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 
 export default function CentralManagerLayout({
   children,
@@ -48,7 +49,7 @@ export default function CentralManagerLayout({
     return email.substring(0, 2).toUpperCase();
   };
 
-  const menuItems = [
+  const rawMenuItems = [
     { href: '/central/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/central/employees', label: 'Employees', icon: Users },
     { href: '/central/observations', label: 'Observation Reports', icon: AlertTriangle },
@@ -56,6 +57,12 @@ export default function CentralManagerLayout({
     { href: '/central/reports', label: 'Reports & Analytics', icon: FileText },
     { href: '/central/profile', label: 'My Profile', icon: User },
   ];
+
+  const menuItems = rawMenuItems.filter((item) => {
+    if (item.href === '/central/observations' && !DEMO_KAIZEN_FEATURES.observations) return false;
+    if (item.href === '/central/snags' && !DEMO_KAIZEN_FEATURES.snags) return false;
+    return true;
+  });
 
   const getHeaderTitle = () => {
     const activeItem = menuItems.find((item) => pathname.startsWith(item.href));

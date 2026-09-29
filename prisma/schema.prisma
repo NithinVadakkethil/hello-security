@@ -61,6 +61,13 @@ enum VerificationStatus {
   NOT_VERIFIED
 }
 
+enum FaceEnrollmentStatus {
+  NOT_REGISTERED
+  REGISTERED
+  RE_ENROLL_REQUIRED
+  REVOKED
+}
+
 model Client {
   id String @id @default(cuid())
 
@@ -131,6 +138,8 @@ model Client {
   subtaskMasters SubTaskMaster[]
 
   managerMemberships ManagerClientMembership[] @relation("ClientManagerMemberships")
+
+  faceEnrollments FaceEnrollment[]
 }
 
 model User {
@@ -216,6 +225,8 @@ model Employee {
   incidents Incident[]
 
   snags Snag[]
+
+  faceEnrollment FaceEnrollment?
 
   @@unique([clientId, employeeNumber])
   @@index([clientId, supervisedRole])
@@ -863,5 +874,32 @@ model ManagerClientMembership {
   @@unique([managerUserId, clientId])
   @@index([managerUserId])
   @@index([clientId])
+}
+
+model FaceEnrollment {
+  id String @id @default(cuid())
+
+  employeeId String   @unique
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  status FaceEnrollmentStatus @default(REGISTERED)
+
+  encryptedTemplate String
+
+  modelName          String @default("MobileFaceNet")
+  modelVersion       String @default("v1")
+  embeddingDimension Int    @default(512)
+
+  registeredAt DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  revokedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+  @@index([employeeId])
 }
 

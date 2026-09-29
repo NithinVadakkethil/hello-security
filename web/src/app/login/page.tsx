@@ -177,7 +177,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <style jsx>{`
+        <style>{`
           .login-page-container {
             display: flex;
             align-items: center;

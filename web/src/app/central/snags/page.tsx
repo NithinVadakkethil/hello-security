@@ -17,10 +17,18 @@ import StatusChip from '../../components/ui/StatusChip';
 import ReadOnlyDetailModal, { FormattedDescriptionBlock, MediaGallerySection } from '../../components/ui/ReadOnlyDetailModal';
 import { formatPatrolDateTime } from '@/lib/date-formatter';
 
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
+
 export default function CentralSnagsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clientId = searchParams?.get('clientId') || '';
+
+  useEffect(() => {
+    if (!DEMO_KAIZEN_FEATURES.snags) {
+      router.replace('/central/dashboard');
+    }
+  }, [router]);
 
   const [organizations, setOrganizations] = useState<OrganizationMetric[]>([]);
   const [isOrgsLoading, setIsOrgsLoading] = useState(true);

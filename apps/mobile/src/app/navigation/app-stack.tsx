@@ -18,7 +18,12 @@ import { ProfileScreen } from '../../modules/profile/screens/ProfileScreen';
 import { PatrolDetailsScreen } from '../../modules/dashboard/screens/PatrolDetailsScreen';
 import { HistoryScreen } from '../../modules/history/screens/HistoryScreen';
 import { AssignedMaintenanceScreen } from '../../modules/maintenance/screens/AssignedMaintenanceScreen';
+import { FaceVerificationPrototypeScreen } from '../../modules/face/screens/FaceVerificationPrototypeScreen';
+import { FaceRegistrationScreen } from '../../modules/face/screens/FaceRegistrationScreen';
+import { FaceVerificationScreen } from '../../modules/face/screens/FaceVerificationScreen';
+import { AttendanceScreen } from '../../modules/attendance/screens/AttendanceScreen';
 import { Home, ShieldAlert, Camera, Clipboard, User, History as HistoryIcon, Wrench } from 'lucide-react-native';
+import { DEMO_KAIZEN_FEATURES } from '../config/demo-config';
 
 export type MainTabParamList = {
   HomeTab: undefined;
@@ -101,15 +106,17 @@ function MainTabs() {
           tabBarIcon: ({ color, size }) => <HistoryIcon size={size} color={color} />,
         }}
       />
-      <Tab.Screen
-        name="MaintenanceTab"
-        component={AssignedMaintenanceScreen}
-        options={{
-          title: 'Assigned Work',
-          tabBarLabel: 'Jobs',
-          tabBarIcon: ({ color, size }) => <Wrench size={size} color={color} />,
-        }}
-      />
+      {DEMO_KAIZEN_FEATURES.snags && (
+        <Tab.Screen
+          name="MaintenanceTab"
+          component={AssignedMaintenanceScreen}
+          options={{
+            title: 'Assigned Work',
+            tabBarLabel: 'Jobs',
+            tabBarIcon: ({ color, size }) => <Wrench size={size} color={color} />,
+          }}
+        />
+      )}
       <Tab.Screen
         name="ProfileTab"
         component={ProfileScreen}
@@ -142,6 +149,10 @@ export function AppStack() {
       <Stack.Screen name="MapPreview" component={MapPreviewScreen} options={{ headerShown: true, title: 'Map Preview' }} />
       <Stack.Screen name="Scanner" component={ScannerScreen} options={{ headerShown: true, title: 'QR Scanner' }} />
       <Stack.Screen name="PatrolDetails" component={PatrolDetailsScreen} options={{ headerShown: true, title: 'Patrol Details & Verification' }} />
+      <Stack.Screen name="FaceVerificationPrototype" component={FaceVerificationPrototypeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="FaceRegistration" component={FaceRegistrationScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="FaceVerification" component={FaceVerificationScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

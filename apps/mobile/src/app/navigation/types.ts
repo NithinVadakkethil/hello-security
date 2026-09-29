@@ -25,6 +25,19 @@ export type AppTabParamList = {
   History: undefined;
   AssignedMaintenance: undefined;
   PatrolDetails: { patrolId: string };
+  FaceVerificationPrototype: undefined;
+  FaceRegistration: undefined;
+  FaceVerification: {
+    mode?: 'MARK_ATTENDANCE' | 'VERIFY_ONLY' | 'CHECKPOINT_UNLOCK';
+    assignment?: any;
+    checkpointParams?: {
+      checkpointId?: string;
+      checkpointCode?: string;
+      checkpointName?: string;
+      sequenceOrder?: number;
+    };
+  } | undefined;
+  Attendance: { assignment?: any } | undefined;
 };
 
 export type RootStackParamList = {

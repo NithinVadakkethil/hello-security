@@ -12,7 +12,7 @@ interface ReportPrintTemplateProps {
 export default function ReportPrintTemplate({ analytics, sessions, filters }: ReportPrintTemplateProps) {
   return (
     <div className="report-print-only">
-      <style jsx global>{`
+      <style>{`
         @media screen {
           .report-print-only {
             display: none !important;

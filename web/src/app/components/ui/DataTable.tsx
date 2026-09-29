@@ -120,7 +120,7 @@ export default function DataTable<T extends { id: string | number }>({
           )}
         </tbody>
       </table>
-      <style jsx>{`
+      <style>{`
         .table-row:hover {
           background: var(--bg-tertiary);
         }

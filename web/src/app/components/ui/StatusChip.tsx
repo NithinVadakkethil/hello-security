@@ -48,7 +48,7 @@ export default function StatusChip({ status }: StatusChipProps) {
   return (
     <span className={`status-chip ${colorClass}`}>
       {label}
-      <style jsx>{`
+      <style>{`
         .status-chip {
           display: inline-flex;
           align-items: center;

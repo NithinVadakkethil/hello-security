@@ -45,10 +45,18 @@ interface SnagStats {
   highPriority: number;
 }
 
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
+
 export default function SnagsListPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+
+  React.useEffect(() => {
+    if (!DEMO_KAIZEN_FEATURES.snags) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
 
   const page = searchParams.get('page') ? Number(searchParams.get('page')) : 1;
   const search = searchParams.get('search') || '';

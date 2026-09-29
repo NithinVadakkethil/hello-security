@@ -282,7 +282,7 @@ export default function ClientDetailsPage() {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .stat-card {
           display: flex;
           align-items: center;

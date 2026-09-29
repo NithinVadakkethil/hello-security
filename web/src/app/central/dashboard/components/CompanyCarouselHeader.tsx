@@ -81,7 +81,7 @@ export default function CompanyCarouselHeader({
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .carousel-header-bar {
           display: flex;
           align-items: center;

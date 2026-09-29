@@ -7,7 +7,6 @@ import {
   Clock,
   Pause,
   Play,
-  Printer,
   Shield,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -15,17 +14,14 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
+import { formatPatrolDateTime, formatPatrolTime } from '@/lib/date-formatter';
+import LoadingState from '../../../components/ui/LoadingState';
 import Modal from '../../../components/ui/Modal';
 import StatusChip from '../../../components/ui/StatusChip';
-import LoadingState from '../../../components/ui/LoadingState';
 import { apiClient } from '../../../lib/axios';
 import { ApiResponse } from '../../../types/api';
-import TaskVerificationChecklist from '../components/TaskVerificationChecklist';
 import PatrolSessionPrintTemplate from '../components/PatrolSessionPrintTemplate';
-import {
-  formatPatrolDateTime,
-  formatPatrolTime,
-} from '@/lib/date-formatter';
+import TaskVerificationChecklist from '../components/TaskVerificationChecklist';
 
 interface Gate {
   id: string;
@@ -204,7 +200,13 @@ export default function PatrolSessionDetailPage() {
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   if (isLoading) {
-    return <LoadingState message="Loading patrol session log..." variant="page" size="md" />;
+    return (
+      <LoadingState
+        message="Loading patrol session log..."
+        variant="page"
+        size="md"
+      />
+    );
   }
 
   if (isError || !session) {
@@ -233,11 +235,13 @@ export default function PatrolSessionDetailPage() {
       session.assignment.assignmentGates.length > 0);
 
   const routeGates = isDirectAssignment
-    ? (session.assignment?.assignmentGates || []).map((ag: any, idx: number) => ({
-        sequence: ag.sequence || idx + 1,
-        expectedDuration: null,
-        gate: ag.gate,
-      }))
+    ? (session.assignment?.assignmentGates || []).map(
+        (ag: any, idx: number) => ({
+          sequence: ag.sequence || idx + 1,
+          expectedDuration: null,
+          gate: ag.gate,
+        }),
+      )
     : session.assignment?.patrolRoute?.routeGates || [];
   const scans = session.checkpoints || [];
 
@@ -338,7 +342,7 @@ export default function PatrolSessionDetailPage() {
 
         {/* Header Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button
+          {/* <button
             type="button"
             onClick={() => window.print()}
             className="btn btn-secondary"
@@ -359,10 +363,11 @@ export default function PatrolSessionDetailPage() {
           >
             <Printer size={16} style={{ color: 'var(--primary)' }} />
             <span>Print Report (PDF)</span>
-          </button>
+          </button> */}
 
           {/* Action Controls for Live Patrols */}
-          {(session.status === 'IN_PROGRESS' || session.status === 'PAUSED') && (
+          {(session.status === 'IN_PROGRESS' ||
+            session.status === 'PAUSED') && (
             <>
               {session.status === 'IN_PROGRESS' ? (
                 <button

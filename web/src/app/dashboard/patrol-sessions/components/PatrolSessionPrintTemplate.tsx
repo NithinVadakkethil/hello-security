@@ -159,7 +159,7 @@ export default function PatrolSessionPrintTemplate({
 
   return (
     <div className="patrol-session-print-container">
-      <style jsx global>{`
+      <style>{`
         @media screen {
           .patrol-session-print-container {
             display: none !important;

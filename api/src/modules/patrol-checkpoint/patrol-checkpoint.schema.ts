@@ -24,30 +24,6 @@ export const scanCheckpointSchema = z.object({
         answer: z.enum(['YES', 'NO']),
         remarks: z.string().max(1000, 'Remarks cannot exceed 1000 characters.').optional().nullable(),
         images: z.array(z.string()).optional(),
-      }).superRefine((data, ctx) => {
-        if (data.answer === 'NO') {
-          if (!data.remarks || !data.remarks.trim()) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: 'Remarks are required when the answer is No.',
-              path: ['remarks'],
-            });
-          }
-          const imgCount = data.images?.length || 0;
-          if (imgCount < 1) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: 'At least one evidence photo is required when the answer is No.',
-              path: ['images'],
-            });
-          } else if (imgCount > 5) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: 'Maximum 5 evidence photos are allowed per subtask.',
-              path: ['images'],
-            });
-          }
-        }
       }),
     )
     .optional(),

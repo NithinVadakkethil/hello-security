@@ -23,6 +23,7 @@ import clientBrandingRoutes from '../modules/client/client-branding.routes';
 import subTaskMasterRoutes from '../modules/subtask-master/subtask-master.routes';
 import managerRoutes from '../modules/manager/manager.routes';
 import centralManagerRoutes from '../modules/central-manager/central-manager.routes';
+import faceEnrollmentRoutes from '../modules/face-enrollment/face-enrollment.routes';
 
 import healthRoute from './health.route';
 import protectedRoute from './protected.route';
@@ -32,6 +33,7 @@ const router: Router = Router();
 router.use('/health', healthRoute);
 router.use('/protected', protectedRoute);
 router.use('/auth', authRoutes);
+router.use('/', faceEnrollmentRoutes);
 router.use('/manager', managerRoutes);
 router.use('/central-manager', centralManagerRoutes);
 router.use('/', clientNotificationRoutes);

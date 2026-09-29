@@ -190,7 +190,7 @@ export default function SnagDonutChart({
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .snag-donut-container {
           display: flex;
           flex-direction: column;

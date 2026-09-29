@@ -196,7 +196,7 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
         </button>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .org-hero-card {
           border-radius: 16px;
           overflow: hidden;

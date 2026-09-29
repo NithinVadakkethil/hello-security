@@ -28,6 +28,7 @@ import { ProtectedRoute } from '../components/protected-route';
 import { useTheme } from '../providers/theme-provider';
 import { useAuthStore } from '../store/auth-store';
 import { clearTokens } from '../utils/token';
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 
 export default function DashboardLayout({
   children,
@@ -59,7 +60,7 @@ export default function DashboardLayout({
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   // Navigation config based on role
-  const menuItems = isSuperAdmin
+  const rawMenuItems = isSuperAdmin
     ? [
         { href: '/dashboard', label: 'Dashboard', icon: Activity },
         {
@@ -123,6 +124,13 @@ export default function DashboardLayout({
         // { href: '/dashboard/profile', label: 'My Profile', icon: User },
         { href: '/dashboard/settings', label: 'Settings', icon: Settings },
       ];
+
+  const menuItems = rawMenuItems.filter((item) => {
+    if (item.href === '/dashboard/incidents' && !DEMO_KAIZEN_FEATURES.observations) return false;
+    if (item.href === '/dashboard/maintenance/snags' && !DEMO_KAIZEN_FEATURES.snags) return false;
+    if (item.href === '/dashboard/maintenance/categories' && !DEMO_KAIZEN_FEATURES.snagCategories) return false;
+    return true;
+  });
 
   const getHeaderTitle = () => {
     const activeItem = menuItems.find((item) => {

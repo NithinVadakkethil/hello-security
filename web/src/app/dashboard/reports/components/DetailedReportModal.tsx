@@ -433,7 +433,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
       {/* Single Report Print Template */}
       <SingleReportPrintTemplate report={report} />
 
-      <style jsx global>{`
+      <style>{`
         .rpt-wide-modal {
           width: 90vw !important;
           max-width: 1200px !important;

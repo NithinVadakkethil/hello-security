@@ -87,7 +87,7 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
           />
           <span className="slider"></span>
         </label>
-        <style jsx>{`
+        <style>{`
           .switch-toggle {
             position: relative;
             display: inline-block;

@@ -7,7 +7,6 @@ import {
   ChevronUp,
   Clock,
   FileText,
-  Mic,
   User,
   XCircle,
 } from 'lucide-react';
@@ -154,8 +153,10 @@ export default function TaskVerificationChecklist({
         existing.role = stRole || existing.role;
         existing.completedAt = res.answeredAt || res.createdAt;
       } else {
-        const targetRole = roleFilter === 'EMPLOYEE' ? employeeRole : roleFilter;
-        const shouldInclude = roleFilter === 'ALL' || isRoleMatching(stRole, targetRole);
+        const targetRole =
+          roleFilter === 'EMPLOYEE' ? employeeRole : roleFilter;
+        const shouldInclude =
+          roleFilter === 'ALL' || isRoleMatching(stRole, targetRole);
 
         if (shouldInclude) {
           taskMap.set(subTaskId, {
@@ -175,13 +176,6 @@ export default function TaskVerificationChecklist({
 
   const tasksList = Array.from(taskMap.values());
   const totalTasks = tasksList.length;
-  const completedCount = tasksList.filter(
-    (t) => t.answer === 'YES' || t.answer === 'NO',
-  ).length;
-  const yesCount = tasksList.filter((t) => t.answer === 'YES').length;
-  const noCount = tasksList.filter((t) => t.answer === 'NO').length;
-  const completionPct =
-    totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
 
   const currentRoleBadge = ROLE_BADGES[employeeRole] || {
     label: employeeRole,
@@ -344,7 +338,7 @@ export default function TaskVerificationChecklist({
           }}
         >
           {/* Inspection Summary Card Widget */}
-          <div
+          {/* <div
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -437,7 +431,7 @@ export default function TaskVerificationChecklist({
                 {completionPct}%
               </span>
             </div>
-          </div>
+          </div> */}
 
           <button
             type="button"
@@ -476,12 +470,6 @@ export default function TaskVerificationChecklist({
             tasksList.map((task, idx) => {
               const isYes = task.answer === 'YES';
               const isNo = task.answer === 'NO';
-              const roleMeta = ROLE_BADGES[task.role || 'SECURITY'] || {
-                label: task.role || 'Security',
-                bg: 'var(--bg-secondary)',
-                color: 'var(--text-secondary)',
-                icon: '📋',
-              };
 
               return (
                 <div
@@ -562,7 +550,7 @@ export default function TaskVerificationChecklist({
                           </span>
 
                           {/* Role Tag */}
-                          <span
+                          {/* <span
                             style={{
                               fontSize: '0.68rem',
                               fontWeight: 700,
@@ -594,7 +582,7 @@ export default function TaskVerificationChecklist({
                             >
                               REQUIRED
                             </span>
-                          )}
+                          )} */}
                         </div>
 
                         {task.description && (
@@ -862,7 +850,7 @@ export default function TaskVerificationChecklist({
                       </div>
 
                       {/* Right: Voice Note Badge (UI Placeholder) */}
-                      <div
+                      {/* <div
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -878,7 +866,7 @@ export default function TaskVerificationChecklist({
                       >
                         <Mic size={12} style={{ color: 'var(--text-muted)' }} />
                         <span>Voice Note: None</span>
-                      </div>
+                      </div> */}
                     </div>
                   )}
                 </div>

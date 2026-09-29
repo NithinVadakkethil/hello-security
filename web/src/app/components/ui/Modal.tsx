@@ -60,7 +60,7 @@ export default function Modal({
         </div>
         <div className="modal-content-body">{children}</div>
       </div>
-      <style jsx>{`
+      <style>{`
         .modal-overlay {
           position: fixed;
           top: 0;

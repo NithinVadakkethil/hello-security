@@ -92,7 +92,7 @@ export default function ReadOnlyDetailModal({
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .detail-modal-overlay {
           position: fixed;
           top: 0;
@@ -436,7 +436,7 @@ export function MediaGallerySection({ images }: { images?: string[] }) {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .thumb-hover-overlay {
           position: absolute;
           inset: 0;

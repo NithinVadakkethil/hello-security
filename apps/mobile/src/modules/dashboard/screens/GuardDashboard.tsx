@@ -26,6 +26,8 @@ import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
 import { usePatrol } from '../../patrol/hooks/usePatrol';
 import { usePatrolStore } from '../../patrol/store/patrol-store';
 import { Card } from '../components/WidgetCard';
+import { AttendanceStatusWidget } from '../../attendance/components/AttendanceStatusWidget';
+import { attendanceService } from '../../attendance/services/attendance-service';
 
 export function GuardDashboard() {
   const { colors } = useTheme();
@@ -79,6 +81,29 @@ export function GuardDashboard() {
         });
         return;
       }
+
+      // Attendance Guard Check
+      const empId = user?.employeeId || (user as any)?.employee?.id || '';
+      const attRecord = attendanceService.getAttendance(empId, asg.id);
+      if (!attRecord) {
+        Alert.alert(
+          'Attendance Required',
+          'Please mark your attendance using face verification before starting your shift.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Mark Attendance',
+              onPress: () =>
+                navigation.navigate('FaceVerification', {
+                  mode: 'MARK_ATTENDANCE',
+                  assignment: asg,
+                }),
+            },
+          ]
+        );
+        return;
+      }
+
       const startedSession = await startPatrol({
         assignmentId: asg.id,
         resolveExistingPatrol: resolveExisting,
@@ -185,6 +210,9 @@ export function GuardDashboard() {
           </View>
         </View>
       </Card>
+
+      {/* Attendance Status Widget */}
+      <AttendanceStatusWidget assignmentId={assignments[0]?.id} />
 
       {/* Assigned Work Header */}
       <Text style={[styles.sectionTitle, { color: colors.text }]}>

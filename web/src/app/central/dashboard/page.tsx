@@ -21,6 +21,7 @@ import { apiClient } from '../../lib/axios';
 import CompanyCarouselHeader from './components/CompanyCarouselHeader';
 import OrganizationHeroCard, { SelectedClientData } from './components/OrganizationHeroCard';
 import SnagDonutChart from './components/SnagDonutChart';
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 
 const ROLE_LABELS: Record<string, string> = {
   SECURITY: 'Security Guard',
@@ -126,7 +127,7 @@ export default function CentralDashboardPage() {
       <div className="dashboard-loading-container">
         <RefreshCw className="spin-icon" size={32} />
         <p>Loading Community Manager Executive Dashboard...</p>
-        <style jsx>{`
+        <style>{`
           .dashboard-loading-container {
             display: flex;
             flex-direction: column;
@@ -157,7 +158,7 @@ export default function CentralDashboardPage() {
         <button onClick={() => fetchDashboard(clientId)} className="btn btn-primary" style={{ marginTop: '12px' }}>
           Retry Loading
         </button>
-        <style jsx>{`
+        <style>{`
           .dashboard-error-container {
             display: flex;
             flex-direction: column;
@@ -299,33 +300,37 @@ export default function CentralDashboardPage() {
           </div>
         </button>
 
-        <button
-          type="button"
-          onClick={() => router.push('/central/observations')}
-          className="global-kpi-card clickable"
-        >
-          <div className="kpi-icon-badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}>
-            <AlertTriangle size={20} />
-          </div>
-          <div className="kpi-text-box">
-            <span className="global-kpi-value">{global.openObservations}</span>
-            <span className="global-kpi-label">Open Observations</span>
-          </div>
-        </button>
+        {DEMO_KAIZEN_FEATURES.observations && (
+          <button
+            type="button"
+            onClick={() => router.push('/central/observations')}
+            className="global-kpi-card clickable"
+          >
+            <div className="kpi-icon-badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}>
+              <AlertTriangle size={20} />
+            </div>
+            <div className="kpi-text-box">
+              <span className="global-kpi-value">{global.openObservations}</span>
+              <span className="global-kpi-label">Open Observations</span>
+            </div>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => router.push('/central/snags')}
-          className="global-kpi-card clickable"
-        >
-          <div className="kpi-icon-badge" style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#EF4444' }}>
-            <Wrench size={20} />
-          </div>
-          <div className="kpi-text-box">
-            <span className="global-kpi-value">{global.openSnags}</span>
-            <span className="global-kpi-label">Open Snags</span>
-          </div>
-        </button>
+        {DEMO_KAIZEN_FEATURES.snags && (
+          <button
+            type="button"
+            onClick={() => router.push('/central/snags')}
+            className="global-kpi-card clickable"
+          >
+            <div className="kpi-icon-badge" style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#EF4444' }}>
+              <Wrench size={20} />
+            </div>
+            <div className="kpi-text-box">
+              <span className="global-kpi-value">{global.openSnags}</span>
+              <span className="global-kpi-label">Open Snags</span>
+            </div>
+          </button>
+        )}
 
         <button
           type="button"
@@ -360,37 +365,39 @@ export default function CentralDashboardPage() {
         </div>
       )}
 
-      {/* Secondary 2-Column Analytics Area */}
+      {/* Secondary Analytics Area */}
       {selectedClient && (
-        <div className="analytics-two-col-grid">
+        <div className="analytics-two-col-grid" style={{ gridTemplateColumns: DEMO_KAIZEN_FEATURES.snags ? undefined : '1fr' }}>
           {/* LEFT: Snag Donut & Categories */}
-          <div className="analytics-card">
-            <div className="card-header-bar">
-              <div className="card-header-title">
-                <Wrench size={18} style={{ color: '#2563EB' }} />
-                <h3>Snag Categories & Status Breakdown</h3>
+          {DEMO_KAIZEN_FEATURES.snags && (
+            <div className="analytics-card">
+              <div className="card-header-bar">
+                <div className="card-header-title">
+                  <Wrench size={18} style={{ color: '#2563EB' }} />
+                  <h3>Snag Categories & Status Breakdown</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/central/snags?clientId=${selectedClient.id}`)}
+                  className="view-all-link"
+                >
+                  <span>View Snags</span>
+                  <ChevronRight size={14} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => router.push(`/central/snags?clientId=${selectedClient.id}`)}
-                className="view-all-link"
-              >
-                <span>View Snags</span>
-                <ChevronRight size={14} />
-              </button>
-            </div>
 
-            <div className="card-body">
-              <SnagDonutChart
-                clientId={selectedClient.id}
-                totalSnags={selectedClient.snagStatusSummary?.total ?? selectedClient.metrics?.totalSnagsCount ?? 0}
-                openSnags={selectedClient.snagStatusSummary?.open ?? selectedClient.metrics?.openSnagsCount ?? 0}
-                wipSnags={selectedClient.snagStatusSummary?.wip ?? selectedClient.metrics?.wipSnagsCount ?? 0}
-                closedSnags={selectedClient.snagStatusSummary?.closed ?? selectedClient.metrics?.closedSnagsCount ?? 0}
-                categories={selectedClient.snagDistribution || []}
-              />
+              <div className="card-body">
+                <SnagDonutChart
+                  clientId={selectedClient.id}
+                  totalSnags={selectedClient.snagStatusSummary?.total ?? selectedClient.metrics?.totalSnagsCount ?? 0}
+                  openSnags={selectedClient.snagStatusSummary?.open ?? selectedClient.metrics?.openSnagsCount ?? 0}
+                  wipSnags={selectedClient.snagStatusSummary?.wip ?? selectedClient.metrics?.wipSnagsCount ?? 0}
+                  closedSnags={selectedClient.snagStatusSummary?.closed ?? selectedClient.metrics?.closedSnagsCount ?? 0}
+                  categories={selectedClient.snagDistribution || []}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* RIGHT: Operational Summary & Employee Roles */}
           <div className="analytics-card">
@@ -403,40 +410,42 @@ export default function CentralDashboardPage() {
 
             <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* Observation Summary */}
-              <div className="sub-analytics-box">
-                <div className="sub-box-header">
-                  <span className="sub-title">Observation Reports</span>
-                  <button
-                    onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}`)}
-                    className="view-link-sm"
-                  >
-                    View All ({selectedClient.observationSummary?.total ?? selectedClient.metrics?.totalObservationsCount ?? 0})
-                  </button>
+              {DEMO_KAIZEN_FEATURES.observations && (
+                <div className="sub-analytics-box">
+                  <div className="sub-box-header">
+                    <span className="sub-title">Observation Reports</span>
+                    <button
+                      onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}`)}
+                      className="view-link-sm"
+                    >
+                      View All ({selectedClient.observationSummary?.total ?? selectedClient.metrics?.totalObservationsCount ?? 0})
+                    </button>
+                  </div>
+                  <div className="metric-pills-row">
+                    <button
+                      onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}`)}
+                      className="metric-pill"
+                    >
+                      <span className="pill-val">{selectedClient.observationSummary?.total ?? selectedClient.metrics?.totalObservationsCount ?? 0}</span>
+                      <span className="pill-lbl">Total</span>
+                    </button>
+                    <button
+                      onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}&status=OPEN`)}
+                      className="metric-pill open"
+                    >
+                      <span className="pill-val">{selectedClient.observationSummary?.open ?? selectedClient.metrics?.openObservationsCount ?? 0}</span>
+                      <span className="pill-lbl">Open</span>
+                    </button>
+                    <button
+                      onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}&status=REVIEWED`)}
+                      className="metric-pill reviewed"
+                    >
+                      <span className="pill-val">{selectedClient.observationSummary?.reviewed ?? selectedClient.metrics?.reviewedObservationsCount ?? 0}</span>
+                      <span className="pill-lbl">Reviewed</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="metric-pills-row">
-                  <button
-                    onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}`)}
-                    className="metric-pill"
-                  >
-                    <span className="pill-val">{selectedClient.observationSummary?.total ?? selectedClient.metrics?.totalObservationsCount ?? 0}</span>
-                    <span className="pill-lbl">Total</span>
-                  </button>
-                  <button
-                    onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}&status=OPEN`)}
-                    className="metric-pill open"
-                  >
-                    <span className="pill-val">{selectedClient.observationSummary?.open ?? selectedClient.metrics?.openObservationsCount ?? 0}</span>
-                    <span className="pill-lbl">Open</span>
-                  </button>
-                  <button
-                    onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}&status=REVIEWED`)}
-                    className="metric-pill reviewed"
-                  >
-                    <span className="pill-val">{selectedClient.observationSummary?.reviewed ?? selectedClient.metrics?.reviewedObservationsCount ?? 0}</span>
-                    <span className="pill-lbl">Reviewed</span>
-                  </button>
-                </div>
-              </div>
+              )}
 
               {/* Patrol Summary */}
               <div className="sub-analytics-box">
@@ -559,7 +568,7 @@ export default function CentralDashboardPage() {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .central-dashboard-root {
           display: flex;
           flex-direction: column;

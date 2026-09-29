@@ -35,6 +35,7 @@ import { formatPatrolDate, formatPatrolTime } from '../../../app/utils/date-form
 import { getEmployeeDisplayName } from '../../../app/utils/user-helpers';
 import { Config } from '../../../app/config';
 import { Card } from '../../dashboard/components/WidgetCard';
+import { DEMO_KAIZEN_FEATURES } from '../../../app/config/demo-config';
 
 const resolveImageUrl = (url?: string) => {
   if (!url) return null;
@@ -306,31 +307,35 @@ export function HistoryScreen() {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'INCIDENTS' && { backgroundColor: colors.danger + '20', borderColor: colors.danger },
-          ]}
-          onPress={() => setActiveTab('INCIDENTS')}
-        >
-          <ShieldAlert size={16} color={activeTab === 'INCIDENTS' ? colors.danger : colors.textSecondary} />
-          <Text style={[styles.tabText, { color: activeTab === 'INCIDENTS' ? colors.danger : colors.textSecondary }]}>
-            Incidents
-          </Text>
-        </TouchableOpacity>
+        {DEMO_KAIZEN_FEATURES.incidents && (
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'INCIDENTS' && { backgroundColor: colors.danger + '20', borderColor: colors.danger },
+            ]}
+            onPress={() => setActiveTab('INCIDENTS')}
+          >
+            <ShieldAlert size={16} color={activeTab === 'INCIDENTS' ? colors.danger : colors.textSecondary} />
+            <Text style={[styles.tabText, { color: activeTab === 'INCIDENTS' ? colors.danger : colors.textSecondary }]}>
+              Incidents
+            </Text>
+          </TouchableOpacity>
+        )}
 
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'SNAGS' && { backgroundColor: colors.warning + '20', borderColor: colors.warning },
-          ]}
-          onPress={() => setActiveTab('SNAGS')}
-        >
-          <Wrench size={16} color={activeTab === 'SNAGS' ? colors.warning : colors.textSecondary} />
-          <Text style={[styles.tabText, { color: activeTab === 'SNAGS' ? colors.warning : colors.textSecondary }]}>
-            Snags
-          </Text>
-        </TouchableOpacity>
+        {DEMO_KAIZEN_FEATURES.snags && (
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'SNAGS' && { backgroundColor: colors.warning + '20', borderColor: colors.warning },
+            ]}
+            onPress={() => setActiveTab('SNAGS')}
+          >
+            <Wrench size={16} color={activeTab === 'SNAGS' ? colors.warning : colors.textSecondary} />
+            <Text style={[styles.tabText, { color: activeTab === 'SNAGS' ? colors.warning : colors.textSecondary }]}>
+              Snags
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Date Filter & Search Bar */}
