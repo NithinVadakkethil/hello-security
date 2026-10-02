@@ -13,6 +13,8 @@ import { PREFIX } from '../../common/constants/prefixes';
 import { counterService } from '../../common/counter/counter.service';
 import { generateCode } from '../../common/utils/code-generator';
 
+import { saveBase64Image } from '../../common/utils/file-upload.util';
+
 import { employeeRepository } from './employee.repository';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './employee.types';
 import { CurrentUser } from '../../common/auth/current-user';
@@ -64,6 +66,19 @@ export class EmployeeService {
           ErrorCodes.VALIDATION_ERROR,
           'This email address is already registered to another employee. Please use a different email address.',
         );
+      }
+    }
+
+    // Process SIRA Card images if provided (SECURITY role only)
+    let siraCardFrontImage: string | null = null;
+    let siraCardBackImage: string | null = null;
+
+    if (dto.role === 'SECURITY') {
+      if (dto.siraCardFrontImage) {
+        siraCardFrontImage = await saveBase64Image(dto.siraCardFrontImage, 'sira-front');
+      }
+      if (dto.siraCardBackImage) {
+        siraCardBackImage = await saveBase64Image(dto.siraCardBackImage, 'sira-back');
       }
     }
 
@@ -129,6 +144,9 @@ export class EmployeeService {
             supervisedRole: dto.role === 'SUPERVISOR' ? (dto.supervisedRole || null) : null,
 
             joiningDate: dto.joiningDate,
+            siraCardExpiryDate: dto.role === 'SECURITY' ? (dto.siraCardExpiryDate || null) : null,
+            siraCardFrontImage: dto.role === 'SECURITY' ? siraCardFrontImage : null,
+            siraCardBackImage: dto.role === 'SECURITY' ? siraCardBackImage : null,
 
             identificationMethod: dto.identificationMethod,
           },
@@ -194,6 +212,13 @@ export class EmployeeService {
 
     if (targetRole !== 'SUPERVISOR') {
       cleanDto.supervisedRole = null;
+    }
+
+    if (cleanDto.siraCardFrontImage) {
+      cleanDto.siraCardFrontImage = await saveBase64Image(cleanDto.siraCardFrontImage, 'sira-front');
+    }
+    if (cleanDto.siraCardBackImage) {
+      cleanDto.siraCardBackImage = await saveBase64Image(cleanDto.siraCardBackImage, 'sira-back');
     }
 
     return prisma.$transaction(async (tx) => {

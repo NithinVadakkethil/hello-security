@@ -140,6 +140,10 @@ model Client {
   managerMemberships ManagerClientMembership[] @relation("ClientManagerMemberships")
 
   faceEnrollments FaceEnrollment[]
+
+  mandatoryPatrolInstances MandatoryPatrolInstance[]
+
+  notifications Notification[]
 }
 
 model User {
@@ -175,6 +179,7 @@ model User {
 
   managerMemberships    ManagerClientMembership[] @relation("UserManagerMemberships")
   managerPatrolSessions PatrolSession[]           @relation("ManagerPatrolSessions")
+  notificationRecipients NotificationUserRecipient[]
 }
 
 model Employee {
@@ -204,6 +209,12 @@ model Employee {
 
   joiningDate DateTime?
 
+  siraCardExpiryDate DateTime?
+
+  siraCardFrontImage String?
+
+  siraCardBackImage String?
+
   identificationMethod IdentificationMethod @default(QR)
 
   qrCode String?
@@ -227,6 +238,8 @@ model Employee {
   snags Snag[]
 
   faceEnrollment FaceEnrollment?
+
+  mandatoryPatrolInstances MandatoryPatrolInstance[]
 
   @@unique([clientId, employeeNumber])
   @@index([clientId, supervisedRole])
@@ -337,6 +350,14 @@ model Shift {
 
   endTime String
 
+  mandatoryPatrol1Time String?
+  mandatoryPatrol1WindowBefore Int @default(15)
+  mandatoryPatrol1WindowAfter Int @default(15)
+
+  mandatoryPatrol2Time String?
+  mandatoryPatrol2WindowBefore Int @default(15)
+  mandatoryPatrol2WindowAfter Int @default(15)
+
   description String?
 
   isActive Boolean @default(true)
@@ -344,6 +365,8 @@ model Shift {
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
+
+  mandatoryPatrolInstances MandatoryPatrolInstance[]
 
   @@unique([clientId, name])
   @@unique([clientId, shiftCode])
@@ -372,6 +395,8 @@ model GuardAssignment {
   assignmentGates GuardAssignmentGate[]
 
   patrolSessions PatrolSession[]
+
+  mandatoryPatrolInstances MandatoryPatrolInstance[]
 
   effectiveFrom DateTime
 
@@ -498,6 +523,8 @@ model PatrolSession {
   incidents Incident[]
 
   snags Snag[]
+
+  mandatoryPatrolInstances MandatoryPatrolInstance[]
 
   patrolCode String
 
@@ -901,5 +928,64 @@ model FaceEnrollment {
 
   @@index([clientId])
   @@index([employeeId])
+}
+
+model MandatoryPatrolInstance {
+  id              String          @id @default(cuid())
+  clientId        String
+  client          Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignmentId    String
+  assignment      GuardAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  employeeId      String
+  employee        Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shiftId         String
+  shift           Shift           @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  shiftDate       DateTime        @db.Date
+  sequence        Int             // 1 or 2
+  scheduledAt     DateTime
+  windowStart     DateTime
+  windowEnd       DateTime
+  status          String          @default("UPCOMING") // "UPCOMING" | "DUE" | "COMPLETED" | "MISSED"
+  completedAt     DateTime?
+  patrolSessionId String?
+  patrolSession   PatrolSession?  @relation(fields: [patrolSessionId], references: [id], onDelete: SetNull)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([assignmentId, shiftDate, sequence])
+  @@index([clientId, status])
+  @@index([employeeId, shiftDate])
+  @@index([windowStart, windowEnd])
+}
+
+model Notification {
+  id             String                      @id @default(cuid())
+  clientId       String
+  client         Client                      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type           String                      // e.g. "MANDATORY_PATROL_DUE", "MANDATORY_PATROL_COMPLETED", "MANDATORY_PATROL_MISSED"
+  title          String
+  message        String
+  entityType     String?                     // e.g. "MandatoryPatrolInstance"
+  entityId       String?
+  metadata       Json?
+  idempotencyKey String?                     @unique
+  createdAt      DateTime                    @default(now())
+  recipients     NotificationUserRecipient[]
+
+  @@index([clientId])
+}
+
+model NotificationUserRecipient {
+  id             String       @id @default(cuid())
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isRead         Boolean      @default(false)
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@unique([notificationId, userId])
+  @@index([userId, isRead])
 }
 

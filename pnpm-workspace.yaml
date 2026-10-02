@@ -19,3 +19,5 @@ allowBuilds:
   puppeteer: true
   sharp: true
   unrs-resolver: true
+patchedDependencies:
+  onnxruntime-react-native: patches/onnxruntime-react-native.patch

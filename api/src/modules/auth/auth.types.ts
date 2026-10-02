@@ -11,6 +11,8 @@ export interface AuthUser {
   lastName?: string | null;
   name?: string | null;
   companyName?: string | null;
+  siraCardExpiryDate?: Date | string | null;
+  isSiraExpired?: boolean;
 }
 
 export interface LoginResponse {

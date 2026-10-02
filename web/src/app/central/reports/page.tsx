@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { apiClient } from '../../lib/axios';
 import CentralManagerOrganizationSelector, { OrganizationMetric } from '../components/CentralManagerOrganizationSelector';
 import CentralCompanyHeader from '../components/CentralCompanyHeader';
+import PeriodicReportGenerator from '../../dashboard/reports/components/PeriodicReportGenerator';
 import DetailedReportModal from '../../dashboard/reports/components/DetailedReportModal';
 import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
@@ -377,6 +378,9 @@ export default function CentralReportsPage() {
         onBackToOrganizations={() => router.push('/central/reports')}
         onSelectOrganization={handleSelectOrganization}
       />
+
+      {/* Periodic Summary Report Generator */}
+      <PeriodicReportGenerator clientId={clientId} isCentralManager={true} sites={sites} />
 
       {/* Search & Advanced Filters Toolbar */}
       <div

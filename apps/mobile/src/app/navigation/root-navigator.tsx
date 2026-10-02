@@ -4,13 +4,14 @@ import { useAuthStore } from '../store/auth-store';
 import { RootStackParamList } from './types';
 import { AuthStack } from './auth-stack';
 import { AppStack } from './app-stack';
+import { SiraRestrictedStack } from './sira-restricted-stack';
 import { useTheme } from '../hooks/useTheme';
 import { View, ActivityIndicator } from 'react-native';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, user } = useAuthStore();
   const { colors } = useTheme();
 
   if (isLoading) {
@@ -21,12 +22,16 @@ export function RootNavigator() {
     );
   }
 
+  const isSecuritySiraExpired = user?.role === 'SECURITY' && Boolean(user?.isSiraExpired);
+
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isAuthenticated ? (
-        <Stack.Screen name="AppStack" component={AppStack} />
-      ) : (
+      {!isAuthenticated ? (
         <Stack.Screen name="AuthStack" component={AuthStack} />
+      ) : isSecuritySiraExpired ? (
+        <Stack.Screen name="SiraRestrictedStack" component={SiraRestrictedStack} />
+      ) : (
+        <Stack.Screen name="AppStack" component={AppStack} />
       )}
     </Stack.Navigator>
   );

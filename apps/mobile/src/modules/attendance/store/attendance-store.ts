@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AttendanceRecord, MarkAttendanceParams } from '../types';
+import { AttendanceRecord, MarkAttendanceParams, MarkCheckOutParams } from '../types';
 import { attendanceService, getTodayBusinessDate } from '../services/attendance-service';
 
 interface AttendanceState {

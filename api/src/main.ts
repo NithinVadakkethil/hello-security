@@ -9,11 +9,19 @@ import { logger } from './common/logger/logger';
 import { appConfig } from './config/app.config';
 import { connectDatabase } from './database';
 import { startNotificationWorker } from './workers/notification-worker';
+import { mandatoryPatrolService } from './modules/mandatory-patrol/mandatory-patrol.service';
 
 async function bootstrap() {
   await connectDatabase();
 
   startNotificationWorker();
+
+  // Start background mandatory patrol status evaluator (runs every 60s)
+  setInterval(() => {
+    mandatoryPatrolService.evaluateMandatoryPatrolStatuses().catch((err: any) => {
+      logger.error(`Error evaluating mandatory patrol statuses: ${err.message}`);
+    });
+  }, 60000);
 
   const app = createApp();
 

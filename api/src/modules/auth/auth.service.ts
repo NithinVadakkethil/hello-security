@@ -1,6 +1,7 @@
 import { addDays } from 'date-fns';
 import { authRepository } from './auth.repository';
 import { prisma } from '../../database/prisma';
+import { isSecuritySiraExpired } from '../../common/utils/sira-expiry.util';
 
 import { comparePassword, hashPassword } from '../../common/auth/bcrypt';
 import {
@@ -129,6 +130,8 @@ export class AuthService {
           ((user as any).employee
             ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
             : user.email.split('@')[0]),
+        siraCardExpiryDate: (user as any).employee?.siraCardExpiryDate || null,
+        isSiraExpired: isSecuritySiraExpired((user as any).employee),
       },
     };
   }
@@ -214,6 +217,8 @@ export class AuthService {
           ((user as any).employee
             ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
             : user.email.split('@')[0]),
+        siraCardExpiryDate: (user as any).employee?.siraCardExpiryDate || null,
+        isSiraExpired: isSecuritySiraExpired((user as any).employee),
       },
     };
   }
@@ -243,6 +248,8 @@ export class AuthService {
         ((user as any).employee
           ? `${(user as any).employee.firstName} ${(user as any).employee.lastName}`
           : user.email.split('@')[0]),
+      siraCardExpiryDate: (user as any).employee?.siraCardExpiryDate || null,
+      isSiraExpired: isSecuritySiraExpired((user as any).employee),
     };
   }
 

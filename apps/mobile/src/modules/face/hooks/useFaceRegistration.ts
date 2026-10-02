@@ -87,7 +87,7 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
         }
 
         // Capture 1: Front Vector
-        const vector = FaceEmbedder.generateEmbedding(faceData);
+        const vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
         capturedEmbeddingsRef.current.push(vector);
         setCapturesCount(1);
         setStep('LEFT');
@@ -113,7 +113,7 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
         }
 
         // Capture 2: Clean Re-aligned Vector
-        const vector = FaceEmbedder.generateEmbedding(faceData);
+        const vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
         capturedEmbeddingsRef.current.push(vector);
         setCapturesCount(2);
         setStep('RIGHT');
@@ -139,7 +139,7 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
         }
 
         // Capture 3: Clean Re-aligned Vector
-        const vector = FaceEmbedder.generateEmbedding(faceData);
+        const vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
         capturedEmbeddingsRef.current.push(vector);
         setCapturesCount(3);
         setStep('COMPLETED');
@@ -176,8 +176,8 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
 
           const referenceTemplate = Array.from(FaceEmbedder.normalizeL2(avgVec));
 
-          // Submit to backend API
-          const regResult = await faceEnrollmentApi.register(referenceTemplate, 'MobileFaceNet', 'v1', dim);
+          // Submit to backend API (Phase 2 template versioning: SFace v2)
+          const regResult = await faceEnrollmentApi.register(referenceTemplate, 'SFace', 'v2', dim);
 
           // Save to Keystore-backed encrypted local cache
           const empId = user?.employeeId || (user as any)?.employee?.id || '';
@@ -186,8 +186,8 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
           if (user?.id && empId) {
             await secureFaceCache.saveSecureCache(user.id, empId, clientId, {
               template: referenceTemplate,
-              modelName: 'MobileFaceNet',
-              modelVersion: 'v1',
+              modelName: 'SFace',
+              modelVersion: 'v2',
               embeddingDimension: dim,
               registeredAt: regResult.registeredAt || new Date().toISOString(),
             });

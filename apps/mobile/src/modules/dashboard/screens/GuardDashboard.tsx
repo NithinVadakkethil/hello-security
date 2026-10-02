@@ -25,9 +25,10 @@ import { formatLastCompletedAt } from '../../../app/utils/date-formatter';
 import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
 import { usePatrol } from '../../patrol/hooks/usePatrol';
 import { usePatrolStore } from '../../patrol/store/patrol-store';
-import { Card } from '../components/WidgetCard';
 import { AttendanceStatusWidget } from '../../attendance/components/AttendanceStatusWidget';
+import { MandatoryPatrolWidget } from '../../patrol/components/MandatoryPatrolWidget';
 import { attendanceService } from '../../attendance/services/attendance-service';
+import { Card } from '../components/WidgetCard';
 
 export function GuardDashboard() {
   const { colors } = useTheme();
@@ -213,6 +214,9 @@ export function GuardDashboard() {
 
       {/* Attendance Status Widget */}
       <AttendanceStatusWidget assignmentId={assignments[0]?.id} />
+
+      {/* Mandatory Patrol Schedule & Compliance Widget */}
+      <MandatoryPatrolWidget />
 
       {/* Assigned Work Header */}
       <Text style={[styles.sectionTitle, { color: colors.text }]}>

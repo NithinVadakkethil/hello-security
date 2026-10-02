@@ -247,12 +247,11 @@ export function AttendanceScreen() {
                 style={[
                   styles.statusBadge,
                   {
-                    backgroundColor:
-                      todayAttendance.checkOutAt
-                        ? '#D1FAE5'
-                        : todayAttendance.status === 'PENDING_SYNC'
-                        ? '#DBEAFE'
-                        : '#D1FAE5',
+                    backgroundColor: todayAttendance.checkOutAt
+                      ? '#D1FAE5'
+                      : todayAttendance.status === 'PENDING_SYNC'
+                      ? '#DBEAFE'
+                      : '#D1FAE5',
                   },
                 ]}
               >
@@ -271,12 +270,11 @@ export function AttendanceScreen() {
                   style={[
                     styles.statusBadgeText,
                     {
-                      color:
-                        todayAttendance.checkOutAt
-                          ? '#047857'
-                          : todayAttendance.status === 'PENDING_SYNC'
-                          ? '#1D4ED8'
-                          : '#047857',
+                      color: todayAttendance.checkOutAt
+                        ? '#047857'
+                        : todayAttendance.status === 'PENDING_SYNC'
+                        ? '#1D4ED8'
+                        : '#047857',
                     },
                   ]}
                 >
@@ -284,7 +282,7 @@ export function AttendanceScreen() {
                     ? '✓ COMPLETED'
                     : todayAttendance.status === 'PENDING_SYNC'
                     ? '✓ CAPTURED (PENDING SYNC)'
-                    : '✓ PRESENT'}
+                    : '✓ CHECKED IN'}
                 </Text>
               </View>
 
@@ -314,10 +312,16 @@ export function AttendanceScreen() {
 
                 {todayAttendance.checkOutAt ? (
                   <View
-                    style={[styles.gridCell, { backgroundColor: colors.surface }]}
+                    style={[
+                      styles.gridCell,
+                      { backgroundColor: colors.surface },
+                    ]}
                   >
                     <Text
-                      style={[styles.cellLabel, { color: colors.textSecondary }]}
+                      style={[
+                        styles.cellLabel,
+                        { color: colors.textSecondary },
+                      ]}
                     >
                       Check-out Time
                     </Text>
@@ -331,10 +335,16 @@ export function AttendanceScreen() {
                   </View>
                 ) : (
                   <View
-                    style={[styles.gridCell, { backgroundColor: colors.surface }]}
+                    style={[
+                      styles.gridCell,
+                      { backgroundColor: colors.surface },
+                    ]}
                   >
                     <Text
-                      style={[styles.cellLabel, { color: colors.textSecondary }]}
+                      style={[
+                        styles.cellLabel,
+                        { color: colors.textSecondary },
+                      ]}
                     >
                       Verification
                     </Text>
@@ -478,7 +488,11 @@ export function AttendanceScreen() {
                     Check-in:{' '}
                     {formatPatrolTime(rec.checkInAt, 'Asia/Dubai', false)}
                     {rec.checkOutAt
-                      ? `  •  Check-out: ${formatPatrolTime(rec.checkOutAt, 'Asia/Dubai', false)}`
+                      ? `  •  Check-out: ${formatPatrolTime(
+                          rec.checkOutAt,
+                          'Asia/Dubai',
+                          false,
+                        )}`
                       : ''}
                   </Text>
                   <Text

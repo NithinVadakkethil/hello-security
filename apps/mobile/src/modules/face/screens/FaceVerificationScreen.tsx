@@ -6,8 +6,8 @@ import { useRunOnJS } from 'react-native-worklets-core';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { FaceGuideOverlay } from '../components/FaceGuideOverlay';
 import { FaceQualityValidator, FaceDetectionData } from '../engine/face-quality';
-import { FaceEmbedder } from '../engine/face-embedder';
-import { FaceMatcher } from '../engine/face-matcher';
+import { FaceLivenessValidator } from '../engine/face-liveness';
+import { FaceVerificationEngine, FaceVerificationResult } from '../engine/face-verification-engine';
 import { secureFaceCache, SecureFaceCachePayload } from '../services/secure-face-cache';
 import { faceEnrollmentApi } from '../api/face-enrollment.api';
 import { useAuthStore } from '../../../app/store/auth-store';
@@ -36,6 +36,9 @@ export function FaceVerificationScreen({ route, navigation }: any) {
   const { data: assignmentsList } = useActiveAssignments();
   const activeAssignment = passedAssignment || (assignmentsList && assignmentsList.length > 0 ? assignmentsList[0] : null);
 
+  const livenessValidatorRef = useRef<FaceLivenessValidator>(new FaceLivenessValidator());
+  const isVerifyingRef = useRef(false);
+
   useEffect(() => {
     (async () => {
       const status = await Camera.requestCameraPermission();
@@ -53,6 +56,9 @@ export function FaceVerificationScreen({ route, navigation }: any) {
         return;
       }
 
+      // Reset liveness challenge on screen mount
+      livenessValidatorRef.current.startChallenge('BLINK');
+
       // 1. Try reading from encrypted local cache
       const localCache = await secureFaceCache.getSecureCache(user.id, empId);
       if (localCache && localCache.template) {
@@ -67,7 +73,6 @@ export function FaceVerificationScreen({ route, navigation }: any) {
         const serverData = await faceEnrollmentApi.getTemplate();
         if (serverData && serverData.template) {
           setReferenceTemplate(serverData.template);
-          // Persist to local secure cache
           await secureFaceCache.saveSecureCache(user.id, empId, clientId, {
             template: serverData.template,
             modelName: serverData.modelName,
@@ -102,10 +107,8 @@ export function FaceVerificationScreen({ route, navigation }: any) {
     minFaceSize: 0.15,
   });
 
-  const isVerifyingRef = useRef(false);
-
   const processVerification = useCallback(
-    (faces: any[], imageWidth: number, imageHeight: number) => {
+    async (faces: any[], imageWidth: number, imageHeight: number) => {
       if (isVerifyingRef.current || !referenceTemplate || verificationState !== 'SEARCHING') {
         return;
       }
@@ -120,35 +123,42 @@ export function FaceVerificationScreen({ route, navigation }: any) {
         landmarks: f.landmarks,
       }));
 
-      const qualityResult = FaceQualityValidator.validate(mappedFaces, imageWidth, imageHeight);
-      if (!qualityResult.valid) {
-        setStatusMessage(qualityResult.message || 'Adjust position');
+      // 1. Face Quality Validation
+      const quality = FaceQualityValidator.validate(mappedFaces, imageWidth, imageHeight);
+      if (!quality.valid) {
+        setStatusMessage(quality.message);
         return;
       }
 
-      isVerifyingRef.current = true;
-      const liveVector = FaceEmbedder.generateEmbedding(mappedFaces[0]);
-      const matchResult = FaceMatcher.match(liveVector, referenceTemplate, FaceMatcher.PROTOTYPE_THRESHOLD);
+      const candidateFace = mappedFaces[0];
 
-      const empId = user?.employeeId || (user as any)?.employee?.id || 'UNKNOWN';
-
-      if (__DEV__) {
-        console.log('=== FACE MATCH DIAGNOSTIC ===');
-        console.log(`Authenticated Employee: ${empId}`);
-        console.log(`Template Owner: ${cacheMeta?.ownerEmployeeId || empId}`);
-        console.log(`Template Found: YES`);
-        console.log(`Model: ${cacheMeta?.modelName || 'MobileFaceNet'}`);
-        console.log(`Model Version: ${cacheMeta?.modelVersion || 'v1'}`);
-        console.log(`Enrollment Dimension: ${referenceTemplate.length}`);
-        console.log(`Verification Dimension: ${liveVector.length}`);
-        console.log(`Enrollment Normalized: YES`);
-        console.log(`Verification Normalized: YES`);
-        console.log(`Cosine Similarity: ${matchResult.similarityScore.toFixed(4)}`);
-        console.log(`Configured Threshold: ${matchResult.thresholdUsed}`);
-        console.log(`Result: ${matchResult.isMatch ? 'MATCH' : 'NO_MATCH'}`);
+      // 2. Active Liveness Challenge (Blink)
+      const livenessStatus = livenessValidatorRef.current.processFrame(candidateFace);
+      if (!livenessStatus.isCompleted) {
+        setStatusMessage(livenessStatus.instructions || 'Blink your eyes to verify liveness');
+        return;
       }
 
-      if (matchResult.isMatch) {
+      // Lock verification to prevent concurrent frame evaluation
+      isVerifyingRef.current = true;
+      setStatusMessage('Verifying identity...');
+
+      const empId = user?.employeeId || (user as any)?.employee?.id || 'UNKNOWN';
+      const evaluation: FaceVerificationResult = await FaceVerificationEngine.evaluateFrameAsync(
+        mappedFaces,
+        imageWidth,
+        imageHeight,
+        {
+          userId: user?.id || '',
+          employeeId: empId,
+          referenceTemplate,
+          templateVersion: cacheMeta?.modelVersion || 'v2',
+          customThreshold: FaceVerificationEngine.DEFAULT_MATCH_THRESHOLD,
+          livenessPassed: true,
+        },
+      );
+
+      if (evaluation.status === 'FACE_VERIFIED') {
         if (mode === 'MARK_ATTENDANCE') {
           const empName = getEmployeeDisplayName(user);
           const asgId = activeAssignment?.id || 'default_asg';
@@ -175,7 +185,7 @@ export function FaceVerificationScreen({ route, navigation }: any) {
           });
 
           setVerificationState('MATCH');
-          setStatusMessage('✓ Attendance Marked Successfully');
+          setStatusMessage('✓ Face Verified — Attendance Marked');
 
           setTimeout(() => {
             navigation.goBack();
@@ -190,25 +200,33 @@ export function FaceVerificationScreen({ route, navigation }: any) {
           });
 
           setVerificationState('MATCH');
-          setStatusMessage('✓ Checked Out Successfully');
+          setStatusMessage('✓ Face Verified — Checked Out');
 
           setTimeout(() => {
             navigation.goBack();
           }, 1400);
         } else if (mode === 'CHECKPOINT_UNLOCK') {
           setVerificationState('MATCH');
-          setStatusMessage('✓ Face Verified - Opening Scanner...');
+          setStatusMessage('✓ Face Verified — Opening Scanner...');
 
           setTimeout(() => {
             navigation.replace('Scanner', checkpointParams || {});
           }, 800);
         } else {
           setVerificationState('MATCH');
-          setStatusMessage('Face Verified');
+          setStatusMessage('✓ Face Verified Successfully');
         }
-      } else {
+      } else if (evaluation.status === 'TEMPLATE_VERSION_UNSUPPORTED') {
         setVerificationState('NO_MATCH');
-        setStatusMessage('Face Not Matched');
+        setStatusMessage('Your face registration needs to be updated. Please re-register.');
+      } else if (evaluation.status === 'TEMPLATE_UNAVAILABLE') {
+        setVerificationState('NO_MATCH');
+        setStatusMessage('No face template found. Please register your face first.');
+      } else {
+        // Face Not Matched
+        const score = evaluation.status === 'FACE_NOT_MATCHED' ? evaluation.similarity.toFixed(2) : '0.00';
+        setVerificationState('NO_MATCH');
+        setStatusMessage(`Face Not Matched (Score: ${score}). Identity verification failed.`);
       }
     },
     [referenceTemplate, verificationState, user, cacheMeta, mode, activeAssignment, isConnected, navigation, checkpointParams],
@@ -250,6 +268,7 @@ export function FaceVerificationScreen({ route, navigation }: any) {
 
   const handleRetry = () => {
     isVerifyingRef.current = false;
+    livenessValidatorRef.current.startChallenge('BLINK');
     setVerificationState('SEARCHING');
     setStatusMessage('Position your face in the oval');
   };
@@ -411,6 +430,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+    textAlign: 'center',
+    flexShrink: 1,
   },
   footer: {
     padding: 20,

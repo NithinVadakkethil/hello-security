@@ -6,6 +6,8 @@ export interface User {
   employeeId?: string | null;
   firstName?: string;
   lastName?: string;
+  siraCardExpiryDate?: string | null;
+  isSiraExpired?: boolean;
 }
 
 export interface ApiResponse<T> {

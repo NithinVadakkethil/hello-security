@@ -28,6 +28,9 @@ interface Employee {
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   identificationMethod: 'QR' | 'RFID';
   joiningDate?: string | null;
+  siraCardExpiryDate?: string | null;
+  siraCardFrontImage?: string | null;
+  siraCardBackImage?: string | null;
   createdAt: string;
   user?: {
     id: string;
@@ -46,6 +49,7 @@ export default function EmployeeDetailPage() {
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ src: string; title: string } | null>(null);
 
   // Fetch Employee details
   const { data: employeeRes, isLoading, isError } = useQuery<ApiResponse<Employee>>({
@@ -54,6 +58,14 @@ export default function EmployeeDetailPage() {
   });
 
   const employee = employeeRes?.data;
+
+  // Check if SIRA card is expired
+  const isSiraExpired = () => {
+    if (!employee || employee.role !== 'SECURITY' || !employee.siraCardExpiryDate) return false;
+    const expiry = new Date(employee.siraCardExpiryDate);
+    const endOfDay = new Date(expiry.getFullYear(), expiry.getMonth(), expiry.getDate(), 23, 59, 59, 999);
+    return new Date() > endOfDay;
+  };
 
   // Reset password mutation
   const resetPasswordMutation = useMutation({
@@ -116,7 +128,7 @@ export default function EmployeeDetailPage() {
 
       {/* Main Grid Layout */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px' }}>
-        {/* Left Side: General Profile Card */}
+        {/* Left Side: General Profile Card & SIRA Specifications */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
           {/* Header Card */}
           <div className="glass-card" style={{ padding: '32px', display: 'flex', alignItems: 'center', gap: '24px' }}>
@@ -149,6 +161,21 @@ export default function EmployeeDetailPage() {
                 <span style={{ fontSize: '0.8rem', padding: '2px 8px', background: 'var(--bg-tertiary)', borderRadius: '4px', color: 'var(--text-secondary)' }}>
                   ID Mode: {employee.identificationMethod}
                 </span>
+                {employee.role === 'SECURITY' && (
+                  <span
+                    style={{
+                      fontSize: '0.78rem',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontWeight: 600,
+                      background: isSiraExpired() ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                      color: isSiraExpired() ? 'var(--danger)' : 'var(--success)',
+                      border: `1px solid ${isSiraExpired() ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                    }}
+                  >
+                    {isSiraExpired() ? '⚠️ SIRA EXPIRED' : '✓ SIRA VALID'}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -201,6 +228,72 @@ export default function EmployeeDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* SIRA Card Details (Security Role Only) */}
+          {employee.role === 'SECURITY' && (
+            <div className="glass-card" style={{ padding: '28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🪪 SIRA Card Credentials</span>
+                </h3>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    padding: '3px 10px',
+                    borderRadius: '20px',
+                    fontWeight: 600,
+                    background: isSiraExpired() ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                    color: isSiraExpired() ? 'var(--danger)' : 'var(--success)',
+                  }}
+                >
+                  {isSiraExpired() ? 'CARD EXPIRED — ACCESS RESTRICTED' : 'CARD VALID'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>SIRA EXPIRY DATE</p>
+                  <p style={{ fontSize: '1rem', fontWeight: 700, color: isSiraExpired() ? 'var(--danger)' : 'var(--text-primary)', margin: 0 }}>
+                    {employee.siraCardExpiryDate ? formatPatrolDate(employee.siraCardExpiryDate) : 'Not Specified'}
+                  </p>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 8px 0' }}>FRONT CARD IMAGE</p>
+                    {employee.siraCardFrontImage ? (
+                      <div
+                        onClick={() => setSelectedImage({ src: employee.siraCardFrontImage!, title: 'SIRA Card Front' })}
+                        style={{ cursor: 'pointer', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)', height: '140px', background: 'var(--bg-tertiary)' }}
+                      >
+                        <img src={employee.siraCardFrontImage} alt="SIRA Front" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    ) : (
+                      <div style={{ padding: '24px', textAlign: 'center', background: 'var(--bg-tertiary)', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        No front image uploaded
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 8px 0' }}>BACK CARD IMAGE</p>
+                    {employee.siraCardBackImage ? (
+                      <div
+                        onClick={() => setSelectedImage({ src: employee.siraCardBackImage!, title: 'SIRA Card Back' })}
+                        style={{ cursor: 'pointer', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)', height: '140px', background: 'var(--bg-tertiary)' }}
+                      >
+                        <img src={employee.siraCardBackImage} alt="SIRA Back" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    ) : (
+                      <div style={{ padding: '24px', textAlign: 'center', background: 'var(--bg-tertiary)', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        No back image uploaded
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Side: Associated User Account Details */}
@@ -317,6 +410,19 @@ export default function EmployeeDetailPage() {
             Dismiss Credentials
           </button>
         </div>
+      </Modal>
+
+      {/* Image Preview Modal */}
+      <Modal isOpen={!!selectedImage} onClose={() => setSelectedImage(null)} title={selectedImage?.title || 'Card Image'}>
+        {selectedImage && (
+          <div style={{ textAlign: 'center' }}>
+            <img
+              src={selectedImage.src}
+              alt={selectedImage.title}
+              style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: '8px', objectFit: 'contain' }}
+            />
+          </div>
+        )}
       </Modal>
     </div>
   );

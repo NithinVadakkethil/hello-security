@@ -24,6 +24,12 @@ interface Shift {
   name: string;
   startTime: string;
   endTime: string;
+  mandatoryPatrol1Time?: string | null;
+  mandatoryPatrol1WindowBefore?: number;
+  mandatoryPatrol1WindowAfter?: number;
+  mandatoryPatrol2Time?: string | null;
+  mandatoryPatrol2WindowBefore?: number;
+  mandatoryPatrol2WindowAfter?: number;
   description?: string | null;
   isActive: boolean;
   createdAt: string;
@@ -33,6 +39,12 @@ const shiftSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Must be in HH:MM format'),
   endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Must be in HH:MM format'),
+  mandatoryPatrol1Time: z.string().optional().or(z.literal('')),
+  mandatoryPatrol1WindowBefore: z.coerce.number().optional().default(15),
+  mandatoryPatrol1WindowAfter: z.coerce.number().optional().default(15),
+  mandatoryPatrol2Time: z.string().optional().or(z.literal('')),
+  mandatoryPatrol2WindowBefore: z.coerce.number().optional().default(15),
+  mandatoryPatrol2WindowAfter: z.coerce.number().optional().default(15),
   description: z.string().optional(),
 }).refine((data) => data.startTime !== data.endTime, {
   message: 'Start time and end time cannot be the same',
@@ -129,6 +141,12 @@ export default function ShiftsPage() {
       name: '',
       startTime: '',
       endTime: '',
+      mandatoryPatrol1Time: '',
+      mandatoryPatrol1WindowBefore: 15,
+      mandatoryPatrol1WindowAfter: 15,
+      mandatoryPatrol2Time: '',
+      mandatoryPatrol2WindowBefore: 15,
+      mandatoryPatrol2WindowAfter: 15,
       description: '',
     });
     setIsModalOpen(true);
@@ -140,6 +158,12 @@ export default function ShiftsPage() {
       name: shift.name,
       startTime: shift.startTime,
       endTime: shift.endTime,
+      mandatoryPatrol1Time: shift.mandatoryPatrol1Time || '',
+      mandatoryPatrol1WindowBefore: shift.mandatoryPatrol1WindowBefore ?? 15,
+      mandatoryPatrol1WindowAfter: shift.mandatoryPatrol1WindowAfter ?? 15,
+      mandatoryPatrol2Time: shift.mandatoryPatrol2Time || '',
+      mandatoryPatrol2WindowBefore: shift.mandatoryPatrol2WindowBefore ?? 15,
+      mandatoryPatrol2WindowAfter: shift.mandatoryPatrol2WindowAfter ?? 15,
       description: shift.description || '',
     });
     setIsModalOpen(true);
@@ -318,6 +342,71 @@ export default function ShiftsPage() {
               error={errors.endTime?.message}
               {...register('endTime')}
             />
+          </div>
+
+          {/* MANDATORY PATROL SCHEDULE SECTION */}
+          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '8px' }}>
+            <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              ⏱️ Mandatory Patrol Schedule
+            </h4>
+
+            {/* Patrol 1 */}
+            <div style={{ background: 'var(--bg-tertiary)', padding: '12px', borderRadius: '8px', marginBottom: '12px' }}>
+              <p style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: '8px', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Mandatory Patrol 1
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <FormInput
+                  label="Required Time"
+                  placeholder="e.g. 23:00"
+                  error={errors.mandatoryPatrol1Time?.message}
+                  {...register('mandatoryPatrol1Time')}
+                />
+                <FormInput
+                  label="Window Before (Mins)"
+                  type="number"
+                  placeholder="15"
+                  error={errors.mandatoryPatrol1WindowBefore?.message}
+                  {...register('mandatoryPatrol1WindowBefore')}
+                />
+                <FormInput
+                  label="Window After (Mins)"
+                  type="number"
+                  placeholder="15"
+                  error={errors.mandatoryPatrol1WindowAfter?.message}
+                  {...register('mandatoryPatrol1WindowAfter')}
+                />
+              </div>
+            </div>
+
+            {/* Patrol 2 */}
+            <div style={{ background: 'var(--bg-tertiary)', padding: '12px', borderRadius: '8px' }}>
+              <p style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: '8px', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Mandatory Patrol 2
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <FormInput
+                  label="Required Time"
+                  placeholder="e.g. 03:00"
+                  error={errors.mandatoryPatrol2Time?.message}
+                  {...register('mandatoryPatrol2Time')}
+                />
+                <FormInput
+                  label="Window Before (Mins)"
+                  type="number"
+                  placeholder="15"
+                  error={errors.mandatoryPatrol2WindowBefore?.message}
+                  {...register('mandatoryPatrol2WindowBefore')}
+                />
+                <FormInput
+                  label="Window After (Mins)"
+                  type="number"
+                  placeholder="15"
+                  error={errors.mandatoryPatrol2WindowAfter?.message}
+                  {...register('mandatoryPatrol2WindowAfter')}
+                />
+              </div>
+            </div>
           </div>
 
           <div>

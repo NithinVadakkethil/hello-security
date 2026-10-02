@@ -43,4 +43,5 @@ export type AppTabParamList = {
 export type RootStackParamList = {
   AuthStack: undefined;
   AppStack: { screen: keyof AppTabParamList } | undefined;
+  SiraRestrictedStack: undefined;
 };

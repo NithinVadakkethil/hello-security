@@ -108,6 +108,103 @@ export class ReportController {
       return next(error);
     }
   }
+
+  async generateSummaryReport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const query = req.query || {};
+      const body = req.body || {};
+      const params = {
+        periodType: ((query.periodType || body.periodType || 'DAILY') as string).toUpperCase() as any,
+        date: (query.date || body.date) as string | undefined,
+        month: (query.month || body.month) as string | undefined,
+        startDate: (query.startDate || body.startDate) as string | undefined,
+        endDate: (query.endDate || body.endDate) as string | undefined,
+        clientId: (query.clientId || body.clientId) as string | undefined,
+        siteId: (query.siteId || body.siteId) as string | undefined,
+        employeeId: (query.employeeId || body.employeeId) as string | undefined,
+        user,
+      };
+
+      const { summaryReportService } = require('./summary-report.service');
+      const dataset = await summaryReportService.generateReportDataset(params);
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data: dataset,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async downloadSummaryPdf(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const query = req.query || {};
+      const body = req.body || {};
+      const params = {
+        periodType: ((query.periodType || body.periodType || 'DAILY') as string).toUpperCase() as any,
+        date: (query.date || body.date) as string | undefined,
+        month: (query.month || body.month) as string | undefined,
+        startDate: (query.startDate || body.startDate) as string | undefined,
+        endDate: (query.endDate || body.endDate) as string | undefined,
+        clientId: (query.clientId || body.clientId) as string | undefined,
+        siteId: (query.siteId || body.siteId) as string | undefined,
+        employeeId: (query.employeeId || body.employeeId) as string | undefined,
+        user,
+      };
+
+      const { summaryReportService } = require('./summary-report.service');
+      const { pdfGeneratorService } = require('./pdf-generator.service');
+
+      const dataset = await summaryReportService.generateReportDataset(params);
+      const pdfBuffer = await pdfGeneratorService.generatePdf(dataset);
+
+      const dateTag = params.date || params.month || new Date().toISOString().split('T')[0];
+      const filename = `HelloOrbit_${params.periodType}_Report_${dateTag}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.status(HttpStatus.OK).send(pdfBuffer);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async downloadSummaryExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const query = req.query || {};
+      const body = req.body || {};
+      const params = {
+        periodType: ((query.periodType || body.periodType || 'DAILY') as string).toUpperCase() as any,
+        date: (query.date || body.date) as string | undefined,
+        month: (query.month || body.month) as string | undefined,
+        startDate: (query.startDate || body.startDate) as string | undefined,
+        endDate: (query.endDate || body.endDate) as string | undefined,
+        clientId: (query.clientId || body.clientId) as string | undefined,
+        siteId: (query.siteId || body.siteId) as string | undefined,
+        employeeId: (query.employeeId || body.employeeId) as string | undefined,
+        user,
+      };
+
+      const { summaryReportService } = require('./summary-report.service');
+      const { excelGeneratorService } = require('./excel-generator.service');
+
+      const dataset = await summaryReportService.generateReportDataset(params);
+      const excelBuffer = excelGeneratorService.generateExcel(dataset);
+
+      const dateTag = params.date || params.month || new Date().toISOString().split('T')[0];
+      const filename = `HelloOrbit_${params.periodType}_Report_${dateTag}.xlsx`;
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.status(HttpStatus.OK).send(excelBuffer);
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export const reportController = new ReportController();

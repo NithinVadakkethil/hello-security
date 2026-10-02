@@ -8,6 +8,9 @@ export interface CreateEmployeeDto {
   designation?: string | null;
   companyName?: string | null;
   joiningDate?: Date | null;
+  siraCardExpiryDate?: Date | null;
+  siraCardFrontImage?: string | null;
+  siraCardBackImage?: string | null;
   identificationMethod?: IdentificationMethod;
   role: UserRole;
   supervisedRole?: UserRole | null;
@@ -20,6 +23,9 @@ export interface UpdateEmployeeDto {
   designation?: string | null;
   companyName?: string | null;
   joiningDate?: Date | null;
+  siraCardExpiryDate?: Date | null;
+  siraCardFrontImage?: string | null;
+  siraCardBackImage?: string | null;
   status?: EmployeeStatus;
   role?: UserRole;
   supervisedRole?: UserRole | null;

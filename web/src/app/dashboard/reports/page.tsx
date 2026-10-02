@@ -9,6 +9,7 @@ import { exportToCsv } from '../../../lib/export';
 import { apiClient } from '../../lib/axios';
 import { ApiResponse } from '../../types/api';
 
+import PeriodicReportGenerator from './components/PeriodicReportGenerator';
 import AdvancedFilterPanel, {
   FilterState,
 } from './components/AdvancedFilterPanel';
@@ -234,6 +235,9 @@ function ReportsPageContent() {
         paddingBottom: '40px',
       }}
     >
+      {/* Periodic Summary Report Generator */}
+      <PeriodicReportGenerator sites={sites} employees={employees} />
+
       {/* Advanced Filter Section */}
       <AdvancedFilterPanel
         filters={filters}

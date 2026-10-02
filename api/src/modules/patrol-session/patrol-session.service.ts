@@ -9,6 +9,7 @@ import { prisma } from '../../database/prisma';
 
 import { assignmentRepository } from '../assignment/assignment.repository';
 import { patrolSessionRepository } from './patrol-session.repository';
+import { mandatoryPatrolService } from '../mandatory-patrol/mandatory-patrol.service';
 import { CurrentUser } from '../../common/auth/current-user';
 import { getSupervisorScope } from '../../common/auth/supervisor-scope';
 import { ListPatrolSessionsQuery } from './patrol-session.types';
@@ -239,6 +240,11 @@ export class PatrolSessionService {
       endedAt,
       totalDuration,
       remarks,
+    });
+
+    // Check if patrol completion satisfies an active mandatory patrol window
+    mandatoryPatrolService.handlePatrolCompleted(completedPatrol).catch((err) => {
+      logger.error(`Failed to process mandatory patrol completion: ${err.message}`);
     });
 
     // Asynchronously queue completed patrol email notification (non-blocking)

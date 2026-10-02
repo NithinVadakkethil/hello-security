@@ -19,6 +19,7 @@ import {
   Users,
   Wrench,
 } from 'lucide-react';
+import NotificationBell from './components/NotificationBell';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import React from 'react';
@@ -227,9 +228,11 @@ export default function DashboardLayout({
 
         {/* Main Content Area */}
         <div className="app-content">
+
           <header className="app-header">
             <h2 className="page-title">{getHeaderTitle()}</h2>
-            <div className="header-actions">
+            <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <NotificationBell />
               <button
                 onClick={toggleTheme}
                 className="theme-toggle-btn"

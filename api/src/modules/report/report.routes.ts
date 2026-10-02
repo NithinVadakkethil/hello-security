@@ -16,4 +16,9 @@ router.get('/inspections/:id', (req, res, next) => reportController.getSingleIns
 router.get('/inspections/:id/pdf', (req, res, next) => reportController.getPatrolPdf(req, res, next));
 router.get('/export/csv', (req, res, next) => reportController.exportCsv(req, res, next));
 
+// Summary Report Module Endpoints (Daily, Weekly, Monthly - PDF & Excel)
+router.get('/summary/generate', (req, res, next) => reportController.generateSummaryReport(req, res, next));
+router.get('/summary/pdf', (req, res, next) => reportController.downloadSummaryPdf(req, res, next));
+router.get('/summary/excel', (req, res, next) => reportController.downloadSummaryExcel(req, res, next));
+
 export default router;

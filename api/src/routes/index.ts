@@ -24,6 +24,8 @@ import subTaskMasterRoutes from '../modules/subtask-master/subtask-master.routes
 import managerRoutes from '../modules/manager/manager.routes';
 import centralManagerRoutes from '../modules/central-manager/central-manager.routes';
 import faceEnrollmentRoutes from '../modules/face-enrollment/face-enrollment.routes';
+import mandatoryPatrolRoutes from '../modules/mandatory-patrol/mandatory-patrol.routes';
+import notificationRoutes from '../modules/notification/notification.routes';
 
 import healthRoute from './health.route';
 import protectedRoute from './protected.route';
@@ -34,6 +36,8 @@ router.use('/health', healthRoute);
 router.use('/protected', protectedRoute);
 router.use('/auth', authRoutes);
 router.use('/', faceEnrollmentRoutes);
+router.use('/mandatory-patrols', mandatoryPatrolRoutes);
+router.use('/notifications', notificationRoutes);
 router.use('/manager', managerRoutes);
 router.use('/central-manager', centralManagerRoutes);
 router.use('/', clientNotificationRoutes);

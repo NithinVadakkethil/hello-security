@@ -41,6 +41,9 @@ const schema = z
       'PLUMBER',
     ]),
     supervisedRole: z.string().optional(),
+    siraCardExpiryDate: z.string().optional(),
+    siraCardFrontImage: z.string().optional(),
+    siraCardBackImage: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -64,11 +67,15 @@ export default function NewEmployeePage() {
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const [siraFrontPreview, setSiraFrontPreview] = useState<string | null>(null);
+  const [siraBackPreview, setSiraBackPreview] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
     setError,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema as any),
@@ -80,6 +87,34 @@ export default function NewEmployeePage() {
   });
 
   const selectedRole = watch('role');
+
+  const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select a valid image file');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image size must be less than 10MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (side === 'front') {
+        setSiraFrontPreview(base64);
+        setValue('siraCardFrontImage', base64);
+      } else {
+        setSiraBackPreview(base64);
+        setValue('siraCardBackImage', base64);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const createEmployeeMutation = useMutation({
     mutationFn: (values: FormValues) => {
@@ -99,6 +134,27 @@ export default function NewEmployeePage() {
         payload.joiningDate = new Date(payload.joiningDate).toISOString();
       } else {
         delete payload.joiningDate;
+      }
+      if (payload.role === 'SECURITY') {
+        if (payload.siraCardExpiryDate) {
+          payload.siraCardExpiryDate = new Date(payload.siraCardExpiryDate).toISOString();
+        } else {
+          delete payload.siraCardExpiryDate;
+        }
+        if (siraFrontPreview) {
+          payload.siraCardFrontImage = siraFrontPreview;
+        } else {
+          delete payload.siraCardFrontImage;
+        }
+        if (siraBackPreview) {
+          payload.siraCardBackImage = siraBackPreview;
+        } else {
+          delete payload.siraCardBackImage;
+        }
+      } else {
+        delete payload.siraCardExpiryDate;
+        delete payload.siraCardFrontImage;
+        delete payload.siraCardBackImage;
       }
       return apiClient.post('/employees', payload);
     },
@@ -298,6 +354,89 @@ export default function NewEmployeePage() {
               <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                 This supervisor will strictly see and manage operational data (patrols, reviews, observations, snags) for guards in this specific role.
               </p>
+            </div>
+          )}
+
+          {selectedRole === 'SECURITY' && (
+            <div
+              style={{
+                marginTop: '12px',
+                padding: '20px',
+                borderRadius: '12px',
+                backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+              }}
+            >
+              <h4
+                style={{
+                  margin: 0,
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <span>🪪 SIRA Card Credentials (Security Staff)</span>
+              </h4>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                Security operational access will automatically be restricted after card expiry date.
+              </p>
+
+              <FormInput
+                label="SIRA Card Expiry Date"
+                type="date"
+                error={(errors as any).siraCardExpiryDate?.message}
+                {...register('siraCardExpiryDate')}
+              />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, marginBottom: '6px', color: 'var(--text-primary)' }}>
+                    SIRA Card Front Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageFile(e, 'front')}
+                    style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}
+                  />
+                  {siraFrontPreview && (
+                    <div style={{ marginTop: '8px' }}>
+                      <img
+                        src={siraFrontPreview}
+                        alt="SIRA Front Preview"
+                        style={{ width: '100%', maxHeight: '120px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-color)' }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, marginBottom: '6px', color: 'var(--text-primary)' }}>
+                    SIRA Card Back Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageFile(e, 'back')}
+                    style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}
+                  />
+                  {siraBackPreview && (
+                    <div style={{ marginTop: '8px' }}>
+                      <img
+                        src={siraBackPreview}
+                        alt="SIRA Back Preview"
+                        style={{ width: '100%', maxHeight: '120px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-color)' }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

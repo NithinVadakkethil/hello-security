@@ -138,6 +138,20 @@ apiClient.interceptors.response.use(
       }
     }
 
+    if (error.response?.status === 403) {
+      const data = error.response.data as any;
+      const code = data.error?.code || data.code;
+      if (code === 'SIRA_CARD_EXPIRED') {
+        const currentUser = useAuthStore.getState().user;
+        if (currentUser) {
+          useAuthStore.getState().setAuth({
+            ...currentUser,
+            isSiraExpired: true,
+          });
+        }
+      }
+    }
+
     if (error.response?.data) {
       const data = error.response.data as any;
       const customMsg = data.error?.message || data.message;

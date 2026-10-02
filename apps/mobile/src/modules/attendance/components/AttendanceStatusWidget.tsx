@@ -1,21 +1,29 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { CheckCircle2, AlertCircle, ChevronRight, Shield, Clock } from 'lucide-react-native';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Shield,
+} from 'lucide-react-native';
+import React, { useEffect } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { useAuthStore } from '../../../app/store/auth-store';
-import { useAttendanceStore } from '../store/attendance-store';
 import { formatPatrolTime } from '../../../app/utils/date-formatter';
 import { Card } from '../../dashboard/components/WidgetCard';
+import { useAttendanceStore } from '../store/attendance-store';
 
 interface AttendanceStatusWidgetProps {
   assignmentId?: string;
 }
 
-export function AttendanceStatusWidget({ assignmentId }: AttendanceStatusWidgetProps) {
+export function AttendanceStatusWidget({
+  assignmentId,
+}: AttendanceStatusWidgetProps) {
   const { colors } = useTheme();
   const navigation = useNavigation<any>();
-  const user = useAuthStore((state) => state.user);
+  const user = useAuthStore(state => state.user);
 
   const empId = user?.employeeId || (user as any)?.employee?.id || '';
   const { todayAttendance, loadAttendance } = useAttendanceStore();
@@ -38,10 +46,16 @@ export function AttendanceStatusWidget({ assignmentId }: AttendanceStatusWidgetP
 
   return (
     <Card style={[styles.card, { borderColor: colors.border }]}>
-      <TouchableOpacity style={styles.headerRow} onPress={handlePress} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={styles.headerRow}
+        onPress={handlePress}
+        activeOpacity={0.7}
+      >
         <View style={styles.headerLeft}>
           <Clock size={16} color={colors.primary} style={{ marginRight: 6 }} />
-          <Text style={[styles.headerTitle, { color: colors.textSecondary }]}>Today's Attendance</Text>
+          <Text style={[styles.headerTitle, { color: colors.textSecondary }]}>
+            Today's Attendance
+          </Text>
         </View>
         <ChevronRight size={16} color={colors.textSecondary} />
       </TouchableOpacity>
@@ -50,8 +64,14 @@ export function AttendanceStatusWidget({ assignmentId }: AttendanceStatusWidgetP
         {!todayAttendance ? (
           <View style={styles.statusRow}>
             <View style={[styles.badge, { backgroundColor: '#FEF3C7' }]}>
-              <AlertCircle size={14} color="#D97706" style={{ marginRight: 4 }} />
-              <Text style={[styles.badgeText, { color: '#B45309' }]}>NOT MARKED</Text>
+              <AlertCircle
+                size={14}
+                color="#D97706"
+                style={{ marginRight: 4 }}
+              />
+              <Text style={[styles.badgeText, { color: '#B45309' }]}>
+                NOT MARKED
+              </Text>
             </View>
             <TouchableOpacity
               style={[styles.markBtn, { backgroundColor: colors.primary }]}
@@ -66,32 +86,56 @@ export function AttendanceStatusWidget({ assignmentId }: AttendanceStatusWidgetP
             <View
               style={[
                 styles.badge,
-                { backgroundColor: todayAttendance.status === 'PENDING_SYNC' ? '#DBEAFE' : '#D1FAE5' },
+                {
+                  backgroundColor:
+                    todayAttendance.status === 'PENDING_SYNC'
+                      ? '#DBEAFE'
+                      : '#D1FAE5',
+                },
               ]}
             >
               <CheckCircle2
                 size={14}
-                color={todayAttendance.status === 'PENDING_SYNC' ? '#2563EB' : '#059669'}
+                color={
+                  todayAttendance.status === 'PENDING_SYNC'
+                    ? '#2563EB'
+                    : '#059669'
+                }
                 style={{ marginRight: 4 }}
               />
               <Text
                 style={[
                   styles.badgeText,
-                  { color: todayAttendance.status === 'PENDING_SYNC' ? '#1D4ED8' : '#047857' },
+                  {
+                    color:
+                      todayAttendance.status === 'PENDING_SYNC'
+                        ? '#1D4ED8'
+                        : '#047857',
+                  },
                 ]}
               >
-                {todayAttendance.status === 'PENDING_SYNC' ? '✓ PENDING SYNC' : '✓ PRESENT'}
+                {todayAttendance.status === 'PENDING_SYNC'
+                  ? '✓ PENDING SYNC'
+                  : '✓ CHECKED IN'}
               </Text>
             </View>
 
             <View style={styles.timeInfo}>
-              <Text style={[styles.checkInLabel, { color: colors.textSecondary }]}>
+              <Text
+                style={[styles.checkInLabel, { color: colors.textSecondary }]}
+              >
                 Check-in:{' '}
                 <Text style={[styles.checkInTime, { color: colors.text }]}>
-                  {formatPatrolTime(todayAttendance.checkInAt, 'Asia/Dubai', false)}
+                  {formatPatrolTime(
+                    todayAttendance.checkInAt,
+                    'Asia/Dubai',
+                    false,
+                  )}
                 </Text>
               </Text>
-              <Text style={[styles.verifiedTag, { color: colors.primary }]}>Face Verified</Text>
+              <Text style={[styles.verifiedTag, { color: colors.primary }]}>
+                Face Verified
+              </Text>
             </View>
           </View>
         )}

@@ -19,6 +19,10 @@ export const createEmployeeSchema = z.object({
 
   joiningDate: z.coerce.date().nullable().optional(),
 
+  siraCardExpiryDate: z.coerce.date().nullable().optional(),
+  siraCardFrontImage: z.string().trim().nullable().optional(),
+  siraCardBackImage: z.string().trim().nullable().optional(),
+
   identificationMethod: z
     .nativeEnum(IdentificationMethod)
     .default(IdentificationMethod.QR),
@@ -39,6 +43,10 @@ export const updateEmployeeSchema = z.object({
   companyName: z.string().trim().max(150, 'Company name cannot exceed 150 characters').nullable().optional(),
 
   joiningDate: z.coerce.date().nullable().optional(),
+
+  siraCardExpiryDate: z.coerce.date().nullable().optional(),
+  siraCardFrontImage: z.string().trim().nullable().optional(),
+  siraCardBackImage: z.string().trim().nullable().optional(),
 
   status: z.nativeEnum(EmployeeStatus).optional(),
   role: z.nativeEnum(UserRole).optional(),
