@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../../common/auth/auth.middleware';
 import { mandatoryPatrolController } from './mandatory-patrol.controller';
 
-const router = Router();
+const router: Router = Router();
 
 router.use(authenticate);
 
