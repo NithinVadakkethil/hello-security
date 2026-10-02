@@ -100,8 +100,8 @@ export function FaceVerificationScreen({ route, navigation }: any) {
   }, [user]);
 
   const { detectFaces } = useFaceDetector({
-    performanceMode: 'fast',
-    contourMode: 'none',
+    performanceMode: 'accurate',
+    contourMode: 'all',
     landmarkMode: 'all',
     classificationMode: 'all',
     minFaceSize: 0.15,
@@ -121,6 +121,7 @@ export function FaceVerificationScreen({ route, navigation }: any) {
         leftEyeOpenProbability: f.leftEyeOpenProbability,
         rightEyeOpenProbability: f.rightEyeOpenProbability,
         landmarks: f.landmarks,
+        contours: f.contours,
       }));
 
       // 1. Face Quality Validation
@@ -259,6 +260,7 @@ export function FaceVerificationScreen({ route, navigation }: any) {
           leftEyeOpenProbability: f.leftEyeOpenProbability,
           rightEyeOpenProbability: f.rightEyeOpenProbability,
           landmarks: f.landmarks,
+          contours: f.contours,
         });
       }
       handleFrameProcessed(safeFaces, frame.width, frame.height);

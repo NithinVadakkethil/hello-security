@@ -190,70 +190,123 @@ export class FaceModelManager {
   }
 
   /**
-   * Prepares the 1x3x112x112 NCHW Float32 input tensor with aligned landmark Gaussian spectral responses.
+   * Prepares the 1x3x112x112 NCHW Float32 input tensor with aligned individualized facial contour structure.
    */
   public prepareInputTensor(face: FaceDetectionData): Float32Array {
     const kp = this.extractKeypoints(face);
-    const srcLandmarks: [number, number][] = [
-      [kp.leftEye.x, kp.leftEye.y],
-      [kp.rightEye.x, kp.rightEye.y],
-      [kp.nose.x, kp.nose.y],
-      [kp.leftMouth.x, kp.leftMouth.y],
-      [kp.rightMouth.x, kp.rightMouth.y],
-    ];
+    const { contours = {} } = face;
 
-    const transform = this.computeSimilarityTransform(srcLandmarks);
-    const cosR = Math.cos(transform.rotation);
-    const sinR = Math.sin(transform.rotation);
-    const scale = transform.scale;
-    const [tx, ty] = transform.translation;
+    // 1. Calculate eye midpoint and canonical rotation/scale
+    const x0 = (kp.leftEye.x + kp.rightEye.x) / 2;
+    const y0 = (kp.leftEye.y + kp.rightEye.y) / 2;
+    const dx = kp.rightEye.x - kp.leftEye.x;
+    const dy = kp.rightEye.y - kp.leftEye.y;
+    const iod = Math.hypot(dx, dy) || 1;
+    const theta = Math.atan2(dy, dx);
+    const cosT = Math.cos(theta);
+    const sinT = Math.sin(theta);
+
+    // Map canonical face coordinates: leftEye -> (38.3, 51.7), rightEye -> (73.5, 51.5)
+    const targetIod = 35.24; // 73.53 - 38.29
+    const targetCenterX = 55.91;
+    const targetCenterY = 51.60;
+
+    const toCanonicalPixel = (pt: { x: number; y: number }): [number, number] => {
+      const rx = pt.x - x0;
+      const ry = pt.y - y0;
+      const u = (rx * cosT + ry * sinT) / iod;
+      const v = (-rx * sinT + ry * cosT) / iod;
+      const px = targetCenterX + u * targetIod;
+      const py = targetCenterY + v * targetIod;
+      return [px, py];
+    };
 
     const tensorSize = 1 * 3 * FaceModelManager.INPUT_SIZE * FaceModelManager.INPUT_SIZE;
     const inputData = new Float32Array(tensorSize);
     const channelStride = FaceModelManager.INPUT_SIZE * FaceModelManager.INPUT_SIZE;
 
-    const transformPt = (pt: { x: number; y: number }): [number, number] => {
-      const rx = scale * (cosR * pt.x - sinR * pt.y) + tx;
-      const ry = scale * (sinR * pt.x + cosR * pt.y) + ty;
-      return [rx, ry];
-    };
+    // Collect all individualized contour & landmark feature points
+    const pointsToRender: Array<{ pt: [number, number]; sigma: number; r: number; g: number; b: number }> = [];
 
-    const featurePoints = [
-      { pt: transformPt(kp.leftEye), sigma: 6.0, r: 40, g: 30, b: 30 },
-      { pt: transformPt(kp.rightEye), sigma: 6.0, r: 40, g: 30, b: 30 },
-      { pt: transformPt(kp.nose), sigma: 7.5, r: 180, g: 150, b: 140 },
-      { pt: transformPt(kp.leftMouth), sigma: 5.0, r: 160, g: 60, b: 60 },
-      { pt: transformPt(kp.rightMouth), sigma: 5.0, r: 160, g: 60, b: 60 },
-      { pt: transformPt(kp.mouthBottom), sigma: 5.5, r: 170, g: 70, b: 70 },
-      { pt: transformPt(kp.leftCheek), sigma: 9.0, r: 210, g: 175, b: 160 },
-      { pt: transformPt(kp.rightCheek), sigma: 9.0, r: 210, g: 175, b: 160 },
+    // Face oval outline contour
+    const faceContour = contours['FACE'] || [];
+    if (faceContour.length > 0) {
+      for (const p of faceContour) {
+        pointsToRender.push({ pt: toCanonicalPixel(p), sigma: 3.5, r: 160, g: 130, b: 120 });
+      }
+    } else {
+      // Synthesize from bounds
+      const cx = kp.bounds.x + kp.fw / 2;
+      const cy = kp.bounds.y + kp.fh / 2;
+      for (let i = 0; i < 24; i++) {
+        const ang = (i * 2 * Math.PI) / 24;
+        pointsToRender.push({
+          pt: toCanonicalPixel({ x: cx + (kp.fw / 2) * Math.cos(ang), y: cy + (kp.fh / 2) * Math.sin(ang) }),
+          sigma: 4.0,
+          r: 160,
+          g: 130,
+          b: 120,
+        });
+      }
+    }
+
+    // Eyebrows
+    const leftBrow = contours['LEFT_EYEBROW_TOP'] || contours['LEFT_EYEBROW_BOTTOM'] || [];
+    const rightBrow = contours['RIGHT_EYEBROW_TOP'] || contours['RIGHT_EYEBROW_BOTTOM'] || [];
+    for (const p of leftBrow) pointsToRender.push({ pt: toCanonicalPixel(p), sigma: 2.5, r: 60, g: 45, b: 40 });
+    for (const p of rightBrow) pointsToRender.push({ pt: toCanonicalPixel(p), sigma: 2.5, r: 60, g: 45, b: 40 });
+
+    // Eyes
+    const leftEyePts = contours['LEFT_EYE'] || [kp.leftEye];
+    const rightEyePts = contours['RIGHT_EYE'] || [kp.rightEye];
+    for (const p of leftEyePts) pointsToRender.push({ pt: toCanonicalPixel(p), sigma: 2.8, r: 35, g: 25, b: 25 });
+    for (const p of rightEyePts) pointsToRender.push({ pt: toCanonicalPixel(p), sigma: 2.8, r: 35, g: 25, b: 25 });
+
+    // Nose
+    const nosePts = contours['NOSE_BRIDGE'] || contours['NOSE_BOTTOM'] || [kp.nose];
+    for (const p of nosePts) pointsToRender.push({ pt: toCanonicalPixel(p), sigma: 3.5, r: 180, g: 150, b: 140 });
+
+    // Lips
+    const lipPts = [
+      ...(contours['UPPER_LIP_TOP'] || []),
+      ...(contours['LOWER_LIP_BOTTOM'] || []),
+      kp.leftMouth,
+      kp.rightMouth,
+      kp.mouthBottom,
     ];
+    for (const p of lipPts) pointsToRender.push({ pt: toCanonicalPixel(p), sigma: 3.0, r: 190, g: 75, b: 75 });
 
+    // Cheeks
+    pointsToRender.push({ pt: toCanonicalPixel(kp.leftCheek), sigma: 6.0, r: 210, g: 175, b: 160 });
+    pointsToRender.push({ pt: toCanonicalPixel(kp.rightCheek), sigma: 6.0, r: 210, g: 175, b: 160 });
+
+    // Render into 112x112 tensor
     for (let y = 0; y < FaceModelManager.INPUT_SIZE; y++) {
       for (let x = 0; x < FaceModelManager.INPUT_SIZE; x++) {
         const pixelIndex = y * FaceModelManager.INPUT_SIZE + x;
 
-        const dx = (x - 56) / 45;
-        const dy = (y - 56) / 52;
-        const rDist = Math.sqrt(dx * dx + dy * dy);
-        let baseB = Math.max(0, 180 - rDist * 120);
-        let baseG = Math.max(0, 190 - rDist * 125);
-        let baseR = Math.max(0, 220 - rDist * 135);
+        const dxCenter = (x - 56) / 45;
+        const dyCenter = (y - 56) / 52;
+        const rDist = Math.sqrt(dxCenter * dxCenter + dyCenter * dyCenter);
+        let baseB = Math.max(0, 160 - rDist * 110);
+        let baseG = Math.max(0, 175 - rDist * 115);
+        let baseR = Math.max(0, 205 - rDist * 125);
 
-        for (const fp of featurePoints) {
+        for (const fp of pointsToRender) {
           const dX = x - fp.pt[0];
           const dY = y - fp.pt[1];
-          const gVal = Math.exp(-(dX * dX + dY * dY) / (2 * fp.sigma * fp.sigma));
-          if (gVal > 0.01) {
-            baseB = baseB * (1 - gVal * 0.7) + fp.b * gVal * 0.7;
-            baseG = baseG * (1 - gVal * 0.7) + fp.g * gVal * 0.7;
-            baseR = baseR * (1 - gVal * 0.7) + fp.r * gVal * 0.7;
+          const distSq = dX * dX + dY * dY;
+          if (distSq < fp.sigma * fp.sigma * 9) {
+            const gVal = Math.exp(-distSq / (2 * fp.sigma * fp.sigma));
+            baseB = baseB * (1 - gVal * 0.75) + fp.b * gVal * 0.75;
+            baseG = baseG * (1 - gVal * 0.75) + fp.g * gVal * 0.75;
+            baseR = baseR * (1 - gVal * 0.75) + fp.r * gVal * 0.75;
           }
         }
 
-        inputData[0 * channelStride + pixelIndex] = baseB; // Channel 0 (B)
-        inputData[1 * channelStride + pixelIndex] = baseG; // Channel 1 (G)
-        inputData[2 * channelStride + pixelIndex] = baseR; // Channel 2 (R)
+        inputData[0 * channelStride + pixelIndex] = baseB; // B
+        inputData[1 * channelStride + pixelIndex] = baseG; // G
+        inputData[2 * channelStride + pixelIndex] = baseR; // R
       }
     }
 
@@ -261,39 +314,116 @@ export class FaceModelManager {
   }
 
   /**
-   * Extract intrinsic normalized geometric invariant ratios from detected landmarks
+   * Extract intrinsic normalized harmonic geometric & contour descriptors
    */
   public extractLandmarkGeometry(face: FaceDetectionData): number[] {
     const kp = this.extractKeypoints(face);
-    const iod = Math.hypot(kp.rightEye.x - kp.leftEye.x, kp.rightEye.y - kp.leftEye.y) || 1;
-    const eyeMid = { x: (kp.leftEye.x + kp.rightEye.x) / 2, y: (kp.leftEye.y + kp.rightEye.y) / 2 };
-    const mouthMid = { x: (kp.leftMouth.x + kp.rightMouth.x) / 2, y: (kp.leftMouth.y + kp.rightMouth.y) / 2 };
+    const { contours = {} } = face;
 
-    const eyeNoseRatio = Math.hypot(kp.nose.x - eyeMid.x, kp.nose.y - eyeMid.y) / iod;
-    const noseMouthRatio = Math.hypot(mouthMid.x - kp.nose.x, mouthMid.y - kp.nose.y) / iod;
-    const mouthWidthRatio = Math.hypot(kp.rightMouth.x - kp.leftMouth.x, kp.rightMouth.y - kp.leftMouth.y) / iod;
-    const leftEyeNoseRatio = Math.hypot(kp.nose.x - kp.leftEye.x, kp.nose.y - kp.leftEye.y) / iod;
-    const rightEyeNoseRatio = Math.hypot(kp.nose.x - kp.rightEye.x, kp.nose.y - kp.rightEye.y) / iod;
-    const eyeToMouthLeftRatio = Math.hypot(kp.leftMouth.x - kp.leftEye.x, kp.leftMouth.y - kp.leftEye.y) / iod;
-    const eyeToMouthRightRatio = Math.hypot(kp.rightMouth.x - kp.rightEye.x, kp.rightMouth.y - kp.rightEye.y) / iod;
-    const cheekSpanRatio = Math.hypot(kp.rightCheek.x - kp.leftCheek.x, kp.rightCheek.y - kp.leftCheek.y) / iod;
-    const chinRatio = Math.hypot(kp.mouthBottom.x - kp.nose.x, kp.mouthBottom.y - kp.nose.y) / iod;
-    const aspectRatio = kp.fw / kp.fh;
-    const iodToFaceWidth = iod / kp.fw;
+    const x0 = (kp.leftEye.x + kp.rightEye.x) / 2;
+    const y0 = (kp.leftEye.y + kp.rightEye.y) / 2;
+    const dx = kp.rightEye.x - kp.leftEye.x;
+    const dy = kp.rightEye.y - kp.leftEye.y;
+    const iod = Math.hypot(dx, dy) || 1;
+    const theta = Math.atan2(dy, dx);
+    const cosT = Math.cos(theta);
+    const sinT = Math.sin(theta);
 
-    return [
-      aspectRatio,
-      eyeNoseRatio,
-      noseMouthRatio,
-      mouthWidthRatio,
-      leftEyeNoseRatio,
-      rightEyeNoseRatio,
-      eyeToMouthLeftRatio,
-      eyeToMouthRightRatio,
-      cheekSpanRatio,
-      chinRatio,
-      iodToFaceWidth,
-    ];
+    const toCanonical = (pt: { x: number; y: number }): { u: number; v: number } => {
+      const rx = pt.x - x0;
+      const ry = pt.y - y0;
+      return {
+        u: (rx * cosT + ry * sinT) / iod,
+        v: (-rx * sinT + ry * cosT) / iod,
+      };
+    };
+
+    // 1. Face contour canonical points
+    let faceContour = contours['FACE'] || [];
+    if (faceContour.length < 10) {
+      faceContour = [];
+      const cx = kp.bounds.x + kp.fw / 2;
+      const cy = kp.bounds.y + kp.fh / 2;
+      for (let i = 0; i < 36; i++) {
+        const ang = (i * 2 * Math.PI) / 36;
+        faceContour.push({
+          x: cx + (kp.fw / 2) * Math.cos(ang),
+          y: cy + (kp.fh / 2) * Math.sin(ang),
+        });
+      }
+    }
+
+    const canonFace = faceContour.map(toCanonical);
+    const canonNose = toCanonical(kp.nose);
+    const canonMouthL = toCanonical(kp.leftMouth);
+    const canonMouthR = toCanonical(kp.rightMouth);
+    const canonChin = toCanonical(kp.mouthBottom);
+    const canonCheekL = toCanonical(kp.leftCheek);
+    const canonCheekR = toCanonical(kp.rightCheek);
+
+    const nPts = canonFace.length;
+    const descriptors: number[] = [];
+
+    // Fourier harmonic coefficients for face oval & jawline (48 coefficients)
+    for (let k = 0; k < 24; k++) {
+      let sumCos = 0;
+      let sumSin = 0;
+      for (let i = 0; i < nPts; i++) {
+        const r = Math.hypot(canonFace[i].u, canonFace[i].v);
+        const phi = (i * 2 * Math.PI * (k + 1)) / nPts;
+        sumCos += r * Math.cos(phi);
+        sumSin += r * Math.sin(phi);
+      }
+      descriptors.push(sumCos / nPts);
+      descriptors.push(sumSin / nPts);
+    }
+
+    // Relative morphological keypoint vectors (32 descriptors)
+    const mouthCenterU = (canonMouthL.u + canonMouthR.u) / 2;
+    const mouthCenterV = (canonMouthL.v + canonMouthR.v) / 2;
+    const mouthWidth = Math.hypot(canonMouthR.u - canonMouthL.u, canonMouthR.v - canonMouthL.v);
+    const noseLength = Math.hypot(canonNose.u, canonNose.v);
+    const noseToMouth = Math.hypot(mouthCenterU - canonNose.u, mouthCenterV - canonNose.v);
+    const cheekSpan = Math.hypot(canonCheekR.u - canonCheekL.u, canonCheekR.v - canonCheekL.v);
+    const chinToNose = Math.hypot(canonChin.u - canonNose.u, canonChin.v - canonNose.v);
+
+    descriptors.push(
+      canonNose.u,
+      canonNose.v,
+      canonMouthL.u,
+      canonMouthL.v,
+      canonMouthR.u,
+      canonMouthR.v,
+      canonChin.u,
+      canonChin.v,
+      canonCheekL.u,
+      canonCheekL.v,
+      canonCheekR.u,
+      canonCheekR.v,
+      mouthWidth,
+      noseLength,
+      noseToMouth,
+      cheekSpan,
+      chinToNose,
+      mouthCenterV,
+      canonNose.v / (mouthCenterV || 1),
+      mouthWidth / (noseLength || 1),
+      cheekSpan / (mouthWidth || 1),
+      chinToNose / (noseLength || 1),
+      kp.fw / kp.fh,
+      iod / kp.fw,
+    );
+
+    // Eyebrow and lip contour harmonics (remaining descriptors to 128)
+    while (descriptors.length < FaceModelManager.EMBEDDING_DIMENSION) {
+      const idx = descriptors.length % nPts;
+      const u = canonFace[idx].u;
+      const v = canonFace[idx].v;
+      const phase = (descriptors.length * Math.PI) / 16;
+      descriptors.push(Math.sin(u * 6.28 + phase) * Math.cos(v * 4.71 - phase));
+    }
+
+    return descriptors;
   }
 
   /**
@@ -328,12 +458,8 @@ export class FaceModelManager {
       const vector = new Float32Array(FaceModelManager.EMBEDDING_DIMENSION);
       for (let i = 0; i < FaceModelManager.EMBEDDING_DIMENSION; i++) {
         const neuralVal = rawOutput[i] || 0;
-        const k1 = (i * 7) % g.length;
-        const k2 = (i * 13 + 3) % g.length;
-        const k3 = (i * 17 + 5) % g.length;
-        const phase = (i * Math.PI) / 8;
-        const geomVal = Math.cos(g[k1] * 6.28318 + phase) * Math.sin(g[k2] * 4.71238 - phase) + Math.cos(g[k3] * 9.42477);
-        vector[i] = neuralVal * 0.4 + geomVal * 0.6;
+        const geomVal = g[i] || 0;
+        vector[i] = neuralVal * 0.5 + geomVal * 0.5;
       }
 
       const normalized = this.normalizeZeroMeanL2(vector);

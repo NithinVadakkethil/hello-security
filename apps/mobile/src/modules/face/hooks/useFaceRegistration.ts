@@ -60,6 +60,7 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
         leftEyeOpenProbability: f.leftEyeOpenProbability,
         rightEyeOpenProbability: f.rightEyeOpenProbability,
         landmarks: f.landmarks,
+        contours: f.contours,
       }));
 
       // 1. Face Quality Validation

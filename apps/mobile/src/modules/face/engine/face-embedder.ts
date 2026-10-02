@@ -22,15 +22,7 @@ export class FaceEmbedder {
    */
   static generateEmbedding(face: FaceDetectionData): number[] {
     const g = faceModelManager.extractLandmarkGeometry(face);
-    const vector = new Float32Array(FaceEmbedder.EMBEDDING_DIMENSION);
-    for (let i = 0; i < FaceEmbedder.EMBEDDING_DIMENSION; i++) {
-      const k1 = (i * 7) % g.length;
-      const k2 = (i * 13 + 3) % g.length;
-      const k3 = (i * 17 + 5) % g.length;
-      const phase = (i * Math.PI) / 8;
-      vector[i] = Math.cos(g[k1] * 6.28318 + phase) * Math.sin(g[k2] * 4.71238 - phase) + Math.cos(g[k3] * 9.42477);
-    }
-    return Array.from(FaceEmbedder.normalizeL2(vector));
+    return Array.from(FaceEmbedder.normalizeL2(g));
   }
 
   /**

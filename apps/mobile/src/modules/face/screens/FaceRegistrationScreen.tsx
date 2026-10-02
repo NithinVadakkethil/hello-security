@@ -22,7 +22,7 @@ export function FaceRegistrationScreen({ navigation }: any) {
 
   const { detectFaces } = useFaceDetector({
     performanceMode: 'accurate',
-    contourMode: 'none',
+    contourMode: 'all',
     landmarkMode: 'all',
     classificationMode: 'all',
     minFaceSize: 0.15,
@@ -66,6 +66,7 @@ export function FaceRegistrationScreen({ navigation }: any) {
           leftEyeOpenProbability: f.leftEyeOpenProbability,
           rightEyeOpenProbability: f.rightEyeOpenProbability,
           landmarks: f.landmarks,
+          contours: f.contours,
         });
       }
       handleFrameProcessed(safeFaces, frame.width, frame.height);

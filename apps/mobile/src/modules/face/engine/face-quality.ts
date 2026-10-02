@@ -13,6 +13,7 @@ export interface FaceDetectionData {
   leftEyeOpenProbability?: number;
   rightEyeOpenProbability?: number;
   landmarks?: Record<string, { x: number; y: number }>;
+  contours?: Record<string, { x: number; y: number }[]>;
 }
 
 export type QualityResult =
