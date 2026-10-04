@@ -26,13 +26,17 @@ export const attendanceService = {
   
   getAttendance: (
     employeeId: string,
-    assignmentId: string,
+    assignmentId?: string,
     businessDate: string = getTodayBusinessDate()
   ): AttendanceRecord | null => {
-    if (!employeeId || !assignmentId) return null;
-    const key = buildAttendanceStorageKey(employeeId, assignmentId, businessDate);
+    if (!employeeId) return null;
+    const resolvedAssignmentId = assignmentId || 'direct';
+    const key = buildAttendanceStorageKey(employeeId, resolvedAssignmentId, businessDate);
     try {
-      const json = storage.getString(key);
+      let json = storage.getString(key);
+      if (!json && resolvedAssignmentId !== 'direct') {
+        json = storage.getString(buildAttendanceStorageKey(employeeId, 'direct', businessDate));
+      }
       if (!json) return null;
       return JSON.parse(json) as AttendanceRecord;
     } catch (err) {
@@ -45,10 +49,10 @@ export const attendanceService = {
     const {
       employeeId,
       employeeName,
-      assignmentId,
-      siteId,
+      assignmentId = 'direct',
+      siteId = '',
       siteName,
-      shiftId,
+      shiftId = '',
       shiftName,
       shiftStartTime,
       shiftEndTime,
@@ -116,6 +120,9 @@ export const attendanceService = {
 
     // Save specific record
     storage.set(key, JSON.stringify(newRecord));
+    if (assignmentId !== 'direct') {
+      storage.set(buildAttendanceStorageKey(employeeId, 'direct', businessDate), JSON.stringify(newRecord));
+    }
 
     // Save to history index for this employee
     attendanceService.appendHistory(employeeId, newRecord);
@@ -151,7 +158,7 @@ export const attendanceService = {
 
   markCheckOut: async (params: {
     employeeId: string;
-    assignmentId: string;
+    assignmentId?: string;
     businessDate?: string;
     isConnected?: boolean;
   }): Promise<AttendanceRecord | null> => {
@@ -162,10 +169,13 @@ export const attendanceService = {
       isConnected = true,
     } = params;
 
-    if (!employeeId || !assignmentId) return null;
+    if (!employeeId) return null;
+    const resolvedAssignmentId = assignmentId || 'direct';
 
-    const key = buildAttendanceStorageKey(employeeId, assignmentId, businessDate);
-    const existing = attendanceService.getAttendance(employeeId, assignmentId, businessDate);
+    let existing = attendanceService.getAttendance(employeeId, resolvedAssignmentId, businessDate);
+    if (!existing && resolvedAssignmentId !== 'direct') {
+      existing = attendanceService.getAttendance(employeeId, 'direct', businessDate);
+    }
 
     if (!existing) {
       return null;
@@ -182,7 +192,7 @@ export const attendanceService = {
       try {
         const response: any = await apiClient.post('/attendance/check-out', {
           employeeId,
-          assignmentId,
+          assignmentId: existing.assignmentId || resolvedAssignmentId,
           businessDate,
         });
         const attData = response?.data || response;
@@ -204,7 +214,11 @@ export const attendanceService = {
       updatedAt: now,
     };
 
+    const key = buildAttendanceStorageKey(employeeId, existing.assignmentId || resolvedAssignmentId, businessDate);
     storage.set(key, JSON.stringify(updatedRecord));
+    if (existing.assignmentId !== 'direct') {
+      storage.set(buildAttendanceStorageKey(employeeId, 'direct', businessDate), JSON.stringify(updatedRecord));
+    }
     attendanceService.appendHistory(employeeId, updatedRecord);
 
     return updatedRecord;
@@ -212,10 +226,11 @@ export const attendanceService = {
 
   fetchServerAttendance: async (
     employeeId: string,
-    assignmentId: string,
+    assignmentId?: string,
     businessDate: string = getTodayBusinessDate()
   ): Promise<AttendanceRecord | null> => {
     if (!employeeId) return null;
+    const resolvedAssignmentId = assignmentId || 'direct';
     try {
       const response: any = await apiClient.get('/attendance', {
         params: {
@@ -223,17 +238,18 @@ export const attendanceService = {
           date: businessDate,
         },
       });
-      const records = response?.data?.records || response?.records || [];
+      const records = response?.data?.records || response?.records || response?.data || [];
       const match = records.find(
         (r: any) => r.employeeId === employeeId && (r.date === businessDate || r.shiftDate === businessDate)
       );
       if (match && match.status !== 'OFF' && match.checkInTimeRaw) {
-        const key = buildAttendanceStorageKey(employeeId, assignmentId, businessDate);
+        const effectiveAsgId = match.assignmentId || resolvedAssignmentId;
+        const key = buildAttendanceStorageKey(employeeId, effectiveAsgId, businessDate);
         const serverRecord: AttendanceRecord = {
           id: match.id,
           employeeId,
           employeeName: match.employeeName,
-          assignmentId: match.assignmentId || assignmentId,
+          assignmentId: effectiveAsgId,
           siteId: match.siteId || '',
           siteName: match.siteName || '',
           shiftId: match.shiftId || '',
@@ -248,11 +264,14 @@ export const attendanceService = {
           verificationMethod: match.verificationMethod || 'FACE_VERIFICATION',
           verificationResult: 'VERIFIED',
           isOfflineCaptured: false,
-          idempotencyKey: `att_${employeeId}_${assignmentId}_${businessDate}`,
+          idempotencyKey: `att_${employeeId}_${effectiveAsgId}_${businessDate}`,
           createdAt: match.createdAt || match.checkInTimeRaw,
           updatedAt: match.updatedAt || match.checkInTimeRaw,
         };
         storage.set(key, JSON.stringify(serverRecord));
+        if (effectiveAsgId !== 'direct') {
+          storage.set(buildAttendanceStorageKey(employeeId, 'direct', businessDate), JSON.stringify(serverRecord));
+        }
         attendanceService.appendHistory(employeeId, serverRecord);
         return serverRecord;
       }

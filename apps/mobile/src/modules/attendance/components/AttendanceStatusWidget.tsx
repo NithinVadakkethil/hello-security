@@ -29,8 +29,8 @@ export function AttendanceStatusWidget({
   const { todayAttendance, loadAttendance } = useAttendanceStore();
 
   useEffect(() => {
-    if (empId && assignmentId) {
-      loadAttendance(empId, assignmentId);
+    if (empId) {
+      loadAttendance(empId, assignmentId || 'direct');
     }
   }, [empId, assignmentId, loadAttendance]);
 
@@ -43,6 +43,11 @@ export function AttendanceStatusWidget({
       mode: 'MARK_ATTENDANCE',
     });
   };
+
+  const isCheckedOut = Boolean(
+    todayAttendance?.checkOutAt || todayAttendance?.status === 'COMPLETED'
+  );
+  const isPendingSync = todayAttendance?.status === 'PENDING_SYNC';
 
   return (
     <Card style={[styles.card, { borderColor: colors.border }]}>
@@ -87,17 +92,18 @@ export function AttendanceStatusWidget({
               style={[
                 styles.badge,
                 {
-                  backgroundColor:
-                    todayAttendance.status === 'PENDING_SYNC'
-                      ? '#DBEAFE'
-                      : '#D1FAE5',
+                  backgroundColor: isPendingSync
+                    ? '#DBEAFE'
+                    : isCheckedOut
+                    ? '#D1FAE5'
+                    : '#D1FAE5',
                 },
               ]}
             >
               <CheckCircle2
                 size={14}
                 color={
-                  todayAttendance.status === 'PENDING_SYNC'
+                  isPendingSync
                     ? '#2563EB'
                     : '#059669'
                 }
@@ -107,15 +113,16 @@ export function AttendanceStatusWidget({
                 style={[
                   styles.badgeText,
                   {
-                    color:
-                      todayAttendance.status === 'PENDING_SYNC'
-                        ? '#1D4ED8'
-                        : '#047857',
+                    color: isPendingSync
+                      ? '#1D4ED8'
+                      : '#047857',
                   },
                 ]}
               >
-                {todayAttendance.status === 'PENDING_SYNC'
+                {isPendingSync
                   ? '✓ PENDING SYNC'
+                  : isCheckedOut
+                  ? '✓ CHECKED OUT'
                   : '✓ CHECKED IN'}
               </Text>
             </View>
@@ -133,6 +140,23 @@ export function AttendanceStatusWidget({
                   )}
                 </Text>
               </Text>
+              {isCheckedOut && todayAttendance.checkOutAt ? (
+                <Text
+                  style={[
+                    styles.checkInLabel,
+                    { color: colors.textSecondary, marginTop: 2 },
+                  ]}
+                >
+                  Check-out:{' '}
+                  <Text style={[styles.checkInTime, { color: colors.text }]}>
+                    {formatPatrolTime(
+                      todayAttendance.checkOutAt,
+                      'Asia/Dubai',
+                      false,
+                    )}
+                  </Text>
+                </Text>
+              ) : null}
               <Text style={[styles.verifiedTag, { color: colors.primary }]}>
                 Face Verified
               </Text>

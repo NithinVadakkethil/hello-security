@@ -17,26 +17,30 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
   history: [],
   isLoading: false,
 
-  loadAttendance: (employeeId: string, assignmentId: string) => {
-    if (!employeeId || !assignmentId) {
+  loadAttendance: (employeeId: string, assignmentId?: string) => {
+    if (!employeeId) {
       set({ todayAttendance: null, history: [] });
       return;
     }
+    const resolvedAssignmentId = assignmentId || 'direct';
     const businessDate = getTodayBusinessDate();
-    const record = attendanceService.getAttendance(employeeId, assignmentId, businessDate);
+    let record = attendanceService.getAttendance(employeeId, resolvedAssignmentId, businessDate);
+    if (!record && resolvedAssignmentId !== 'direct') {
+      record = attendanceService.getAttendance(employeeId, 'direct', businessDate);
+    }
     const history = attendanceService.getAttendanceHistory(employeeId);
     set({ todayAttendance: record, history });
 
     // Asynchronously sync pending offline records or refresh from server
     if (record && (record.isOfflineCaptured || record.status === 'PENDING_SYNC')) {
-      attendanceService.syncPendingAttendance(employeeId, assignmentId, businessDate).then((synced) => {
+      attendanceService.syncPendingAttendance(employeeId, resolvedAssignmentId, businessDate).then((synced) => {
         if (synced) {
           const updatedHistory = attendanceService.getAttendanceHistory(employeeId);
           set({ todayAttendance: synced, history: updatedHistory });
         }
       });
-    } else if (!record) {
-      attendanceService.fetchServerAttendance(employeeId, assignmentId, businessDate).then((serverRec) => {
+    } else if (!record || !record.checkOutAt) {
+      attendanceService.fetchServerAttendance(employeeId, resolvedAssignmentId, businessDate).then((serverRec) => {
         if (serverRec) {
           const updatedHistory = attendanceService.getAttendanceHistory(employeeId);
           set({ todayAttendance: serverRec, history: updatedHistory });

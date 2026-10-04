@@ -162,13 +162,13 @@ export function FaceVerificationScreen({ route, navigation }: any) {
       if (evaluation.status === 'FACE_VERIFIED') {
         if (mode === 'MARK_ATTENDANCE') {
           const empName = getEmployeeDisplayName(user);
-          const asgId = activeAssignment?.id || 'default_asg';
-          const stId = activeAssignment?.site?.id || activeAssignment?.siteId || 'default_site';
-          const stName = activeAssignment?.site?.name || 'Assigned Site';
-          const shId = activeAssignment?.shift?.id || activeAssignment?.shiftId || 'default_shift';
-          const shName = activeAssignment?.shift?.name || 'Assigned Shift';
-          const shStart = activeAssignment?.shift?.startTime || '09:00 AM';
-          const shEnd = activeAssignment?.shift?.endTime || '09:00 PM';
+          const asgId = activeAssignment?.id || useAttendanceStore.getState().todayAttendance?.assignmentId || 'direct';
+          const stId = activeAssignment?.site?.id || activeAssignment?.siteId || '';
+          const stName = activeAssignment?.site?.name || 'Direct Check-In';
+          const shId = activeAssignment?.shift?.id || activeAssignment?.shiftId || '';
+          const shName = activeAssignment?.shift?.name || 'General Shift';
+          const shStart = activeAssignment?.shift?.startTime || '—';
+          const shEnd = activeAssignment?.shift?.endTime || '—';
           const desig = (user as any)?.employee?.designation || (user as any)?.role || 'Security Guard';
 
           await useAttendanceStore.getState().markAttendance({
@@ -192,7 +192,7 @@ export function FaceVerificationScreen({ route, navigation }: any) {
             navigation.goBack();
           }, 1400);
         } else if (mode === 'MARK_CHECKOUT') {
-          const asgId = activeAssignment?.id || 'default_asg';
+          const asgId = activeAssignment?.id || useAttendanceStore.getState().todayAttendance?.assignmentId || 'direct';
 
           await useAttendanceStore.getState().markCheckOut({
             employeeId: empId,
