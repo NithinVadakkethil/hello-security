@@ -31,6 +31,15 @@ interface Employee {
   siraCardExpiryDate?: string | null;
   siraCardFrontImage?: string | null;
   siraCardBackImage?: string | null;
+  faceEnrollment?: {
+    id: string;
+    status: 'REGISTERED' | 'REVOKED' | 'NOT_REGISTERED' | string;
+    modelName?: string;
+    modelVersion?: string;
+    registeredAt?: string;
+    updatedAt?: string;
+    revokedAt?: string | null;
+  } | null;
   createdAt: string;
   user?: {
     id: string;
@@ -156,10 +165,23 @@ export default function EmployeeDetailPage() {
               <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '4px 0 8px 0' }}>
                 {[employee.firstName, employee.lastName].filter(Boolean).join(' ')}
               </h2>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <StatusChip status={employee.status} />
                 <span style={{ fontSize: '0.8rem', padding: '2px 8px', background: 'var(--bg-tertiary)', borderRadius: '4px', color: 'var(--text-secondary)' }}>
                   ID Mode: {employee.identificationMethod}
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.78rem',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontWeight: 600,
+                    background: employee.faceEnrollment?.status === 'REGISTERED' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(107, 114, 128, 0.15)',
+                    color: employee.faceEnrollment?.status === 'REGISTERED' ? 'var(--success)' : 'var(--text-muted)',
+                    border: `1px solid ${employee.faceEnrollment?.status === 'REGISTERED' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(107, 114, 128, 0.2)'}`,
+                  }}
+                >
+                  {employee.faceEnrollment?.status === 'REGISTERED' ? '✓ Face Registered: Yes' : '✕ Face Registered: No'}
                 </span>
                 {employee.role === 'SECURITY' && (
                   <span
@@ -209,6 +231,18 @@ export default function EmployeeDetailPage() {
                 <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>
                   {employee.joiningDate ? formatPatrolDate(employee.joiningDate) : 'N/A'}
                 </p>
+              </div>
+
+              <div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>FACE ENROLLMENT</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0, color: employee.faceEnrollment?.status === 'REGISTERED' ? 'var(--success)' : 'var(--text-muted)' }}>
+                  {employee.faceEnrollment?.status === 'REGISTERED' ? 'Registered (Active)' : 'Not Registered'}
+                </p>
+                {employee.faceEnrollment?.registeredAt && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Enrolled: {formatPatrolDateTime(employee.faceEnrollment.registeredAt)}
+                  </span>
+                )}
               </div>
 
               <div>

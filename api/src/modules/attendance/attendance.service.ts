@@ -247,12 +247,12 @@ export class AttendanceService {
       employeePhone: employee.phone,
       employeeDesignation: employee.designation,
       siteId: primaryAssignment?.siteId || attendanceRecord?.siteId || '',
-      siteName: primaryAssignment?.site?.name || 'Assigned Site',
-      siteAddress: primaryAssignment?.site?.address || null,
+      siteName: primaryAssignment?.site?.name || attendanceRecord?.site?.name || (attendanceRecord?.checkInAt ? 'Direct Check-In' : 'Unassigned'),
+      siteAddress: primaryAssignment?.site?.address || attendanceRecord?.site?.address || null,
       shiftId: primaryAssignment?.shiftId || attendanceRecord?.shiftId || '',
-      shiftName: primaryAssignment?.shift?.name || 'Assigned Shift',
-      shiftStartTime: primaryAssignment?.shift?.startTime || '09:00',
-      shiftEndTime: primaryAssignment?.shift?.endTime || '18:00',
+      shiftName: primaryAssignment?.shift?.name || attendanceRecord?.shift?.name || (attendanceRecord?.checkInAt ? 'General Shift' : 'Unassigned'),
+      shiftStartTime: primaryAssignment?.shift?.startTime || attendanceRecord?.shift?.startTime || '—',
+      shiftEndTime: primaryAssignment?.shift?.endTime || attendanceRecord?.shift?.endTime || '—',
       shiftDate,
       date: shiftDate,
       employeeCode: employee.employeeNumber || undefined,
@@ -319,51 +319,60 @@ export class AttendanceService {
       }
     }
 
-    // Build assignment query
-    const assignmentWhere: any = {
+    // Build employee query
+    const employeeWhere: any = {
       clientId: { in: authorizedClientIds },
-      effectiveFrom: { lte: to },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gte: from } }],
-      ...(query.siteId ? { siteId: query.siteId } : {}),
-      ...(employeeId ? { employeeId } : {}),
+      status: 'ACTIVE',
+      ...(employeeId ? { id: employeeId } : {}),
     };
 
     if (query.search && query.search.trim()) {
       const s = query.search.trim();
-      assignmentWhere.AND = [
+      employeeWhere.AND = [
         {
           OR: [
-            { employee: { firstName: { contains: s, mode: 'insensitive' } } },
-            { employee: { lastName: { contains: s, mode: 'insensitive' } } },
-            { employee: { employeeNumber: { contains: s, mode: 'insensitive' } } },
-            { site: { name: { contains: s, mode: 'insensitive' } } },
-            { shift: { name: { contains: s, mode: 'insensitive' } } },
+            { firstName: { contains: s, mode: 'insensitive' } },
+            { lastName: { contains: s, mode: 'insensitive' } },
+            { employeeNumber: { contains: s, mode: 'insensitive' } },
+            { email: { contains: s, mode: 'insensitive' } },
+            { phone: { contains: s, mode: 'insensitive' } },
+            { companyName: { contains: s, mode: 'insensitive' } },
           ],
         },
       ];
     }
 
-    // Query assignments, database attendance records, and active staff count in parallel
-    const [allMatchingAssignments, attendanceRecords, activeStaffCount] = await Promise.all([
-      prisma.guardAssignment.findMany({
-        where: assignmentWhere,
+    // Query employees, database attendance records, and active staff count in parallel
+    const [allEmployees, attendanceRecords, activeStaffCount] = await Promise.all([
+      prisma.employee.findMany({
+        where: employeeWhere,
         include: {
-          employee: true,
-          site: true,
-          shift: true,
-          patrolSessions: {
+          assignments: {
             where: {
-              startedAt: { gte: from, lte: to },
+              isActive: true,
+              effectiveFrom: { lte: to },
+              OR: [{ effectiveTo: null }, { effectiveTo: { gte: from } }],
+              ...(query.siteId ? { siteId: query.siteId } : {}),
             },
-            select: {
-              id: true,
-              status: true,
-              startedAt: true,
-              endedAt: true,
+            include: {
+              site: true,
+              shift: true,
+              patrolSessions: {
+                where: {
+                  startedAt: { gte: from, lte: to },
+                },
+                select: {
+                  id: true,
+                  status: true,
+                  startedAt: true,
+                  endedAt: true,
+                },
+              },
             },
+            orderBy: { effectiveFrom: 'desc' },
           },
         },
-        orderBy: { effectiveFrom: 'desc' },
+        orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
       }),
       prisma.attendance.findMany({
         where: {
@@ -375,6 +384,18 @@ export class AttendanceService {
           ...(employeeId ? { employeeId } : {}),
           ...(query.siteId ? { siteId: query.siteId } : {}),
         },
+        include: {
+          site: true,
+          shift: true,
+          employee: {
+            include: {
+              assignments: {
+                where: { isActive: true },
+                include: { site: true, shift: true },
+              },
+            },
+          },
+        },
       }),
       prisma.employee.count({
         where: {
@@ -384,36 +405,72 @@ export class AttendanceService {
       }),
     ]);
 
-    // Index database attendance records by `employeeId_YYYY-MM-DD`
-    const attendanceMap = new Map<string, any>();
-    for (const att of attendanceRecords) {
-      const attDateStr = att.attendanceDate.toISOString().split('T')[0];
-      attendanceMap.set(`${att.employeeId}_${attDateStr}`, att);
-    }
+    const isRangeQuery = dateStr.includes('to') || dateStr === 'All Time';
+    const mappedRecords: AttendanceRecordDto[] = [];
 
-    // Group assignments by unique Employee ID to guarantee ONE row per employee per day
-    const employeeAssignmentsMap = new Map<string, { employee: any; assignments: any[] }>();
+    if (!isRangeQuery) {
+      // Single-day query
+      const attendanceMap = new Map<string, any>();
+      for (const att of attendanceRecords) {
+        const attDateStr = att.attendanceDate.toISOString().split('T')[0];
+        attendanceMap.set(`${att.employeeId}_${attDateStr}`, att);
+        attendanceMap.set(att.employeeId, att);
+      }
 
-    for (const a of allMatchingAssignments) {
-      if (!employeeAssignmentsMap.has(a.employeeId)) {
-        employeeAssignmentsMap.set(a.employeeId, {
-          employee: a.employee,
-          assignments: [],
+      const employeeMap = new Map<string, { employee: any; assignments: any[] }>();
+
+      for (const emp of allEmployees) {
+        const attRecord = attendanceMap.get(`${emp.id}_${dateStr}`) || attendanceMap.get(emp.id);
+        if (query.siteId && emp.assignments.length === 0 && attRecord?.siteId !== query.siteId) {
+          continue;
+        }
+        employeeMap.set(emp.id, {
+          employee: emp,
+          assignments: emp.assignments || [],
         });
       }
-      employeeAssignmentsMap.get(a.employeeId)!.assignments.push(a);
-    }
 
-    // Map each unique employee to ONE AttendanceRecordDto
-    const mappedRecords: AttendanceRecordDto[] = [];
-    for (const [, { employee, assignments }] of employeeAssignmentsMap.entries()) {
-      const shiftDate = dateStr.includes('to')
-        ? (assignments[0]?.effectiveFrom ? assignments[0].effectiveFrom.toISOString().split('T')[0] : dateStr)
-        : dateStr;
-      const attRecord = attendanceMap.get(`${employee.id}_${shiftDate}`) || null;
+      for (const att of attendanceRecords) {
+        if (!employeeMap.has(att.employeeId) && att.employee) {
+          employeeMap.set(att.employeeId, {
+            employee: att.employee,
+            assignments: att.employee.assignments || [],
+          });
+        }
+      }
 
-      const record = this.mapEmployeeToAttendanceRecord(employee, assignments, dateStr, timezone, attRecord);
-      mappedRecords.push(record);
+      for (const [, { employee, assignments }] of employeeMap.entries()) {
+        const attRecord = attendanceMap.get(`${employee.id}_${dateStr}`) || attendanceMap.get(employee.id) || null;
+        const record = this.mapEmployeeToAttendanceRecord(employee, assignments, dateStr, timezone, attRecord);
+        mappedRecords.push(record);
+      }
+    } else {
+      // Date range or all-time query
+      const seenEmployeesInAttendance = new Set<string>();
+
+      // 1. Map each real attendance record found in this range
+      for (const att of attendanceRecords) {
+        if (query.siteId && att.siteId !== query.siteId) {
+          continue;
+        }
+        const emp = allEmployees.find((e) => e.id === att.employeeId) || att.employee;
+        if (!emp) continue;
+        const attDateStr = att.attendanceDate.toISOString().split('T')[0];
+        const record = this.mapEmployeeToAttendanceRecord(emp, emp.assignments || [], attDateStr, timezone, att);
+        mappedRecords.push(record);
+        seenEmployeesInAttendance.add(emp.id);
+      }
+
+      // 2. For employees without attendance records in this range, include their baseline status
+      for (const emp of allEmployees) {
+        if (!seenEmployeesInAttendance.has(emp.id)) {
+          if (query.siteId && emp.assignments.length === 0) {
+            continue;
+          }
+          const record = this.mapEmployeeToAttendanceRecord(emp, emp.assignments || [], dateStr, timezone, null);
+          mappedRecords.push(record);
+        }
+      }
     }
 
     // Filter by status if specified

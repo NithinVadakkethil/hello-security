@@ -30,6 +30,11 @@ interface Employee {
   supervisedRole?: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   identificationMethod: 'QR' | 'RFID';
+  faceEnrollment?: {
+    id: string;
+    status: 'REGISTERED' | 'REVOKED' | 'NOT_REGISTERED' | string;
+    registeredAt?: string;
+  } | null;
   createdAt: string;
 }
 
@@ -252,6 +257,31 @@ export default function EmployeesPage() {
       render: (row: Employee) => (
         <span>{row.companyName || '—'}</span>
       ),
+    },
+    {
+      key: 'faceEnrollment',
+      label: 'Face Enrolled',
+      render: (row: Employee) => {
+        const isRegistered = row.faceEnrollment?.status === 'REGISTERED';
+        return (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              background: isRegistered ? 'rgba(16, 185, 129, 0.15)' : 'rgba(107, 114, 128, 0.15)',
+              color: isRegistered ? 'var(--success, #10b981)' : 'var(--text-muted, #9ca3af)',
+              border: `1px solid ${isRegistered ? 'rgba(16, 185, 129, 0.3)' : 'rgba(107, 114, 128, 0.2)'}`,
+            }}
+          >
+            {isRegistered ? '✓ Yes' : '✕ No'}
+          </span>
+        );
+      },
     },
     {
       key: 'status',

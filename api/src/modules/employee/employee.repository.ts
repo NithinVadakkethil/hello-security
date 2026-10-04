@@ -10,6 +10,17 @@ export class EmployeeRepository {
       data,
       include: {
         user: true,
+        faceEnrollment: {
+          select: {
+            id: true,
+            status: true,
+            modelName: true,
+            modelVersion: true,
+            registeredAt: true,
+            updatedAt: true,
+            revokedAt: true,
+          },
+        },
       },
     });
   }
@@ -21,6 +32,17 @@ export class EmployeeRepository {
       },
       include: {
         user: true,
+        faceEnrollment: {
+          select: {
+            id: true,
+            status: true,
+            modelName: true,
+            modelVersion: true,
+            registeredAt: true,
+            updatedAt: true,
+            revokedAt: true,
+          },
+        },
       },
     });
   }
@@ -41,6 +63,17 @@ export class EmployeeRepository {
       data,
       include: {
         user: true,
+        faceEnrollment: {
+          select: {
+            id: true,
+            status: true,
+            modelName: true,
+            modelVersion: true,
+            registeredAt: true,
+            updatedAt: true,
+            revokedAt: true,
+          },
+        },
       },
     });
   }
@@ -89,6 +122,17 @@ export class EmployeeRepository {
       },
       include: {
         user: true,
+        faceEnrollment: {
+          select: {
+            id: true,
+            status: true,
+            modelName: true,
+            modelVersion: true,
+            registeredAt: true,
+            updatedAt: true,
+            revokedAt: true,
+          },
+        },
       },
     });
 
