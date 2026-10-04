@@ -144,6 +144,8 @@ model Client {
   mandatoryPatrolInstances MandatoryPatrolInstance[]
 
   notifications Notification[]
+
+  attendances Attendance[]
 }
 
 model User {
@@ -241,6 +243,8 @@ model Employee {
 
   mandatoryPatrolInstances MandatoryPatrolInstance[]
 
+  attendances Attendance[]
+
   @@unique([clientId, employeeNumber])
   @@index([clientId, supervisedRole])
 }
@@ -263,6 +267,8 @@ model Site {
   assignments GuardAssignment[]
 
   snags Snag[]
+
+  attendances Attendance[]
 
   address String?
 
@@ -368,6 +374,8 @@ model Shift {
 
   mandatoryPatrolInstances MandatoryPatrolInstance[]
 
+  attendances Attendance[]
+
   @@unique([clientId, name])
   @@unique([clientId, shiftCode])
 }
@@ -397,6 +405,8 @@ model GuardAssignment {
   patrolSessions PatrolSession[]
 
   mandatoryPatrolInstances MandatoryPatrolInstance[]
+
+  attendances Attendance[]
 
   effectiveFrom DateTime
 
@@ -988,4 +998,44 @@ model NotificationUserRecipient {
   @@unique([notificationId, userId])
   @@index([userId, isRead])
 }
+
+model Attendance {
+  id String @id @default(cuid())
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  siteId String?
+  site   Site?   @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  shiftId String?
+  shift   Shift?  @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+
+  assignmentId String?
+  assignment   GuardAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  attendanceDate DateTime @db.Date // Business Date
+  
+  checkInAt DateTime
+  checkOutAt DateTime?
+
+  status String @default("PRESENT") // "PRESENT" | "LATE" | "COMPLETED" | "OFF"
+  isLate Boolean @default(false)
+
+  verificationMethod String @default("FACE_VERIFICATION")
+  verificationStatus String @default("VERIFIED") // "VERIFIED" | "PENDING"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, attendanceDate])
+  @@index([clientId, attendanceDate])
+  @@index([employeeId, attendanceDate])
+  @@index([siteId])
+  @@index([shiftId])
+}
+
 

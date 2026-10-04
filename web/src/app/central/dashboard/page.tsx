@@ -3,10 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
+  AlertCircle,
   AlertTriangle,
   Building2,
   Calendar,
   CheckCircle2,
+  CheckSquare,
   ChevronRight,
   FileText,
   RefreshCw,
@@ -182,6 +184,9 @@ export default function CentralDashboardPage() {
     completedPatrols: 0,
     openObservations: 0,
     openSnags: 0,
+    totalCheckpointsScanned: 0,
+    totalCheckpointsMissed: 0,
+    totalCheckpoints: 0,
     avgCompliance: 100,
   };
 
@@ -297,6 +302,45 @@ export default function CentralDashboardPage() {
             <span className="global-kpi-label">
               Completed Patrols{getDatePeriodLabel() ? ` (${getDatePeriodLabel()})` : ''}
             </span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push('/central/reports')}
+          className="global-kpi-card clickable"
+        >
+          <div className="kpi-icon-badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
+            <CheckSquare size={20} />
+          </div>
+          <div className="kpi-text-box">
+            <span className="global-kpi-value">{global.totalCheckpointsScanned ?? 0}</span>
+            <span className="global-kpi-label">Total Checkpoints Scanned</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push('/central/reports')}
+          className="global-kpi-card clickable"
+        >
+          <div
+            className="kpi-icon-badge"
+            style={{
+              background: (global.totalCheckpointsMissed ?? 0) > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+              color: (global.totalCheckpointsMissed ?? 0) > 0 ? '#EF4444' : '#64748B',
+            }}
+          >
+            <AlertCircle size={20} />
+          </div>
+          <div className="kpi-text-box">
+            <span
+              className="global-kpi-value"
+              style={{ color: (global.totalCheckpointsMissed ?? 0) > 0 ? '#dc2626' : undefined }}
+            >
+              {global.totalCheckpointsMissed ?? 0}
+            </span>
+            <span className="global-kpi-label">Total Checkpoints Missed</span>
           </div>
         </button>
 
@@ -447,10 +491,10 @@ export default function CentralDashboardPage() {
                 </div>
               )}
 
-              {/* Patrol Summary */}
+              {/* Patrol & Checkpoint Summary */}
               <div className="sub-analytics-box">
                 <div className="sub-box-header">
-                  <span className="sub-title">Patrol Performance</span>
+                  <span className="sub-title">Patrol & Checkpoint Performance</span>
                   <button
                     onClick={() => router.push(`/central/reports?clientId=${selectedClient.id}`)}
                     className="view-link-sm"
@@ -458,20 +502,32 @@ export default function CentralDashboardPage() {
                     Audit Reports
                   </button>
                 </div>
-                <div className="metric-pills-row">
+                <div className="metric-pills-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
                   <button
                     onClick={() => router.push(`/central/reports?clientId=${selectedClient.id}`)}
                     className="metric-pill"
                   >
                     <span className="pill-val">{selectedClient.patrolSummary?.completedPatrols ?? selectedClient.metrics?.completedPatrolsCount ?? 0}</span>
-                    <span className="pill-lbl">Completed</span>
+                    <span className="pill-lbl">Patrols</span>
                   </button>
                   <button
                     onClick={() => router.push(`/central/reports?clientId=${selectedClient.id}`)}
                     className="metric-pill active"
                   >
-                    <span className="pill-val">{selectedClient.patrolSummary?.activePatrols ?? selectedClient.metrics?.activePatrolsCount ?? 0}</span>
-                    <span className="pill-lbl">Active</span>
+                    <span className="pill-val">{selectedClient.checkpointSummary?.scanned ?? selectedClient.metrics?.totalCheckpointsScanned ?? 0}</span>
+                    <span className="pill-lbl">Scanned</span>
+                  </button>
+                  <button
+                    onClick={() => router.push(`/central/reports?clientId=${selectedClient.id}`)}
+                    className="metric-pill"
+                  >
+                    <span
+                      className="pill-val"
+                      style={{ color: (selectedClient.checkpointSummary?.missed ?? selectedClient.metrics?.totalCheckpointsMissed ?? 0) > 0 ? '#ef4444' : undefined }}
+                    >
+                      {selectedClient.checkpointSummary?.missed ?? selectedClient.metrics?.totalCheckpointsMissed ?? 0}
+                    </span>
+                    <span className="pill-lbl">Missed</span>
                   </button>
                   <button
                     onClick={() => router.push(`/central/reports?clientId=${selectedClient.id}`)}
@@ -522,7 +578,10 @@ export default function CentralDashboardPage() {
       )}
 
       {/* Attention Required Section */}
-      {selectedClient && selectedClient.attentionRequired && selectedClient.attentionRequired.length > 0 && (
+      {(DEMO_KAIZEN_FEATURES.observations || DEMO_KAIZEN_FEATURES.snags) &&
+        selectedClient &&
+        selectedClient.attentionRequired &&
+        selectedClient.attentionRequired.length > 0 && (
         <div className="attention-section-card">
           <div className="card-header-bar">
             <div className="card-header-title">

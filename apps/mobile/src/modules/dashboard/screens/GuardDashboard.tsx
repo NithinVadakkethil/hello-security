@@ -27,7 +27,6 @@ import { usePatrol } from '../../patrol/hooks/usePatrol';
 import { usePatrolStore } from '../../patrol/store/patrol-store';
 import { AttendanceStatusWidget } from '../../attendance/components/AttendanceStatusWidget';
 import { MandatoryPatrolWidget } from '../../patrol/components/MandatoryPatrolWidget';
-import { attendanceService } from '../../attendance/services/attendance-service';
 import { Card } from '../components/WidgetCard';
 
 export function GuardDashboard() {
@@ -80,28 +79,6 @@ export function GuardDashboard() {
               activeSession.assignmentId || activeSession.assignment?.id,
           },
         });
-        return;
-      }
-
-      // Attendance Guard Check
-      const empId = user?.employeeId || (user as any)?.employee?.id || '';
-      const attRecord = attendanceService.getAttendance(empId, asg.id);
-      if (!attRecord) {
-        Alert.alert(
-          'Attendance Required',
-          'Please mark your attendance using face verification before starting your shift.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Mark Attendance',
-              onPress: () =>
-                navigation.navigate('FaceVerification', {
-                  mode: 'MARK_ATTENDANCE',
-                  assignment: asg,
-                }),
-            },
-          ]
-        );
         return;
       }
 

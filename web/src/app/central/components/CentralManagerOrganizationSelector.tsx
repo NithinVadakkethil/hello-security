@@ -21,7 +21,7 @@ export interface OrganizationMetric {
 }
 
 interface CentralManagerOrganizationSelectorProps {
-  moduleName: 'Employees' | 'Observation Reports' | 'Snag List' | 'Reports & Analytics';
+  moduleName: 'Employees' | 'Observation Reports' | 'Snag List' | 'Reports & Analytics' | 'Attendance' | 'Attendance Management' | string;
   organizations: OrganizationMetric[];
   isLoading: boolean;
   error?: string | null;

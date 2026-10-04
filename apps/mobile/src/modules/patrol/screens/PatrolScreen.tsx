@@ -53,7 +53,6 @@ import { Card } from '../../dashboard/components/WidgetCard';
 import { ReportIssueBottomSheet } from '../components/ReportIssueBottomSheet';
 import { usePatrol } from '../hooks/usePatrol';
 import { usePatrolStore } from '../store/patrol-store';
-import { attendanceService } from '../../attendance/services/attendance-service';
 import { secureFaceCache } from '../../face/services/secure-face-cache';
 import { faceEnrollmentApi } from '../../face/api/face-enrollment.api';
 
@@ -661,30 +660,6 @@ export function PatrolScreen() {
 
   const handleStart = async (resolveExisting = false) => {
     try {
-      const empId = user?.employeeId || (user as any)?.employee?.id || '';
-      const asgId = assignment?.id || '';
-      if (empId && asgId) {
-        const attRecord = attendanceService.getAttendance(empId, asgId);
-        if (!attRecord) {
-          Alert.alert(
-            'Attendance Required',
-            'Please mark your attendance using face verification before starting your shift.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Mark Attendance',
-                onPress: () =>
-                  navigation.navigate('FaceVerification', {
-                    mode: 'MARK_ATTENDANCE',
-                    assignment,
-                  }),
-              },
-            ]
-          );
-          return;
-        }
-      }
-
       await startPatrol({
         assignmentId: assignment?.id,
         resolveExistingPatrol: resolveExisting,

@@ -135,7 +135,7 @@ export default function NewEmployeePage() {
       } else {
         delete payload.joiningDate;
       }
-      if (payload.role === 'SECURITY') {
+      if (payload.role === 'SECURITY' || payload.role === 'SUPERVISOR') {
         if (payload.siraCardExpiryDate) {
           payload.siraCardExpiryDate = new Date(payload.siraCardExpiryDate).toISOString();
         } else {
@@ -357,7 +357,7 @@ export default function NewEmployeePage() {
             </div>
           )}
 
-          {selectedRole === 'SECURITY' && (
+          {(selectedRole === 'SECURITY' || selectedRole === 'SUPERVISOR') && (
             <div
               style={{
                 marginTop: '12px',
@@ -381,10 +381,10 @@ export default function NewEmployeePage() {
                   gap: '8px',
                 }}
               >
-                <span>🪪 SIRA Card Credentials (Security Staff)</span>
+                <span>🪪 SIRA Card Credentials (Security & Supervisor Staff)</span>
               </h4>
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Security operational access will automatically be restricted after card expiry date.
+                Security and supervisor operational access will automatically be restricted after card expiry date.
               </p>
 
               <FormInput

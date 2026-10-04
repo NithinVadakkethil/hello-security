@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, CheckCheck, ShieldAlert, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { Bell, CheckCheck, ShieldAlert, AlertTriangle, CheckCircle, X, LogIn, LogOut, ShieldCheck } from 'lucide-react';
 import { apiClient } from '../../lib/axios';
 import { ApiResponse } from '../../types/api';
 
@@ -77,7 +77,13 @@ export default function NotificationBell() {
       case 'MANDATORY_PATROL_MISSED':
         return <AlertTriangle size={16} style={{ color: 'var(--warning, #f59e0b)', flexShrink: 0 }} />;
       case 'MANDATORY_PATROL_COMPLETED':
-        return <CheckCircle size={16} style={{ color: 'var(--success)', flexShrink: 0 }} />;
+        return <ShieldCheck size={16} style={{ color: 'var(--success, #10b981)', flexShrink: 0 }} />;
+      case 'PATROL_COMPLETED':
+        return <CheckCircle size={16} style={{ color: 'var(--primary, #3b82f6)', flexShrink: 0 }} />;
+      case 'EMPLOYEE_CHECKED_IN':
+        return <LogIn size={16} style={{ color: 'var(--success, #10b981)', flexShrink: 0 }} />;
+      case 'EMPLOYEE_CHECKED_OUT':
+        return <LogOut size={16} style={{ color: 'var(--warning, #f59e0b)', flexShrink: 0 }} />;
       default:
         return <Bell size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />;
     }

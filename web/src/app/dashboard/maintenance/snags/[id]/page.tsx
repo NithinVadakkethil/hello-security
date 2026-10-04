@@ -21,12 +21,19 @@ import { resolveImageUrl } from '../../../../../lib/image';
 import { ApiResponse } from '../../../../types/api';
 import LoadingState from '../../../../components/ui/LoadingState';
 import { formatPatrolDate, formatPatrolDateTime } from '@/lib/date-formatter';
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 
 export default function SnagDetailPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const snagId = params.id as string;
+
+  React.useEffect(() => {
+    if (!DEMO_KAIZEN_FEATURES.snags) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [newComment, setNewComment] = useState('');

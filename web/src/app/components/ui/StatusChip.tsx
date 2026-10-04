@@ -18,6 +18,7 @@ export default function StatusChip({ status }: StatusChipProps) {
       case 'ACTIVE':
       case 'COMPLETED':
       case 'VERIFIED':
+      case 'PRESENT':
         colorClass = 'green';
         break;
       case 'TRIAL':
@@ -28,14 +29,17 @@ export default function StatusChip({ status }: StatusChipProps) {
       case 'PAUSED':
       case 'SUSPENDED':
       case 'PENDING':
+      case 'LATE':
         colorClass = 'orange';
         break;
       case 'EXPIRED':
       case 'CANCELLED':
       case 'NOT VERIFIED':
       case 'NOT_VERIFIED':
+      case 'ABSENT':
         colorClass = 'red';
         break;
+      case 'OFF':
       case 'NOT STARTED':
       case 'NOT_STARTED':
       case 'INACTIVE':

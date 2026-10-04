@@ -14,6 +14,7 @@ import { counterService } from '../../common/counter/counter.service';
 import { generateCode } from '../../common/utils/code-generator';
 
 import { saveBase64Image } from '../../common/utils/file-upload.util';
+import { isSiraRequiredForRole } from '../../common/utils/sira-expiry.util';
 
 import { employeeRepository } from './employee.repository';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './employee.types';
@@ -69,11 +70,11 @@ export class EmployeeService {
       }
     }
 
-    // Process SIRA Card images if provided (SECURITY role only)
+    // Process SIRA Card images if provided (SECURITY or SUPERVISOR role)
     let siraCardFrontImage: string | null = null;
     let siraCardBackImage: string | null = null;
 
-    if (dto.role === 'SECURITY') {
+    if (isSiraRequiredForRole(dto.role)) {
       if (dto.siraCardFrontImage) {
         siraCardFrontImage = await saveBase64Image(dto.siraCardFrontImage, 'sira-front');
       }
@@ -144,9 +145,9 @@ export class EmployeeService {
             supervisedRole: dto.role === 'SUPERVISOR' ? (dto.supervisedRole || null) : null,
 
             joiningDate: dto.joiningDate,
-            siraCardExpiryDate: dto.role === 'SECURITY' ? (dto.siraCardExpiryDate || null) : null,
-            siraCardFrontImage: dto.role === 'SECURITY' ? siraCardFrontImage : null,
-            siraCardBackImage: dto.role === 'SECURITY' ? siraCardBackImage : null,
+            siraCardExpiryDate: isSiraRequiredForRole(dto.role) ? (dto.siraCardExpiryDate || null) : null,
+            siraCardFrontImage: isSiraRequiredForRole(dto.role) ? siraCardFrontImage : null,
+            siraCardBackImage: isSiraRequiredForRole(dto.role) ? siraCardBackImage : null,
 
             identificationMethod: dto.identificationMethod,
           },
@@ -212,6 +213,12 @@ export class EmployeeService {
 
     if (targetRole !== 'SUPERVISOR') {
       cleanDto.supervisedRole = null;
+    }
+
+    if (!isSiraRequiredForRole(targetRole) && cleanDto.role !== undefined) {
+      cleanDto.siraCardExpiryDate = null;
+      cleanDto.siraCardFrontImage = null;
+      cleanDto.siraCardBackImage = null;
     }
 
     if (cleanDto.siraCardFrontImage) {

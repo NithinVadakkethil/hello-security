@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { apiClient } from '../../../lib/axios';
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 
 export default function CentralClientDetailPage() {
   const params = useParams();
@@ -82,14 +83,16 @@ export default function CentralClientDetailPage() {
           <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>COMPLETED PATROLS</span>
           <p style={{ fontSize: '22px', fontWeight: '800', margin: '4px 0 0 0' }}>{metrics.completedPatrolsCount || 0}</p>
         </div>
-        <div className="card" style={{ padding: '16px', borderLeft: '4px solid #ef4444' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>OPEN SNAGS</span>
-          <p style={{ fontSize: '22px', fontWeight: '800', margin: '4px 0 0 0', color: '#ef4444' }}>{metrics.openSnagsCount || 0}</p>
-        </div>
+        {DEMO_KAIZEN_FEATURES.snags && (
+          <div className="card" style={{ padding: '16px', borderLeft: '4px solid #ef4444' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>OPEN SNAGS</span>
+            <p style={{ fontSize: '22px', fontWeight: '800', margin: '4px 0 0 0', color: '#ef4444' }}>{metrics.openSnagsCount || 0}</p>
+          </div>
+        )}
       </div>
 
       {/* RECENT ACTIVITY TABLES */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: DEMO_KAIZEN_FEATURES.snags ? '1fr 1fr' : '1fr', gap: '20px' }}>
         <div className="card" style={{ padding: '20px' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', marginBottom: '12px' }}>Recent Patrol Sweeps</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -107,20 +110,22 @@ export default function CentralClientDetailPage() {
           </div>
         </div>
 
-        <div className="card" style={{ padding: '20px' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', marginBottom: '12px' }}>Recent Snags Logged</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {recentSnags.map((s: any) => (
-              <div key={s.id} style={{ padding: '8px 12px', borderRadius: '6px', backgroundColor: 'var(--bg-tertiary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                <div>
-                  <span style={{ fontWeight: '700' }}>{s.category}</span>
-                  <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>{s.site?.name || 'Site'}</p>
+        {DEMO_KAIZEN_FEATURES.snags && (
+          <div className="card" style={{ padding: '20px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: '800', marginBottom: '12px' }}>Recent Snags Logged</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {recentSnags.map((s: any) => (
+                <div key={s.id} style={{ padding: '8px 12px', borderRadius: '6px', backgroundColor: 'var(--bg-tertiary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                  <div>
+                    <span style={{ fontWeight: '700' }}>{s.category}</span>
+                    <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>{s.site?.name || 'Site'}</p>
+                  </div>
+                  <span style={{ fontWeight: '700', color: s.status === 'OPEN' ? '#ef4444' : '#10b981' }}>{s.status}</span>
                 </div>
-                <span style={{ fontWeight: '700', color: s.status === 'OPEN' ? '#ef4444' : '#10b981' }}>{s.status}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

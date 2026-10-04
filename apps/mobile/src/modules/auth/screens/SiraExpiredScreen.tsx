@@ -53,7 +53,7 @@ export function SiraExpiredScreen() {
                 {user.firstName} {user.lastName}
               </Text>
               <Text style={[styles.userRole, { color: colors.textSecondary }]}>
-                Security Officer • {user.email}
+                {user.role === 'SUPERVISOR' ? 'Supervisor' : 'Security Officer'} • {user.email}
               </Text>
             </View>
           )}

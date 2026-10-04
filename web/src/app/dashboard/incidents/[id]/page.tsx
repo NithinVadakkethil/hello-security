@@ -58,10 +58,18 @@ interface Incident {
   patrolSession?: PatrolSession | null;
 }
 
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
+
 export default function IncidentDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
+
+  React.useEffect(() => {
+    if (!DEMO_KAIZEN_FEATURES.observations) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
 
   const [activeImageIdx, setActiveImageIdx] = useState<number | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);

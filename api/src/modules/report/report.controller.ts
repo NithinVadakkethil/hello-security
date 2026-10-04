@@ -4,6 +4,9 @@ import { verifyReportDownloadToken } from '../../common/auth/report-token';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 import { reportService } from './report.service';
 import { reportQuerySchema } from './report.types';
+import { summaryReportService } from './summary-report.service';
+import { pdfGeneratorService } from './pdf-generator.service';
+import { excelGeneratorService } from './excel-generator.service';
 
 export class ReportController {
   async getAnalytics(req: Request, res: Response, next: NextFunction) {
@@ -115,7 +118,7 @@ export class ReportController {
       const query = req.query || {};
       const body = req.body || {};
       const params = {
-        periodType: ((query.periodType || body.periodType || 'DAILY') as string).toUpperCase() as any,
+        periodType: ((query.reportType || query.periodType || body.reportType || body.periodType || 'DAILY') as string).toUpperCase() as any,
         date: (query.date || body.date) as string | undefined,
         month: (query.month || body.month) as string | undefined,
         startDate: (query.startDate || body.startDate) as string | undefined,
@@ -126,7 +129,6 @@ export class ReportController {
         user,
       };
 
-      const { summaryReportService } = require('./summary-report.service');
       const dataset = await summaryReportService.generateReportDataset(params);
 
       return res.status(HttpStatus.OK).json({
@@ -144,7 +146,7 @@ export class ReportController {
       const query = req.query || {};
       const body = req.body || {};
       const params = {
-        periodType: ((query.periodType || body.periodType || 'DAILY') as string).toUpperCase() as any,
+        periodType: ((query.reportType || query.periodType || body.reportType || body.periodType || 'DAILY') as string).toUpperCase() as any,
         date: (query.date || body.date) as string | undefined,
         month: (query.month || body.month) as string | undefined,
         startDate: (query.startDate || body.startDate) as string | undefined,
@@ -155,14 +157,12 @@ export class ReportController {
         user,
       };
 
-      const { summaryReportService } = require('./summary-report.service');
-      const { pdfGeneratorService } = require('./pdf-generator.service');
-
       const dataset = await summaryReportService.generateReportDataset(params);
       const pdfBuffer = await pdfGeneratorService.generatePdf(dataset);
 
       const dateTag = params.date || params.month || new Date().toISOString().split('T')[0];
-      const filename = `HelloOrbit_${params.periodType}_Report_${dateTag}.pdf`;
+      const empTag = dataset.metadata.employeeName ? `_${dataset.metadata.employeeName.replace(/\s+/g, '_')}` : '';
+      const filename = `HelloOrbit_${params.periodType}_Report${empTag}_${dateTag}.pdf`;
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -178,7 +178,7 @@ export class ReportController {
       const query = req.query || {};
       const body = req.body || {};
       const params = {
-        periodType: ((query.periodType || body.periodType || 'DAILY') as string).toUpperCase() as any,
+        periodType: ((query.reportType || query.periodType || body.reportType || body.periodType || 'DAILY') as string).toUpperCase() as any,
         date: (query.date || body.date) as string | undefined,
         month: (query.month || body.month) as string | undefined,
         startDate: (query.startDate || body.startDate) as string | undefined,
@@ -189,14 +189,12 @@ export class ReportController {
         user,
       };
 
-      const { summaryReportService } = require('./summary-report.service');
-      const { excelGeneratorService } = require('./excel-generator.service');
-
       const dataset = await summaryReportService.generateReportDataset(params);
       const excelBuffer = excelGeneratorService.generateExcel(dataset);
 
       const dateTag = params.date || params.month || new Date().toISOString().split('T')[0];
-      const filename = `HelloOrbit_${params.periodType}_Report_${dateTag}.xlsx`;
+      const empTag = dataset.metadata.employeeName ? `_${dataset.metadata.employeeName.replace(/\s+/g, '_')}` : '';
+      const filename = `HelloOrbit_${params.periodType}_Report${empTag}_${dateTag}.xlsx`;
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Calendar,
   CheckCircle2,
+  Clock,
   FileText,
   LogOut,
   MapPin,
@@ -80,6 +81,7 @@ export default function DashboardLayout({
         { href: '/dashboard/sites', label: 'Sites & Gates', icon: MapPin },
         { href: '/dashboard/shifts', label: 'Shifts', icon: Calendar },
         { href: '/dashboard/employees', label: 'Employees', icon: Users },
+        { href: '/dashboard/attendance', label: 'Attendance', icon: Clock },
         { href: '/dashboard/managers', label: 'Community Managers', icon: UserCheck },
         { href: '/dashboard/users', label: 'Users', icon: Shield },
         {

@@ -20,20 +20,33 @@ export class ExcelGeneratorService {
       ['Reporting Period', dataset.metadata.periodLabel],
       ['Organization / Client', dataset.metadata.clientName],
       ['Site', dataset.metadata.siteName || 'All Sites'],
+    ];
+
+    if (dataset.metadata.employeeName) {
+      summarySheetData.push(
+        ['Employee Name', dataset.metadata.employeeName],
+        ['Employee Role', dataset.metadata.employeeRole || 'Security Guard'],
+        ['Staff ID', dataset.metadata.employeeNumber || '—']
+      );
+    }
+
+    summarySheetData.push(
       ['Generated Date & Time', `${dataset.metadata.generatedAt.split('T')[0]} (${dataset.metadata.timezone})`],
       [],
       ['EXECUTIVE METRICS SUMMARY', 'VALUE'],
       ['Mandatory Patrols Completed', dataset.summary.mandatoryCompleted],
       ['Mandatory Patrols Missed', dataset.summary.mandatoryMissed],
       ['Total Patrol Sessions', dataset.summary.assignedPatrols],
-      ['Checkpoint Compliance', `${dataset.summary.completedCheckpoints} / ${dataset.summary.requiredCheckpoints}`],
+      ['Total Checkpoints', dataset.summary.totalCheckpoints ?? dataset.summary.requiredCheckpoints],
+      ['Checkpoints Scanned', dataset.summary.checkpointsScanned ?? dataset.summary.completedCheckpoints],
+      ['Checkpoints Missed', dataset.summary.checkpointsMissed ?? dataset.summary.missedCheckpoints],
       ['Completed Patrol Sessions', dataset.summary.completedPatrols],
       ['Incomplete / Ongoing Patrols', dataset.summary.incompletePatrols],
       ['Additional / Extra Patrols', dataset.summary.additionalPatrols],
       ['Mandatory Patrols Scheduled', dataset.summary.mandatoryScheduled],
       ['Total Guards / Employees', dataset.summary.totalEmployees],
       ['Active Guards', dataset.summary.activeEmployees],
-    ];
+    );
 
     if (!isKaizen) {
       summarySheetData.push(['Reported Security Incidents', dataset.summary.incidentsCount]);
@@ -77,8 +90,8 @@ export class ExcelGeneratorService {
       XLSX.utils.book_append_sheet(wb, wsMandatory, 'Mandatory Patrols');
     }
 
-    // 4. Patrol Sessions Sheet
-    if (dataset.patrols.length > 0) {
+    // 4. Patrol Sessions Sheet (Employee Scoped Report Only)
+    if (dataset.metadata.employeeId && dataset.patrols && dataset.patrols.length > 0) {
       const formattedPatrols = dataset.patrols.map((p) => ({
         'Patrol Code': p.patrolCode,
         'Employee': p.employeeName || p.guardName,

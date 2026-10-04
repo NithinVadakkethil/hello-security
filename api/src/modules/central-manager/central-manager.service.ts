@@ -89,6 +89,62 @@ export class CentralManagerService {
       : 100;
   }
 
+  private async calculateCheckpointMetrics(
+    clientIds: string[],
+    dateFilter?: any,
+    siteId?: string,
+  ): Promise<{ scanned: number; missed: number; total: number }> {
+    const hasDateFilter = dateFilter && Object.keys(dateFilter).length > 0;
+    const sessions = await prisma.patrolSession.findMany({
+      where: {
+        clientId: { in: clientIds },
+        ...(siteId ? { assignment: { siteId } } : {}),
+        ...(hasDateFilter ? { startedAt: dateFilter } : {}),
+      },
+      select: {
+        managerUserId: true,
+        status: true,
+        assignment: {
+          select: {
+            assignmentType: true,
+            patrolRoute: { select: { routeGates: { select: { gateId: true } } } },
+            assignmentGates: { select: { gateId: true } },
+          },
+        },
+        checkpoints: { select: { id: true, gateId: true } },
+      },
+    });
+
+    let totalScanned = 0;
+    let totalRequired = 0;
+
+    for (const s of sessions) {
+      const isDirect =
+        (s.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+        (!s.assignment?.patrolRoute && (s.assignment?.assignmentGates?.length || 0) > 0);
+
+      const reqGates = s.managerUserId
+        ? s.checkpoints.length
+        : isDirect
+        ? s.assignment?.assignmentGates?.length || 0
+        : s.assignment?.patrolRoute?.routeGates?.length || 0;
+
+      const requiredForSession = reqGates > 0 ? reqGates : s.checkpoints.length;
+      const scannedForSession = s.checkpoints.length;
+
+      totalScanned += scannedForSession;
+      totalRequired += requiredForSession;
+    }
+
+    const totalMissed = Math.max(0, totalRequired - totalScanned);
+
+    return {
+      scanned: totalScanned,
+      missed: totalMissed,
+      total: totalRequired,
+    };
+  }
+
   async getClientDashboard(
     user: { id: string; role: string },
     clientId: string,
@@ -123,6 +179,7 @@ export class CentralManagerService {
       recentObservations,
       recentSnags,
       complianceRate,
+      clientCheckpoints,
     ] = await Promise.all([
       prisma.employee.count({ where: { clientId, status: 'ACTIVE' } }),
       prisma.patrolSession.count({ where: { clientId, status: 'IN_PROGRESS' } }),
@@ -163,6 +220,7 @@ export class CentralManagerService {
         take: 5,
       }),
       this.calculateWeightedCompliance([clientId], hasDateFilter ? dateFilter : undefined),
+      this.calculateCheckpointMetrics([clientId], hasDateFilter ? dateFilter : undefined),
     ]);
 
     return {
@@ -174,8 +232,12 @@ export class CentralManagerService {
         completedPatrolsCount,
         openObservationsCount,
         openSnagsCount,
+        totalCheckpointsScanned: clientCheckpoints.scanned,
+        totalCheckpointsMissed: clientCheckpoints.missed,
+        totalCheckpoints: clientCheckpoints.total,
         complianceRate,
       },
+      checkpointSummary: clientCheckpoints,
       snagCategoryBreakdown: snagCategoriesGroup.map((g) => ({
         category: g.category || 'General',
         count: g._count._all,
@@ -343,6 +405,7 @@ export class CentralManagerService {
       totalSnagsCount,
       closedSnagsCount,
       globalComplianceRate,
+      globalCheckpoints,
     ] = await Promise.all([
       prisma.site.count({
         where: { clientId: { in: authorizedClientIds }, isActive: true },
@@ -391,6 +454,7 @@ export class CentralManagerService {
         },
       }),
       this.calculateWeightedCompliance(authorizedClientIds, hasDateFilter ? dateFilter : undefined),
+      this.calculateCheckpointMetrics(authorizedClientIds, hasDateFilter ? dateFilter : undefined),
     ]);
 
     // 3. Deep Analytics for Selected Client
@@ -412,6 +476,7 @@ export class CentralManagerService {
       urgentSnags,
       urgentIncidents,
       cCompliance,
+      clientCheckpoints,
     ] = await Promise.all([
       prisma.employee.count({
         where: { clientId: targetClientId, status: 'ACTIVE' },
@@ -510,6 +575,7 @@ export class CentralManagerService {
         take: 4,
       }),
       this.calculateWeightedCompliance([targetClientId], hasDateFilter ? dateFilter : undefined),
+      this.calculateCheckpointMetrics([targetClientId], hasDateFilter ? dateFilter : undefined),
     ]);
 
     const snagDistribution = snagCategoriesGroup.map((g) => ({
@@ -549,6 +615,9 @@ export class CentralManagerService {
         completedPatrols: completedPatrolsCount,
         openObservations: openObservationsCount,
         openSnags: openSnagsCount,
+        totalCheckpointsScanned: globalCheckpoints.scanned,
+        totalCheckpointsMissed: globalCheckpoints.missed,
+        totalCheckpoints: globalCheckpoints.total,
         avgCompliance: globalComplianceRate,
       },
       overview: {
@@ -560,6 +629,9 @@ export class CentralManagerService {
         openSnags: openSnagsCount,
         totalSnags: totalSnagsCount,
         closedSnags: closedSnagsCount,
+        totalCheckpointsScanned: globalCheckpoints.scanned,
+        totalCheckpointsMissed: globalCheckpoints.missed,
+        totalCheckpoints: globalCheckpoints.total,
         globalComplianceRate,
       },
       organizations: clients,
@@ -585,8 +657,12 @@ export class CentralManagerService {
               openSnagsCount: cOpenSnags,
               wipSnagsCount: cWipSnags,
               closedSnagsCount: cClosedSnags,
+              totalCheckpointsScanned: clientCheckpoints.scanned,
+              totalCheckpointsMissed: clientCheckpoints.missed,
+              totalCheckpoints: clientCheckpoints.total,
               complianceRate: cCompliance,
             },
+            checkpointSummary: clientCheckpoints,
             snagDistribution,
             snagStatusSummary: {
               total: cTotalSnags,

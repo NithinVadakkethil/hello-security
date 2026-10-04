@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  Clock,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -21,6 +22,7 @@ import { useTheme } from '../providers/theme-provider';
 import { useAuthStore } from '../store/auth-store';
 import { clearTokens } from '../utils/token';
 import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
+import NotificationBell from '../dashboard/components/NotificationBell';
 
 export default function CentralManagerLayout({
   children,
@@ -52,6 +54,7 @@ export default function CentralManagerLayout({
   const rawMenuItems = [
     { href: '/central/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/central/employees', label: 'Employees', icon: Users },
+    { href: '/central/attendance', label: 'Attendance', icon: Clock },
     { href: '/central/observations', label: 'Observation Reports', icon: AlertTriangle },
     { href: '/central/snags', label: 'Snag List', icon: Wrench },
     { href: '/central/reports', label: 'Reports & Analytics', icon: FileText },
@@ -179,7 +182,8 @@ export default function CentralManagerLayout({
         <div className="app-content">
           <header className="app-header">
             <h2 className="page-title">{getHeaderTitle()}</h2>
-            <div className="header-actions">
+            <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <NotificationBell />
               <button
                 onClick={toggleTheme}
                 className="theme-toggle-btn"

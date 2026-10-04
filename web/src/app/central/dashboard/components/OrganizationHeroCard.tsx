@@ -2,7 +2,18 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Building2, CheckCircle2, ShieldCheck, Users, Wrench } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  Building2,
+  CheckCircle2,
+  CheckSquare,
+  ShieldCheck,
+  Users,
+  Wrench,
+} from 'lucide-react';
+
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 
 export interface SelectedClientData {
   id: string;
@@ -22,7 +33,15 @@ export interface SelectedClientData {
     openSnagsCount: number;
     wipSnagsCount: number;
     closedSnagsCount: number;
+    totalCheckpointsScanned?: number;
+    totalCheckpointsMissed?: number;
+    totalCheckpoints?: number;
     complianceRate: number;
+  };
+  checkpointSummary?: {
+    scanned: number;
+    missed: number;
+    total: number;
   };
   snagDistribution?: { category: string; count: number }[];
   snagStatusSummary?: {
@@ -151,35 +170,78 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
 
         <button
           type="button"
-          onClick={() => router.push(`/central/observations?clientId=${client.id}`)}
+          onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
           className="kpi-card"
         >
-          <div className="kpi-icon-box" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}>
-            <AlertTriangle size={18} />
+          <div className="kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
+            <CheckSquare size={18} />
           </div>
           <div className="kpi-info">
-            <span className="kpi-value">{client.metrics.totalObservationsCount}</span>
-            <span className="kpi-label">
-              Observations <small style={{ color: '#F59E0B' }}>({client.metrics.openObservationsCount} Open)</small>
-            </span>
+            <span className="kpi-value">{client.metrics.totalCheckpointsScanned ?? 0}</span>
+            <span className="kpi-label">Checkpoints Scanned</span>
           </div>
         </button>
 
         <button
           type="button"
-          onClick={() => router.push(`/central/snags?clientId=${client.id}`)}
+          onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
           className="kpi-card"
         >
-          <div className="kpi-icon-box" style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#EF4444' }}>
-            <Wrench size={18} />
+          <div
+            className="kpi-icon-box"
+            style={{
+              background: (client.metrics.totalCheckpointsMissed ?? 0) > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+              color: (client.metrics.totalCheckpointsMissed ?? 0) > 0 ? '#EF4444' : '#64748B',
+            }}
+          >
+            <AlertCircle size={18} />
           </div>
           <div className="kpi-info">
-            <span className="kpi-value">{client.metrics.totalSnagsCount}</span>
-            <span className="kpi-label">
-              Total Snags <small style={{ color: '#EF4444' }}>({client.metrics.openSnagsCount} Open)</small>
+            <span
+              className="kpi-value"
+              style={{ color: (client.metrics.totalCheckpointsMissed ?? 0) > 0 ? '#dc2626' : undefined }}
+            >
+              {client.metrics.totalCheckpointsMissed ?? 0}
             </span>
+            <span className="kpi-label">Checkpoints Missed</span>
           </div>
         </button>
+
+        {DEMO_KAIZEN_FEATURES.observations && (
+          <button
+            type="button"
+            onClick={() => router.push(`/central/observations?clientId=${client.id}`)}
+            className="kpi-card"
+          >
+            <div className="kpi-icon-box" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}>
+              <AlertTriangle size={18} />
+            </div>
+            <div className="kpi-info">
+              <span className="kpi-value">{client.metrics.totalObservationsCount}</span>
+              <span className="kpi-label">
+                Observations <small style={{ color: '#F59E0B' }}>({client.metrics.openObservationsCount} Open)</small>
+              </span>
+            </div>
+          </button>
+        )}
+
+        {DEMO_KAIZEN_FEATURES.snags && (
+          <button
+            type="button"
+            onClick={() => router.push(`/central/snags?clientId=${client.id}`)}
+            className="kpi-card"
+          >
+            <div className="kpi-icon-box" style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#EF4444' }}>
+              <Wrench size={18} />
+            </div>
+            <div className="kpi-info">
+              <span className="kpi-value">{client.metrics.totalSnagsCount}</span>
+              <span className="kpi-label">
+                Total Snags <small style={{ color: '#EF4444' }}>({client.metrics.openSnagsCount} Open)</small>
+              </span>
+            </div>
+          </button>
+        )}
 
         <button
           type="button"

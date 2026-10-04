@@ -10,6 +10,7 @@ import { prisma } from '../../database/prisma';
 import { assignmentRepository } from '../assignment/assignment.repository';
 import { patrolSessionRepository } from './patrol-session.repository';
 import { mandatoryPatrolService } from '../mandatory-patrol/mandatory-patrol.service';
+import { notificationService } from '../notification/notification.service';
 import { CurrentUser } from '../../common/auth/current-user';
 import { getSupervisorScope } from '../../common/auth/supervisor-scope';
 import { ListPatrolSessionsQuery } from './patrol-session.types';
@@ -243,9 +244,46 @@ export class PatrolSessionService {
     });
 
     // Check if patrol completion satisfies an active mandatory patrol window
-    mandatoryPatrolService.handlePatrolCompleted(completedPatrol).catch((err) => {
-      logger.error(`Failed to process mandatory patrol completion: ${err.message}`);
-    });
+    try {
+      const isMandatory = await mandatoryPatrolService.handlePatrolCompleted(completedPatrol);
+      if (!isMandatory) {
+        // Emit general PATROL_COMPLETED notification
+        const sessionWithDetails = await patrolSessionRepository.findFullById(id);
+        const employee = sessionWithDetails?.assignment?.employee;
+        const site = sessionWithDetails?.assignment?.site;
+        const shift = sessionWithDetails?.assignment?.shift;
+        const employeeName = employee
+          ? `${employee.firstName} ${employee.lastName || ''}`.trim()
+          : 'Employee';
+        const siteName = site?.name || 'Assigned Site';
+
+        await notificationService.createNotification({
+          clientId: completedPatrol.clientId,
+          type: 'PATROL_COMPLETED',
+          title: 'Patrol completed',
+          message: `${employeeName} completed the assigned patrol at ${siteName}.`,
+          entityType: 'PatrolSession',
+          entityId: completedPatrol.id,
+          metadata: {
+            employeeId: employee?.id,
+            employeeName,
+            employeeRole: employee?.role,
+            clientId: completedPatrol.clientId,
+            siteId: site?.id,
+            siteName,
+            assignmentId: sessionWithDetails?.assignmentId,
+            assignmentName: sessionWithDetails?.assignment?.patrolRoute?.name || 'Assigned Patrol',
+            shiftId: shift?.id,
+            shiftName: shift?.name,
+            patrolSessionId: completedPatrol.id,
+            completedAt: completedPatrol.endedAt,
+          },
+          idempotencyKey: `PATROL_COMPLETED_${completedPatrol.id}`,
+        });
+      }
+    } catch (err: any) {
+      logger.error(`Failed to process patrol completion notification: ${err.message}`);
+    }
 
     // Asynchronously queue completed patrol email notification (non-blocking)
     notificationQueueService

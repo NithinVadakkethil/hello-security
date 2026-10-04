@@ -5,7 +5,7 @@ import { ErrorCodes } from '../errors/ErrorCodes';
 import { HttpStatus } from '../errors/HttpStatus';
 import { verifyAccessToken } from './jwt';
 import { prisma } from '../../database/prisma';
-import { isSecuritySiraExpired } from '../utils/sira-expiry.util';
+import { isSiraExpired, isSiraRequiredForRole } from '../utils/sira-expiry.util';
 
 export async function authenticate(
   req: Request,
@@ -44,7 +44,7 @@ export async function authenticate(
       supervisedRole: payload.supervisedRole || null,
     };
 
-    if (req.user && req.user.role === 'SECURITY' && req.user.employeeId) {
+    if (req.user && isSiraRequiredForRole(req.user.role) && req.user.employeeId) {
       const path = req.originalUrl || req.path || '';
       const isAllowedPath =
         path.includes('/auth/me') ||
@@ -59,7 +59,7 @@ export async function authenticate(
           select: { role: true, siraCardExpiryDate: true },
         });
 
-        if (isSecuritySiraExpired(employee)) {
+        if (isSiraExpired(employee)) {
           throw new AppError(
             HttpStatus.FORBIDDEN,
             ErrorCodes.SIRA_CARD_EXPIRED,

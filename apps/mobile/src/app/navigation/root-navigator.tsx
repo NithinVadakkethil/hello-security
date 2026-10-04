@@ -22,13 +22,19 @@ export function RootNavigator() {
     );
   }
 
-  const isSecuritySiraExpired = user?.role === 'SECURITY' && Boolean(user?.isSiraExpired);
+  const isSiraRequiredForRole = (role?: string | null) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    return r === 'SECURITY' || r === 'SUPERVISOR';
+  };
+
+  const isSiraExpired = isSiraRequiredForRole(user?.role) && Boolean(user?.isSiraExpired);
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!isAuthenticated ? (
         <Stack.Screen name="AuthStack" component={AuthStack} />
-      ) : isSecuritySiraExpired ? (
+      ) : isSiraExpired ? (
         <Stack.Screen name="SiraRestrictedStack" component={SiraRestrictedStack} />
       ) : (
         <Stack.Screen name="AppStack" component={AppStack} />

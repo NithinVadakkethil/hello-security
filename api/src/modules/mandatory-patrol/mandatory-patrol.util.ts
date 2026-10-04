@@ -17,6 +17,32 @@ export function parseTimeToMinutes(timeStr: string): number {
 }
 
 /**
+ * Given a shift start and end time, determines the effective shift base date (accounting for overnight shifts).
+ */
+export function getEffectiveShiftDate(
+  shiftStartTimeStr?: string | null,
+  shiftEndTimeStr?: string | null,
+  refDate: Date = new Date(),
+): Date {
+  const dateOnly = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
+  if (!shiftStartTimeStr || !shiftEndTimeStr) return dateOnly;
+
+  const startMins = parseTimeToMinutes(shiftStartTimeStr);
+  const endMins = parseTimeToMinutes(shiftEndTimeStr);
+  const nowMins = refDate.getHours() * 60 + refDate.getMinutes();
+
+  const isOvernight = endMins <= startMins;
+  // If overnight and current time is past midnight but before or right around shift end
+  if (isOvernight && nowMins < endMins + 60) {
+    const yesterday = new Date(dateOnly);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return yesterday;
+  }
+
+  return dateOnly;
+}
+
+/**
  * Given a shift start time (e.g. "22:00"), shift end time (e.g. "06:00"),
  * shift date (e.g. 2026-09-30), target patrol time (e.g. "03:00"), and window offsets,
  * returns the exact Date objects for scheduledAt, windowStart, and windowEnd.

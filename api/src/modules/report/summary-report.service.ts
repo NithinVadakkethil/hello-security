@@ -61,7 +61,10 @@ export interface ReportDataset {
     endDate: string;
     clientName: string;
     siteName?: string;
+    employeeId?: string;
     employeeName?: string;
+    employeeRole?: string;
+    employeeNumber?: string;
     generatedAt: string;
     timezone: string;
     includeIncidents?: boolean;
@@ -79,6 +82,9 @@ export interface ReportDataset {
     mandatoryCompleted: number;
     mandatoryMissed: number;
     mandatoryCompliancePct: number;
+    totalCheckpoints: number;
+    checkpointsScanned: number;
+    checkpointsMissed: number;
     requiredCheckpoints: number;
     completedCheckpoints: number;
     missedCheckpoints: number;
@@ -272,7 +278,17 @@ export class SummaryReportService {
   async generateReportDataset(params: SummaryReportParams): Promise<ReportDataset> {
     const clientIds = await this.resolveAuthorizedClientIds(params);
     const { from, to, periodLabel } = this.computeDateRange(params);
-    const { siteId, employeeId, periodType } = params;
+    const { siteId, periodType } = params;
+    const rawEmployeeId = params.employeeId;
+    const employeeId =
+      rawEmployeeId &&
+      typeof rawEmployeeId === 'string' &&
+      rawEmployeeId.trim() !== '' &&
+      rawEmployeeId.toLowerCase() !== 'all' &&
+      rawEmployeeId.toLowerCase() !== 'null' &&
+      rawEmployeeId.toLowerCase() !== 'undefined'
+        ? rawEmployeeId.trim()
+        : undefined;
     const timezone = 'Asia/Dubai';
 
     // Fetch Client info
@@ -290,13 +306,22 @@ export class SummaryReportService {
       siteName = site?.name;
     }
 
+    let scopedEmployee: any = null;
     let employeeName: string | undefined;
+    let employeeRole: string | undefined;
+    let employeeNumber: string | undefined;
+
     if (employeeId) {
-      const emp = await prisma.employee.findUnique({
+      scopedEmployee = await prisma.employee.findUnique({
         where: { id: employeeId },
-        select: { firstName: true, lastName: true },
+        include: { user: true },
       });
-      if (emp) employeeName = `${emp.firstName} ${emp.lastName || ''}`.trim();
+      if (!scopedEmployee || !clientIds.includes(scopedEmployee.clientId)) {
+        throw new AppError(HttpStatus.FORBIDDEN, ErrorCodes.FORBIDDEN, 'Unauthorized employee report access requested.');
+      }
+      employeeName = `${scopedEmployee.firstName} ${scopedEmployee.lastName || ''}`.trim();
+      employeeRole = formatRoleLabel(scopedEmployee.role, scopedEmployee.designation);
+      employeeNumber = scopedEmployee.employeeNumber || '—';
     }
 
     // Build base query filters
@@ -305,14 +330,16 @@ export class SummaryReportService {
     const employeeFilter = employeeId ? { employeeId } : {};
 
     // 1. Employees query
-    const [totalEmployees, activeEmployees] = await Promise.all([
-      prisma.employee.count({
-        where: { ...baseWhereClient, ...employeeFilter },
-      }),
-      prisma.employee.count({
-        where: { ...baseWhereClient, status: 'ACTIVE', ...employeeFilter },
-      }),
-    ]);
+    const [totalEmployees, activeEmployees] = employeeId
+      ? [1, scopedEmployee.status === 'ACTIVE' ? 1 : 0]
+      : await Promise.all([
+          prisma.employee.count({
+            where: { ...baseWhereClient },
+          }),
+          prisma.employee.count({
+            where: { ...baseWhereClient, status: 'ACTIVE' },
+          }),
+        ]);
 
     // 2. Shifts & Assignments count
     const totalShifts = await prisma.shift.count({
@@ -325,7 +352,14 @@ export class SummaryReportService {
         ...baseWhereClient,
         startedAt: { gte: from, lte: to },
         ...(siteId ? { assignment: { siteId } } : {}),
-        ...(employeeId ? { assignment: { employeeId } } : {}),
+        ...(employeeId
+          ? {
+              OR: [
+                { assignment: { employeeId } },
+                { managerUser: { employee: { id: employeeId } } },
+              ],
+            }
+          : {}),
       },
       include: {
         assignment: {
@@ -656,6 +690,21 @@ export class SummaryReportService {
       }
     });
 
+    if (employeeId && scopedEmployee && !empMap.has(employeeId)) {
+      empMap.set(employeeId, {
+        employeeId: scopedEmployee.id,
+        employeeName: `${scopedEmployee.firstName} ${scopedEmployee.lastName || ''}`.trim(),
+        employeeRole: formatRoleLabel(scopedEmployee.role, scopedEmployee.designation),
+        siteName: siteName || 'Assigned Site',
+        completedPatrols: 0,
+        mandatoryScheduled: 0,
+        mandatoryCompleted: 0,
+        mandatoryCompliancePct: 100,
+        checkpointsScanned: 0,
+        incidentsCount: 0,
+      });
+    }
+
     const employeeSummary = Array.from(empMap.values()).map((e) => ({
       ...e,
       mandatoryCompliancePct:
@@ -693,16 +742,25 @@ export class SummaryReportService {
       isLate: false,
     }));
 
+    const totalCheckpoints = totalRequiredCheckpoints;
+    const checkpointsScanned = totalScannedCheckpoints;
+    const checkpointsMissed = Math.max(0, totalRequiredCheckpoints - totalScannedCheckpoints);
+
     return {
       metadata: {
-        title: `Hello Orbit ${periodType.toUpperCase()} Security & Operations Report`,
+        title: employeeName
+          ? `Hello Orbit ${periodType.toUpperCase()} Employee Operations Report - ${employeeName}`
+          : `Hello Orbit ${periodType.toUpperCase()} Security & Operations Report`,
         periodType,
         periodLabel,
         startDate: from.toISOString(),
         endDate: to.toISOString(),
         clientName,
         siteName,
+        employeeId: scopedEmployee?.id,
         employeeName,
+        employeeRole,
+        employeeNumber,
         generatedAt: new Date().toISOString(),
         timezone: 'Asia/Dubai (GST)',
         includeIncidents,
@@ -720,14 +778,17 @@ export class SummaryReportService {
         mandatoryCompleted,
         mandatoryMissed,
         mandatoryCompliancePct,
-        requiredCheckpoints: totalRequiredCheckpoints,
-        completedCheckpoints: totalScannedCheckpoints,
-        missedCheckpoints: Math.max(0, totalRequiredCheckpoints - totalScannedCheckpoints),
+        totalCheckpoints,
+        checkpointsScanned,
+        checkpointsMissed,
+        requiredCheckpoints: totalCheckpoints,
+        completedCheckpoints: checkpointsScanned,
+        missedCheckpoints: checkpointsMissed,
         checkpointCompletionPct,
         incidentsCount: rawIncidents.length,
       },
       attendance: attendanceRows,
-      patrols: patrolRows,
+      patrols: scopedEmployee ? patrolRows : [],
       mandatoryPatrols: mandatoryRows,
       checkpoints: checkpointRows,
       incidents: incidentRows,

@@ -171,7 +171,7 @@ export function FaceVerificationScreen({ route, navigation }: any) {
           const shEnd = activeAssignment?.shift?.endTime || '09:00 PM';
           const desig = (user as any)?.employee?.designation || (user as any)?.role || 'Security Guard';
 
-          useAttendanceStore.getState().markAttendance({
+          await useAttendanceStore.getState().markAttendance({
             employeeId: empId,
             employeeName: empName,
             assignmentId: asgId,
@@ -194,7 +194,7 @@ export function FaceVerificationScreen({ route, navigation }: any) {
         } else if (mode === 'MARK_CHECKOUT') {
           const asgId = activeAssignment?.id || 'default_asg';
 
-          useAttendanceStore.getState().markCheckOut({
+          await useAttendanceStore.getState().markCheckOut({
             employeeId: empId,
             assignmentId: asgId,
             isConnected,

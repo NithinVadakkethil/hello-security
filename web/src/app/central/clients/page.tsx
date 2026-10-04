@@ -5,6 +5,7 @@ import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { apiClient } from '../../lib/axios';
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 
 export default function CentralClientsPage() {
   const [data, setData] = useState<any[]>([]);
@@ -80,9 +81,15 @@ export default function CentralClientsPage() {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '8px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '600', color: '#ef4444' }}>
-                {card.openSnagsCount} Open Snags
-              </span>
+              {DEMO_KAIZEN_FEATURES.snags ? (
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#ef4444' }}>
+                  {card.openSnagsCount} Open Snags
+                </span>
+              ) : (
+                <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                  {card.sitesCount} Active {card.sitesCount === 1 ? 'Site' : 'Sites'}
+                </span>
+              )}
               <Link href={`/central/clients/${card.clientId}`} style={{ textDecoration: 'none' }}>
                 <button className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px', gap: '4px' }}>
                   <span>View Details</span>

@@ -18,6 +18,7 @@ import incidentRoutes from '../modules/incident/incident.routes';
 import reportRoutes from '../modules/report/report.routes';
 import snagRoutes from '../modules/snag/snag.routes';
 import snagCategoryRoutes from '../modules/snag-category/snag-category.routes';
+import attendanceRoutes from '../modules/attendance/attendance.routes';
 import clientNotificationRoutes from '../modules/client-notification/client-notification.routes';
 import clientBrandingRoutes from '../modules/client/client-branding.routes';
 import subTaskMasterRoutes from '../modules/subtask-master/subtask-master.routes';
@@ -60,5 +61,6 @@ router.use('/incidents', incidentRoutes);
 router.use('/reports', reportRoutes);
 router.use('/snags', snagRoutes);
 router.use('/snag-categories', snagCategoryRoutes);
+router.use('/attendance', attendanceRoutes);
 
 export default router;

@@ -7,8 +7,8 @@ interface AttendanceState {
   history: AttendanceRecord[];
   isLoading: boolean;
   loadAttendance: (employeeId: string, assignmentId: string) => void;
-  markAttendance: (params: MarkAttendanceParams) => AttendanceRecord;
-  markCheckOut: (params: MarkCheckOutParams) => AttendanceRecord | null;
+  markAttendance: (params: MarkAttendanceParams) => Promise<AttendanceRecord>;
+  markCheckOut: (params: MarkCheckOutParams) => Promise<AttendanceRecord | null>;
   resetState: () => void;
 }
 
@@ -26,17 +26,34 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     const record = attendanceService.getAttendance(employeeId, assignmentId, businessDate);
     const history = attendanceService.getAttendanceHistory(employeeId);
     set({ todayAttendance: record, history });
+
+    // Asynchronously sync pending offline records or refresh from server
+    if (record && (record.isOfflineCaptured || record.status === 'PENDING_SYNC')) {
+      attendanceService.syncPendingAttendance(employeeId, assignmentId, businessDate).then((synced) => {
+        if (synced) {
+          const updatedHistory = attendanceService.getAttendanceHistory(employeeId);
+          set({ todayAttendance: synced, history: updatedHistory });
+        }
+      });
+    } else if (!record) {
+      attendanceService.fetchServerAttendance(employeeId, assignmentId, businessDate).then((serverRec) => {
+        if (serverRec) {
+          const updatedHistory = attendanceService.getAttendanceHistory(employeeId);
+          set({ todayAttendance: serverRec, history: updatedHistory });
+        }
+      });
+    }
   },
 
-  markAttendance: (params: MarkAttendanceParams) => {
-    const record = attendanceService.markAttendance(params);
+  markAttendance: async (params: MarkAttendanceParams) => {
+    const record = await attendanceService.markAttendance(params);
     const history = attendanceService.getAttendanceHistory(params.employeeId);
     set({ todayAttendance: record, history });
     return record;
   },
 
-  markCheckOut: (params: MarkCheckOutParams) => {
-    const record = attendanceService.markCheckOut(params);
+  markCheckOut: async (params: MarkCheckOutParams) => {
+    const record = await attendanceService.markCheckOut(params);
     if (record) {
       const history = attendanceService.getAttendanceHistory(params.employeeId);
       set({ todayAttendance: record, history });
@@ -48,4 +65,5 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     set({ todayAttendance: null, history: [], isLoading: false });
   },
 }));
+
 

@@ -69,7 +69,7 @@ export class PdfGeneratorService {
     }
     .metrics-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 10px;
       margin-bottom: 18px;
     }
@@ -168,6 +168,12 @@ export class PdfGeneratorService {
     <div class="report-meta">
       <p style="margin: 0;">Organization: <strong>${metadata.clientName}</strong></p>
       ${metadata.siteName ? `<p style="margin: 2px 0 0 0;">Site: <strong>${metadata.siteName}</strong></p>` : ''}
+      ${metadata.employeeName ? `
+        <p style="margin: 2px 0 0 0;">Employee: <strong>${metadata.employeeName}</strong></p>
+        <p style="margin: 2px 0 0 0;">Role: <strong>${metadata.employeeRole || 'Security Guard'}</strong></p>
+        ${metadata.employeeNumber ? `<p style="margin: 2px 0 0 0;">Staff ID: <strong>${metadata.employeeNumber}</strong></p>` : ''}
+      ` : ''}
+      <p style="margin: 2px 0 0 0;">Report Type: <strong>${metadata.periodType}</strong></p>
       <p style="margin: 2px 0 0 0;">Period: <strong>${metadata.periodLabel}</strong></p>
       <p style="margin: 2px 0 0 0;">Generated: <strong>${metadata.generatedAt.split('T')[0]} (${metadata.timezone})</strong></p>
     </div>
@@ -189,8 +195,16 @@ export class PdfGeneratorService {
       <div class="metric-value highlight">${summary.assignedPatrols}</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">CHECKPOINT<br>COMPLIANCE</div>
-      <div class="metric-value">${summary.completedCheckpoints} / ${summary.requiredCheckpoints}</div>
+      <div class="metric-label">TOTAL<br>CHECKPOINTS</div>
+      <div class="metric-value">${summary.totalCheckpoints ?? summary.requiredCheckpoints}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">CHECKPOINTS<br>SCANNED</div>
+      <div class="metric-value success">${summary.checkpointsScanned ?? summary.completedCheckpoints}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">CHECKPOINTS<br>MISSED</div>
+      <div class="metric-value ${(summary.checkpointsMissed ?? summary.missedCheckpoints) > 0 ? 'danger' : ''}">${summary.checkpointsMissed ?? summary.missedCheckpoints}</div>
     </div>
   </div>
 
@@ -239,11 +253,14 @@ export class PdfGeneratorService {
   `
   }
 
-  <!-- Patrol Sessions Activity -->
+  ${
+    metadata.employeeId
+      ? `
+  <!-- Patrol Sessions Activity (Employee Scoped Report Only) -->
   <div class="section-title">Patrol Sessions Activity</div>
   ${
     patrols.length === 0
-      ? '<p style="color: #64748b;">No patrol sessions recorded for this period.</p>'
+      ? '<p style="color: #64748b;">No patrol sessions recorded for this employee.</p>'
       : `
   <table>
     <thead>
@@ -281,6 +298,9 @@ export class PdfGeneratorService {
     </tbody>
   </table>
   `
+  }
+  `
+      : ''
   }
 
   <!-- Incidents (Excluded for Kaizen) -->

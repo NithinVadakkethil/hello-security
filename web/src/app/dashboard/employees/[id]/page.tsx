@@ -61,7 +61,7 @@ export default function EmployeeDetailPage() {
 
   // Check if SIRA card is expired
   const isSiraExpired = () => {
-    if (!employee || employee.role !== 'SECURITY' || !employee.siraCardExpiryDate) return false;
+    if (!employee || (employee.role !== 'SECURITY' && employee.role !== 'SUPERVISOR') || !employee.siraCardExpiryDate) return false;
     const expiry = new Date(employee.siraCardExpiryDate);
     const endOfDay = new Date(expiry.getFullYear(), expiry.getMonth(), expiry.getDate(), 23, 59, 59, 999);
     return new Date() > endOfDay;
@@ -229,8 +229,8 @@ export default function EmployeeDetailPage() {
             </div>
           </div>
 
-          {/* SIRA Card Details (Security Role Only) */}
-          {employee.role === 'SECURITY' && (
+          {/* SIRA Card Details (Security and Supervisor Roles) */}
+          {(employee.role === 'SECURITY' || employee.role === 'SUPERVISOR') && (
             <div className="glass-card" style={{ padding: '28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>

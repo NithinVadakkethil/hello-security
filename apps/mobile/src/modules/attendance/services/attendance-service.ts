@@ -1,5 +1,6 @@
 import { storage } from '../../../app/utils/mmkv-storage';
-import { AttendanceRecord, MarkAttendanceParams } from '../types';
+import { apiClient } from '../../../app/api/api-client';
+import { AttendanceRecord, AttendanceStatus, MarkAttendanceParams, MarkCheckOutParams } from '../types';
 
 const STORAGE_PREFIX = 'hello_orbit_attendance_v1_';
 const HISTORY_INDEX_KEY = 'hello_orbit_attendance_history_v1_';
@@ -40,7 +41,7 @@ export const attendanceService = {
     }
   },
 
-  markAttendance: (params: MarkAttendanceParams): AttendanceRecord => {
+  markAttendance: async (params: MarkAttendanceParams): Promise<AttendanceRecord> => {
     const {
       employeeId,
       employeeName,
@@ -63,12 +64,35 @@ export const attendanceService = {
       return existing;
     }
 
-    const now = new Date().toISOString();
+    let serverCheckInAt: string | null = null;
+    let serverStatus: AttendanceStatus = isConnected ? 'PRESENT' : 'PENDING_SYNC';
+    let serverRecordId = `att_loc_${Date.now()}`;
+
+    if (isConnected) {
+      try {
+        const response: any = await apiClient.post('/attendance/check-in', {
+          employeeId,
+          assignmentId,
+          siteId,
+          shiftId,
+          businessDate,
+        });
+        const attData = response?.data || response;
+        if (attData?.checkInTimeRaw) {
+          serverCheckInAt = attData.checkInTimeRaw;
+          serverStatus = (attData.status as AttendanceStatus) || 'PRESENT';
+          serverRecordId = attData.id || serverRecordId;
+        }
+      } catch (err) {
+        console.warn('[AttendanceService] API check-in failed, storing offline:', err);
+      }
+    }
+
+    const now = serverCheckInAt || new Date().toISOString();
     const idempotencyKey = `att_${employeeId}_${assignmentId}_${businessDate}`;
-    const initialStatus = isConnected ? 'PRESENT' : 'PENDING_SYNC';
 
     const newRecord: AttendanceRecord = {
-      id: `att_loc_${Date.now()}`,
+      id: serverRecordId,
       employeeId,
       employeeName,
       assignmentId,
@@ -81,7 +105,7 @@ export const attendanceService = {
       designation,
       businessDate,
       checkInAt: now,
-      status: initialStatus,
+      status: serverStatus,
       verificationMethod: 'FACE_VERIFICATION',
       verificationResult: 'VERIFIED',
       isOfflineCaptured: !isConnected,
@@ -125,12 +149,12 @@ export const attendanceService = {
     storage.set(indexKey, JSON.stringify(sliced));
   },
 
-  markCheckOut: (params: {
+  markCheckOut: async (params: {
     employeeId: string;
     assignmentId: string;
     businessDate?: string;
     isConnected?: boolean;
-  }): AttendanceRecord | null => {
+  }): Promise<AttendanceRecord | null> => {
     const {
       employeeId,
       assignmentId,
@@ -151,13 +175,32 @@ export const attendanceService = {
       return existing;
     }
 
-    const now = new Date().toISOString();
-    const updatedStatus = isConnected ? 'COMPLETED' : 'PENDING_SYNC';
+    let serverCheckOutAt: string | null = null;
+    let serverStatus: AttendanceStatus = isConnected ? 'COMPLETED' : 'PENDING_SYNC';
+
+    if (isConnected) {
+      try {
+        const response: any = await apiClient.post('/attendance/check-out', {
+          employeeId,
+          assignmentId,
+          businessDate,
+        });
+        const attData = response?.data || response;
+        if (attData?.checkOutTimeRaw) {
+          serverCheckOutAt = attData.checkOutTimeRaw;
+          serverStatus = (attData.status as AttendanceStatus) || 'COMPLETED';
+        }
+      } catch (err) {
+        console.warn('[AttendanceService] API check-out failed, storing offline:', err);
+      }
+    }
+
+    const now = serverCheckOutAt || new Date().toISOString();
 
     const updatedRecord: AttendanceRecord = {
       ...existing,
       checkOutAt: now,
-      status: updatedStatus,
+      status: serverStatus,
       updatedAt: now,
     };
 
@@ -167,7 +210,96 @@ export const attendanceService = {
     return updatedRecord;
   },
 
+  fetchServerAttendance: async (
+    employeeId: string,
+    assignmentId: string,
+    businessDate: string = getTodayBusinessDate()
+  ): Promise<AttendanceRecord | null> => {
+    if (!employeeId) return null;
+    try {
+      const response: any = await apiClient.get('/attendance', {
+        params: {
+          employeeId,
+          date: businessDate,
+        },
+      });
+      const records = response?.data?.records || response?.records || [];
+      const match = records.find(
+        (r: any) => r.employeeId === employeeId && (r.date === businessDate || r.shiftDate === businessDate)
+      );
+      if (match && match.status !== 'OFF' && match.checkInTimeRaw) {
+        const key = buildAttendanceStorageKey(employeeId, assignmentId, businessDate);
+        const serverRecord: AttendanceRecord = {
+          id: match.id,
+          employeeId,
+          employeeName: match.employeeName,
+          assignmentId: match.assignmentId || assignmentId,
+          siteId: match.siteId || '',
+          siteName: match.siteName || '',
+          shiftId: match.shiftId || '',
+          shiftName: match.shiftName || '',
+          shiftStartTime: match.shiftStartTime || '',
+          shiftEndTime: match.shiftEndTime || '',
+          designation: match.employeeRole || '',
+          businessDate,
+          checkInAt: match.checkInTimeRaw,
+          checkOutAt: match.checkOutTimeRaw || undefined,
+          status: match.status,
+          verificationMethod: match.verificationMethod || 'FACE_VERIFICATION',
+          verificationResult: 'VERIFIED',
+          isOfflineCaptured: false,
+          idempotencyKey: `att_${employeeId}_${assignmentId}_${businessDate}`,
+          createdAt: match.createdAt || match.checkInTimeRaw,
+          updatedAt: match.updatedAt || match.checkInTimeRaw,
+        };
+        storage.set(key, JSON.stringify(serverRecord));
+        attendanceService.appendHistory(employeeId, serverRecord);
+        return serverRecord;
+      }
+    } catch (err) {
+      console.warn('[AttendanceService] Failed to fetch server attendance:', err);
+    }
+    return null;
+  },
+
+  syncPendingAttendance: async (
+    employeeId: string,
+    assignmentId: string,
+    businessDate: string = getTodayBusinessDate()
+  ): Promise<AttendanceRecord | null> => {
+    if (!employeeId || !assignmentId) return null;
+    const local = attendanceService.getAttendance(employeeId, assignmentId, businessDate);
+    if (local && (local.isOfflineCaptured || local.status === 'PENDING_SYNC')) {
+      try {
+        const response: any = await apiClient.post('/attendance/check-in', {
+          employeeId,
+          assignmentId,
+          siteId: local.siteId,
+          shiftId: local.shiftId,
+          businessDate,
+        });
+        const attData = response?.data || response;
+        if (attData?.checkInTimeRaw) {
+          const updated: AttendanceRecord = {
+            ...local,
+            id: attData.id || local.id,
+            status: (attData.status as AttendanceStatus) || 'PRESENT',
+            isOfflineCaptured: false,
+          };
+          const key = buildAttendanceStorageKey(employeeId, assignmentId, businessDate);
+          storage.set(key, JSON.stringify(updated));
+          attendanceService.appendHistory(employeeId, updated);
+          return updated;
+        }
+      } catch (err) {
+        console.warn('[AttendanceService] Sync check-in failed:', err);
+      }
+    }
+    return local;
+  },
+
   clearUserAttendance: (employeeId: string) => {
     // Standard clear mechanism if required upon logout
   },
 };
+

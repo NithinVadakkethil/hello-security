@@ -1,6 +1,6 @@
 import { prisma } from '../../database/prisma';
 import { logger } from '../../common/logger/logger';
-import { calculateMandatoryWindow } from './mandatory-patrol.util';
+import { calculateMandatoryWindow, getEffectiveShiftDate } from './mandatory-patrol.util';
 import { notificationService } from '../notification/notification.service';
 
 export class MandatoryPatrolService {
@@ -113,21 +113,25 @@ export class MandatoryPatrolService {
 
   /**
    * Evaluate all active assignments and update mandatory patrol instance statuses.
-   * Emits MANDATORY_PATROL_DUE and MANDATORY_PATROL_MISSED notifications.
+   * Emits MANDATORY_PATROL_MISSED notification to Client Admin when window closes.
    */
   async evaluateMandatoryPatrolStatuses() {
     const now = new Date();
-    const todayDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    // 1. Sync instances for all active assignments today
+    // 1. Sync instances for all active assignments today (accounting for overnight shift date)
     const activeAssignments = await prisma.guardAssignment.findMany({
       where: { isActive: true },
-      select: { id: true },
+      include: { shift: true },
     });
 
     for (const assignment of activeAssignments) {
       try {
-        await this.syncMandatoryPatrolInstancesForAssignment(assignment.id, todayDateOnly);
+        const effectiveShiftDate = getEffectiveShiftDate(
+          assignment.shift?.startTime,
+          assignment.shift?.endTime,
+          now,
+        );
+        await this.syncMandatoryPatrolInstancesForAssignment(assignment.id, effectiveShiftDate);
       } catch (err: any) {
         logger.error(`Failed to sync mandatory patrol instances for assignment ${assignment.id}: ${err.message}`);
       }
@@ -157,52 +161,29 @@ export class MandatoryPatrolService {
       const formatTime = (d: Date) =>
         d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-      // Check transition to DUE
+      // Check transition to DUE (informational status only, do not notify Client Admin)
       if (inst.status === 'UPCOMING' && now >= inst.windowStart && now <= inst.windowEnd) {
         await prisma.mandatoryPatrolInstance.update({
           where: { id: inst.id },
           data: { status: 'DUE' },
         });
-
-        const reqTime = formatTime(inst.scheduledAt);
-        const winStart = formatTime(inst.windowStart);
-        const winEnd = formatTime(inst.windowEnd);
-
-        await notificationService.createNotification({
-          clientId: inst.clientId,
-          type: 'MANDATORY_PATROL_DUE',
-          title: '🔴 Mandatory Patrol Due',
-          message: `${employeeName}'s Mandatory Patrol ${inst.sequence} at ${siteName} is now due. Required time: ${reqTime} (${winStart} – ${winEnd}).`,
-          entityType: 'MandatoryPatrolInstance',
-          entityId: inst.id,
-          metadata: {
-            employeeId: inst.employeeId,
-            employeeName,
-            siteName,
-            shiftName,
-            sequence: inst.sequence,
-            scheduledAt: inst.scheduledAt,
-            windowStart: inst.windowStart,
-            windowEnd: inst.windowEnd,
-          },
-          idempotencyKey: `MANDATORY_PATROL_DUE_${inst.id}`,
-        });
       }
 
-      // Check transition to MISSED
+      // Check transition to MISSED (window expired without qualifying patrol)
       if ((inst.status === 'UPCOMING' || inst.status === 'DUE') && now > inst.windowEnd) {
         await prisma.mandatoryPatrolInstance.update({
           where: { id: inst.id },
           data: { status: 'MISSED' },
         });
 
+        const reqTimeStr = formatTime(inst.scheduledAt);
         const winEndStr = formatTime(inst.windowEnd);
 
         await notificationService.createNotification({
           clientId: inst.clientId,
           type: 'MANDATORY_PATROL_MISSED',
-          title: '⚠️ Mandatory Patrol Missed',
-          message: `${employeeName}'s Mandatory Patrol ${inst.sequence} at ${siteName} was missed (window ended at ${winEndStr}).`,
+          title: 'Mandatory Patrol Missed',
+          message: `${employeeName} missed Mandatory Patrol ${inst.sequence} at ${siteName}.\nRequired: ${reqTimeStr}\nWindow ended: ${winEndStr}`,
           entityType: 'MandatoryPatrolInstance',
           entityId: inst.id,
           metadata: {
@@ -215,7 +196,7 @@ export class MandatoryPatrolService {
             windowStart: inst.windowStart,
             windowEnd: inst.windowEnd,
           },
-          idempotencyKey: `MANDATORY_PATROL_MISSED_${inst.id}`,
+          idempotencyKey: `MANDATORY_PATROL_MISSED_${inst.id}_${inst.employeeId}`,
         });
       }
     }
@@ -224,9 +205,10 @@ export class MandatoryPatrolService {
   /**
    * Called when a guard completes a patrol session.
    * Checks if completed patrol falls within an active mandatory patrol window and updates instance status to COMPLETED.
+   * Returns true if a mandatory patrol instance was satisfied and completed, false otherwise.
    */
-  async handlePatrolCompleted(patrolSession: any) {
-    if (!patrolSession || !patrolSession.assignmentId) return;
+  async handlePatrolCompleted(patrolSession: any): Promise<boolean> {
+    if (!patrolSession || !patrolSession.assignmentId) return false;
 
     const completionTime = patrolSession.endedAt || new Date();
 
@@ -266,34 +248,42 @@ export class MandatoryPatrolService {
 
         const employeeName = `${inst.employee.firstName} ${inst.employee.lastName || ''}`.trim();
         const siteName = inst.assignment?.site?.name || 'Assigned Site';
-        const formattedTime = completionTime.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        });
+        const shiftName = inst.assignment?.shift?.name || 'Shift';
 
+        // Emit MANDATORY_PATROL_COMPLETED notification
         await notificationService.createNotification({
           clientId: inst.clientId,
           type: 'MANDATORY_PATROL_COMPLETED',
-          title: '✅ Mandatory Patrol Completed',
-          message: `${employeeName} completed Mandatory Patrol ${inst.sequence} at ${siteName} (${formattedTime}).`,
+          title: 'Mandatory patrol completed',
+          message: `${employeeName} completed Mandatory Patrol ${inst.sequence} at ${siteName}.`,
           entityType: 'MandatoryPatrolInstance',
           entityId: inst.id,
           metadata: {
             employeeId: inst.employeeId,
             employeeName,
+            employeeRole: inst.employee.role,
+            clientId: inst.clientId,
+            siteId: inst.assignment?.siteId,
             siteName,
-            sequence: inst.sequence,
+            assignmentId: inst.assignmentId,
+            shiftId: inst.assignment?.shiftId,
+            shiftName,
+            mandatoryPatrolNumber: inst.sequence,
+            requiredTime: inst.scheduledAt,
+            windowStart: inst.windowStart,
+            windowEnd: inst.windowEnd,
             completedAt: completionTime,
             patrolSessionId: patrolSession.id,
           },
-          idempotencyKey: `MANDATORY_PATROL_COMPLETED_${inst.id}`,
+          idempotencyKey: `MANDATORY_PATROL_COMPLETED_${inst.id}_${patrolSession.id}`,
         });
 
-        logger.info(`✅ Marked Mandatory Patrol ${inst.sequence} as COMPLETED for employee ${inst.employeeId}`);
-        break; // Satisfy one mandatory patrol instance per completed patrol
+        logger.info(`✅ Marked Mandatory Patrol ${inst.sequence} as COMPLETED for employee ${inst.employeeId} and sent notification`);
+        return true; // Satisfy one mandatory patrol instance per completed patrol
       }
     }
+
+    return false;
   }
 
   /**
@@ -320,22 +310,24 @@ export class MandatoryPatrolService {
       };
     }
 
-    const todayDateOnly = new Date();
-    todayDateOnly.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const effectiveShiftDate = getEffectiveShiftDate(
+      assignment.shift?.startTime,
+      assignment.shift?.endTime,
+      now,
+    );
 
-    // Sync to ensure instances exist for today
-    await this.syncMandatoryPatrolInstancesForAssignment(assignment.id, todayDateOnly);
+    // Sync to ensure instances exist for effective shift date
+    await this.syncMandatoryPatrolInstancesForAssignment(assignment.id, effectiveShiftDate);
 
     // Fetch instances with updated statuses
     const updatedInstances = await prisma.mandatoryPatrolInstance.findMany({
       where: {
         assignmentId: assignment.id,
-        shiftDate: todayDateOnly,
+        shiftDate: effectiveShiftDate,
       },
       orderBy: { sequence: 'asc' },
     });
-
-    const now = new Date();
 
     const formattedPatrols = updatedInstances.map((inst) => {
       let currentStatus = inst.status;

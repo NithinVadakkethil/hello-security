@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { ShieldAlert, CheckCircle2, Clock, AlertTriangle, ArrowRight, Clipboard } from 'lucide-react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { ShieldAlert, CheckCircle2, Clock, AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { apiClient } from '../../../app/api/api-client';
 import { Card } from '../../dashboard/components/WidgetCard';
@@ -32,7 +32,6 @@ export interface MandatoryScheduleData {
 
 export function MandatoryPatrolWidget() {
   const { colors } = useTheme();
-  const navigation = useNavigation<any>();
   const [data, setData] = useState<MandatoryScheduleData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -161,22 +160,6 @@ export function MandatoryPatrolWidget() {
                   </Text>
                 )}
               </View>
-
-              {isDue && (
-                <TouchableOpacity
-                  style={[styles.startBtn, { backgroundColor: colors.primary }]}
-                  onPress={() =>
-                    navigation.navigate('Dashboard', {
-                      screen: 'PatrolTab',
-                      params: { assignmentId: data.assignment?.id },
-                    })
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Clipboard size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-                  <Text style={styles.startBtnText}>Start</Text>
-                </TouchableOpacity>
-              )}
             </View>
           );
         })}
@@ -234,7 +217,6 @@ const styles = StyleSheet.create({
   },
   leftCol: {
     flex: 1,
-    paddingRight: 8,
   },
   patrolTitle: {
     fontSize: 14,
@@ -259,18 +241,6 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: '800',
-  },
-  startBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  startBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
     fontWeight: '800',
   },
 });
