@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Eye, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Edit2, Eye, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { apiClient } from '../../lib/axios';
@@ -116,6 +116,28 @@ export default function SitesPage() {
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Failed to update site status.');
       setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+    },
+  });
+
+  // Delete All Subtasks Demo Cleanup state & mutation
+  const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState(false);
+  const deleteAllSubTasksMutation = useMutation({
+    mutationFn: () => apiClient.delete('/checkpoint-categories/sub-tasks/all'),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['gates'] });
+      queryClient.invalidateQueries({ queryKey: ['checkpoint-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['patrol-routes'] });
+      setIsDeleteAllModalOpen(false);
+      const total = res.data?.deletedCount ?? res.data?.totalDeleted ?? res.data?.data?.totalDeleted ?? 0;
+      if (total > 0) {
+        toast.success(`Successfully deleted ${total} subtasks.`);
+      } else {
+        toast.success('No checkpoint subtasks were configured.');
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || err.response?.data?.message || 'Failed to delete subtasks.');
+      setIsDeleteAllModalOpen(false);
     },
   });
 
@@ -276,14 +298,32 @@ export default function SitesPage() {
           </select>
         </div>
 
-        <Link
-          href="/dashboard/sites/new"
-          className="btn btn-primary"
-          style={{ gap: '8px', textDecoration: 'none' }}
-        >
-          <Plus size={16} />
-          <span>Add Monitored Site</span>
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            type="button"
+            onClick={() => setIsDeleteAllModalOpen(true)}
+            className="btn btn-secondary"
+            style={{
+              gap: '8px',
+              color: '#ef4444',
+              borderColor: 'rgba(239, 68, 68, 0.3)',
+              background: 'rgba(239, 68, 68, 0.05)',
+            }}
+            title="Demo cleanup: Remove all subtask configurations"
+          >
+            <Trash2 size={16} />
+            <span>Delete All Subtasks</span>
+          </button>
+
+          <Link
+            href="/dashboard/sites/new"
+            className="btn btn-primary"
+            style={{ gap: '8px', textDecoration: 'none' }}
+          >
+            <Plus size={16} />
+            <span>Add Monitored Site</span>
+          </Link>
+        </div>
       </div>
 
       <DataTable
@@ -313,6 +353,18 @@ export default function SitesPage() {
         confirmText={confirmDialog.targetStatus ? 'Activate' : 'Deactivate'}
         isDanger={!confirmDialog.targetStatus}
         isLoading={toggleStatusMutation.isPending}
+      />
+
+      {/* CONFIRM DELETE ALL SUBTASKS (DEMO CLEANUP) */}
+      <ConfirmationDialog
+        isOpen={isDeleteAllModalOpen}
+        onClose={() => setIsDeleteAllModalOpen(false)}
+        onConfirm={() => deleteAllSubTasksMutation.mutate()}
+        title="Delete All Subtasks?"
+        description="This will permanently remove all currently configured checkpoint subtasks from the Kaizen demo data. Sites, gates, checkpoints, QR codes, and historical patrol data will not be deleted."
+        confirmText="Delete All"
+        isDanger={true}
+        isLoading={deleteAllSubTasksMutation.isPending}
       />
     </div>
   );

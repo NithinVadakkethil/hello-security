@@ -5,6 +5,7 @@ import { ShieldAlert, CheckCircle2, Clock, AlertTriangle } from 'lucide-react-na
 import { useTheme } from '../../../app/hooks/useTheme';
 import { apiClient } from '../../../app/api/api-client';
 import { Card } from '../../dashboard/components/WidgetCard';
+import { formatPatrolTime } from '../../../app/utils/date-formatter';
 
 export interface MandatoryPatrolItem {
   id: string;
@@ -68,11 +69,7 @@ export function MandatoryPatrolWidget() {
   }
 
   const formatTime = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-    } catch {
-      return dateStr;
-    }
+    return formatPatrolTime(dateStr, undefined, false);
   };
 
   const getStatusBadge = (item: MandatoryPatrolItem) => {

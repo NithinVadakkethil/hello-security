@@ -498,18 +498,20 @@ export class AttendanceService {
     user: { id: string; role: string; tenantId?: string | null },
     query: AttendanceFilterQueryDto,
   ): Promise<AttendanceListResponseDto> {
-    const { mappedRecords, filteredRecords, activeStaffCount } = await this.queryFilteredAssignments(user, query);
+    const { filteredRecords, activeStaffCount } = await this.queryFilteredAssignments(user, query);
 
     const page = Math.max(1, Number(query.page || 1));
     const limit = Math.max(1, Math.min(1000, Number(query.limit || 15)));
     const skip = (page - 1) * limit;
 
-    // Calculate metrics based on the mapped dataset for the date
-    const totalPresent = mappedRecords.filter((r) => r.status === 'PRESENT').length;
-    const totalLate = mappedRecords.filter((r) => r.status === 'LATE').length;
-    const totalCompleted = mappedRecords.filter((r) => r.status === 'COMPLETED').length;
-    const totalOff = mappedRecords.filter((r) => r.status === 'OFF').length;
-    const totalCheckedIn = totalPresent + totalLate + totalCompleted;
+    // Calculate metrics based on the filtered dataset
+    const totalPresent = filteredRecords.filter((r) => r.status === 'PRESENT').length;
+    const totalLate = filteredRecords.filter((r) => r.status === 'LATE').length;
+    const totalCompleted = filteredRecords.filter((r) => r.status === 'COMPLETED').length;
+    const totalOff = filteredRecords.filter((r) => r.status === 'OFF').length;
+    const totalCheckedIn = filteredRecords.filter(
+      (r) => Boolean(r.checkInTimeRaw || (r.checkInTime && r.checkInTime !== '—')),
+    ).length;
 
     // Apply pagination
     const total = filteredRecords.length;

@@ -2,6 +2,7 @@ import { prisma } from '../../database/prisma';
 import { logger } from '../../common/logger/logger';
 import { calculateMandatoryWindow, getEffectiveShiftDate } from './mandatory-patrol.util';
 import { notificationService } from '../notification/notification.service';
+import { formatPatrolTime, DEFAULT_TIMEZONE } from '../../common/utils/date-formatter.util';
 
 export class MandatoryPatrolService {
   /**
@@ -22,7 +23,7 @@ export class MandatoryPatrolService {
     }
 
     const { shift, employeeId, clientId } = assignment;
-    const dateOnly = new Date(shiftDate.getFullYear(), shiftDate.getMonth(), shiftDate.getDate());
+    const dateOnly = new Date(Date.UTC(shiftDate.getUTCFullYear(), shiftDate.getUTCMonth(), shiftDate.getUTCDate()));
 
     const instances: any[] = [];
 
@@ -158,8 +159,7 @@ export class MandatoryPatrolService {
       const siteName = inst.assignment?.site?.name || 'Assigned Site';
       const shiftName = inst.assignment?.shift?.name || 'Shift';
 
-      const formatTime = (d: Date) =>
-        d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      const formatTime = (d: Date) => formatPatrolTime(d, DEFAULT_TIMEZONE, false);
 
       // Check transition to DUE (informational status only, do not notify Client Admin)
       if (inst.status === 'UPCOMING' && now >= inst.windowStart && now <= inst.windowEnd) {
@@ -365,14 +365,20 @@ export class MandatoryPatrolService {
     };
   }
 
-  /**
-   * Get mandatory patrol compliance for admin
-   */
   async getAssignmentMandatoryPatrols(assignmentId: string) {
-    const todayDateOnly = new Date();
-    todayDateOnly.setHours(0, 0, 0, 0);
+    const assignment = await prisma.guardAssignment.findUnique({
+      where: { id: assignmentId },
+      include: { shift: true },
+    });
 
-    await this.syncMandatoryPatrolInstancesForAssignment(assignmentId, todayDateOnly);
+    if (assignment) {
+      const effectiveShiftDate = getEffectiveShiftDate(
+        assignment.shift?.startTime,
+        assignment.shift?.endTime,
+        new Date(),
+      );
+      await this.syncMandatoryPatrolInstancesForAssignment(assignmentId, effectiveShiftDate);
+    }
 
     return prisma.mandatoryPatrolInstance.findMany({
       where: { assignmentId },

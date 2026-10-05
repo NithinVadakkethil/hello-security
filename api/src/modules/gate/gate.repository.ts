@@ -13,6 +13,20 @@ export class GateRepository {
         id,
       },
       include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            subTasks: {
+              where: {
+                isActive: true,
+              },
+              orderBy: {
+                displayOrder: 'asc',
+              },
+            },
+          },
+        },
         subTasks: {
           where: {
             isActive: true,
@@ -41,6 +55,20 @@ export class GateRepository {
         isActive: true,
       },
       include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            subTasks: {
+              where: {
+                isActive: true,
+              },
+              orderBy: {
+                displayOrder: 'asc',
+              },
+            },
+          },
+        },
         subTasks: {
           where: {
             isActive: true,
@@ -198,6 +226,20 @@ export class GateRepository {
     }
 
     const include = {
+      category: {
+        select: {
+          id: true,
+          name: true,
+          subTasks: {
+            where: {
+              isActive: true,
+            },
+            orderBy: {
+              displayOrder: 'asc' as const,
+            },
+          },
+        },
+      },
       subTasks: {
         where: {
           isActive: true,

@@ -132,6 +132,7 @@ const getRolePresentation = (roleId: string): RoleStyle => {
 };
 
 import SubtaskMasterSettings from './components/SubtaskMasterSettings';
+import CheckpointCategorySettings from './components/CheckpointCategorySettings';
 
 export default function SettingsPage() {
   // Local state for settings persisted in LocalStorage
@@ -465,7 +466,10 @@ export default function SettingsPage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {/* CARD 0: ROLE-WISE SUBTASK MASTER */}
+        {/* CARD 0: CHECKPOINT CATEGORIES / UTILITIES */}
+        <CheckpointCategorySettings />
+
+        {/* CARD 0.5: ROLE-WISE SUBTASK MASTER */}
         <SubtaskMasterSettings />
 
         {/* CARD 1: SYSTEM NOTIFICATIONS */}

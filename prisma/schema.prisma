@@ -146,6 +146,8 @@ model Client {
   notifications Notification[]
 
   attendances Attendance[]
+
+  checkpointCategories CheckpointCategory[]
 }
 
 model User {
@@ -331,12 +333,16 @@ model Gate {
 
   isActive Boolean @default(true)
 
+  categoryId String?
+  category   CheckpointCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
 
   @@unique([siteId, name])
   @@unique([siteId, gateCode])
+  @@index([categoryId])
 }
 
 model Shift {
@@ -1036,6 +1042,48 @@ model Attendance {
   @@index([employeeId, attendanceDate])
   @@index([siteId])
   @@index([shiftId])
+}
+
+model CheckpointCategory {
+  id             String   @id @default(cuid())
+
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  name           String
+  normalizedName String
+  description    String?
+
+  gates          Gate[]
+  subTasks       CategorySubTask[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([clientId, normalizedName])
+  @@index([clientId])
+}
+
+model CategorySubTask {
+  id           String             @id @default(cuid())
+
+  categoryId   String
+  category     CheckpointCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  role         UserRole           @default(SECURITY)
+
+  taskName     String
+  description  String?
+  displayOrder Int                @default(0)
+  isRequired   Boolean            @default(true)
+  isActive     Boolean            @default(true)
+
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@unique([categoryId, role, taskName])
+  @@index([categoryId])
+  @@index([role])
 }
 
 

@@ -6,8 +6,17 @@ import { authorize } from '../../common/auth/authorize';
 
 import { gateController } from './gate.controller';
 import gateSubTaskRoutes from '../gate-sub-task/gate-sub-task.routes';
+import { checkpointCategoryController } from '../checkpoint-category/checkpoint-category.controller';
 
 const router: Router = Router();
+
+// Delete all subtasks for client scope (aliases)
+router.delete(
+  ['/sub-tasks/all', '/subtasks/all'],
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN, UserRole.MANAGER),
+  checkpointCategoryController.deleteAllSubTasks.bind(checkpointCategoryController),
+);
 
 router.use('/:gateId/sub-tasks', gateSubTaskRoutes);
 

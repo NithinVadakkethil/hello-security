@@ -12,6 +12,8 @@ export const createGateSchema = z.object({
   longitude: z.number().optional(),
 
   sequence: z.number().int().positive(),
+
+  categoryId: z.string().cuid().nullable().optional(),
 });
 
 export const updateGateSchema = createGateSchema

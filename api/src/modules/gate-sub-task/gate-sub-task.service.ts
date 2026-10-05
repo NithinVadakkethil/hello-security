@@ -127,6 +127,37 @@ export class GateSubTaskService {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
     }
 
+    if (gate.categoryId) {
+      const categorySubTasks = await prisma.categorySubTask.findMany({
+        where: {
+          categoryId: gate.categoryId,
+          ...(role ? { role } : {}),
+          ...(onlyActive ? { isActive: true } : {}),
+        },
+        orderBy: [
+          { isActive: 'desc' },
+          { displayOrder: 'asc' },
+        ],
+      });
+
+      if (categorySubTasks.length > 0) {
+        return categorySubTasks.map((st) => ({
+          id: st.id,
+          gateId: gate.id,
+          role: st.role,
+          taskName: st.taskName,
+          description: st.description,
+          displayOrder: st.displayOrder,
+          isRequired: st.isRequired,
+          isActive: st.isActive,
+          createdAt: st.createdAt,
+          updatedAt: st.updatedAt,
+          isCategorySubTask: true,
+          categoryId: st.categoryId,
+        }));
+      }
+    }
+
     return gateSubTaskRepository.listByGate(gate.id, onlyActive, role);
   }
 

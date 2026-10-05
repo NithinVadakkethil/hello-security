@@ -440,7 +440,9 @@ export default function AttendancePage() {
   };
 
   // Calculate quick stats from records/metrics
-  const presentCount = metrics?.totalPresent ?? records.filter((r) => r.status === 'PRESENT').length;
+  const totalCheckInCount =
+    metrics?.totalCheckedIn ??
+    records.filter((r) => Boolean(r.checkInTime && r.checkInTime !== '—')).length;
   const lateCount = metrics?.totalLate ?? records.filter((r) => r.status === 'LATE').length;
   const completedCount = metrics?.totalCompleted ?? records.filter((r) => r.status === 'COMPLETED').length;
 
@@ -515,11 +517,11 @@ export default function AttendancePage() {
 
         <div className="glass-card" style={{ padding: '16px 20px', borderRadius: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Present & Active</span>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Total Check In Count</span>
             <CheckCircle2 size={18} style={{ color: 'var(--success, #10B981)' }} />
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: '8px', color: 'var(--success, #10B981)' }}>
-            {presentCount}
+            {totalCheckInCount}
           </div>
         </div>
 

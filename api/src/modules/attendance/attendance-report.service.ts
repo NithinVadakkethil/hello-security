@@ -70,7 +70,6 @@ export class AttendanceReportService {
       'Check-Out',
       'Status',
       'Duration',
-      'Verification Method',
     ];
 
     const dataRows = records.map((r) => [
@@ -84,7 +83,6 @@ export class AttendanceReportService {
       r.checkOutTime || '—',
       r.status,
       r.workingDuration || '—',
-      r.verificationMethod || 'FACE_VERIFICATION',
     ]);
 
     const combinedRows = [...summaryRows, tableHeader, ...dataRows];
@@ -102,7 +100,6 @@ export class AttendanceReportService {
       { wch: 22 }, // Check-Out
       { wch: 14 }, // Status
       { wch: 16 }, // Duration
-      { wch: 20 }, // Verification
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, 'Attendance Report');
@@ -149,14 +146,16 @@ export class AttendanceReportService {
    */
   private buildPdfHtml(records: AttendanceRecordDto[], metadata: AttendanceReportMetadata): string {
     const totalCount = records.length;
-    const presentCount = records.filter((r) => r.status === 'PRESENT').length;
+    const totalCheckedInCount = records.filter(
+      (r) => Boolean(r.checkInTimeRaw || (r.checkInTime && r.checkInTime !== '—')),
+    ).length;
     const lateCount = records.filter((r) => r.status === 'LATE').length;
     const completedCount = records.filter((r) => r.status === 'COMPLETED').length;
     const offCount = records.filter((r) => r.status === 'OFF').length;
 
     const rowsHtml =
       records.length === 0
-        ? `<tr><td colspan="10" style="text-align: center; padding: 24px; color: #64748b; font-style: italic;">No attendance records found for the selected filters.</td></tr>`
+        ? `<tr><td colspan="9" style="text-align: center; padding: 24px; color: #64748b; font-style: italic;">No attendance records found for the selected filters.</td></tr>`
         : records
             .map(
               (r) => `
@@ -183,11 +182,6 @@ export class AttendanceReportService {
             </td>
             <td style="font-weight: 600; color: ${r.workingDuration ? '#2563eb' : '#94a3b8'};">
               ${r.workingDuration ? this.escapeHtml(r.workingDuration) : '—'}
-            </td>
-            <td>
-              <span style="font-size: 9px; color: #059669; font-weight: 600; background: #ecfdf5; padding: 2px 6px; border-radius: 4px; border: 1px solid #a7f3d0;">
-                ✓ Face Verified
-              </span>
             </td>
           </tr>`
             )
@@ -391,8 +385,8 @@ export class AttendanceReportService {
       <div class="metric-pill-val">${totalCount}</div>
     </div>
     <div class="metric-pill">
-      <div class="metric-pill-label">Present (Active)</div>
-      <div class="metric-pill-val" style="color: #059669;">${presentCount}</div>
+      <div class="metric-pill-label">Total Check In Count</div>
+      <div class="metric-pill-val" style="color: #059669;">${totalCheckedInCount}</div>
     </div>
     <div class="metric-pill">
       <div class="metric-pill-label">Late Check-ins</div>
@@ -411,16 +405,15 @@ export class AttendanceReportService {
   <table>
     <thead>
       <tr>
-        <th style="width: 16%;">Employee</th>
-        <th style="width: 12%;">Role</th>
-        <th style="width: 12%;">Site</th>
-        <th style="width: 14%;">Shift</th>
-        <th style="width: 9%;">Date</th>
-        <th style="width: 10%;">Check-In</th>
-        <th style="width: 10%;">Check-Out</th>
-        <th style="width: 7%;">Status</th>
-        <th style="width: 10%;">Duration</th>
-        <th>Verification</th>
+        <th style="width: 17%;">Employee</th>
+        <th style="width: 13%;">Role</th>
+        <th style="width: 13%;">Site</th>
+        <th style="width: 15%;">Shift</th>
+        <th style="width: 10%;">Date</th>
+        <th style="width: 11%;">Check-In</th>
+        <th style="width: 11%;">Check-Out</th>
+        <th style="width: 9%;">Status</th>
+        <th style="width: 11%;">Duration</th>
       </tr>
     </thead>
     <tbody>

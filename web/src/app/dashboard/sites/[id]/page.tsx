@@ -19,6 +19,7 @@ import {
   FileCheck,
   ChevronRight,
   Layers,
+  Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -64,6 +65,8 @@ interface Gate {
   longitude?: number | null;
   sequence: number;
   isActive: boolean;
+  categoryId?: string | null;
+  category?: { id: string; name: string } | null;
 }
 
 interface FloorSummary {
@@ -79,6 +82,7 @@ const gateSchema = z.object({
   latitude: z.any().optional(),
   longitude: z.any().optional(),
   sequence: z.any(),
+  categoryId: z.string().nullable().optional(),
 });
 
 type GateValues = z.infer<typeof gateSchema>;
@@ -94,6 +98,14 @@ export default function SiteDetailPage() {
   // Dialog / Modal state
   const [isGateModalOpen, setIsGateModalOpen] = useState(false);
   const [editingGate, setEditingGate] = useState<Gate | null>(null);
+
+  // Quick inline category creation state inside Add/Edit modal
+  const [isCreatingCategoryInline, setIsCreatingCategoryInline] = useState(false);
+  const [newCategoryNameInput, setNewCategoryNameInput] = useState('');
+  const [isSavingCategoryInline, setIsSavingCategoryInline] = useState(false);
+
+  // Delete All Subtasks Confirmation state
+  const [isDeleteAllSubTasksModalOpen, setIsDeleteAllSubTasksModalOpen] = useState(false);
 
   const [confirmGateStatus, setConfirmGateStatus] = useState<{
     isOpen: boolean;
@@ -243,10 +255,22 @@ export default function SiteDetailPage() {
   });
   const limits = limitsRes?.data;
 
+  // Query Categories for Checkpoint Category Dropdown
+  const { data: categoriesData } = useQuery({
+    queryKey: ['checkpoint-categories'],
+    queryFn: async () => {
+      const res: any = await apiClient.get('/checkpoint-categories');
+      return res.data || [];
+    },
+  });
+  const categories: Array<{ id: string; name: string }> = categoriesData || [];
+
   const {
     register: registerGate,
     handleSubmit: handleGateSubmit,
     reset: resetGate,
+    setValue: setGateValue,
+    watch: watchGate,
     formState: { errors: gateErrors },
   } = useForm<GateValues>({
     resolver: zodResolver(gateSchema as any),
@@ -258,6 +282,7 @@ export default function SiteDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['gates', id] });
       queryClient.invalidateQueries({ queryKey: ['floors', id] });
+      queryClient.invalidateQueries({ queryKey: ['checkpoint-categories'] });
       toast.success('Security gate checkpoint added successfully!');
       setIsGateModalOpen(false);
       resetGate();
@@ -274,6 +299,7 @@ export default function SiteDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['gates', id] });
       queryClient.invalidateQueries({ queryKey: ['floors', id] });
+      queryClient.invalidateQueries({ queryKey: ['checkpoint-categories'] });
       toast.success('Gate checkpoint settings updated.');
       setIsGateModalOpen(false);
       setEditingGate(null);
@@ -303,6 +329,50 @@ export default function SiteDetailPage() {
     },
   });
 
+  // Delete All Subtasks Mutation (Demo Cleanup)
+  const deleteAllSubTasksMutation = useMutation({
+    mutationFn: () => apiClient.delete('/checkpoint-categories/sub-tasks/all'),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['gates'] });
+      queryClient.invalidateQueries({ queryKey: ['checkpoint-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['patrol-routes'] });
+      setIsDeleteAllSubTasksModalOpen(false);
+      const total = res.data?.deletedCount ?? res.data?.totalDeleted ?? res.data?.data?.totalDeleted ?? 0;
+      if (total > 0) {
+        toast.success(`Successfully deleted ${total} subtasks.`);
+      } else {
+        toast.success('No checkpoint subtasks were configured.');
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || err.response?.data?.message || 'Failed to delete subtasks.');
+      setIsDeleteAllSubTasksModalOpen(false);
+    },
+  });
+
+  const handleCreateCategoryInline = async () => {
+    const trimmed = newCategoryNameInput.trim();
+    if (!trimmed) {
+      toast.error('Please enter a valid category name.');
+      return;
+    }
+    setIsSavingCategoryInline(true);
+    try {
+      const res: any = await apiClient.post('/checkpoint-categories', { name: trimmed });
+      if (res.success && res.data) {
+        toast.success(`Category "${trimmed}" created successfully.`);
+        await queryClient.invalidateQueries({ queryKey: ['checkpoint-categories'] });
+        setGateValue('categoryId', res.data.id);
+        setIsCreatingCategoryInline(false);
+        setNewCategoryNameInput('');
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.error?.message || 'Error creating category.');
+    } finally {
+      setIsSavingCategoryInline(false);
+    }
+  };
+
   const handleOpenAddGate = async () => {
     if (limits && limits.remainingCheckpoints === 0) {
       toast.error(
@@ -311,6 +381,8 @@ export default function SiteDetailPage() {
       return;
     }
     setEditingGate(null);
+    setIsCreatingCategoryInline(false);
+    setNewCategoryNameInput('');
 
     let nextSeq = 1;
     try {
@@ -328,18 +400,22 @@ export default function SiteDetailPage() {
       latitude: undefined,
       longitude: undefined,
       sequence: nextSeq,
+      categoryId: null,
     });
     setIsGateModalOpen(true);
   };
 
   const handleOpenEditGate = (gate: Gate) => {
     setEditingGate(gate);
+    setIsCreatingCategoryInline(false);
+    setNewCategoryNameInput('');
     resetGate({
       name: gate.name,
       description: gate.description || 'Ground Floor',
       latitude: gate.latitude ?? undefined,
       longitude: gate.longitude ?? undefined,
       sequence: gate.sequence,
+      categoryId: gate.categoryId || gate.category?.id || null,
     });
     setIsGateModalOpen(true);
   };
@@ -355,6 +431,7 @@ export default function SiteDetailPage() {
       sequence: Number(values.sequence),
       latitude: values.latitude === '' || values.latitude === undefined ? undefined : Number(values.latitude),
       longitude: values.longitude === '' || values.longitude === undefined ? undefined : Number(values.longitude),
+      categoryId: values.categoryId || null,
     };
     if (editingGate) {
       updateGateMutation.mutate({ gateId: editingGate.id, values: payload as any });
@@ -368,6 +445,29 @@ export default function SiteDetailPage() {
     { key: 'sequence', label: 'Seq #', sortable: true },
     { key: 'gateCode', label: 'Gate Code', sortable: true },
     { key: 'name', label: 'Gate / Checkpoint Name', sortable: true },
+    {
+      key: 'category',
+      label: 'Category / Utility',
+      render: (row: Gate) => (
+        row.category ? (
+          <span
+            style={{
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              padding: '2px 8px',
+              borderRadius: '4px',
+              background: 'rgba(37, 99, 235, 0.08)',
+              color: 'var(--primary)',
+              border: '1px solid rgba(37, 99, 235, 0.2)',
+            }}
+          >
+            {row.category.name}
+          </span>
+        ) : (
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>—</span>
+        )
+      ),
+    },
     ...(gateSearch !== ''
       ? [
           {
@@ -429,9 +529,15 @@ export default function SiteDetailPage() {
             <CheckSquare size={14} />
             <span>
               Sub Tasks (
-              {Array.isArray((row as any).subTasks)
-                ? (row as any).subTasks.filter((st: any) => st.isActive ?? true).length
-                : 0}
+              {(() => {
+                const directCount = Array.isArray((row as any).subTasks)
+                  ? (row as any).subTasks.filter((st: any) => st.isActive ?? true).length
+                  : 0;
+                const catCount = Array.isArray((row as any).category?.subTasks)
+                  ? (row as any).category.subTasks.filter((st: any) => st.isActive ?? true).length
+                  : 0;
+                return catCount > 0 ? catCount : directCount;
+              })()}
               )
             </span>
           </button>
@@ -626,6 +732,20 @@ export default function SiteDetailPage() {
               <FileCheck size={16} />
               <span>Apply Master Tasks</span>
             </button>
+            <button
+              onClick={() => setIsDeleteAllSubTasksModalOpen(true)}
+              className="btn btn-secondary"
+              style={{
+                gap: '8px',
+                color: '#ef4444',
+                borderColor: 'rgba(239, 68, 68, 0.3)',
+                background: 'rgba(239, 68, 68, 0.05)',
+              }}
+              title="Demo cleanup: Remove all subtask configurations"
+            >
+              <Trash2 size={16} />
+              <span>Delete All Subtasks</span>
+            </button>
             <button onClick={handleOpenAddGate} className="btn btn-primary" style={{ gap: '8px' }}>
               <Plus size={16} />
               <span>Add Checkpoint</span>
@@ -796,6 +916,91 @@ export default function SiteDetailPage() {
             {...registerGate('sequence')}
           />
 
+          <div className="form-group" style={{ marginBottom: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <label className="form-label" style={{ margin: 0 }}>Category / Utility</label>
+              {!isCreatingCategoryInline ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreatingCategoryInline(true);
+                    setNewCategoryNameInput('');
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--primary)',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: 0,
+                  }}
+                >
+                  <Plus size={13} />
+                  <span>Create New Category</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingCategoryInline(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            {isCreatingCategoryInline ? (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="e.g. Garbage Room, Electrical Room, Swimming Pool..."
+                  value={newCategoryNameInput}
+                  onChange={(e) => setNewCategoryNameInput(e.target.value)}
+                  className="form-input"
+                  style={{ flex: 1, fontSize: '0.84rem' }}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateCategoryInline}
+                  disabled={isSavingCategoryInline}
+                  className="btn btn-primary"
+                  style={{ padding: '7px 14px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                >
+                  {isSavingCategoryInline ? 'Creating...' : 'Save Category'}
+                </button>
+              </div>
+            ) : (
+              <select
+                className="form-input"
+                {...registerGate('categoryId')}
+                value={watchGate('categoryId') || ''}
+                onChange={(e) => setGateValue('categoryId', e.target.value ? e.target.value : null)}
+              >
+                <option value="">Select Category / Utility (None)</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+              Assigning a category inherits its role-specific subtasks across matching checkpoints.
+            </span>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <FormInput
               label="Latitude (Optional)"
@@ -830,6 +1035,18 @@ export default function SiteDetailPage() {
           </button>
         </form>
       </Modal>
+
+      {/* CONFIRM DELETE ALL SUBTASKS (DEMO CLEANUP) */}
+      <ConfirmationDialog
+        isOpen={isDeleteAllSubTasksModalOpen}
+        onClose={() => setIsDeleteAllSubTasksModalOpen(false)}
+        onConfirm={() => deleteAllSubTasksMutation.mutate()}
+        title="Delete All Subtasks?"
+        description="This will permanently remove all currently configured checkpoint subtasks from the Kaizen demo data. Sites, gates, checkpoints, QR codes, and historical patrol data will not be deleted."
+        confirmText="Delete All"
+        isDanger={true}
+        isLoading={deleteAllSubTasksMutation.isPending}
+      />
 
       {/* CONFIRM STATUS TOGGLE */}
       <ConfirmationDialog

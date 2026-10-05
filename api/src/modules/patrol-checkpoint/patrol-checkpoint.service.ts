@@ -417,14 +417,28 @@ export class PatrolCheckpointService {
 
     const sessionStartedAt = patrol?.startedAt ? new Date(patrol.startedAt) : undefined;
 
-    const activeSubTasks = await prisma.gateSubTask.findMany({
-      where: {
-        gateId: dto.gateId,
-        isActive: true,
-        role: userRole,
-        ...(sessionStartedAt ? { createdAt: { lte: sessionStartedAt } } : {}),
-      },
-    });
+    let activeSubTasks: any[] = [];
+    if (gateRecord?.categoryId) {
+      activeSubTasks = await prisma.categorySubTask.findMany({
+        where: {
+          categoryId: gateRecord.categoryId,
+          isActive: true,
+          role: userRole,
+          ...(sessionStartedAt ? { createdAt: { lte: sessionStartedAt } } : {}),
+        },
+      });
+    }
+
+    if (activeSubTasks.length === 0) {
+      activeSubTasks = await prisma.gateSubTask.findMany({
+        where: {
+          gateId: dto.gateId,
+          isActive: true,
+          role: userRole,
+          ...(sessionStartedAt ? { createdAt: { lte: sessionStartedAt } } : {}),
+        },
+      });
+    }
 
     const subTaskMap = new Map(
       (dto.subTaskResponses || []).map((r) => [r.gateSubTaskId, r]),
@@ -545,19 +559,32 @@ export class PatrolCheckpointService {
                 }
               }
 
-              const subTaskInfo = resp.gateSubTaskId
+              let subTaskInfo: any = resp.gateSubTaskId
                 ? await tx.gateSubTask.findUnique({
                     where: { id: resp.gateSubTaskId },
                   })
                 : null;
 
-              const validGateSubTaskId = subTaskInfo ? resp.gateSubTaskId : undefined;
+              if (!subTaskInfo && resp.gateSubTaskId) {
+                subTaskInfo = await (tx as any).categorySubTask.findUnique({
+                  where: { id: resp.gateSubTaskId },
+                });
+              }
 
-              const existingResp = validGateSubTaskId
-                ? await tx.patrolSubTaskResponse.findFirst({
-                    where: { patrolCheckpointId: cp.id, gateSubTaskId: validGateSubTaskId },
-                  })
-                : null;
+              // GateSubTask foreign key constraint is only valid for GateSubTask table
+              const isGateSubTaskRecord = resp.gateSubTaskId && (await tx.gateSubTask.count({ where: { id: resp.gateSubTaskId } })) > 0;
+              const validGateSubTaskId = isGateSubTaskRecord ? resp.gateSubTaskId : undefined;
+              const taskTitle = subTaskInfo?.taskName || (resp as any).taskName || 'Verification Sub-Task';
+
+              const existingResp = await tx.patrolSubTaskResponse.findFirst({
+                where: {
+                  patrolCheckpointId: cp.id,
+                  OR: [
+                    ...(validGateSubTaskId ? [{ gateSubTaskId: validGateSubTaskId }] : []),
+                    { taskNameSnapshot: taskTitle },
+                  ],
+                },
+              });
 
               if (existingResp) {
                 await tx.patrolSubTaskResponse.update({

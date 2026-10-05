@@ -10,6 +10,8 @@ export interface CreateGateDto {
   longitude?: number;
 
   sequence: number;
+
+  categoryId?: string | null;
 }
 
 export interface UpdateGateDto {
@@ -22,6 +24,8 @@ export interface UpdateGateDto {
   longitude?: number;
 
   sequence?: number;
+
+  categoryId?: string | null;
 
   isActive?: boolean;
 }
