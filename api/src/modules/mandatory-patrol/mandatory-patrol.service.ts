@@ -38,6 +38,26 @@ export class MandatoryPatrolService {
         shift.mandatoryPatrol1WindowAfter || 15,
       );
 
+      const existing1 = await prisma.mandatoryPatrolInstance.findUnique({
+        where: {
+          assignmentId_shiftDate_sequence: {
+            assignmentId,
+            shiftDate: dateOnly,
+            sequence: 1,
+          },
+        },
+      });
+
+      const now = new Date();
+      const nextStatus1 =
+        existing1?.status === 'COMPLETED'
+          ? 'COMPLETED'
+          : now < window1.windowStart
+          ? 'UPCOMING'
+          : now <= window1.windowEnd
+          ? 'DUE'
+          : 'MISSED';
+
       const inst1 = await prisma.mandatoryPatrolInstance.upsert({
         where: {
           assignmentId_shiftDate_sequence: {
@@ -56,12 +76,13 @@ export class MandatoryPatrolService {
           scheduledAt: window1.scheduledAt,
           windowStart: window1.windowStart,
           windowEnd: window1.windowEnd,
-          status: 'UPCOMING',
+          status: nextStatus1,
         },
         update: {
           scheduledAt: window1.scheduledAt,
           windowStart: window1.windowStart,
           windowEnd: window1.windowEnd,
+          status: nextStatus1,
         },
       });
 
@@ -78,6 +99,26 @@ export class MandatoryPatrolService {
         shift.mandatoryPatrol2WindowBefore || 15,
         shift.mandatoryPatrol2WindowAfter || 15,
       );
+
+      const existing2 = await prisma.mandatoryPatrolInstance.findUnique({
+        where: {
+          assignmentId_shiftDate_sequence: {
+            assignmentId,
+            shiftDate: dateOnly,
+            sequence: 2,
+          },
+        },
+      });
+
+      const now = new Date();
+      const nextStatus2 =
+        existing2?.status === 'COMPLETED'
+          ? 'COMPLETED'
+          : now < window2.windowStart
+          ? 'UPCOMING'
+          : now <= window2.windowEnd
+          ? 'DUE'
+          : 'MISSED';
 
       const inst2 = await prisma.mandatoryPatrolInstance.upsert({
         where: {
@@ -97,12 +138,13 @@ export class MandatoryPatrolService {
           scheduledAt: window2.scheduledAt,
           windowStart: window2.windowStart,
           windowEnd: window2.windowEnd,
-          status: 'UPCOMING',
+          status: nextStatus2,
         },
         update: {
           scheduledAt: window2.scheduledAt,
           windowStart: window2.windowStart,
           windowEnd: window2.windowEnd,
+          status: nextStatus2,
         },
       });
 
@@ -138,10 +180,10 @@ export class MandatoryPatrolService {
       }
     }
 
-    // 2. Fetch instances needing status evaluation
+    // 2. Fetch all non-completed instances needing status evaluation
     const pendingInstances = await prisma.mandatoryPatrolInstance.findMany({
       where: {
-        status: { in: ['UPCOMING', 'DUE'] },
+        status: { not: 'COMPLETED' },
       },
       include: {
         employee: true,
@@ -161,8 +203,16 @@ export class MandatoryPatrolService {
 
       const formatTime = (d: Date) => formatPatrolTime(d, DEFAULT_TIMEZONE, false);
 
+      // Check transition to UPCOMING (if shift was updated or scheduled in the future)
+      if (now < inst.windowStart && inst.status !== 'UPCOMING') {
+        await prisma.mandatoryPatrolInstance.update({
+          where: { id: inst.id },
+          data: { status: 'UPCOMING' },
+        });
+      }
+
       // Check transition to DUE (informational status only, do not notify Client Admin)
-      if (inst.status === 'UPCOMING' && now >= inst.windowStart && now <= inst.windowEnd) {
+      if (now >= inst.windowStart && now <= inst.windowEnd && inst.status !== 'DUE') {
         await prisma.mandatoryPatrolInstance.update({
           where: { id: inst.id },
           data: { status: 'DUE' },
@@ -170,7 +220,7 @@ export class MandatoryPatrolService {
       }
 
       // Check transition to MISSED (window expired without qualifying patrol)
-      if ((inst.status === 'UPCOMING' || inst.status === 'DUE') && now > inst.windowEnd) {
+      if (now > inst.windowEnd && inst.status !== 'MISSED') {
         await prisma.mandatoryPatrolInstance.update({
           where: { id: inst.id },
           data: { status: 'MISSED' },
@@ -332,11 +382,15 @@ export class MandatoryPatrolService {
     const formattedPatrols = updatedInstances.map((inst) => {
       let currentStatus = inst.status;
 
-      // Realtime check for UI accuracy
-      if (currentStatus === 'UPCOMING' && now >= inst.windowStart && now <= inst.windowEnd) {
-        currentStatus = 'DUE';
-      } else if ((currentStatus === 'UPCOMING' || currentStatus === 'DUE') && now > inst.windowEnd) {
-        currentStatus = 'MISSED';
+      // Realtime check for UI accuracy: accurately reflect current wall clock against window
+      if (currentStatus !== 'COMPLETED') {
+        if (now < inst.windowStart) {
+          currentStatus = 'UPCOMING';
+        } else if (now <= inst.windowEnd) {
+          currentStatus = 'DUE';
+        } else {
+          currentStatus = 'MISSED';
+        }
       }
 
       return {
