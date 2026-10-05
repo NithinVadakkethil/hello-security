@@ -1,34 +1,39 @@
-import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { AppTabParamList } from './types';
-import { useTheme } from '../hooks/useTheme';
-import { DashboardSelector } from '../../modules/dashboard/screens/DashboardSelector';
-import { TodayAssignmentScreen } from '../../modules/assignment/screens/TodayAssignmentScreen';
-import { AssignmentDetailsScreen } from '../../modules/assignment/screens/AssignmentDetailsScreen';
-import { ShiftDetailsScreen } from '../../modules/assignment/screens/ShiftDetailsScreen';
-import { PatrolRouteScreen } from '../../modules/assignment/screens/PatrolRouteScreen';
+import { createStackNavigator } from '@react-navigation/stack';
+import {
+  Clipboard,
+  History as HistoryIcon,
+  Home,
+  User,
+  Wrench,
+} from 'lucide-react-native';
+import React from 'react';
 import { AssignedGatesScreen } from '../../modules/assignment/screens/AssignedGatesScreen';
+import { AssignmentDetailsScreen } from '../../modules/assignment/screens/AssignmentDetailsScreen';
 import { MapPreviewScreen } from '../../modules/assignment/screens/MapPreviewScreen';
-import { PatrolScreen } from '../../modules/patrol/screens/PatrolScreen';
-import { ScannerScreen } from '../../modules/scanner/screens/ScannerScreen';
-import { ReportIncidentScreen } from '../../modules/incident/screens/ReportIncidentScreen';
-import { ReportSnagScreen } from '../../modules/snag/screens/ReportSnagScreen';
-import { ProfileScreen } from '../../modules/profile/screens/ProfileScreen';
-import { PatrolDetailsScreen } from '../../modules/dashboard/screens/PatrolDetailsScreen';
-import { HistoryScreen } from '../../modules/history/screens/HistoryScreen';
-import { AssignedMaintenanceScreen } from '../../modules/maintenance/screens/AssignedMaintenanceScreen';
-import { FaceVerificationPrototypeScreen } from '../../modules/face/screens/FaceVerificationPrototypeScreen';
-import { FaceRegistrationScreen } from '../../modules/face/screens/FaceRegistrationScreen';
-import { FaceVerificationScreen } from '../../modules/face/screens/FaceVerificationScreen';
+import { PatrolRouteScreen } from '../../modules/assignment/screens/PatrolRouteScreen';
+import { ShiftDetailsScreen } from '../../modules/assignment/screens/ShiftDetailsScreen';
+import { TodayAssignmentScreen } from '../../modules/assignment/screens/TodayAssignmentScreen';
 import { AttendanceScreen } from '../../modules/attendance/screens/AttendanceScreen';
-import { Home, ShieldAlert, Camera, Clipboard, User, History as HistoryIcon, Wrench } from 'lucide-react-native';
+import { DashboardSelector } from '../../modules/dashboard/screens/DashboardSelector';
+import { PatrolDetailsScreen } from '../../modules/dashboard/screens/PatrolDetailsScreen';
+import { FaceRegistrationScreen } from '../../modules/face/screens/FaceRegistrationScreen';
+import { FaceVerificationPrototypeScreen } from '../../modules/face/screens/FaceVerificationPrototypeScreen';
+import { FaceVerificationScreen } from '../../modules/face/screens/FaceVerificationScreen';
+import { HistoryScreen } from '../../modules/history/screens/HistoryScreen';
+import { ReportIncidentScreen } from '../../modules/incident/screens/ReportIncidentScreen';
+import { AssignedMaintenanceScreen } from '../../modules/maintenance/screens/AssignedMaintenanceScreen';
+import { PatrolScreen } from '../../modules/patrol/screens/PatrolScreen';
+import { ProfileScreen } from '../../modules/profile/screens/ProfileScreen';
+import { ScannerScreen } from '../../modules/scanner/screens/ScannerScreen';
+import { ReportSnagScreen } from '../../modules/snag/screens/ReportSnagScreen';
 import { DEMO_KAIZEN_FEATURES } from '../config/demo-config';
+import { useTheme } from '../hooks/useTheme';
+import { AppTabParamList } from './types';
 
 export type MainTabParamList = {
   HomeTab: undefined;
   PatrolTab: undefined;
-  ScannerTab: undefined;
   HistoryTab: undefined;
   MaintenanceTab: undefined;
   ProfileTab: undefined;
@@ -85,16 +90,9 @@ function MainTabs() {
         options={{
           title: 'Checkpoint Patrol',
           tabBarLabel: 'Patrol',
-          tabBarIcon: ({ color, size }) => <Clipboard size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="ScannerTab"
-        component={ScannerScreen}
-        options={{
-          title: 'QR Scanner',
-          tabBarLabel: 'Scanner',
-          tabBarIcon: ({ color, size }) => <Camera size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Clipboard size={size} color={color} />
+          ),
         }}
       />
       <Tab.Screen
@@ -103,7 +101,9 @@ function MainTabs() {
         options={{
           title: 'Work History',
           tabBarLabel: 'History',
-          tabBarIcon: ({ color, size }) => <HistoryIcon size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <HistoryIcon size={size} color={color} />
+          ),
         }}
       />
       {DEMO_KAIZEN_FEATURES.snags && (
@@ -113,7 +113,9 @@ function MainTabs() {
           options={{
             title: 'Assigned Work',
             tabBarLabel: 'Jobs',
-            tabBarIcon: ({ color, size }) => <Wrench size={size} color={color} />,
+            tabBarIcon: ({ color, size }) => (
+              <Wrench size={size} color={color} />
+            ),
           }}
         />
       )}
@@ -137,22 +139,86 @@ export function AppStack() {
       <Stack.Screen name="Dashboard" component={MainTabs} />
 
       {/* Sub-screens (Hides Bottom Tabs automatically) */}
-      <Stack.Screen name="Shifts" component={TodayAssignmentScreen} options={{ headerShown: true, title: 'My Assignment' }} />
-      <Stack.Screen name="Patrol" component={PatrolScreen} options={{ headerShown: true, title: 'Checkpoint Patrol' }} />
-      <Stack.Screen name="Reports" component={ReportIncidentScreen} options={{ headerShown: true, title: 'Incidents & Reports' }} />
-      <Stack.Screen name="ReportIncident" component={ReportIncidentScreen} options={{ headerShown: true, title: 'Report Security Incident' }} />
-      <Stack.Screen name="ReportSnag" component={ReportSnagScreen} options={{ headerShown: true, title: 'Report Maintenance Snag' }} />
-      <Stack.Screen name="AssignmentDetails" component={AssignmentDetailsScreen} options={{ headerShown: true, title: 'Assignment Details' }} />
-      <Stack.Screen name="ShiftDetails" component={ShiftDetailsScreen} options={{ headerShown: true, title: 'Shift Details' }} />
-      <Stack.Screen name="PatrolRoute" component={PatrolRouteScreen} options={{ headerShown: true, title: 'Patrol Route' }} />
-      <Stack.Screen name="AssignedGates" component={AssignedGatesScreen} options={{ headerShown: true, title: 'Assigned Gates' }} />
-      <Stack.Screen name="MapPreview" component={MapPreviewScreen} options={{ headerShown: true, title: 'Map Preview' }} />
-      <Stack.Screen name="Scanner" component={ScannerScreen} options={{ headerShown: true, title: 'QR Scanner' }} />
-      <Stack.Screen name="PatrolDetails" component={PatrolDetailsScreen} options={{ headerShown: true, title: 'Patrol Details & Verification' }} />
-      <Stack.Screen name="FaceVerificationPrototype" component={FaceVerificationPrototypeScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="FaceRegistration" component={FaceRegistrationScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="FaceVerification" component={FaceVerificationScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="Shifts"
+        component={TodayAssignmentScreen}
+        options={{ headerShown: true, title: 'My Assignment' }}
+      />
+      <Stack.Screen
+        name="Patrol"
+        component={PatrolScreen}
+        options={{ headerShown: true, title: 'Checkpoint Patrol' }}
+      />
+      <Stack.Screen
+        name="Reports"
+        component={ReportIncidentScreen}
+        options={{ headerShown: true, title: 'Incidents & Reports' }}
+      />
+      <Stack.Screen
+        name="ReportIncident"
+        component={ReportIncidentScreen}
+        options={{ headerShown: true, title: 'Report Security Incident' }}
+      />
+      <Stack.Screen
+        name="ReportSnag"
+        component={ReportSnagScreen}
+        options={{ headerShown: true, title: 'Report Maintenance Snag' }}
+      />
+      <Stack.Screen
+        name="AssignmentDetails"
+        component={AssignmentDetailsScreen}
+        options={{ headerShown: true, title: 'Assignment Details' }}
+      />
+      <Stack.Screen
+        name="ShiftDetails"
+        component={ShiftDetailsScreen}
+        options={{ headerShown: true, title: 'Shift Details' }}
+      />
+      <Stack.Screen
+        name="PatrolRoute"
+        component={PatrolRouteScreen}
+        options={{ headerShown: true, title: 'Patrol Route' }}
+      />
+      <Stack.Screen
+        name="AssignedGates"
+        component={AssignedGatesScreen}
+        options={{ headerShown: true, title: 'Assigned Gates' }}
+      />
+      <Stack.Screen
+        name="MapPreview"
+        component={MapPreviewScreen}
+        options={{ headerShown: true, title: 'Map Preview' }}
+      />
+      <Stack.Screen
+        name="Scanner"
+        component={ScannerScreen}
+        options={{ headerShown: true, title: 'QR Scanner' }}
+      />
+      <Stack.Screen
+        name="PatrolDetails"
+        component={PatrolDetailsScreen}
+        options={{ headerShown: true, title: 'Patrol Details & Verification' }}
+      />
+      <Stack.Screen
+        name="FaceVerificationPrototype"
+        component={FaceVerificationPrototypeScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="FaceRegistration"
+        component={FaceRegistrationScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="FaceVerification"
+        component={FaceVerificationScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Attendance"
+        component={AttendanceScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }
