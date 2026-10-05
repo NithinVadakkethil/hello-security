@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "Employee" ADD COLUMN "companyName" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "companyName" TEXT;
