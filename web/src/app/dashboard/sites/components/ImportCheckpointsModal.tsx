@@ -36,6 +36,7 @@ interface ImportPreviewItem {
   checkpointCode: string;
   checkpointName: string;
   sequence: number | string;
+  category?: string;
   role: string;
   roleDisplay: string;
   taskName: string;
@@ -238,7 +239,8 @@ export default function ImportCheckpointsModal({
       searchTerm === '' ||
       item.checkpointName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.checkpointCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.taskName.toLowerCase().includes(searchTerm.toLowerCase());
+      item.taskName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.category && item.category.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesRole = roleFilter === 'ALL' || item.role === roleFilter;
 
@@ -651,9 +653,10 @@ export default function ImportCheckpointsModal({
                 <thead>
                   <tr style={{ backgroundColor: 'var(--bg-secondary)', textAlign: 'left' }}>
                     <th style={{ padding: '8px 12px', width: '50px' }}>Row</th>
-                    <th style={{ padding: '8px 12px', width: '120px' }}>Code</th>
+                    <th style={{ padding: '8px 12px', width: '100px' }}>Code</th>
                     <th style={{ padding: '8px 12px' }}>Checkpoint Name</th>
-                    <th style={{ padding: '8px 12px', width: '120px' }}>Role</th>
+                    <th style={{ padding: '8px 12px', width: '130px' }}>Category / Utility</th>
+                    <th style={{ padding: '8px 12px', width: '110px' }}>Role</th>
                     <th style={{ padding: '8px 12px' }}>Subtask Name</th>
                     <th style={{ padding: '8px 12px', width: '80px' }}>Status</th>
                   </tr>
@@ -666,6 +669,24 @@ export default function ImportCheckpointsModal({
                       </td>
                       <td style={{ padding: '8px 12px', fontWeight: 500 }}>{item.checkpointCode}</td>
                       <td style={{ padding: '8px 12px', fontWeight: 600 }}>{item.checkpointName}</td>
+                      <td style={{ padding: '8px 12px' }}>
+                        {item.category && item.category !== '—' ? (
+                          <span
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                              color: 'var(--primary)',
+                              fontWeight: 600,
+                              fontSize: '0.75rem',
+                            }}
+                          >
+                            {item.category}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                        )}
+                      </td>
                       <td style={{ padding: '8px 12px' }}>
                         <span
                           style={{

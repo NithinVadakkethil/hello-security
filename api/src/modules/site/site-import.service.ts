@@ -17,6 +17,7 @@ export interface ImportRowNormalized {
   code: string;
   name: string;
   sequence?: number;
+  category?: string;
   role: string;
   roleEnum?: UserRole;
   taskName: string;
@@ -42,6 +43,7 @@ export interface ImportPreviewItem {
   checkpointCode: string;
   checkpointName: string;
   sequence: number | string;
+  category?: string;
   role?: string;
   roleDisplay: string;
   taskName: string;
@@ -77,6 +79,7 @@ export interface CanonicalColumn {
 export const CANONICAL_IMPORT_COLUMNS: CanonicalColumn[] = [
   { field: 'name', excelHeader: 'Checkpoint Name', aliases: ['checkpointname', 'gatename', 'name'] },
   { field: 'sequence', excelHeader: 'Sequence Number', aliases: ['sequencenumber', 'sequence', 'patrolorder', 'order'] },
+  { field: 'category', excelHeader: 'Category / Utility', aliases: ['category/utility', 'category / utility', 'category', 'utility', 'checkpointcategory', 'categoryutility'] },
   { field: 'role', excelHeader: 'Role', aliases: ['role', 'userrole', 'assignedrole'] },
   { field: 'taskName', excelHeader: 'Subtask', aliases: ['subtask', 'subtaskname', 'taskname', 'task', 'checkpointsubtask'] },
   { field: 'description', excelHeader: 'Floor', aliases: ['floor', 'description', 'desc', 'guardnote', 'instruction'] },
@@ -91,6 +94,8 @@ export interface GroupedCheckpoint {
   latitude?: number;
   longitude?: number;
   description?: string;
+  categoryId?: string | null;
+  categoryName?: string;
   subtasks: Array<{ role: UserRole; taskName: string; description?: string }>;
 }
 
@@ -140,6 +145,9 @@ export class SiteImportService {
     if (siteId) {
       const gates = await prisma.gate.findMany({
         where: { siteId },
+        include: {
+          category: true,
+        },
         orderBy: { sequence: 'asc' },
       });
 
@@ -151,6 +159,7 @@ export class SiteImportService {
             'Sequence Number': gate.sequence,
             'Checkpoint Name': gate.name,
             'Floor': gate.description || '',
+            'Category / Utility': gate.category?.name || '',
             'Latitude': gate.latitude !== null && gate.latitude !== undefined ? gate.latitude : '',
             'Longitude': gate.longitude !== null && gate.longitude !== undefined ? gate.longitude : '',
           });
@@ -163,36 +172,40 @@ export class SiteImportService {
         {
           'Sequence Number': 1,
           'Checkpoint Name': 'Main Entrance Gate A',
-          'Description': 'Inspect perimeter lock & hinges',
+          'Floor': 'Ground Floor',
+          'Category / Utility': 'Garbage',
           'Latitude': '',
           'Longitude': '',
         },
         {
           'Sequence Number': 2,
           'Checkpoint Name': 'North Lobby Checkpoint',
-          'Description': 'Main reception entrance area',
+          'Floor': '1st Floor',
+          'Category / Utility': 'Lobby',
           'Latitude': '',
           'Longitude': '',
         },
         {
           'Sequence Number': 3,
           'Checkpoint Name': 'Loading Dock Gate B',
-          'Description': 'Rear delivery bay entrance',
+          'Floor': 'Basement 1',
+          'Category / Utility': 'Electrical',
           'Latitude': '',
           'Longitude': '',
         },
       ];
     }
 
-    const headers = exportRows.length > 0 ? Object.keys(exportRows[0]) : ['Sequence Number', 'Checkpoint Name', 'Description', 'Latitude', 'Longitude'];
+    const headers = exportRows.length > 0 ? Object.keys(exportRows[0]) : ['Sequence Number', 'Checkpoint Name', 'Floor', 'Category / Utility', 'Latitude', 'Longitude'];
     const worksheet = XLSX.utils.json_to_sheet(exportRows, { header: headers });
     
     worksheet['!cols'] = [
-      { wch: 16 },
-      { wch: 30 },
-      { wch: 40 },
-      { wch: 14 },
-      { wch: 14 },
+      { wch: 16 }, // Sequence Number
+      { wch: 30 }, // Checkpoint Name
+      { wch: 20 }, // Floor
+      { wch: 24 }, // Category / Utility
+      { wch: 14 }, // Latitude
+      { wch: 14 }, // Longitude
     ];
 
     const workbook = XLSX.utils.book_new();
@@ -314,6 +327,7 @@ export class SiteImportService {
       const rawCode = String(rowObj['code'] || '').trim();
       const rawName = String(rowObj['name'] || '').trim();
       const rawSeq = rowObj['sequence'] !== undefined ? rowObj['sequence'] : '';
+      const rawCategory = String(rowObj['category'] || '').trim();
       const rawRole = String(rowObj['role'] || '').trim();
       const rawTask = String(rowObj['taskName'] || '').trim();
       const rawDesc = String(rowObj['description'] || '').trim();
@@ -329,6 +343,7 @@ export class SiteImportService {
         code: rawCode,
         name: rawName,
         sequence: seqNum,
+        category: rawCategory || undefined,
         role: rawRole,
         taskName: rawTask,
         description: rawDesc || undefined,
@@ -364,20 +379,23 @@ export class SiteImportService {
     const preview: ImportPreviewItem[] = [];
 
     const subtasksByRole: Record<string, number> = {};
-    const groupedCheckpoints = new Map<string, {
-      code: string;
-      name: string;
-      sequence?: number;
-      latitude?: number;
-      longitude?: number;
-      description?: string;
-      subtasks: Array<{ role: UserRole; taskName: string; description?: string; rowIndex: number }>;
-    }>();
+    const groupedCheckpoints = new Map<string, GroupedCheckpoint>();
+
+    // Fetch authorized client categories for reference
+    const clientCategories = await prisma.checkpointCategory.findMany({
+      where: { clientId: site.clientId },
+    });
+
+    const categoryMap = new Map<string, typeof clientCategories[0]>();
+    clientCategories.forEach((cat) => {
+      categoryMap.set(cat.normalizedName, cat);
+    });
 
     // Fetch existing site gates for reference
     const existingGates = await prisma.gate.findMany({
       where: { siteId },
       include: {
+        category: true,
         subTasks: {
           select: { role: true, taskName: true },
         },
@@ -406,6 +424,22 @@ export class SiteImportService {
           message: 'Checkpoint Name is required.',
         });
         isRowValid = false;
+      }
+
+      // Validate Category / Utility
+      let matchedCategory: typeof clientCategories[0] | undefined;
+      if (row.category && row.category.trim()) {
+        const normCategory = row.category.trim().toLowerCase();
+        matchedCategory = categoryMap.get(normCategory);
+        if (!matchedCategory) {
+          errors.push({
+            row: row.rowIndex,
+            checkpointName: row.name || row.code,
+            field: 'Category / Utility',
+            message: `Category / Utility "${row.category.trim()}" does not exist. Create the category in Settings → Categories / Utilities first.`,
+          });
+          isRowValid = false;
+        }
       }
 
       // Check if this is a Checkpoint-Only Row (checkpoint name present, but subtask & role are both empty)
@@ -450,13 +484,13 @@ export class SiteImportService {
         }
       }
 
+      const checkpointNameVal = row.name || row.code || 'Unnamed Checkpoint';
+      const checkpointKey = `NAME_${checkpointNameVal.toLowerCase().trim()}`;
+
       if (isRowValid) {
         validRowsCount++;
 
         // Group by Checkpoint Name
-        const checkpointNameVal = row.name || row.code || 'Unnamed Checkpoint';
-        const checkpointKey = `NAME_${checkpointNameVal.toLowerCase().trim()}`;
-
         let group = groupedCheckpoints.get(checkpointKey);
         if (!group) {
           group = {
@@ -466,6 +500,8 @@ export class SiteImportService {
             latitude: row.latitude,
             longitude: row.longitude,
             description: row.description,
+            categoryId: matchedCategory ? matchedCategory.id : null,
+            categoryName: matchedCategory ? matchedCategory.name : (row.category?.trim() || undefined),
             subtasks: [],
           };
           groupedCheckpoints.set(checkpointKey, group);
@@ -474,6 +510,10 @@ export class SiteImportService {
           if (group.sequence === undefined && row.sequence !== undefined) group.sequence = row.sequence;
           if (group.latitude === undefined && row.latitude !== undefined) group.latitude = row.latitude;
           if (group.longitude === undefined && row.longitude !== undefined) group.longitude = row.longitude;
+          if (!group.categoryId && matchedCategory) {
+            group.categoryId = matchedCategory.id;
+            group.categoryName = matchedCategory.name;
+          }
         }
 
         if (roleEnum && row.taskName) {
@@ -484,7 +524,6 @@ export class SiteImportService {
             role: roleEnum,
             taskName: row.taskName,
             description: row.description,
-            rowIndex: row.rowIndex,
           });
 
           preview.push({
@@ -492,6 +531,7 @@ export class SiteImportService {
             checkpointCode: 'Auto',
             checkpointName: group.name,
             sequence: row.sequence ?? 'Auto',
+            category: group.categoryName || '—',
             role: roleEnum,
             roleDisplay: getRoleDisplay(roleEnum),
             taskName: row.taskName,
@@ -504,6 +544,7 @@ export class SiteImportService {
             checkpointCode: 'Auto',
             checkpointName: group.name,
             sequence: row.sequence ?? 'Auto',
+            category: group.categoryName || '—',
             role: '',
             roleDisplay: 'N/A (Checkpoint Only)',
             taskName: '(No Subtasks)',
@@ -516,6 +557,7 @@ export class SiteImportService {
           checkpointCode: '-',
           checkpointName: row.name || row.code || '-',
           sequence: row.sequence ?? '-',
+          category: row.category?.trim() || '—',
           role: row.role || '-',
           roleDisplay: row.role || '-',
           taskName: row.taskName || '-',
@@ -588,6 +630,20 @@ export class SiteImportService {
       );
     }
 
+    const site = await siteRepository.findById(siteId);
+    if (!site) {
+      throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Site not found.');
+    }
+
+    // Fetch authorized client categories for ID resolution
+    const clientCategories = await prisma.checkpointCategory.findMany({
+      where: { clientId: site.clientId },
+    });
+    const categoryMap = new Map<string, typeof clientCategories[0]>();
+    clientCategories.forEach((cat) => {
+      categoryMap.set(cat.normalizedName, cat);
+    });
+
     const rows = this.parseFileBuffer(buffer);
 
     const groupedCheckpoints = new Map<string, GroupedCheckpoint>();
@@ -605,6 +661,17 @@ export class SiteImportService {
         normalizedRole = norm;
       }
 
+      let matchedCategoryId: string | null = null;
+      let matchedCategoryName: string | undefined;
+      if (row.category && row.category.trim()) {
+        const normCategory = row.category.trim().toLowerCase();
+        const cat = categoryMap.get(normCategory);
+        if (cat) {
+          matchedCategoryId = cat.id;
+          matchedCategoryName = cat.name;
+        }
+      }
+
       const checkpointNameVal = row.name || row.code || 'Unnamed Checkpoint';
       const checkpointKey = `NAME_${checkpointNameVal.toLowerCase().trim()}`;
 
@@ -617,6 +684,8 @@ export class SiteImportService {
           latitude: row.latitude,
           longitude: row.longitude,
           description: row.description,
+          categoryId: matchedCategoryId,
+          categoryName: matchedCategoryName,
           subtasks: [],
         };
         groupedCheckpoints.set(checkpointKey, group);
@@ -625,6 +694,10 @@ export class SiteImportService {
         if (group.sequence === undefined && row.sequence !== undefined) group.sequence = row.sequence;
         if (group.latitude === undefined && row.latitude !== undefined) group.latitude = row.latitude;
         if (group.longitude === undefined && row.longitude !== undefined) group.longitude = row.longitude;
+        if (!group.categoryId && matchedCategoryId) {
+          group.categoryId = matchedCategoryId;
+          group.categoryName = matchedCategoryName;
+        }
       }
 
       if (normalizedRole && row.taskName) {
@@ -635,11 +708,6 @@ export class SiteImportService {
         });
       }
     });
-
-    const site = await siteRepository.findById(siteId);
-    if (!site) {
-      throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Site not found.');
-    }
 
     let createdGatesCount = 0;
     let createdSubtasksCount = 0;
@@ -686,6 +754,16 @@ export class SiteImportService {
             }
           }
 
+          // Update Category for existing gates if provided in the Excel
+          for (const { gate: existingGate, group } of existingGroupsToProcess) {
+            if (group.categoryId && existingGate.categoryId !== group.categoryId) {
+              await tx.gate.update({
+                where: { id: existingGate.id },
+                data: { categoryId: group.categoryId },
+              });
+            }
+          }
+
           // 2. Batch Reserve Counter for New Gates
           if (newGroupsToCreate.length > 0) {
             const startSeq = await counterService.reserveRange(
@@ -694,6 +772,16 @@ export class SiteImportService {
               site.id,
               tx,
             );
+
+            // Fetch existing QR codes globally to ensure absolute QR uniqueness
+            const allExistingGates = await tx.gate.findMany({
+              select: { qrCode: true, gateCode: true },
+            });
+            const globalQrCodeSet = new Set<string>();
+            allExistingGates.forEach((g) => {
+              if (g.qrCode) globalQrCodeSet.add(g.qrCode.toUpperCase());
+              if (g.gateCode) globalQrCodeSet.add(g.gateCode.toUpperCase());
+            });
 
             // Prepare batch gate data in memory
             const newGatesData: Array<{
@@ -705,17 +793,19 @@ export class SiteImportService {
               latitude: number | null;
               longitude: number | null;
               qrCode: string;
+              categoryId: string | null;
             }> = [];
 
             newGroupsToCreate.forEach((group, idx) => {
               let seqCounter = startSeq + idx;
               let gateCode = generateCode(PREFIX.GATE, seqCounter);
-              // Ensure code is unique in memory
-              while (existingCodesSet.has(gateCode.toUpperCase())) {
+              // Ensure code is unique both locally and globally for QR uniqueness
+              while (existingCodesSet.has(gateCode.toUpperCase()) || globalQrCodeSet.has(gateCode.toUpperCase())) {
                 seqCounter++;
                 gateCode = generateCode(PREFIX.GATE, seqCounter);
               }
               existingCodesSet.add(gateCode.toUpperCase());
+              globalQrCodeSet.add(gateCode.toUpperCase());
 
               const seq = group.sequence || nextSeq++;
 
@@ -728,6 +818,7 @@ export class SiteImportService {
                 latitude: group.latitude || null,
                 longitude: group.longitude || null,
                 qrCode: gateCode, // Fresh unique QR payload for destination checkpoint!
+                categoryId: group.categoryId || null,
               });
             });
 
