@@ -11,7 +11,8 @@ const LOCAL_API_URL = Platform.select({
   default: 'http://127.0.0.1:3001/api/v1',
 });
 
-const PRODUCTION_API_URL = 'https://demoorbit.helloentry.com/api/v1';
+// const PRODUCTION_API_URL = 'https://demoorbit.helloentry.com/api/v1';
+const PRODUCTION_API_URL = 'https://orbit.helloentry.com/api/v1';
 
 export const Config = {
   API_URL: __DEV__ ? LOCAL_API_URL : PRODUCTION_API_URL,

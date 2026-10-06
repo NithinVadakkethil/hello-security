@@ -10,10 +10,8 @@ import {
   CheckCircle2,
   Hourglass,
   Lock,
-  Mic,
   ShieldAlert,
   Unlock,
-  X,
 } from 'lucide-react-native';
 import React, {
   useCallback,
@@ -26,7 +24,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Image,
   Modal,
   Platform,
   RefreshControl,
@@ -43,18 +40,18 @@ import {
   useCameraPermission,
 } from 'react-native-vision-camera';
 import { apiClient } from '../../../app/api/api-client';
+import { DEMO_KAIZEN_FEATURES } from '../../../app/config/demo-config';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { useAuthStore } from '../../../app/store/auth-store';
 import { useOfflineStore } from '../../../app/store/offline-store';
 import { Button } from '../../../components/Button';
 import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
-import { DEMO_KAIZEN_FEATURES } from '../../../app/config/demo-config';
 import { Card } from '../../dashboard/components/WidgetCard';
+import { faceEnrollmentApi } from '../../face/api/face-enrollment.api';
+import { secureFaceCache } from '../../face/services/secure-face-cache';
 import { ReportIssueBottomSheet } from '../components/ReportIssueBottomSheet';
 import { usePatrol } from '../hooks/usePatrol';
 import { usePatrolStore } from '../store/patrol-store';
-import { secureFaceCache } from '../../face/services/secure-face-cache';
-import { faceEnrollmentApi } from '../../face/api/face-enrollment.api';
 
 // ==========================================
 // Isolated Timer Display (Prevents full-screen 1s re-renders)
@@ -431,7 +428,8 @@ export function PatrolScreen() {
   const assignment =
     activeAssignment ||
     navAssignment ||
-    (selectedAssignmentIndex >= 0 && selectedAssignmentIndex < assignments.length
+    (selectedAssignmentIndex >= 0 &&
+    selectedAssignmentIndex < assignments.length
       ? assignments[selectedAssignmentIndex]
       : null) ||
     assignments[0] ||
@@ -487,13 +485,24 @@ export function PatrolScreen() {
   useEffect(() => {
     if (activeSession?.id && activeSession.id !== prevSessionIdRef.current) {
       prevSessionIdRef.current = activeSession.id;
-      if (!justScannedGateId && !unlockedGateId && !routeParams?.focusCheckpointId && !routeParams?.checkpointId) {
+      if (
+        !justScannedGateId &&
+        !unlockedGateId &&
+        !routeParams?.focusCheckpointId &&
+        !routeParams?.checkpointId
+      ) {
         requestAnimationFrame(() => {
           scrollViewRef.current?.scrollTo({ y: 0, animated: false });
         });
       }
     }
-  }, [activeSession?.id, justScannedGateId, unlockedGateId, routeParams?.focusCheckpointId, routeParams?.checkpointId]);
+  }, [
+    activeSession?.id,
+    justScannedGateId,
+    unlockedGateId,
+    routeParams?.focusCheckpointId,
+    routeParams?.checkpointId,
+  ]);
 
   // Memoized handlers for VerificationTaskItem to prevent unnecessary re-renders
   const handleAnswerChange = useCallback(
@@ -683,7 +692,10 @@ export function PatrolScreen() {
           ],
         );
       } else {
-        Alert.alert('Error starting patrol', err.message || 'Please try again.');
+        Alert.alert(
+          'Error starting patrol',
+          err.message || 'Please try again.',
+        );
       }
     }
   };
@@ -697,7 +709,10 @@ export function PatrolScreen() {
     try {
       const empId = user?.employeeId || (user as any)?.employee?.id;
       if (!user?.id || !empId) {
-        Alert.alert('Authentication Error', 'User session missing. Please log in again.');
+        Alert.alert(
+          'Authentication Error',
+          'User session missing. Please log in again.',
+        );
         return;
       }
 
@@ -713,7 +728,10 @@ export function PatrolScreen() {
             isRegistered = true;
           }
         } catch (err) {
-          console.warn('[PatrolScreen] Could not check online face status:', err);
+          console.warn(
+            '[PatrolScreen] Could not check online face status:',
+            err,
+          );
         }
       }
 
@@ -727,7 +745,7 @@ export function PatrolScreen() {
               text: 'Register Face',
               onPress: () => navigation.navigate('FaceRegistration'),
             },
-          ]
+          ],
         );
         return;
       }
@@ -795,7 +813,9 @@ export function PatrolScreen() {
     if (!activeSession) return;
 
     const completedCount = isManager
-      ? (activeSession as any)?.checkpoints?.length || scannedGateIds.length || 0
+      ? (activeSession as any)?.checkpoints?.length ||
+        scannedGateIds.length ||
+        0
       : scannedGateIds.length;
 
     if (completedCount === 0) {
@@ -864,14 +884,18 @@ export function PatrolScreen() {
           queryClient.invalidateQueries({ queryKey: ['patrol-sessions'] });
           queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
           queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-          queryClient.invalidateQueries({ queryKey: ['patrol-session', 'history'] });
+          queryClient.invalidateQueries({
+            queryKey: ['patrol-session', 'history'],
+          });
           navigateToHome();
         };
 
         if (isManager) {
           Alert.alert(
             'Manager Patrol Completed',
-            `${completedCount} checkpoint${completedCount === 1 ? '' : 's'} inspected successfully.`,
+            `${completedCount} checkpoint${
+              completedCount === 1 ? '' : 's'
+            } inspected successfully.`,
             [
               {
                 text: 'Done',
@@ -907,7 +931,9 @@ export function PatrolScreen() {
     if (isManager) {
       Alert.alert(
         'Finish Manager Patrol?',
-        `You have inspected ${completedCount} checkpoint${completedCount === 1 ? '' : 's'}.\nFinishing the sweep will complete this patrol session.`,
+        `You have inspected ${completedCount} checkpoint${
+          completedCount === 1 ? '' : 's'
+        }.\nFinishing the sweep will complete this patrol session.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -1017,7 +1043,10 @@ export function PatrolScreen() {
                 return {
                   gateSubTaskId: st.id,
                   answer: (val.answer || 'YES') as 'YES' | 'NO',
-                  remarks: val.answer === 'NO' ? (val.remarks?.trim() || undefined) : undefined,
+                  remarks:
+                    val.answer === 'NO'
+                      ? val.remarks?.trim() || undefined
+                      : undefined,
                   images:
                     val.images && val.images.length > 0
                       ? val.images
@@ -1095,7 +1124,8 @@ export function PatrolScreen() {
   const managerGateId = isManager
     ? routeParams?.checkpointId ||
       unlockedGateId ||
-      ((activeSession as any)?.checkpoints && (activeSession as any).checkpoints[0]?.gateId)
+      ((activeSession as any)?.checkpoints &&
+        (activeSession as any).checkpoints[0]?.gateId)
     : null;
 
   const { data: managerGateDetails } = useQuery({
@@ -1140,7 +1170,8 @@ export function PatrolScreen() {
           gateId: unlockedGateId,
           gate: gateObj || {
             id: unlockedGateId,
-            name: routeParams?.checkpointName || 'Manager Inspection Checkpoint',
+            name:
+              routeParams?.checkpointName || 'Manager Inspection Checkpoint',
             gateCode: routeParams?.checkpointCode || unlockedGateId,
           },
           sequence: list.length + 1,
@@ -1157,12 +1188,14 @@ export function PatrolScreen() {
         assignment.assignmentGates.length > 0);
 
     if (isDirectAssignment) {
-      return (assignment?.assignmentGates || []).map((ag: any, idx: number) => ({
-        id: ag.id,
-        gateId: ag.gateId || ag.gate?.id || ag.id,
-        gate: ag.gate,
-        sequence: ag.sequence || idx + 1,
-      }));
+      return (assignment?.assignmentGates || []).map(
+        (ag: any, idx: number) => ({
+          id: ag.id,
+          gateId: ag.gateId || ag.gate?.id || ag.id,
+          gate: ag.gate,
+          sequence: ag.sequence || idx + 1,
+        }),
+      );
     }
     return (assignment?.patrolRoute?.routeGates || []).map(
       (rg: any, idx: number) => ({
@@ -1172,7 +1205,14 @@ export function PatrolScreen() {
         sequence: rg.sequence || idx + 1,
       }),
     );
-  }, [isManager, (activeSession as any)?.checkpoints, managerGateDetails, routeParams, unlockedGateId, assignment]);
+  }, [
+    isManager,
+    (activeSession as any)?.checkpoints,
+    managerGateDetails,
+    routeParams,
+    unlockedGateId,
+    assignment,
+  ]);
 
   const totalGates = routeGates.length;
 
@@ -1210,10 +1250,19 @@ export function PatrolScreen() {
 
   const scannedCount = useMemo(() => {
     if (isManager) {
-      return (activeSession as any)?.checkpoints?.length || routeGates.filter(rg => isGateCompleted(rg)).length || 0;
+      return (
+        (activeSession as any)?.checkpoints?.length ||
+        routeGates.filter(rg => isGateCompleted(rg)).length ||
+        0
+      );
     }
     return routeGates.filter(rg => isGateCompleted(rg)).length;
-  }, [isManager, (activeSession as any)?.checkpoints, routeGates, isGateCompleted]);
+  }, [
+    isManager,
+    (activeSession as any)?.checkpoints,
+    routeGates,
+    isGateCompleted,
+  ]);
 
   const remainingCount = Math.max(0, totalGates - scannedCount);
 
@@ -1357,8 +1406,6 @@ export function PatrolScreen() {
     [unlockedGateObj, unlockedGateId, routeGates, isGateCompleted],
   );
 
-
-
   const { data: fetchedSubTasksRes } = useQuery({
     queryKey: ['gate-subtasks', activeGateId, userRole],
     queryFn: async () => {
@@ -1475,7 +1522,7 @@ export function PatrolScreen() {
         </Text>
 
         {/* NO ACTIVE SESSION */}
-        {(!activeSession && !(isManager && routeGates.length > 0)) && (
+        {!activeSession && !(isManager && routeGates.length > 0) && (
           <View style={styles.startContainer}>
             {isLoadingAssignment ? (
               <ActivityIndicator
@@ -1485,13 +1532,26 @@ export function PatrolScreen() {
               />
             ) : isManager ? (
               <Card style={styles.emptyCard}>
-                <Text style={[styles.cardTitle, { color: colors.text, textAlign: 'center', marginBottom: 8 }]}>
+                <Text
+                  style={[
+                    styles.cardTitle,
+                    {
+                      color: colors.text,
+                      textAlign: 'center',
+                      marginBottom: 8,
+                    },
+                  ]}
+                >
                   Manager Checkpoint Inspection
                 </Text>
                 <Text
-                  style={[styles.emptyText, { color: colors.textSecondary, textAlign: 'center' }]}
+                  style={[
+                    styles.emptyText,
+                    { color: colors.textSecondary, textAlign: 'center' },
+                  ]}
                 >
-                  Scan any site checkpoint QR code using the QR Scanner to perform a direct Manager inspection.
+                  Scan any site checkpoint QR code using the QR Scanner to
+                  perform a direct Manager inspection.
                 </Text>
                 <TouchableOpacity
                   style={{
@@ -1504,7 +1564,13 @@ export function PatrolScreen() {
                   }}
                   onPress={() => handleUnlockCheckpoint()}
                 >
-                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>
+                  <Text
+                    style={{
+                      color: '#ffffff',
+                      fontWeight: '800',
+                      fontSize: 13,
+                    }}
+                  >
                     Open QR Scanner
                   </Text>
                 </TouchableOpacity>

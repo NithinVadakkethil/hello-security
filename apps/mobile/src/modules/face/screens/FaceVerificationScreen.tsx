@@ -15,6 +15,7 @@ import { ArrowLeft, CheckCircle2, XCircle, Shield } from 'lucide-react-native';
 import { useAttendanceStore } from '../../attendance/store/attendance-store';
 import { useOfflineStore } from '../../../app/store/offline-store';
 import { useActiveAssignments } from '../../assignment/hooks/useAssignment';
+import { useManagerStore } from '../../manager/store/manager-store';
 import { getEmployeeDisplayName } from '../../../app/utils/user-helpers';
 
 export function FaceVerificationScreen({ route, navigation }: any) {
@@ -49,7 +50,11 @@ export function FaceVerificationScreen({ route, navigation }: any) {
   useEffect(() => {
     (async () => {
       const empId = user?.employeeId || (user as any)?.employee?.id;
-      const clientId = (user as any)?.clientId || (user as any)?.employee?.clientId || '';
+      const clientId =
+        (user as any)?.clientId ||
+        (user as any)?.employee?.clientId ||
+        useManagerStore.getState().activeClient?.clientId ||
+        '';
 
       if (!user?.id || !empId) {
         setLoadingTemplate(false);

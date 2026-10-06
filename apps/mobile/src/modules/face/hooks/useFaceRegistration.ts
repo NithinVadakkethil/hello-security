@@ -6,6 +6,7 @@ import { FaceEmbedder } from '../engine/face-embedder';
 import { faceEnrollmentApi } from '../api/face-enrollment.api';
 import { secureFaceCache } from '../services/secure-face-cache';
 import { useAuthStore } from '../../../app/store/auth-store';
+import { useManagerStore } from '../../manager/store/manager-store';
 
 export type RegistrationStep = 'FRONT' | 'LEFT' | 'RIGHT' | 'COMPLETED';
 
@@ -182,7 +183,11 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
 
           // Save to Keystore-backed encrypted local cache
           const empId = user?.employeeId || (user as any)?.employee?.id || '';
-          const clientId = (user as any)?.clientId || (user as any)?.employee?.clientId || '';
+          const clientId =
+            (user as any)?.clientId ||
+            (user as any)?.employee?.clientId ||
+            useManagerStore.getState().activeClient?.clientId ||
+            '';
 
           if (user?.id && empId) {
             await secureFaceCache.saveSecureCache(user.id, empId, clientId, {
