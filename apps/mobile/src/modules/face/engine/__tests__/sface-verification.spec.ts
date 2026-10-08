@@ -91,7 +91,7 @@ describe('SFace Face Verification Pipeline (Phase 2)', () => {
     const emb1 = FaceEmbedder.generateEmbedding(mockFace1 as any);
     const emb2 = FaceEmbedder.generateEmbedding(mockFace2Similar as any);
 
-    const match = FaceMatcher.match(emb1, emb2, 0.50);
+    const match = FaceMatcher.match(emb1, emb2, FaceVerificationEngine.DEFAULT_MATCH_THRESHOLD);
     expect(match.similarityScore).toBeGreaterThan(0.85);
     expect(match.isMatch).toBe(true);
   });
@@ -100,7 +100,7 @@ describe('SFace Face Verification Pipeline (Phase 2)', () => {
     const emb1 = FaceEmbedder.generateEmbedding(mockFace1 as any);
     const embImpostor = FaceEmbedder.generateEmbedding(mockFaceImpostor as any);
 
-    const match = FaceMatcher.match(emb1, embImpostor, 0.50);
+    const match = FaceMatcher.match(emb1, embImpostor, FaceVerificationEngine.DEFAULT_MATCH_THRESHOLD);
     expect(match.similarityScore).toBeLessThan(0.40);
     expect(match.isMatch).toBe(false);
   });
