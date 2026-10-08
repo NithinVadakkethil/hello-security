@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import { apiClient } from '../../../lib/axios';
 import { getAccessToken } from '../../../utils/token';
 import SearchableSelect, { SearchableOption } from './SearchableSelect';
+import { resolveImageUrl } from '../../../../lib/image';
 
 export interface PeriodicReportGeneratorProps {
   clientId?: string;
@@ -31,6 +32,7 @@ export interface ReportDataset {
     startDate: string;
     endDate: string;
     clientName: string;
+    clientLogoUrl?: string | null;
     siteName?: string;
     employeeId?: string;
     employeeName?: string;
@@ -586,40 +588,63 @@ export default function PeriodicReportGenerator({
               gap: '16px',
             }}
           >
-            <div>
-              <div
-                style={{
-                  fontSize: '0.8rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: isEmployeeScoped ? '#166534' : '#1e40af',
-                  fontWeight: 700,
-                }}
-              >
-                {reportData.metadata.periodType || reportData.metadata.reportType} {isEmployeeScoped ? 'EMPLOYEE REPORT' : 'REPORT AUDIT'}
-              </div>
-              <div
-                style={{
-                  fontSize: '1.1rem',
-                  fontWeight: 700,
-                  color: isEmployeeScoped ? '#14532d' : '#1e3a8a',
-                  marginTop: '2px',
-                }}
-              >
-                {reportData.metadata.clientName} {reportData.metadata.siteName ? `• ${reportData.metadata.siteName}` : ''}
-              </div>
-
-              {isEmployeeScoped && (
-                <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#166534', marginTop: '4px' }}>
-                  👤 Employee: <strong>{reportData.metadata.employeeName}</strong> ({reportData.metadata.employeeRole || 'Security Guard'})
-                  {reportData.metadata.employeeNumber ? ` • ID: ${reportData.metadata.employeeNumber}` : ''}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              {reportData.metadata.clientLogoUrl && (
+                <div
+                  style={{
+                    maxHeight: '48px',
+                    maxWidth: '120px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '8px',
+                    backgroundColor: '#ffffff',
+                    padding: '4px 8px',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  <img
+                    src={resolveImageUrl(reportData.metadata.clientLogoUrl)}
+                    alt="Client Logo"
+                    style={{ maxHeight: '40px', maxWidth: '100px', objectFit: 'contain' }}
+                  />
                 </div>
               )}
+              <div>
+                <div
+                  style={{
+                    fontSize: '0.8rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    color: isEmployeeScoped ? '#166534' : '#1e40af',
+                    fontWeight: 700,
+                  }}
+                >
+                  {reportData.metadata.periodType || reportData.metadata.reportType} {isEmployeeScoped ? 'EMPLOYEE REPORT' : 'REPORT AUDIT'}
+                </div>
+                <div
+                  style={{
+                    fontSize: '1.1rem',
+                    fontWeight: 700,
+                    color: isEmployeeScoped ? '#14532d' : '#1e3a8a',
+                    marginTop: '2px',
+                  }}
+                >
+                  {reportData.metadata.clientName} {reportData.metadata.siteName ? `• ${reportData.metadata.siteName}` : ''}
+                </div>
 
-              <div style={{ fontSize: '0.82rem', color: isEmployeeScoped ? '#15803d' : '#3b82f6', marginTop: '2px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <span>Period: <strong>{reportData.metadata.periodLabel || `${reportData.metadata.startDate} to ${reportData.metadata.endDate}`}</strong></span>
-                <span>Timezone: {reportData.metadata.timezone}</span>
-                <span>Generated: {new Date(reportData.metadata.generatedAt).toLocaleString()}</span>
+                {isEmployeeScoped && (
+                  <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#166534', marginTop: '4px' }}>
+                    👤 Employee: <strong>{reportData.metadata.employeeName}</strong> ({reportData.metadata.employeeRole || 'Security Guard'})
+                    {reportData.metadata.employeeNumber ? ` • ID: ${reportData.metadata.employeeNumber}` : ''}
+                  </div>
+                )}
+
+                <div style={{ fontSize: '0.82rem', color: isEmployeeScoped ? '#15803d' : '#3b82f6', marginTop: '2px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <span>Period: <strong>{reportData.metadata.periodLabel || `${reportData.metadata.startDate} to ${reportData.metadata.endDate}`}</strong></span>
+                  <span>Timezone: {reportData.metadata.timezone}</span>
+                  <span>Generated: {new Date(reportData.metadata.generatedAt).toLocaleString()}</span>
+                </div>
               </div>
             </div>
 

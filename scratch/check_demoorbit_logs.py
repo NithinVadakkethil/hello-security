@@ -21,14 +21,11 @@ def run_ssh(cmd, timeout=30):
 
 if __name__ == '__main__':
     cmd = """
-echo "=== PM2 STATUS ==="
-pm2 status
+echo "=== DEMOORBIT-API LOGS ==="
+pm2 logs demoorbit-api --lines 25 --nostream
 
-echo "=== DEMOORBIT-API STATUS & UPTIME ==="
-pm2 show demoorbit-api | grep -E 'status|uptime|restarts'
-
-echo "=== DEMOORBIT-WEB STATUS & UPTIME ==="
-pm2 show demoorbit-web | grep -E 'status|uptime|restarts'
+echo "=== DEMOORBIT-WEB LOGS ==="
+pm2 logs demoorbit-web --lines 15 --nostream
 """
     code, out, err = run_ssh(cmd)
     print("--- STDOUT ---")

@@ -924,12 +924,21 @@ export class AttendanceService {
 
     // Get metadata for client/site/employee
     let clientName: string | undefined;
+    let clientLogoUrl: string | null | undefined;
     if (query.clientId) {
-      const client = await prisma.client.findUnique({ where: { id: query.clientId }, select: { companyName: true } });
+      const client = await prisma.client.findUnique({
+        where: { id: query.clientId },
+        select: { companyName: true, clientLogoUrl: true },
+      });
       clientName = client?.companyName;
+      clientLogoUrl = client?.clientLogoUrl;
     } else if (authorizedClientIds.length === 1) {
-      const client = await prisma.client.findUnique({ where: { id: authorizedClientIds[0] }, select: { companyName: true } });
+      const client = await prisma.client.findUnique({
+        where: { id: authorizedClientIds[0] },
+        select: { companyName: true, clientLogoUrl: true },
+      });
       clientName = client?.companyName;
+      clientLogoUrl = client?.clientLogoUrl;
     }
 
     let siteName: string | undefined;
@@ -944,18 +953,32 @@ export class AttendanceService {
     if (query.employeeId && query.employeeId !== 'ALL') {
       const emp = await prisma.employee.findUnique({
         where: { id: query.employeeId },
-        select: { firstName: true, lastName: true, role: true, designation: true, employeeNumber: true },
+        select: {
+          firstName: true,
+          lastName: true,
+          role: true,
+          designation: true,
+          employeeNumber: true,
+          client: { select: { companyName: true, clientLogoUrl: true } },
+        },
       });
       if (emp) {
         employeeName = `${emp.firstName} ${emp.lastName || ''}`.trim();
         employeeRole = formatRoleLabel(emp.role, emp.designation);
         employeeNumber = emp.employeeNumber || undefined;
+        if (!clientName && emp.client?.companyName) {
+          clientName = emp.client.companyName;
+        }
+        if (!clientLogoUrl && emp.client?.clientLogoUrl) {
+          clientLogoUrl = emp.client.clientLogoUrl;
+        }
       }
     }
 
     const metadata: AttendanceReportMetadata = {
       title: 'ATTENDANCE REPORT',
       clientName,
+      clientLogoUrl,
       siteName,
       employeeName,
       employeeRole,

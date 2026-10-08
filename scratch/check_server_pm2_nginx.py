@@ -6,7 +6,7 @@ PORT = 22
 USER = 'root'
 PASSWORD = '@.Pd4j4p0c@O0FE123'
 
-def run_ssh(cmd, timeout=30):
+def run_ssh(cmd, timeout=60):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
@@ -21,14 +21,11 @@ def run_ssh(cmd, timeout=30):
 
 if __name__ == '__main__':
     cmd = """
-echo "=== PM2 STATUS ==="
-pm2 status
+echo "=== PM2 PROCESS DIRECTORIES ==="
+pm2 jlist | python3 -c "import sys, json; procs = json.load(sys.stdin); print('\n'.join(f'{p[\"name\"]} (id {p[\"pm_id\"]}) -> cwd: {p[\"pm2_env\"].get(\"pm_cwd\")} | port: {p[\"pm2_env\"].get(\"env\", {}).get(\"PORT\")}' for p in procs))"
 
-echo "=== DEMOORBIT-API STATUS & UPTIME ==="
-pm2 show demoorbit-api | grep -E 'status|uptime|restarts'
-
-echo "=== DEMOORBIT-WEB STATUS & UPTIME ==="
-pm2 show demoorbit-web | grep -E 'status|uptime|restarts'
+echo "=== NGINX CONFIGS ==="
+cat /etc/nginx/sites-enabled/* | grep -E 'server_name|proxy_pass'
 """
     code, out, err = run_ssh(cmd)
     print("--- STDOUT ---")

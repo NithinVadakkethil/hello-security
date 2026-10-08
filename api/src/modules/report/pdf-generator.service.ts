@@ -1,6 +1,7 @@
 import puppeteer from 'puppeteer';
 import { ReportDataset } from './summary-report.service';
 import { logger } from '../../common/logger/logger';
+import { findChromeExecutable, resolveImageUrl } from './report.service';
 
 export class PdfGeneratorService {
   /**
@@ -9,6 +10,7 @@ export class PdfGeneratorService {
   private buildHtml(dataset: ReportDataset): string {
     const { metadata, summary, patrols, mandatoryPatrols, incidents, siteSummary, employeeSummary } = dataset;
     const isKaizen = metadata.isKaizen || metadata.includeIncidents === false || metadata.clientName?.toLowerCase().includes('kaizen');
+    const resolvedLogo = metadata.clientLogoUrl ? resolveImageUrl(metadata.clientLogoUrl) : null;
 
     return `
 <!DOCTYPE html>
@@ -159,11 +161,14 @@ export class PdfGeneratorService {
 
   <!-- Header -->
   <div class="header-bar">
-    <div>
-      <h1 class="brand-title">HELLO <span>ORBIT</span></h1>
-      <p style="margin: 3px 0 0 0; font-size: 12px; font-weight: 700; color: #334155;">
-        ${metadata.title}
-      </p>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      ${resolvedLogo ? `<img src="${resolvedLogo}" alt="Client Logo" style="max-height: 44px; max-width: 130px; object-fit: contain;" />` : ''}
+      <div>
+        <h1 class="brand-title">HELLO <span>ORBIT</span></h1>
+        <p style="margin: 3px 0 0 0; font-size: 12px; font-weight: 700; color: #334155;">
+          ${metadata.title}
+        </p>
+      </div>
     </div>
     <div class="report-meta">
       <p style="margin: 0;">Organization: <strong>${metadata.clientName}</strong></p>
@@ -436,8 +441,10 @@ export class PdfGeneratorService {
 
     logger.info(`[PdfGeneratorService] Launching Puppeteer for ${dataset.metadata.title}`);
 
+    const executablePath = findChromeExecutable();
     const browser = await puppeteer.launch({
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      ...(executablePath ? { executablePath } : {}),
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
       headless: true,
     });
 

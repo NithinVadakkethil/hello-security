@@ -60,6 +60,7 @@ export interface ReportDataset {
     startDate: string;
     endDate: string;
     clientName: string;
+    clientLogoUrl?: string | null;
     siteName?: string;
     employeeId?: string;
     employeeName?: string;
@@ -292,19 +293,30 @@ export class SummaryReportService {
     const timezone = 'Asia/Dubai';
 
     // Fetch Client info
-    const client = await prisma.client.findFirst({
-      where: { id: { in: clientIds } },
-      select: { companyName: true, clientCode: true },
-    });
+    let siteName: string | undefined;
+    let siteClient: any = null;
+    if (siteId) {
+      const site = await prisma.site.findUnique({
+        where: { id: siteId },
+        select: {
+          name: true,
+          client: { select: { companyName: true, clientCode: true, clientLogoUrl: true } },
+        },
+      });
+      siteName = site?.name;
+      siteClient = site?.client;
+    }
+
+    const client =
+      siteClient ||
+      (await prisma.client.findFirst({
+        where: { id: { in: clientIds } },
+        select: { companyName: true, clientCode: true, clientLogoUrl: true },
+      }));
     const clientName = client?.companyName || 'Security Services Client';
+    const clientLogoUrl = client?.clientLogoUrl || null;
     const isKaizen = clientName.toLowerCase().includes('kaizen');
     const includeIncidents = !isKaizen;
-
-    let siteName: string | undefined;
-    if (siteId) {
-      const site = await prisma.site.findUnique({ where: { id: siteId }, select: { name: true } });
-      siteName = site?.name;
-    }
 
     let scopedEmployee: any = null;
     let employeeName: string | undefined;
@@ -756,6 +768,7 @@ export class SummaryReportService {
         startDate: from.toISOString(),
         endDate: to.toISOString(),
         clientName,
+        clientLogoUrl,
         siteName,
         employeeId: scopedEmployee?.id,
         employeeName,

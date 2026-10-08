@@ -2,10 +2,12 @@ import * as XLSX from 'xlsx';
 import puppeteer from 'puppeteer';
 import { logger } from '../../common/logger/logger';
 import { AttendanceRecordDto } from './attendance.types';
+import { resolveImageUrl } from '../report/report.service';
 
 export interface AttendanceReportMetadata {
   title?: string;
   clientName?: string;
+  clientLogoUrl?: string | null;
   siteName?: string;
   employeeName?: string;
   employeeRole?: string;
@@ -146,6 +148,7 @@ export class AttendanceReportService {
    */
   private buildPdfHtml(records: AttendanceRecordDto[], metadata: AttendanceReportMetadata): string {
     const totalCount = records.length;
+    const resolvedLogo = metadata.clientLogoUrl ? resolveImageUrl(metadata.clientLogoUrl) : null;
     const totalCheckedInCount = records.filter(
       (r) => Boolean(r.checkInTimeRaw || (r.checkInTime && r.checkInTime !== '—')),
     ).length;
@@ -351,8 +354,11 @@ export class AttendanceReportService {
 </head>
 <body>
   <div class="header-bar">
-    <div>
-      <h1 class="brand-title">HELLO<span>ORBIT</span> <span style="color: #64748b; font-weight: 400; font-size: 14px;">| ATTENDANCE REPORT</span></h1>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      ${resolvedLogo ? `<img src="${resolvedLogo}" alt="Client Logo" style="max-height: 48px; max-width: 140px; object-fit: contain;" />` : ''}
+      <div>
+        <h1 class="brand-title">HELLO<span>ORBIT</span> <span style="color: #64748b; font-weight: 400; font-size: 14px;">| ATTENDANCE REPORT</span></h1>
+      </div>
     </div>
     <div class="report-meta">
       <div>Generated: <strong>${this.escapeHtml(metadata.generatedAt)}</strong> (${this.escapeHtml(metadata.timezone)})</div>

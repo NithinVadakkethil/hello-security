@@ -21,14 +21,17 @@ def run_ssh(cmd, timeout=30):
 
 if __name__ == '__main__':
     cmd = """
-echo "=== PM2 STATUS ==="
-pm2 status
+echo "=== POSTGRES DATABASES ==="
+sudo -u postgres psql -c "\l"
 
-echo "=== DEMOORBIT-API STATUS & UPTIME ==="
-pm2 show demoorbit-api | grep -E 'status|uptime|restarts'
+echo "=== DEMOORBITDB TABLES ==="
+sudo -u postgres psql -d demoorbitdb -c '\dt'
 
-echo "=== DEMOORBIT-WEB STATUS & UPTIME ==="
-pm2 show demoorbit-web | grep -E 'status|uptime|restarts'
+echo "=== DEMOORBITDB USERS ==="
+sudo -u postgres psql -d demoorbitdb -c 'SELECT id, email, role FROM "User";'
+
+echo "=== ORBITDB USERS ==="
+sudo -u postgres psql -d orbitdb -c 'SELECT id, email, role FROM "User" WHERE email LIKE '\''%kaizen%'\'' OR email LIKE '\''%admin%'\'' LIMIT 10;'
 """
     code, out, err = run_ssh(cmd)
     print("--- STDOUT ---")

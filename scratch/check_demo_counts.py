@@ -21,14 +21,10 @@ def run_ssh(cmd, timeout=30):
 
 if __name__ == '__main__':
     cmd = """
-echo "=== PM2 STATUS ==="
-pm2 status
-
-echo "=== DEMOORBIT-API STATUS & UPTIME ==="
-pm2 show demoorbit-api | grep -E 'status|uptime|restarts'
-
-echo "=== DEMOORBIT-WEB STATUS & UPTIME ==="
-pm2 show demoorbit-web | grep -E 'status|uptime|restarts'
+sudo -u postgres psql -d demoorbitdb -c "SELECT count(*) FROM \"User\";"
+sudo -u postgres psql -d demoorbitdb -c "SELECT count(*) FROM \"CheckpointCategory\";"
+sudo -u postgres psql -d demoorbitdb -c "SELECT count(*) FROM \"Gate\";"
+sudo -u postgres psql -d demoorbitdb -c "SELECT count(*) FROM \"Attendance\";"
 """
     code, out, err = run_ssh(cmd)
     print("--- STDOUT ---")

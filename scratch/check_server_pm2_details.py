@@ -6,7 +6,7 @@ PORT = 22
 USER = 'root'
 PASSWORD = '@.Pd4j4p0c@O0FE123'
 
-def run_ssh(cmd, timeout=30):
+def run_ssh(cmd, timeout=60):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
@@ -21,14 +21,18 @@ def run_ssh(cmd, timeout=30):
 
 if __name__ == '__main__':
     cmd = """
-echo "=== PM2 STATUS ==="
-pm2 status
+echo "=== PM2 PRETTIFIED ==="
+pm2 list
 
-echo "=== DEMOORBIT-API STATUS & UPTIME ==="
-pm2 show demoorbit-api | grep -E 'status|uptime|restarts'
+echo "=== DEMOORBIT PATHS ==="
+pm2 show demoorbit-api | grep -E 'script path|mode|exec cwd'
+pm2 show demoorbit-web | grep -E 'script path|mode|exec cwd'
+pm2 show hello-security-api | grep -E 'script path|mode|exec cwd'
+pm2 show hello-security-web | grep -E 'script path|mode|exec cwd'
 
-echo "=== DEMOORBIT-WEB STATUS & UPTIME ==="
-pm2 show demoorbit-web | grep -E 'status|uptime|restarts'
+echo "=== NGINX SITES ==="
+ls -la /etc/nginx/sites-enabled/
+cat /etc/nginx/sites-enabled/demoorbit* 2>/dev/null || true
 """
     code, out, err = run_ssh(cmd)
     print("--- STDOUT ---")

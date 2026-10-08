@@ -7,6 +7,7 @@ import StatusChip from '../../../components/ui/StatusChip';
 import SingleReportPrintTemplate from './SingleReportPrintTemplate';
 import TaskVerificationChecklist from '../../patrol-sessions/components/TaskVerificationChecklist';
 import { formatPatrolDateTime, formatPatrolTime } from '@/lib/date-formatter';
+import { resolveImageUrl } from '../../../../lib/image';
 
 interface DetailedReportModalProps {
   isOpen: boolean;
@@ -95,51 +96,89 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '10px 0' }}>
         {/* Company & Executive Header */}
-        <div
-          style={{
-            padding: '16px 20px',
-            borderRadius: '12px',
-            backgroundColor: 'var(--surface-color)',
-            border: '1px solid var(--border-color)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '16px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {(() => {
+          const rawLogo =
+            report.client?.clientLogoUrl ||
+            report.assignment?.client?.clientLogoUrl ||
+            report.assignment?.site?.client?.clientLogoUrl ||
+            report.clientLogoUrl;
+          const resolvedLogo = rawLogo ? resolveImageUrl(rawLogo) : null;
+          const clientName =
+            report.client?.companyName ||
+            report.assignment?.client?.companyName ||
+            report.assignment?.site?.client?.companyName ||
+            report.assignment?.site?.companyName ||
+            report.clientCompanyName;
+
+          return (
             <div
               style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '10px',
-                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                padding: '16px 20px',
+                borderRadius: '12px',
+                backgroundColor: 'var(--surface-color)',
+                border: '1px solid var(--border-color)',
                 display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--primary)',
+                flexWrap: 'wrap',
+                gap: '16px',
               }}
             >
-              <Shield size={24} />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Hello Orbit</h3>
-              <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Official Security Patrol Audit Report
-              </p>
-            </div>
-          </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                {resolvedLogo ? (
+                  <div
+                    style={{
+                      maxHeight: '44px',
+                      maxWidth: '130px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <img
+                      src={resolvedLogo}
+                      alt="Client Logo"
+                      style={{ maxHeight: '44px', maxWidth: '130px', objectFit: 'contain' }}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--primary)',
+                    }}
+                  >
+                    <Shield size={24} />
+                  </div>
+                )}
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>
+                    {clientName || 'Hello Orbit'}
+                  </h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    Official Security Patrol Audit Report
+                  </p>
+                </div>
+              </div>
 
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Report ID</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'monospace', color: 'var(--primary)' }}>
-              {report.patrolCode}
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Report ID</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'monospace', color: 'var(--primary)' }}>
+                  {report.patrolCode}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  Generated: {formatPatrolDateTime(new Date())}
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              Generated: {formatPatrolDateTime(new Date())}
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Inspection Meta Information - 2 Column Grid on Desktop */}
         {(() => {

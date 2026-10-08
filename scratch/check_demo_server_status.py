@@ -6,7 +6,7 @@ PORT = 22
 USER = 'root'
 PASSWORD = '@.Pd4j4p0c@O0FE123'
 
-def run_ssh(cmd, timeout=30):
+def run_ssh(cmd, timeout=60):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
@@ -24,11 +24,12 @@ if __name__ == '__main__':
 echo "=== PM2 STATUS ==="
 pm2 status
 
-echo "=== DEMOORBIT-API STATUS & UPTIME ==="
-pm2 show demoorbit-api | grep -E 'status|uptime|restarts'
-
-echo "=== DEMOORBIT-WEB STATUS & UPTIME ==="
-pm2 show demoorbit-web | grep -E 'status|uptime|restarts'
+echo "=== GIT STATUS ON SERVER ==="
+cd /var/www/orbit/hello-security && git status
+echo "=== CURRENT BRANCH ==="
+cd /var/www/orbit/hello-security && git branch -a
+echo "=== RECENT COMMITS ==="
+cd /var/www/orbit/hello-security && git log -n 5 --oneline
 """
     code, out, err = run_ssh(cmd)
     print("--- STDOUT ---")

@@ -709,6 +709,13 @@ export default function SingleReportPrintTemplate({
     report.clientCompanyName ||
     '—';
 
+  const rawLogo =
+    report.client?.clientLogoUrl ||
+    report.assignment?.client?.clientLogoUrl ||
+    report.assignment?.site?.client?.clientLogoUrl ||
+    report.clientLogoUrl;
+  const resolvedLogo = rawLogo ? resolveImageUrl(rawLogo) : null;
+
   const generatedAt = formatPatrolDateTime(new Date());
 
   const verificationStatus = getVerificationStatus(report);
@@ -721,9 +728,18 @@ export default function SingleReportPrintTemplate({
 
       {/* ── Top Header ────────────────────────────────────────────────── */}
       <div className="rpt-header">
-        <div>
-          <h1 className="rpt-brand-title">Hello Orbit</h1>
-          <div className="rpt-brand-sub">Security Patrol Audit Report</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          {resolvedLogo ? (
+            <img
+              src={resolvedLogo}
+              alt="Logo"
+              style={{ maxHeight: '48px', maxWidth: '140px', objectFit: 'contain' }}
+            />
+          ) : null}
+          <div>
+            <h1 className="rpt-brand-title">Hello Orbit</h1>
+            <div className="rpt-brand-sub">Security Patrol Audit Report</div>
+          </div>
         </div>
         <div className="rpt-header-right">
           <div className="rpt-ref-label">REPORT REFERENCE #</div>

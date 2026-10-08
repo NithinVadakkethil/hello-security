@@ -537,7 +537,12 @@ export class ReportRepository {
         assignment: {
           include: {
             employee: true,
-            site: true,
+            site: {
+              include: {
+                client: true,
+              },
+            },
+            client: true,
             shift: true,
             patrolRoute: {
               include: {

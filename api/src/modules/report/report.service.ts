@@ -29,12 +29,17 @@ export function resolveImageUrl(url: string | null | undefined): string {
 
   // If relative path, try reading from disk directly to convert to data URI for Puppeteer
   const cleanPath = trimmed.replace(/^https?:\/\/[^\/]+/, '').replace(/^\/+/, '');
+  const rawSubPath = cleanPath.replace(/^uploads\//, '');
   const possibleLocalPaths = [
     path.join(process.cwd(), cleanPath),
+    path.join(process.cwd(), 'uploads', rawSubPath),
+    path.join(process.cwd(), 'api', 'uploads', rawSubPath),
+    path.join(__dirname, '../../../../uploads', rawSubPath),
+    path.join(__dirname, '../../../uploads', rawSubPath),
     path.join(process.cwd(), 'public', cleanPath),
-    path.join(process.cwd(), 'uploads', cleanPath),
-    path.join(process.cwd(), 'api', 'uploads', cleanPath.replace(/^uploads\//, '')),
-    path.join('/Users/zinfogcodelabs/Documents/Projects/hello-security/api/uploads', cleanPath.replace(/^uploads\//, '')),
+    path.join(process.cwd(), 'web', 'public', cleanPath),
+    path.join('/Users/zinfogcodelabs/Documents/Projects/hello-security/uploads', rawSubPath),
+    path.join('/Users/zinfogcodelabs/Documents/Projects/hello-security/api/uploads', rawSubPath),
   ];
 
   for (const localPath of possibleLocalPaths) {
@@ -268,7 +273,7 @@ function buildCheckpointTimeline(
     });
 }
 
-function findChromeExecutable(): string | undefined {
+export function findChromeExecutable(): string | undefined {
   const possiblePaths = [
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/usr/bin/google-chrome',
@@ -453,7 +458,13 @@ export class ReportService {
       report.assignment?.site?.client?.companyName ||
       report.assignment?.site?.companyName ||
       report.clientCompanyName ||
-      '—';
+      '';
+    const rawLogo =
+      report.client?.clientLogoUrl ||
+      report.assignment?.client?.clientLogoUrl ||
+      report.assignment?.site?.client?.clientLogoUrl ||
+      report.clientLogoUrl;
+    const resolvedLogo = rawLogo ? resolveImageUrl(rawLogo) : null;
 
     const generatedAt = new Date().toLocaleString();
     const verificationStatus = getVerificationStatus(report);
@@ -806,9 +817,12 @@ export class ReportService {
   <div class="audit-report-print-root">
     <!-- Top Header -->
     <div class="rpt-header">
-      <div>
-        <h1 class="rpt-brand-title">Hello Orbit</h1>
-        <div class="rpt-brand-sub">Security Patrol Audit Report</div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        ${resolvedLogo ? `<img src="${resolvedLogo}" alt="Logo" style="max-height: 48px; max-width: 140px; object-fit: contain;" />` : ''}
+        <div>
+          <h1 class="rpt-brand-title">Hello Orbit</h1>
+          <div class="rpt-brand-sub">Security Patrol Audit Report</div>
+        </div>
       </div>
       <div class="rpt-header-right">
         <div class="rpt-ref-label">REPORT REFERENCE #</div>
