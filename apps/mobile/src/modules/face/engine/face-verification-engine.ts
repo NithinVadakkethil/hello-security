@@ -26,9 +26,9 @@ export interface VerificationContext {
  */
 export class FaceVerificationEngine {
   /**
-   * Calibrated Development Threshold for SFace Cosine Similarity
+   * Production Calibrated Strict Threshold for SFace Cosine Similarity
    */
-  static readonly DEFAULT_MATCH_THRESHOLD = 0.50;
+  static readonly DEFAULT_MATCH_THRESHOLD = 0.85;
 
   /**
    * Active Biometric Template Version (SFace Neural Embedding)
