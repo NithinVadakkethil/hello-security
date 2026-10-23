@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { UserRole } from '@prisma/client';
 import { authenticate } from '../../common/auth/auth.middleware';
 import { authorize } from '../../common/auth/authorize';
+import { requireFeature } from '../../common/auth/feature.middleware';
 import { incidentController } from './incident.controller';
 import { upload } from '../../common/middleware/upload';
 
@@ -10,6 +11,7 @@ import { OPERATIONAL_ROLES } from '../../common/auth/constants';
 const router: Router = Router();
 
 router.use(authenticate);
+router.use(requireFeature('incidents'));
 
 router.post(
   '/',

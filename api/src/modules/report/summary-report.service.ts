@@ -4,6 +4,7 @@ import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 import { formatPatrolDateTime } from '../../common/utils/date-formatter.util';
+import { getApiFeatureProfile, isApiFeatureEnabled } from '../../config/feature-profile';
 
 export type ReportPeriodType = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 
@@ -315,8 +316,9 @@ export class SummaryReportService {
       }));
     const clientName = client?.companyName || 'Security Services Client';
     const clientLogoUrl = client?.clientLogoUrl || null;
-    const isKaizen = clientName.toLowerCase().includes('kaizen');
-    const includeIncidents = !isKaizen;
+    const isKaizenProfile = getApiFeatureProfile() === 'kaizen';
+    const isKaizen = isKaizenProfile || clientName.toLowerCase().includes('kaizen');
+    const includeIncidents = isApiFeatureEnabled('incidents') && !isKaizen;
 
     let scopedEmployee: any = null;
     let employeeName: string | undefined;

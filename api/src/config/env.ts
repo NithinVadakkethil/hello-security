@@ -22,6 +22,7 @@ const envSchema = z.object({
   JWT_AUDIENCE: z.string().default('hello-security-api'),
 
   BCRYPT_ROUNDS: z.coerce.number().min(10).max(15).default(12),
+  FEATURE_PROFILE: z.enum(['full', 'kaizen']).optional(),
 });
 
 export const env = envSchema.parse(process.env);

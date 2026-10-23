@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { UserRole } from '@prisma/client';
 import { authenticate } from '../../common/auth/auth.middleware';
 import { authorize } from '../../common/auth/authorize';
+import { requireFeature } from '../../common/auth/feature.middleware';
 import { snagCategoryController } from './snag-category.controller';
 
 const router: Router = Router();
 
 router.use(authenticate);
+router.use(requireFeature('snagCategories'));
 
 router.get(
   '/',
