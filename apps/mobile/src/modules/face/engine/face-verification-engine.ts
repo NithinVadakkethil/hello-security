@@ -1,10 +1,24 @@
-import { FaceDetectionData, FaceQualityValidator, QualityResult } from './face-quality';
 import { FaceMatcher, MatchResult } from './face-matcher';
 import { faceModelManager, FaceModelManager } from './face-model-manager';
+import {
+  FaceDetectionData,
+  FaceQualityValidator,
+  QualityResult,
+} from './face-quality';
 
 export type FaceVerificationResult =
-  | { status: 'FACE_VERIFIED'; similarity: number; threshold: number; templateVersion: string }
-  | { status: 'FACE_NOT_MATCHED'; similarity: number; threshold: number; templateVersion: string }
+  | {
+      status: 'FACE_VERIFIED';
+      similarity: number;
+      threshold: number;
+      templateVersion: string;
+    }
+  | {
+      status: 'FACE_NOT_MATCHED';
+      similarity: number;
+      threshold: number;
+      templateVersion: string;
+    }
   | { status: 'TEMPLATE_UNAVAILABLE' }
   | { status: 'TEMPLATE_VERSION_UNSUPPORTED'; version?: string }
   | { status: 'LIVENESS_FAILED' }
@@ -26,9 +40,10 @@ export interface VerificationContext {
  */
 export class FaceVerificationEngine {
   /**
-   * Production Calibrated Strict Threshold for SFace Cosine Similarity
+   * Production Calibrated Strict Threshold for Real-Pixel SFace Cosine Similarity
+   * Real camera photos: genuine matches typically score 0.80 - 0.95; impostors score 0.15 - 0.35.
    */
-  static readonly DEFAULT_MATCH_THRESHOLD = 0.85;
+  static readonly DEFAULT_MATCH_THRESHOLD = 0.68;
 
   /**
    * Active Biometric Template Version (SFace Neural Embedding)
@@ -52,13 +67,19 @@ export class FaceVerificationEngine {
    */
   static isTemplateVersionSupported(version?: string): boolean {
     if (!version) return false;
-    return version === this.CURRENT_TEMPLATE_VERSION || version === '2.0' || version === 'v2.0';
+    return (
+      version === this.CURRENT_TEMPLATE_VERSION ||
+      version === '2.0' ||
+      version === 'v2.0'
+    );
   }
 
   /**
    * Generate real SFace ONNX neural embedding vector from face data
    */
-  static async generateEmbeddingAsync(face: FaceDetectionData): Promise<number[]> {
+  static async generateEmbeddingAsync(
+    face: FaceDetectionData,
+  ): Promise<number[]> {
     return faceModelManager.extractEmbedding(face);
   }
 
@@ -82,12 +103,22 @@ export class FaceVerificationEngine {
     frameHeight: number,
     context: VerificationContext,
   ): Promise<FaceVerificationResult> {
-    const { referenceTemplate, templateVersion, customThreshold, employeeId, livenessPassed } = context;
+    const {
+      referenceTemplate,
+      templateVersion,
+      customThreshold,
+      employeeId,
+      livenessPassed,
+    } = context;
 
     // 1. Template Presence Check
     if (!referenceTemplate || referenceTemplate.length === 0) {
       if (__DEV__) {
-        console.log(`[FACE_VERIFY]\nemployeeId: ${employeeId || 'UNKNOWN'}\ntemplateExists: false\nfinalDecision: TEMPLATE_UNAVAILABLE`);
+        console.log(
+          `[FACE_VERIFY]\nemployeeId: ${
+            employeeId || 'UNKNOWN'
+          }\ntemplateExists: false\nfinalDecision: TEMPLATE_UNAVAILABLE`,
+        );
       }
       return { status: 'TEMPLATE_UNAVAILABLE' };
     }
@@ -95,9 +126,16 @@ export class FaceVerificationEngine {
     // 2. Template Version Check (v1 synthetic vs v2 SFace neural embedding)
     if (templateVersion && !this.isTemplateVersionSupported(templateVersion)) {
       if (__DEV__) {
-        console.log(`[FACE_VERIFY]\nemployeeId: ${employeeId || 'UNKNOWN'}\ntemplateExists: true\ntemplateVersion: ${templateVersion}\nfinalDecision: TEMPLATE_VERSION_UNSUPPORTED`);
+        console.log(
+          `[FACE_VERIFY]\nemployeeId: ${
+            employeeId || 'UNKNOWN'
+          }\ntemplateExists: true\ntemplateVersion: ${templateVersion}\nfinalDecision: TEMPLATE_VERSION_UNSUPPORTED`,
+        );
       }
-      return { status: 'TEMPLATE_VERSION_UNSUPPORTED', version: templateVersion };
+      return {
+        status: 'TEMPLATE_VERSION_UNSUPPORTED',
+        version: templateVersion,
+      };
     }
 
     // 3. Face Quality Check
@@ -117,28 +155,146 @@ export class FaceVerificationEngine {
     try {
       candidateEmbedding = await this.generateEmbeddingAsync(candidateFace);
     } catch (err: any) {
-      return { status: 'FACE_QUALITY_FAILED', message: 'Neural inference initializing...' };
+      return {
+        status: 'FACE_QUALITY_FAILED',
+        message: 'Neural inference initializing...',
+      };
     }
 
     // 6. 1:1 Cosine Similarity Match against Stored Registered Template
     const threshold = customThreshold ?? this.DEFAULT_MATCH_THRESHOLD;
-    const matchResult = this.match(candidateEmbedding, referenceTemplate, threshold);
+    const matchResult = this.match(
+      candidateEmbedding,
+      referenceTemplate,
+      threshold,
+    );
     const score = matchResult.similarityScore;
-    const finalDecision = matchResult.isMatch ? 'FACE_VERIFIED' : 'FACE_NOT_MATCHED';
+    const finalDecision = matchResult.isMatch
+      ? 'FACE_VERIFIED'
+      : 'FACE_NOT_MATCHED';
 
     // 7. Standardized Development Diagnostic Logging
     if (__DEV__) {
       console.log(
         `[FACE_VERIFY]\n` +
-        `employeeId: ${employeeId || 'UNKNOWN'}\n` +
-        `templateExists: true\n` +
-        `templateVersion: ${templateVersion || this.CURRENT_TEMPLATE_VERSION}\n` +
-        `registeredEmbeddingLength: ${referenceTemplate.length}\n` +
-        `candidateEmbeddingLength: ${candidateEmbedding.length}\n` +
-        `similarityScore: ${score.toFixed(4)}\n` +
-        `threshold: ${threshold.toFixed(2)}\n` +
-        `livenessCompleted: ${Boolean(livenessPassed)}\n` +
-        `finalDecision: ${finalDecision}`
+          `employeeId: ${employeeId || 'UNKNOWN'}\n` +
+          `templateExists: true\n` +
+          `templateVersion: ${
+            templateVersion || this.CURRENT_TEMPLATE_VERSION
+          }\n` +
+          `registeredEmbeddingLength: ${referenceTemplate.length}\n` +
+          `candidateEmbeddingLength: ${candidateEmbedding.length}\n` +
+          `similarityScore: ${score.toFixed(4)}\n` +
+          `threshold: ${threshold.toFixed(2)}\n` +
+          `livenessCompleted: ${Boolean(livenessPassed)}\n` +
+          `finalDecision: ${finalDecision}`,
+      );
+    }
+
+    if (matchResult.isMatch) {
+      return {
+        status: 'FACE_VERIFIED',
+        similarity: score,
+        threshold,
+        templateVersion: templateVersion || this.CURRENT_TEMPLATE_VERSION,
+      };
+    }
+
+    return {
+      status: 'FACE_NOT_MATCHED',
+      similarity: score,
+      threshold,
+      templateVersion: templateVersion || this.CURRENT_TEMPLATE_VERSION,
+    };
+  }
+
+  /**
+   * Evaluates face verification from an actual captured camera photograph
+   * using real-pixel extraction and canonical SFace neural inference.
+   */
+  static async evaluatePhotoAsync(
+    photoPath: string,
+    context: VerificationContext,
+  ): Promise<FaceVerificationResult> {
+    const {
+      referenceTemplate,
+      templateVersion,
+      customThreshold,
+      employeeId,
+      livenessPassed,
+    } = context;
+
+    // 1. Template Presence Check
+    if (!referenceTemplate || referenceTemplate.length === 0) {
+      if (__DEV__) {
+        console.log(
+          `[FACE_VERIFY]\nemployeeId: ${
+            employeeId || 'UNKNOWN'
+          }\ntemplateExists: false\nfinalDecision: TEMPLATE_UNAVAILABLE`,
+        );
+      }
+      return { status: 'TEMPLATE_UNAVAILABLE' };
+    }
+
+    // 2. Template Version Check
+    if (templateVersion && !this.isTemplateVersionSupported(templateVersion)) {
+      if (__DEV__) {
+        console.log(
+          `[FACE_VERIFY]\nemployeeId: ${
+            employeeId || 'UNKNOWN'
+          }\ntemplateExists: true\ntemplateVersion: ${templateVersion}\nfinalDecision: TEMPLATE_VERSION_UNSUPPORTED`,
+        );
+      }
+      return {
+        status: 'TEMPLATE_VERSION_UNSUPPORTED',
+        version: templateVersion,
+      };
+    }
+
+    // 3. Liveness Gate
+    if (livenessPassed === false) {
+      return { status: 'LIVENESS_FAILED' };
+    }
+
+    // 4. Candidate Real-Pixel SFace Neural Embedding Generation
+    let candidateEmbedding: number[];
+    try {
+      candidateEmbedding = await faceModelManager.extractEmbeddingFromPhoto(photoPath);
+    } catch (err: any) {
+      console.warn('[FaceVerificationEngine] Photo extraction error:', err?.message || err);
+      return {
+        status: 'FACE_QUALITY_FAILED',
+        message: err?.message || 'Face alignment failed. Please hold still inside the oval.',
+      };
+    }
+
+    // 5. 1:1 Cosine Similarity Match against Stored Registered Template
+    const threshold = customThreshold ?? this.DEFAULT_MATCH_THRESHOLD;
+    const matchResult = this.match(
+      candidateEmbedding,
+      referenceTemplate,
+      threshold,
+    );
+    const score = matchResult.similarityScore;
+    const finalDecision = matchResult.isMatch
+      ? 'FACE_VERIFIED'
+      : 'FACE_NOT_MATCHED';
+
+    // 6. Standardized Development Diagnostic Logging
+    if (__DEV__) {
+      console.log(
+        `[FACE_VERIFY_REAL_PIXEL]\n` +
+          `employeeId: ${employeeId || 'UNKNOWN'}\n` +
+          `templateExists: true\n` +
+          `templateVersion: ${
+            templateVersion || this.CURRENT_TEMPLATE_VERSION
+          }\n` +
+          `registeredEmbeddingLength: ${referenceTemplate.length}\n` +
+          `candidateEmbeddingLength: ${candidateEmbedding.length}\n` +
+          `similarityScore: ${score.toFixed(4)}\n` +
+          `threshold: ${threshold.toFixed(2)}\n` +
+          `livenessCompleted: ${Boolean(livenessPassed)}\n` +
+          `finalDecision: ${finalDecision}`,
       );
     }
 

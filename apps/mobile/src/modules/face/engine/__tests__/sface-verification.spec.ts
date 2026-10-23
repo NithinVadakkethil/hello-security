@@ -1,7 +1,7 @@
-import { FaceModelManager } from '../face-model-manager';
-import { FaceMatcher } from '../face-matcher';
-import { FaceVerificationEngine } from '../face-verification-engine';
 import { FaceEmbedder } from '../face-embedder';
+import { FaceMatcher } from '../face-matcher';
+import { FaceModelManager } from '../face-model-manager';
+import { FaceVerificationEngine } from '../face-verification-engine';
 
 describe('SFace Face Verification Pipeline (Phase 2)', () => {
   const mockFace1 = {
@@ -91,7 +91,11 @@ describe('SFace Face Verification Pipeline (Phase 2)', () => {
     const emb1 = FaceEmbedder.generateEmbedding(mockFace1 as any);
     const emb2 = FaceEmbedder.generateEmbedding(mockFace2Similar as any);
 
-    const match = FaceMatcher.match(emb1, emb2, FaceVerificationEngine.DEFAULT_MATCH_THRESHOLD);
+    const match = FaceMatcher.match(
+      emb1,
+      emb2,
+      FaceVerificationEngine.DEFAULT_MATCH_THRESHOLD,
+    );
     expect(match.similarityScore).toBeGreaterThan(0.85);
     expect(match.isMatch).toBe(true);
   });
@@ -100,8 +104,12 @@ describe('SFace Face Verification Pipeline (Phase 2)', () => {
     const emb1 = FaceEmbedder.generateEmbedding(mockFace1 as any);
     const embImpostor = FaceEmbedder.generateEmbedding(mockFaceImpostor as any);
 
-    const match = FaceMatcher.match(emb1, embImpostor, FaceVerificationEngine.DEFAULT_MATCH_THRESHOLD);
-    expect(match.similarityScore).toBeLessThan(0.40);
+    const match = FaceMatcher.match(
+      emb1,
+      embImpostor,
+      FaceVerificationEngine.DEFAULT_MATCH_THRESHOLD,
+    );
+    expect(match.similarityScore).toBeLessThan(0.4);
     expect(match.isMatch).toBe(false);
   });
 

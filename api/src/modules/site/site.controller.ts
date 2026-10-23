@@ -115,6 +115,7 @@ export class SiteController {
 
   async validateImportCheckpoints(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const siteId = req.params.id as string;
       const file = req.file;
       if (!file) {
@@ -124,7 +125,11 @@ export class SiteController {
         });
       }
 
-      const result = await siteImportService.validateImport(siteId, file.buffer);
+      const result = await siteImportService.validateImport(
+        siteId,
+        file.buffer,
+        user.tenantId || undefined,
+      );
 
       return res.status(HttpStatus.OK).json({
         success: true,

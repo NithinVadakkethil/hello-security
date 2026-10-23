@@ -716,22 +716,25 @@ export function PatrolScreen() {
         return;
       }
 
-      // Check face registration status
+      // Check face registration status: query authoritative server status first
       let isRegistered = false;
-      const localCache = await secureFaceCache.getSecureCache(user.id, empId);
-      if (localCache && localCache.template && localCache.template.length > 0) {
-        isRegistered = true;
-      } else {
-        try {
-          const serverStatus = await faceEnrollmentApi.getStatus();
-          if (serverStatus?.status === 'REGISTERED') {
-            isRegistered = true;
-          }
-        } catch (err) {
-          console.warn(
-            '[PatrolScreen] Could not check online face status:',
-            err,
-          );
+      try {
+        const serverStatus = await faceEnrollmentApi.getStatus();
+        if (serverStatus?.status === 'REGISTERED') {
+          isRegistered = true;
+        } else {
+          // Authoritative server says not registered: clear stale local cache
+          await secureFaceCache.clearSecureCache();
+          isRegistered = false;
+        }
+      } catch (err) {
+        console.warn(
+          '[PatrolScreen] Could not check online face status, falling back to local cache:',
+          err,
+        );
+        const localCache = await secureFaceCache.getSecureCache(user.id, empId);
+        if (localCache && localCache.template && localCache.template.length === 128) {
+          isRegistered = true;
         }
       }
 
