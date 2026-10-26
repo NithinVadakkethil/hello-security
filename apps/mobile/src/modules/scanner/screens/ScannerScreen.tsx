@@ -485,17 +485,23 @@ export function ScannerScreen() {
       const gateName = matchedGate.gate?.name || cleanCode;
 
       try {
-        // Auto-start patrol session if not yet active
+        // Verify active patrol session exists (patrol must be started with face verification)
         const currentActiveSession = usePatrolStore.getState().activeSession;
-        if (!currentActiveSession && matchedAssignment?.id) {
-          try {
-            const startedSession = await patrolApi.startPatrol(
-              matchedAssignment.id,
-            );
-            await usePatrolStore.getState().startSession(startedSession);
-          } catch (e) {
-            // Auto start session fallback handled silently
-          }
+        if (!currentActiveSession) {
+          Alert.alert(
+            'Patrol Not Started',
+            'Please tap "Start Patrol" and verify your face to start your patrol before scanning checkpoints.',
+            [
+              {
+                text: 'Go to Patrol',
+                onPress: () =>
+                  navigation.navigate('Dashboard', { screen: 'PatrolTab' }),
+              },
+            ],
+          );
+          isProcessingScanRef.current = false;
+          setIsProcessingCode(false);
+          return;
         }
 
         // Unlock checkpoint immediately

@@ -28,8 +28,12 @@ export type AppTabParamList = {
   FaceVerificationPrototype: undefined;
   FaceRegistration: undefined;
   FaceVerification: {
-    mode?: 'MARK_ATTENDANCE' | 'VERIFY_ONLY' | 'CHECKPOINT_UNLOCK';
+    mode?: 'START_PATROL' | 'MARK_ATTENDANCE' | 'MARK_CHECKOUT' | 'VERIFY_ONLY' | 'CHECKPOINT_UNLOCK';
     assignment?: any;
+    patrolParams?: {
+      assignmentId?: string;
+      resolveExistingPatrol?: boolean;
+    };
     checkpointParams?: {
       checkpointId?: string;
       checkpointCode?: string;

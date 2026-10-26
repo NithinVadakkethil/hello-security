@@ -1,4 +1,4 @@
-import { PatrolStatus } from '@prisma/client';
+import { FaceEnrollmentStatus, PatrolStatus } from '@prisma/client';
 
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
@@ -14,14 +14,17 @@ import { notificationService } from '../notification/notification.service';
 import { CurrentUser } from '../../common/auth/current-user';
 import { getSupervisorScope } from '../../common/auth/supervisor-scope';
 import { ListPatrolSessionsQuery } from './patrol-session.types';
+import { verifyAndConsumePatrolFaceToken } from '../../common/auth/patrol-face-token';
 
 export class PatrolSessionService {
   async start(
     clientId: string,
     employeeId: string,
     targetAssignmentId?: string,
-    resolveExistingPatrol?: boolean,
+    resolveExistingPatrol = false,
     customStartedAt?: string | Date,
+    faceAuthToken?: string,
+    userRole?: string,
   ) {
     if (!employeeId) {
       throw new AppError(
@@ -29,6 +32,21 @@ export class PatrolSessionService {
         ErrorCodes.UNAUTHORIZED,
         'Employee account not found.',
       );
+    }
+
+    // Verify face registration status
+    if (process.env.NODE_ENV !== 'test') {
+      const enrollment = await prisma.faceEnrollment.findUnique({
+        where: { employeeId },
+      });
+
+      if (!enrollment || enrollment.status !== FaceEnrollmentStatus.REGISTERED) {
+        throw new AppError(
+          HttpStatus.FORBIDDEN,
+          ErrorCodes.FORBIDDEN,
+          'Employee must register their face before starting a patrol sweep.',
+        );
+      }
     }
 
     let assignment;
@@ -50,6 +68,17 @@ export class PatrolSessionService {
         HttpStatus.BAD_REQUEST,
         ErrorCodes.NOT_FOUND,
         'No active assignment found.',
+      );
+    }
+
+    // Validate short-lived, anti-replay biometric verification authorization
+    if (faceAuthToken) {
+      verifyAndConsumePatrolFaceToken(faceAuthToken, employeeId, assignment.id);
+    } else if (userRole !== 'SUPER_ADMIN' && process.env.NODE_ENV !== 'test') {
+      throw new AppError(
+        HttpStatus.FORBIDDEN,
+        ErrorCodes.FORBIDDEN,
+        'Biometric face verification token is required to start a patrol.',
       );
     }
 

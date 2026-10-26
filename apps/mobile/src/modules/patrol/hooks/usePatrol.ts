@@ -16,11 +16,12 @@ export function usePatrol() {
   const startMutation = useMutation<
     PatrolSession,
     Error,
-    { assignmentId?: string; resolveExistingPatrol?: boolean } | string | undefined
+    { assignmentId?: string; resolveExistingPatrol?: boolean; faceAuthToken?: string } | string | undefined
   >({
     mutationFn: async (args) => {
       const assignmentId = typeof args === 'string' ? args : args?.assignmentId;
       const resolveExistingPatrol = typeof args === 'object' ? args?.resolveExistingPatrol : undefined;
+      const faceAuthToken = typeof args === 'object' ? args?.faceAuthToken : undefined;
       const startedAt = new Date().toISOString();
 
       if (!isConnected) {
@@ -49,10 +50,10 @@ export function usePatrol() {
           remarks: null,
           assignment: targetAssignment || undefined,
         };
-        await useOfflineStore.getState().enqueue('/patrol-sessions/start', 'POST', { assignmentId, resolveExistingPatrol, startedAt, offlineSessionId }, offlineSessionId);
+        await useOfflineStore.getState().enqueue('/patrol-sessions/start', 'POST', { assignmentId, resolveExistingPatrol, startedAt, offlineSessionId, faceAuthToken }, offlineSessionId);
         return tempSession;
       }
-      return patrolApi.startPatrol(assignmentId, resolveExistingPatrol, startedAt);
+      return patrolApi.startPatrol(assignmentId, resolveExistingPatrol, startedAt, faceAuthToken);
     },
     onSuccess: async (data) => {
       await startSession(data);

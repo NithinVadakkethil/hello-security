@@ -667,36 +667,77 @@ export function PatrolScreen() {
     setIsRefreshing(false);
   };
 
+  const isStartingPatrolScreenRef = useRef(false);
+
   const handleStart = async (resolveExisting = false) => {
+    if (isStartingPatrolScreenRef.current) return;
+    isStartingPatrolScreenRef.current = true;
+
     try {
-      await startPatrol({
-        assignmentId: assignment?.id,
-        resolveExistingPatrol: resolveExisting,
-      });
-      Alert.alert(
-        'Patrol Started',
-        'Your active security patrol sweep has initiated.',
-      );
-    } catch (err: any) {
-      const errCode = err?.response?.data?.error?.code || err?.code;
-      if (errCode === 'ACTIVE_PATROL_EXISTS' || err?.response?.status === 409) {
+      if (!assignment?.id) {
+        Alert.alert('Error', 'No active assignment selected.');
+        return;
+      }
+
+      const empId = user?.employeeId || (user as any)?.employee?.id;
+      if (!user?.id || !empId) {
         Alert.alert(
-          'Ongoing Patrol Detected',
-          'You already have a patrol in progress. Starting a new patrol will close the current patrol. If at least one checkpoint has been scanned, the current patrol will be marked as completed and moved to Completed Patrol History. If no checkpoints have been scanned, the current patrol will be cancelled and will not be added to patrol history. Do you want to continue?',
+          'Authentication Error',
+          'User session missing. Please log in again.',
+        );
+        return;
+      }
+
+      // Check face registration status
+      let isRegistered = false;
+      try {
+        const serverStatus = await faceEnrollmentApi.getStatus();
+        if (serverStatus?.status === 'REGISTERED') {
+          isRegistered = true;
+        } else {
+          await secureFaceCache.clearSecureCache();
+        }
+      } catch (err) {
+        console.warn(
+          '[PatrolScreen] Could not check online face status, fallback to local cache:',
+          err,
+        );
+        const localCache = await secureFaceCache.getSecureCache(user.id, empId);
+        if (localCache && localCache.template && localCache.template.length > 0) {
+          isRegistered = true;
+        }
+      }
+
+      if (!isRegistered) {
+        Alert.alert(
+          'Face Registration Required',
+          'Please register your face before starting a patrol.',
           [
             { text: 'Cancel', style: 'cancel' },
             {
-              text: 'Continue',
-              onPress: () => handleStart(true),
+              text: 'Register Face',
+              onPress: () => navigation.navigate('FaceRegistration'),
             },
           ],
         );
-      } else {
-        Alert.alert(
-          'Error starting patrol',
-          err.message || 'Please try again.',
-        );
+        return;
       }
+
+      // Open Face Verification with START_PATROL mode
+      navigation.navigate('FaceVerification', {
+        mode: 'START_PATROL',
+        assignment,
+        patrolParams: {
+          assignmentId: assignment.id,
+          resolveExistingPatrol: resolveExisting,
+        },
+      });
+    } catch (err: any) {
+      Alert.alert('Error starting patrol', err.message || 'Please try again.');
+    } finally {
+      setTimeout(() => {
+        isStartingPatrolScreenRef.current = false;
+      }, 800);
     }
   };
 
@@ -716,49 +757,12 @@ export function PatrolScreen() {
         return;
       }
 
-      // Check face registration status
-      let isRegistered = false;
-      const localCache = await secureFaceCache.getSecureCache(user.id, empId);
-      if (localCache && localCache.template && localCache.template.length > 0) {
-        isRegistered = true;
-      } else {
-        try {
-          const serverStatus = await faceEnrollmentApi.getStatus();
-          if (serverStatus?.status === 'REGISTERED') {
-            isRegistered = true;
-          }
-        } catch (err) {
-          console.warn(
-            '[PatrolScreen] Could not check online face status:',
-            err,
-          );
-        }
-      }
-
-      if (!isRegistered) {
-        Alert.alert(
-          'Face Verification Required',
-          'Please register your face before starting checkpoint verification.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Register Face',
-              onPress: () => navigation.navigate('FaceRegistration'),
-            },
-          ],
-        );
-        return;
-      }
-
-      // Open Face Verification with CHECKPOINT_UNLOCK mode
-      navigation.navigate('FaceVerification', {
-        mode: 'CHECKPOINT_UNLOCK',
-        checkpointParams,
-      });
+      // Directly open Scanner without repeated face verification during active patrol
+      navigation.navigate('Scanner', checkpointParams || {});
     } finally {
       setTimeout(() => {
         isUnlockingRef.current = false;
-      }, 800);
+      }, 500);
     }
   };
 

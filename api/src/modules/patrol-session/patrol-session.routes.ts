@@ -11,6 +11,13 @@ import { patrolSessionController } from './patrol-session.controller';
 const router: Router = Router();
 
 router.post(
+  '/authorize-start',
+  authenticate,
+  authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR, UserRole.MANAGER),
+  patrolSessionController.authorizeStart.bind(patrolSessionController),
+);
+
+router.post(
   '/start',
   authenticate,
   authorize(...OPERATIONAL_ROLES, UserRole.SUPERVISOR, UserRole.MANAGER),

@@ -2,8 +2,23 @@ import { apiClient } from '../../../app/api/api-client';
 import { PatrolSession } from '../../dashboard/types';
 
 export const patrolApi = {
-  startPatrol: async (assignmentId?: string, resolveExistingPatrol?: boolean, startedAt?: string): Promise<PatrolSession> => {
-    const res = (await apiClient.post('/patrol-sessions/start', { assignmentId, resolveExistingPatrol, startedAt })) as any;
+  authorizeStartPatrol: async (assignmentId?: string): Promise<{ faceAuthToken: string }> => {
+    const res = (await apiClient.post('/patrol-sessions/authorize-start', { assignmentId })) as any;
+    return res.data;
+  },
+
+  startPatrol: async (
+    assignmentId?: string,
+    resolveExistingPatrol?: boolean,
+    startedAt?: string,
+    faceAuthToken?: string,
+  ): Promise<PatrolSession> => {
+    const res = (await apiClient.post('/patrol-sessions/start', {
+      assignmentId,
+      resolveExistingPatrol,
+      startedAt,
+      faceAuthToken,
+    })) as any;
     return res.data;
   },
 

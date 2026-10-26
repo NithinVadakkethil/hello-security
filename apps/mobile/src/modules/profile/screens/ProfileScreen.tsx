@@ -55,6 +55,9 @@ export function ProfileScreen() {
     try {
       const data = await faceEnrollmentApi.getStatus();
       setFaceStatus(data);
+      if (data.status === 'NOT_REGISTERED' || data.status === 'RE_ENROLL_REQUIRED') {
+        await secureFaceCache.clearSecureCache();
+      }
     } catch (err) {
       console.warn(
         '[ProfileScreen] Could not fetch face enrollment status:',

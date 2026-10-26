@@ -28,6 +28,8 @@ import { usePatrolStore } from '../../patrol/store/patrol-store';
 import { AttendanceStatusWidget } from '../../attendance/components/AttendanceStatusWidget';
 import { MandatoryPatrolWidget } from '../../patrol/components/MandatoryPatrolWidget';
 import { Card } from '../components/WidgetCard';
+import { secureFaceCache } from '../../face/services/secure-face-cache';
+import { faceEnrollmentApi } from '../../face/api/face-enrollment.api';
 
 export function GuardDashboard() {
   const { colors } = useTheme();
@@ -69,44 +71,83 @@ export function GuardDashboard() {
     minute: '2-digit',
   });
 
+  const isStartingAssignmentRef = React.useRef(false);
+
   const handleStartAssignment = async (asg: any, resolveExisting = false) => {
+    if (isStartingAssignmentRef.current) return;
+    isStartingAssignmentRef.current = true;
+
     try {
+      // 1. If an active patrol session already exists and user is not replacing it, resume directly without face verification
       if (activeSession && !resolveExisting) {
         navigation.navigate('Dashboard', {
           screen: 'PatrolTab',
           params: {
             assignmentId:
               activeSession.assignmentId || activeSession.assignment?.id,
+            sessionId: activeSession.id,
           },
         });
         return;
       }
 
-      const startedSession = await startPatrol({
-        assignmentId: asg.id,
-        resolveExistingPatrol: resolveExisting,
-      });
-      navigation.navigate('Dashboard', {
-        screen: 'PatrolTab',
-        params: { assignmentId: asg.id, sessionId: startedSession?.id },
-      });
-    } catch (err: any) {
-      const errCode = err?.response?.data?.error?.code || err?.code;
-      if (errCode === 'ACTIVE_PATROL_EXISTS' || err?.response?.status === 409) {
+      // 2. Validate user session
+      const empId = user?.employeeId || (user as any)?.employee?.id;
+      if (!user?.id || !empId) {
         Alert.alert(
-          'Ongoing Patrol Detected',
-          'You already have a patrol in progress. Starting a new patrol will close the current patrol. If at least one checkpoint has been scanned, the current patrol will be marked as completed and moved to Completed Patrol History. If no checkpoints have been scanned, the current patrol will be cancelled and will not be added to patrol history. Do you want to continue?',
+          'Authentication Error',
+          'User session missing. Please log in again.',
+        );
+        return;
+      }
+
+      // 3. Verify whether the employee has registered their face
+      let isRegistered = false;
+      try {
+        const serverStatus = await faceEnrollmentApi.getStatus();
+        if (serverStatus?.status === 'REGISTERED') {
+          isRegistered = true;
+        } else {
+          await secureFaceCache.clearSecureCache();
+        }
+      } catch (err) {
+        console.warn('[GuardDashboard] Could not check online face status, fallback to local cache:', err);
+        const localCache = await secureFaceCache.getSecureCache(user.id, empId);
+        if (localCache && localCache.template && localCache.template.length > 0) {
+          isRegistered = true;
+        }
+      }
+
+      if (!isRegistered) {
+        Alert.alert(
+          'Face Registration Required',
+          'Please register your face before starting a patrol.',
           [
             { text: 'Cancel', style: 'cancel' },
             {
-              text: 'Continue',
-              onPress: () => handleStartAssignment(asg, true),
+              text: 'Register Face',
+              onPress: () => navigation.navigate('FaceRegistration'),
             },
           ],
         );
-      } else {
-        Alert.alert('Patrol Error', err.message || 'Failed to start patrol.');
+        return;
       }
+
+      // 4. Navigate to FaceVerification with mode: 'START_PATROL'
+      navigation.navigate('FaceVerification', {
+        mode: 'START_PATROL',
+        assignment: asg,
+        patrolParams: {
+          assignmentId: asg.id,
+          resolveExistingPatrol: resolveExisting,
+        },
+      });
+    } catch (err: any) {
+      Alert.alert('Patrol Error', err.message || 'Failed to initiate patrol.');
+    } finally {
+      setTimeout(() => {
+        isStartingAssignmentRef.current = false;
+      }, 800);
     }
   };
 

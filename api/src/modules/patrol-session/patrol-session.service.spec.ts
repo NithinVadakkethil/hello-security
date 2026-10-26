@@ -1,7 +1,8 @@
-import { PatrolStatus } from '@prisma/client';
+import { FaceEnrollmentStatus, PatrolStatus } from '@prisma/client';
 import { patrolSessionRepository } from './patrol-session.repository';
 import { patrolSessionService } from './patrol-session.service';
 import { prisma } from '../../database/prisma';
+import { generatePatrolFaceToken } from '../../common/auth/patrol-face-token';
 
 describe('PatrolSession Lifecycle & Cancellation Logic', () => {
   beforeEach(() => {
@@ -9,8 +10,14 @@ describe('PatrolSession Lifecycle & Cancellation Logic', () => {
   });
 
   describe('patrolSessionRepository.cancel', () => {
-    it('should update status to CANCELLED and set endedAt timestamp without physical deletion', async () => {
-      const mockSession = { id: 'session-123', status: PatrolStatus.IN_PROGRESS };
+    it('should update status to CANCELLED and set endedAt timestamp without physical deletion when items exist', async () => {
+      const mockSession = {
+        id: 'session-123',
+        status: PatrolStatus.IN_PROGRESS,
+        checkpoints: [{ id: 'cp-1' }],
+        incidents: [],
+        snags: [],
+      };
       jest.spyOn(prisma.patrolSession, 'findUnique').mockResolvedValue(mockSession as any);
       const updateSpy = jest.spyOn(prisma.patrolSession, 'update').mockResolvedValue({
         ...mockSession,
@@ -22,7 +29,11 @@ describe('PatrolSession Lifecycle & Cancellation Logic', () => {
 
       expect(prisma.patrolSession.findUnique).toHaveBeenCalledWith({
         where: { id: 'session-123' },
-        select: { id: true, status: true },
+        include: {
+          checkpoints: { select: { id: true } },
+          incidents: { select: { id: true } },
+          snags: { select: { id: true } },
+        },
       });
       expect(updateSpy).toHaveBeenCalledWith({
         where: { id: 'session-123' },
@@ -35,7 +46,13 @@ describe('PatrolSession Lifecycle & Cancellation Logic', () => {
     });
 
     it('should handle idempotency gracefully if session is already cancelled', async () => {
-      const mockSession = { id: 'session-already-cancelled', status: PatrolStatus.CANCELLED };
+      const mockSession = {
+        id: 'session-already-cancelled',
+        status: PatrolStatus.CANCELLED,
+        checkpoints: [{ id: 'cp-1' }],
+        incidents: [],
+        snags: [],
+      };
       jest.spyOn(prisma.patrolSession, 'findUnique').mockResolvedValue(mockSession as any);
 
       const result = await patrolSessionRepository.cancel('session-already-cancelled');
@@ -58,13 +75,52 @@ describe('PatrolSession Lifecycle & Cancellation Logic', () => {
     });
   });
 
-  describe('patrolSessionService.start', () => {
-    it('should auto-clear abandoned zero-checkpoint session and create new patrol', async () => {
+  describe('patrolSessionService.start & Face Verification', () => {
+    it('should reject start if employee has not registered their face', async () => {
+      jest.spyOn(prisma.faceEnrollment, 'findUnique').mockResolvedValue(null);
+
+      await expect(
+        patrolSessionService.start('client-1', 'emp-1', undefined, false, undefined, undefined),
+      ).rejects.toThrow('Employee must register their face before starting a patrol sweep.');
+    });
+
+    it('should reject start if faceAuthToken is missing', async () => {
+      jest.spyOn(prisma.faceEnrollment, 'findUnique').mockResolvedValue({
+        status: FaceEnrollmentStatus.REGISTERED,
+      } as any);
+      const mockAssignment = { id: 'assignment-1', employeeId: 'emp-1', isActive: true };
+      const { assignmentRepository } = require('../assignment/assignment.repository');
+      jest.spyOn(assignmentRepository, 'findById').mockResolvedValue(mockAssignment as any);
+
+      await expect(
+        patrolSessionService.start('client-1', 'emp-1', 'assignment-1', false, undefined, undefined),
+      ).rejects.toThrow('Biometric face verification token is required to start a patrol.');
+    });
+
+    it('should reject start if faceAuthToken is forged or bound to another employee', async () => {
+      jest.spyOn(prisma.faceEnrollment, 'findUnique').mockResolvedValue({
+        status: FaceEnrollmentStatus.REGISTERED,
+      } as any);
+      const mockAssignment = { id: 'assignment-1', employeeId: 'emp-1', isActive: true };
+      const { assignmentRepository } = require('../assignment/assignment.repository');
+      jest.spyOn(assignmentRepository, 'findById').mockResolvedValue(mockAssignment as any);
+
+      const forgedToken = generatePatrolFaceToken('other-emp', 'assignment-1');
+
+      await expect(
+        patrolSessionService.start('client-1', 'emp-1', 'assignment-1', false, undefined, forgedToken),
+      ).rejects.toThrow('Biometric authorization token does not belong to the authenticated employee.');
+    });
+
+    it('should auto-clear abandoned zero-checkpoint session when resolveExistingPatrol is true and create new patrol with valid faceAuthToken', async () => {
       const mockAssignment = { id: 'assignment-1', employeeId: 'emp-1', isActive: true };
       const runningSession = { id: 'session-zero', status: PatrolStatus.IN_PROGRESS };
 
+      jest.spyOn(prisma.faceEnrollment, 'findUnique').mockResolvedValue({
+        status: FaceEnrollmentStatus.REGISTERED,
+      } as any);
       jest.spyOn(prisma.patrolCheckpoint, 'count').mockResolvedValue(0);
-      jest.spyOn(patrolSessionRepository, 'findActiveByAssignment').mockResolvedValue(runningSession as any);
+      jest.spyOn(patrolSessionRepository, 'findActiveByEmployee').mockResolvedValue(runningSession as any);
       const cancelSpy = jest.spyOn(patrolSessionRepository, 'cancel').mockResolvedValue({
         id: 'session-zero',
         status: PatrolStatus.CANCELLED,
@@ -75,29 +131,43 @@ describe('PatrolSession Lifecycle & Cancellation Logic', () => {
       } as any);
 
       const { assignmentRepository } = require('../assignment/assignment.repository');
-      jest.spyOn(assignmentRepository, 'findEmployeeActiveAssignment').mockResolvedValue(mockAssignment as any);
+      jest.spyOn(assignmentRepository, 'findById').mockResolvedValue(mockAssignment as any);
 
       const { counterService } = require('../../common/counter/counter.service');
       jest.spyOn(counterService, 'next').mockResolvedValue(10001);
 
-      const result = await patrolSessionService.start('client-1', 'emp-1');
+      const validToken = generatePatrolFaceToken('emp-1', 'assignment-1');
+
+      const result = await patrolSessionService.start('client-1', 'emp-1', 'assignment-1', true, undefined, validToken);
 
       expect(cancelSpy).toHaveBeenCalledWith('session-zero');
       expect(patrolSessionRepository.create).toHaveBeenCalled();
       expect(result).toEqual({ id: 'new-session-789', patrolCode: 'PTS-10001' });
+
+      // Replaying the exact same token should now be rejected as consumed
+      await expect(
+        patrolSessionService.start('client-1', 'emp-1', 'assignment-1', true, undefined, validToken),
+      ).rejects.toThrow('Biometric authorization token has already been consumed (replay detected).');
     });
 
-    it('should throw CONFLICT error if running session has scanned checkpoints', async () => {
+    it('should throw CONFLICT error if running session exists and resolveExistingPatrol is false', async () => {
       const mockAssignment = { id: 'assignment-1', employeeId: 'emp-1', isActive: true };
       const runningSession = { id: 'session-scanned', status: PatrolStatus.IN_PROGRESS };
 
+      jest.spyOn(prisma.faceEnrollment, 'findUnique').mockResolvedValue({
+        status: FaceEnrollmentStatus.REGISTERED,
+      } as any);
       jest.spyOn(prisma.patrolCheckpoint, 'count').mockResolvedValue(3);
-      jest.spyOn(patrolSessionRepository, 'findActiveByAssignment').mockResolvedValue(runningSession as any);
+      jest.spyOn(patrolSessionRepository, 'findActiveByEmployee').mockResolvedValue(runningSession as any);
 
       const { assignmentRepository } = require('../assignment/assignment.repository');
-      jest.spyOn(assignmentRepository, 'findEmployeeActiveAssignment').mockResolvedValue(mockAssignment as any);
+      jest.spyOn(assignmentRepository, 'findById').mockResolvedValue(mockAssignment as any);
 
-      await expect(patrolSessionService.start('client-1', 'emp-1')).rejects.toThrow('Patrol already in progress.');
+      const validToken = generatePatrolFaceToken('emp-1', 'assignment-1');
+
+      await expect(
+        patrolSessionService.start('client-1', 'emp-1', 'assignment-1', false, undefined, validToken),
+      ).rejects.toThrow('You already have a patrol in progress.');
     });
   });
 
