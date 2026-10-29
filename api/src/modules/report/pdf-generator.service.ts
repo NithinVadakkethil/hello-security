@@ -1,16 +1,30 @@
 import puppeteer from 'puppeteer';
-import { ReportDataset } from './summary-report.service';
 import { logger } from '../../common/logger/logger';
 import { findChromeExecutable, resolveImageUrl } from './report.service';
+import { ReportDataset } from './summary-report.service';
 
 export class PdfGeneratorService {
   /**
    * Builds client-presentable HTML string from normalized ReportDataset
    */
   buildHtml(dataset: ReportDataset): string {
-    const { metadata, summary, patrols, mandatoryPatrols, incidents, siteSummary, employeeSummary, attendance = [] } = dataset;
-    const isKaizen = metadata.isKaizen || metadata.includeIncidents === false || metadata.clientName?.toLowerCase().includes('kaizen');
-    const resolvedLogo = metadata.clientLogoUrl ? resolveImageUrl(metadata.clientLogoUrl) : null;
+    const {
+      metadata,
+      summary,
+      patrols,
+      mandatoryPatrols,
+      incidents,
+      siteSummary,
+      employeeSummary,
+      attendance = [],
+    } = dataset;
+    const isKaizen =
+      metadata.isKaizen ||
+      metadata.includeIncidents === false ||
+      metadata.clientName?.toLowerCase().includes('kaizen');
+    const resolvedLogo = metadata.clientLogoUrl
+      ? resolveImageUrl(metadata.clientLogoUrl)
+      : null;
 
     return `
 <!DOCTYPE html>
@@ -178,12 +192,16 @@ export class PdfGeneratorService {
       ${metadata.siteName ? `<p style="margin: 2px 0 0 0;">Site: <strong>${metadata.siteName}</strong></p>` : ''}
       ${metadata.shiftName ? `<p style="margin: 2px 0 0 0;">Shift: <strong>${metadata.shiftName}</strong></p>` : ''}
       ${metadata.roleLabel && !metadata.employeeName ? `<p style="margin: 2px 0 0 0;">Employee Category: <strong>${metadata.roleLabel}</strong></p>` : ''}
-      ${metadata.employeeName ? `
+      ${
+        metadata.employeeName
+          ? `
         <p style="margin: 2px 0 0 0;">Employee: <strong>${metadata.employeeName}</strong></p>
         <p style="margin: 2px 0 0 0;">Role: <strong>${metadata.employeeRole || 'Security Guard'}</strong></p>
         ${metadata.employeeNumber ? `<p style="margin: 2px 0 0 0;">Staff ID: <strong>${metadata.employeeNumber}</strong></p>` : ''}
         ${metadata.emiratesId ? `<p style="margin: 2px 0 0 0;">Emirates ID: <strong>${metadata.emiratesId}</strong></p>` : ''}
-      ` : ''}
+      `
+          : ''
+      }
       <p style="margin: 2px 0 0 0;">Report Type: <strong>${metadata.periodType}</strong></p>
       <p style="margin: 2px 0 0 0;">Period: <strong>${metadata.periodLabel}</strong></p>
       <p style="margin: 2px 0 0 0;">Generated: <strong>${metadata.generatedAt.split('T')[0]} (${metadata.timezone})</strong></p>
@@ -552,12 +570,18 @@ export class PdfGeneratorService {
   async generatePdf(dataset: ReportDataset): Promise<Buffer> {
     const htmlContent = this.buildHtml(dataset);
 
-    logger.info(`[PdfGeneratorService] Launching Puppeteer for ${dataset.metadata.title}`);
+    logger.info(
+      `[PdfGeneratorService] Launching Puppeteer for ${dataset.metadata.title}`,
+    );
 
     const executablePath = findChromeExecutable();
     const browser = await puppeteer.launch({
       ...(executablePath ? { executablePath } : {}),
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+      ],
       headless: true,
     });
 
