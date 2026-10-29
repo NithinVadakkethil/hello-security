@@ -3,6 +3,7 @@ import {
   normalizeEmiratesId,
   validateEmiratesId,
   maskEmiratesId,
+  formatEmiratesId,
 } from '../emirates-id.util';
 
 describe('Emirates ID Utilities', () => {
@@ -84,6 +85,20 @@ describe('Emirates ID Utilities', () => {
 
     it('should return "Not provided" for invalid / legacy non-standard formats', () => {
       expect(maskEmiratesId('invalid-id')).toBe('Not provided');
+    });
+  });
+
+  describe('formatEmiratesId', () => {
+    it('should format raw or formatted 15-digit Emirates ID as 784-XXXX-XXXXXXX-X unmasked', () => {
+      expect(formatEmiratesId('784199012345671')).toBe('784-1990-1234567-1');
+      expect(formatEmiratesId('784-1990-1234567-1')).toBe('784-1990-1234567-1');
+    });
+
+    it('should return "Not provided" for null, undefined, or empty values', () => {
+      expect(formatEmiratesId(null)).toBe('Not provided');
+      expect(formatEmiratesId(undefined)).toBe('Not provided');
+      expect(formatEmiratesId('')).toBe('Not provided');
+      expect(formatEmiratesId('   ')).toBe('Not provided');
     });
   });
 });

@@ -7,7 +7,7 @@ export class PdfGeneratorService {
   /**
    * Builds client-presentable HTML string from normalized ReportDataset
    */
-  private buildHtml(dataset: ReportDataset): string {
+  buildHtml(dataset: ReportDataset): string {
     const { metadata, summary, patrols, mandatoryPatrols, incidents, siteSummary, employeeSummary, attendance = [] } = dataset;
     const isKaizen = metadata.isKaizen || metadata.includeIncidents === false || metadata.clientName?.toLowerCase().includes('kaizen');
     const resolvedLogo = metadata.clientLogoUrl ? resolveImageUrl(metadata.clientLogoUrl) : null;
@@ -333,6 +333,7 @@ export class PdfGeneratorService {
       <tr>
         <th>Date</th>
         <th>Employee Name</th>
+        <th>Emirates ID</th>
         <th>Role</th>
         <th>Site</th>
         <th>Shift</th>
@@ -348,6 +349,7 @@ export class PdfGeneratorService {
         <tr>
           <td>${att.shiftDate}</td>
           <td><strong>${att.employeeName}</strong></td>
+          <td style="font-family: monospace; font-size: 8px;">${att.emiratesId || 'Not provided'}</td>
           <td>${att.employeeRole || 'Security Guard'}</td>
           <td>${att.siteName}</td>
           <td>${att.shiftName}</td>
@@ -496,11 +498,12 @@ export class PdfGeneratorService {
   ${
     employeeSummary.length > 0
       ? `
-  <div class="section-title">Guard & Staff Performance Summary</div>
+  <div class="section-title">Employee Performance Summary</div>
   <table>
     <thead>
       <tr>
         <th>Employee Name</th>
+        <th>Emirates ID</th>
         <th>Role</th>
         <th>Site</th>
         <th>Completed Patrols</th>
@@ -513,7 +516,11 @@ export class PdfGeneratorService {
         .map(
           (emp) => `
         <tr>
-          <td><strong>${emp.employeeName}</strong></td>
+          <td>
+            <strong>${emp.employeeName}</strong>
+            ${emp.employeeNumber ? `<div style="font-size: 7.5px; color: #64748b; font-family: monospace;">ID: ${emp.employeeNumber}</div>` : ''}
+          </td>
+          <td style="font-family: monospace; font-size: 8px;">${emp.emiratesId || 'Not provided'}</td>
           <td>${emp.employeeRole || 'Security Guard'}</td>
           <td>${emp.siteName}</td>
           <td>${emp.completedPatrols}</td>

@@ -14,6 +14,7 @@ import Pagination from '../../components/ui/Pagination';
 import SearchBar from '../../components/ui/SearchBar';
 import StatusChip from '../../components/ui/StatusChip';
 import { formatPatrolDateTime } from '@/lib/date-formatter';
+import { formatEmiratesId } from '@/lib/emirates-id';
 
 const ROLE_LABELS: Record<string, string> = {
   SECURITY: 'Security Guard',
@@ -220,12 +221,16 @@ export default function CentralReportsPage() {
           officerName = row.officerName;
         }
 
+        const rawEid = emp?.emiratesId || mgrEmp?.emiratesId || row.emiratesId;
+        const formattedEid = rawEid ? formatEmiratesId(rawEid) : null;
+        const eidBadge = formattedEid && formattedEid !== 'Not provided' ? `EID: ${formattedEid}` : null;
+
         return (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>{officerName}</span>
-            {empCode && (
+            {(empCode || eidBadge) && (
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                {empCode}
+                {[empCode, eidBadge].filter(Boolean).join(' • ')}
               </span>
             )}
           </div>
@@ -401,7 +406,7 @@ export default function CentralReportsPage() {
             setSearch(val);
             setPage(1);
           }}
-          placeholder="Search patrol code or officer name..."
+          placeholder="Search patrol code or employee name..."
         />
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>

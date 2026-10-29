@@ -10,7 +10,7 @@ import { createPortal } from 'react-dom';
 import { resolveImageUrl } from '../../../../lib/image';
 import { filterEligibleCheckpointsForSession } from '../../../../lib/checkpoint-eligibility';
 import { buildCheckpointTimeline, getReportOfficerInfo } from '@/lib/checkpoint-timeline';
-import { maskEmiratesId } from '@/lib/emirates-id';
+import { formatEmiratesId } from '@/lib/emirates-id';
 
 interface SingleReportPrintTemplateProps {
   report: any;
@@ -559,7 +559,7 @@ export default function SingleReportPrintTemplate({
   const emp = report.assignment?.employee || report.employee;
   const mgrEmp = report.managerUser?.employee;
   const rawEmiratesId = emp?.emiratesId || mgrEmp?.emiratesId || report.emiratesId;
-  const emiratesIdDisplay = maskEmiratesId(rawEmiratesId);
+  const emiratesIdDisplay = formatEmiratesId(rawEmiratesId);
   const siteName = report.assignment?.site?.name;
   const routeName =
     report.assignment?.patrolRoute?.name || 'Direct Checkpoints';
@@ -626,7 +626,7 @@ export default function SingleReportPrintTemplate({
       <table className="rpt-details-table">
         <tbody>
           <tr>
-            <td className="rpt-details-label">Officer</td>
+            <td className="rpt-details-label">Employee</td>
             <td className="rpt-details-val">{guardName}</td>
             <td className="rpt-details-label">Company Name</td>
             <td className="rpt-details-val">{clientCompanyName}</td>
@@ -867,7 +867,7 @@ export default function SingleReportPrintTemplate({
             const snagIdDisplay = `SNAG-${snag.id.slice(-6).toUpperCase()}`;
             const reporterName = snag.employee
               ? `${snag.employee.firstName} ${snag.employee.lastName || ''}`.trim()
-              : 'Security Officer';
+              : 'Employee';
             const reporterEmpId = snag.employee?.employeeNumber || '—';
             const beforeImages = Array.isArray(snag.images) ? snag.images : [];
 

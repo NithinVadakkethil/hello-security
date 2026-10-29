@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
 import { exportToCsv } from '../../../lib/export';
+import { formatEmiratesId } from '@/lib/emirates-id';
 import { apiClient } from '../../lib/axios';
 import { ApiResponse } from '../../types/api';
 
@@ -195,8 +196,9 @@ function ReportsPageContent() {
           'Report ID': r.id,
           'Patrol Code': r.patrolCode,
           'Started At': new Date(r.startedAt).toLocaleString(),
-          'Guard Name': `${r.assignment.employee.firstName} ${r.assignment.employee.lastName}`,
+          'Employee Name': `${r.assignment.employee.firstName} ${r.assignment.employee.lastName}`,
           'Employee ID': r.assignment.employee.employeeNumber,
+          'Emirates ID': formatEmiratesId(r.assignment.employee.emiratesId),
           'Site Name': r.assignment.site.name,
           'Route / Target':
             r.assignment.patrolRoute?.name || 'Direct Checkpoints',

@@ -147,16 +147,16 @@ describe('Patrol Inspection Report Enhancements (Regression & Feature Suite)', (
       expect(html).toContain('rpt-details-table');
       expect(html).not.toContain('rpt-meta-grid');
 
-      // Row 1: Officer and Company Name
-      expect(html).toContain('Officer');
+      // Row 1: Employee and Company Name
+      expect(html).toContain('Employee');
       expect(html).toContain('John Doe Guard');
       expect(html).toContain('Company Name');
       expect(html).toContain('Kaizen Properties LLC');
 
-      // Row 2: Employee ID and Monitored Site
+      // Row 2: Employee ID and Emirates ID
       expect(html).toContain('Employee ID');
       expect(html).toContain('EMP-00142');
-      expect(html).toContain('Monitored Site');
+      expect(html).toContain('Emirates ID');
       expect(html).toContain('Marina Gate Tower 1');
 
       // Row 3: Role and Shift

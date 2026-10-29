@@ -546,15 +546,11 @@ export default function EmployeeCompletedPatrolsPage() {
                       <Calendar size={14} style={{ color: '#2563eb' }} />
                       <span>{data.period.periodLabel}</span>
                     </span>
-                    {data.employee.emiratesId && (
-                      <>
-                        <span>•</span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <ShieldCheck size={14} style={{ color: '#16a34a' }} />
-                          <span>Emirates ID: {data.employee.emiratesId}</span>
-                        </span>
-                      </>
-                    )}
+                    <span>•</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <ShieldCheck size={14} style={{ color: '#16a34a' }} />
+                      <span>Emirates ID: {data.employee.emiratesId || 'Not provided'}</span>
+                    </span>
                   </div>
                 </div>
               </div>

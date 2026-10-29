@@ -23,7 +23,7 @@ export function LoginPlaceholderScreen() {
         id: 'usr-1',
         email,
         role: 'SECURITY',
-        firstName: 'Officer',
+        firstName: 'John',
         lastName: 'Smith',
       });
       setLoading(false);

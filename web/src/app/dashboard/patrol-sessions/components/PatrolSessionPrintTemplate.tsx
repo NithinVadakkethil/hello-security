@@ -2,6 +2,7 @@
 
 import { resolveImageUrl } from '../../../../lib/image';
 import { formatPatrolDateTime } from '@/lib/date-formatter';
+import { formatEmiratesId } from '@/lib/emirates-id';
 
 interface PatrolSessionPrintTemplateProps {
   session: any;
@@ -372,6 +373,14 @@ export default function PatrolSessionPrintTemplate({
                 </td>
                 <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>
                   {employee.employeeNumber || 'EMP-001'}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ color: '#64748b', padding: '2px 0' }}>
+                  Emirates ID:
+                </td>
+                <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                  {formatEmiratesId(employee.emiratesId)}
                 </td>
               </tr>
               <tr>
@@ -1098,7 +1107,7 @@ export default function PatrolSessionPrintTemplate({
             const snagIdDisplay = `SNAG-${snag.id.slice(-6).toUpperCase()}`;
             const reporterName = snag.employee
               ? `${snag.employee.firstName} ${snag.employee.lastName || ''}`.trim()
-              : 'Security Officer';
+              : 'Employee';
             const reporterEmpId = snag.employee?.employeeNumber || '—';
             const beforeImages = Array.isArray(snag.images) ? snag.images : [];
 

@@ -54,8 +54,8 @@ export class ExcelGeneratorService {
       ['Incomplete / Ongoing Patrols', dataset.summary.incompletePatrols],
       ['Additional / Extra Patrols', dataset.summary.additionalPatrols],
       ['Mandatory Patrols Scheduled', dataset.summary.mandatoryScheduled],
-      ['Total Guards / Employees', dataset.summary.totalEmployees],
-      ['Active Guards', dataset.summary.activeEmployees],
+      ['Total Employees', dataset.summary.totalEmployees],
+      ['Active Employees', dataset.summary.activeEmployees],
     );
 
     if (!isKaizen) {
@@ -89,8 +89,9 @@ export class ExcelGeneratorService {
       const formattedAttendance = dataset.attendance.map((att) => ({
         'Shift Date': att.shiftDate,
         'Employee': att.employeeName,
+        'Staff ID': att.employeeNumber || '—',
+        'Emirates ID': att.emiratesId || 'Not provided',
         'Role': att.employeeRole || 'Security Guard',
-        'Staff ID': att.employeeNumber,
         'Site Name': att.siteName,
         'Shift Name': att.shiftName,
         'Check-In Time': att.checkInTime || '—',
@@ -106,6 +107,8 @@ export class ExcelGeneratorService {
       const formattedMandatory = dataset.mandatoryPatrols.map((m) => ({
         'Patrol Sequence': `Patrol ${m.sequence}`,
         'Employee': m.guardName,
+        'Staff ID': m.employeeNumber || '—',
+        'Emirates ID': m.emiratesId || 'Not provided',
         'Role': m.employeeRole || 'Security Guard',
         'Site Name': m.siteName,
         'Shift Name': m.shiftName,
@@ -124,6 +127,7 @@ export class ExcelGeneratorService {
       const formattedPatrols = dataset.patrols.map((p) => ({
         'Patrol Code': p.patrolCode,
         'Employee': p.employeeName || p.guardName,
+        'Emirates ID': p.emiratesId || dataset.metadata.emiratesId || 'Not provided',
         'Role': p.employeeRole || 'Security Guard',
         'Site / Route': `${p.siteName} - ${p.routeName}`,
         'Started At': p.startedAt,
@@ -148,7 +152,7 @@ export class ExcelGeneratorService {
         'Patrol Session Code': cp.patrolCode,
         'Scanned Timestamp': cp.scannedAt,
         'Verification Status': cp.status,
-        'Officer Remarks': cp.remarks || '',
+        'Employee Remarks': cp.remarks || '',
       }));
       const wsCheckpoints = XLSX.utils.json_to_sheet(formattedCheckpoints);
       XLSX.utils.book_append_sheet(wb, wsCheckpoints, 'Checkpoints');
@@ -188,6 +192,8 @@ export class ExcelGeneratorService {
     if (dataset.employeeSummary.length > 0) {
       const formattedEmpSummary = dataset.employeeSummary.map((e) => ({
         'Employee': e.employeeName,
+        'Staff ID': e.employeeNumber || '—',
+        'Emirates ID': e.emiratesId || 'Not provided',
         'Role': e.employeeRole || 'Security Guard',
         'Site Name': e.siteName,
         'Completed Patrols': e.completedPatrols,

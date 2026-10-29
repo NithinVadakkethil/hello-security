@@ -1,20 +1,21 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { compareEmployeesByRoleOrder } from '@/lib/role-order';
+import { formatEmiratesId } from '@/lib/emirates-id';
 import { Eye, User, X } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import DataTable from '../../components/ui/DataTable';
+import Pagination from '../../components/ui/Pagination';
+import SearchBar from '../../components/ui/SearchBar';
+import StatusChip from '../../components/ui/StatusChip';
 import { apiClient } from '../../lib/axios';
 import { CentralCompanyHeader } from '../components/CentralCompanyHeader';
 import {
   CentralManagerOrganizationSelector,
   OrganizationMetric,
 } from '../components/CentralManagerOrganizationSelector';
-import DataTable from '../../components/ui/DataTable';
-import Pagination from '../../components/ui/Pagination';
-import SearchBar from '../../components/ui/SearchBar';
-import StatusChip from '../../components/ui/StatusChip';
-import { compareEmployeesByRoleOrder } from '@/lib/role-order';
 
 const ROLE_LABELS: Record<string, string> = {
   SECURITY: 'Security Guard',
@@ -23,7 +24,7 @@ const ROLE_LABELS: Record<string, string> = {
   CLEANER: 'House Keeping',
   SERVICE_ENGINEER: 'Service Engineer',
   SUPERVISOR: 'Supervisor',
-  MANAGER: 'Community Manager',
+  MANAGER: 'Kaizen Security Manager',
   LIFE_GUARD: 'Lifeguard',
   PLUMBER: 'Plumber',
 };
@@ -45,17 +46,23 @@ export default function CentralEmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [isEmployeesLoading, setIsEmployeesLoading] = useState(false);
 
-  const [roleCounts, setRoleCounts] = useState<{ total: number; byRole: { role: string; count: number }[] }>({
+  const [roleCounts, setRoleCounts] = useState<{
+    total: number;
+    byRole: { role: string; count: number }[];
+  }>({
     total: 0,
     byRole: [],
   });
 
   const [search, setSearch] = useState('');
-  const [selectedRole, setSelectedRole] = useState<string>(searchParams?.get('role') || '');
+  const [selectedRole, setSelectedRole] = useState<string>(
+    searchParams?.get('role') || '',
+  );
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
 
-  const isAllRoles = !selectedRole || selectedRole === 'ALL' || selectedRole === 'All Roles';
+  const isAllRoles =
+    !selectedRole || selectedRole === 'ALL' || selectedRole === 'All Roles';
 
   useEffect(() => {
     const roleParam = searchParams?.get('role') || '';
@@ -77,7 +84,9 @@ export default function CentralEmployeesPage() {
       const orgsList = res?.data || (Array.isArray(res) ? res : []);
       setOrganizations(orgsList);
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Unable to load assigned organizations. Please try again.';
+      const msg =
+        err?.response?.data?.message ||
+        'Unable to load assigned organizations. Please try again.';
       setOrgsError(msg);
       toast.error(msg);
     } finally {
@@ -92,7 +101,9 @@ export default function CentralEmployeesPage() {
   // 2. Fetch role counts for selected organization
   const fetchRoleCounts = async (targetClientId: string) => {
     try {
-      const res: any = await apiClient.get(`/central-manager/employee-role-counts?clientId=${targetClientId}`);
+      const res: any = await apiClient.get(
+        `/central-manager/employee-role-counts?clientId=${targetClientId}`,
+      );
       const data = res?.data || res;
       setRoleCounts(data || { total: 0, byRole: [] });
     } catch (err) {
@@ -101,7 +112,11 @@ export default function CentralEmployeesPage() {
   };
 
   // 3. Fetch employees list for selected organization
-  const fetchEmployees = async (targetClientId: string, roleFilter?: string, searchQuery?: string) => {
+  const fetchEmployees = async (
+    targetClientId: string,
+    roleFilter?: string,
+    searchQuery?: string,
+  ) => {
     setIsEmployeesLoading(true);
     try {
       const params = new URLSearchParams();
@@ -111,7 +126,9 @@ export default function CentralEmployeesPage() {
       }
       if (searchQuery) params.set('search', searchQuery);
 
-      const res: any = await apiClient.get(`/central-manager/employees?${params.toString()}`);
+      const res: any = await apiClient.get(
+        `/central-manager/employees?${params.toString()}`,
+      );
       const empList = res?.data || (Array.isArray(res) ? res : []);
       setEmployees(empList);
     } catch (err: any) {
@@ -164,10 +181,17 @@ export default function CentralEmployeesPage() {
     .sort(compareEmployeesByRoleOrder);
 
   // Pagination calculation
-  const limit = pageSize === 'all' ? filteredEmployees.length : Number(pageSize);
-  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / (limit || 1)));
+  const limit =
+    pageSize === 'all' ? filteredEmployees.length : Number(pageSize);
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredEmployees.length / (limit || 1)),
+  );
   const safePage = Math.min(page, totalPages);
-  const paginatedEmployees = pageSize === 'all' ? filteredEmployees : filteredEmployees.slice((safePage - 1) * limit, safePage * limit);
+  const paginatedEmployees =
+    pageSize === 'all'
+      ? filteredEmployees
+      : filteredEmployees.slice((safePage - 1) * limit, safePage * limit);
 
   // DataTable columns definition
   const columns = [
@@ -176,7 +200,8 @@ export default function CentralEmployeesPage() {
       label: 'Employee',
       render: (row: any) => {
         const initials = row.firstName ? row.firstName[0].toUpperCase() : 'E';
-        const fullName = `${row.firstName || ''} ${row.lastName || ''}`.trim() || 'Employee';
+        const fullName =
+          `${row.firstName || ''} ${row.lastName || ''}`.trim() || 'Employee';
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
@@ -197,8 +222,24 @@ export default function CentralEmployeesPage() {
               {initials}
             </div>
             <div>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>{fullName}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '1px' }}>{row.email || 'No Email'}</div>
+              <div
+                style={{
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  fontSize: '0.95rem',
+                }}
+              >
+                {fullName}
+              </div>
+              <div
+                style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--text-secondary)',
+                  marginTop: '1px',
+                }}
+              >
+                {row.email || 'No Email'}
+              </div>
             </div>
           </div>
         );
@@ -208,7 +249,14 @@ export default function CentralEmployeesPage() {
       key: 'employeeNumber',
       label: 'Emp Code',
       render: (row: any) => (
-        <span style={{ fontWeight: 700, fontFamily: 'monospace', fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+        <span
+          style={{
+            fontWeight: 700,
+            fontFamily: 'monospace',
+            fontSize: '0.88rem',
+            color: 'var(--text-primary)',
+          }}
+        >
           {row.employeeNumber || 'N/A'}
         </span>
       ),
@@ -235,13 +283,19 @@ export default function CentralEmployeesPage() {
     {
       key: 'designation',
       label: 'Designation',
-      render: (row: any) => <span style={{ color: 'var(--text-secondary)' }}>{row.designation || 'Staff Member'}</span>,
+      render: (row: any) => (
+        <span style={{ color: 'var(--text-secondary)' }}>
+          {row.designation || 'Staff Member'}
+        </span>
+      ),
     },
     {
       key: 'site',
       label: 'Assigned Site',
       render: (row: any) => (
-        <span style={{ color: 'var(--text-secondary)' }}>{row.assignments?.[0]?.site?.name || 'Unassigned'}</span>
+        <span style={{ color: 'var(--text-secondary)' }}>
+          {row.assignments?.[0]?.site?.name || 'Unassigned'}
+        </span>
       ),
     },
     {
@@ -256,7 +310,12 @@ export default function CentralEmployeesPage() {
         <button
           onClick={() => setSelectedEmployee(row)}
           className="btn btn-secondary"
-          style={{ padding: '6px 12px', fontSize: '0.8rem', gap: '6px', cursor: 'pointer' }}
+          style={{
+            padding: '6px 12px',
+            fontSize: '0.8rem',
+            gap: '6px',
+            cursor: 'pointer',
+          }}
         >
           <Eye size={14} />
           <span>View</span>
@@ -283,8 +342,23 @@ export default function CentralEmployeesPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Page Header */}
       <div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Employees</h1>
-        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+        <h1
+          style={{
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            margin: 0,
+            color: 'var(--text-primary)',
+          }}
+        >
+          Employees
+        </h1>
+        <p
+          style={{
+            fontSize: '0.9rem',
+            color: 'var(--text-secondary)',
+            margin: '4px 0 0 0',
+          }}
+        >
           Read-only employee directory for selected project.
         </p>
       </div>
@@ -299,12 +373,24 @@ export default function CentralEmployeesPage() {
       />
 
       {/* Role Filter Chips */}
-      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: '8px',
+          overflowX: 'auto',
+          paddingBottom: '4px',
+        }}
+      >
         <button
           type="button"
           onClick={() => handleRoleChange('')}
           className={`btn ${isAllRoles ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: '20px', whiteSpace: 'nowrap' }}
+          style={{
+            padding: '6px 14px',
+            fontSize: '0.8rem',
+            borderRadius: '20px',
+            whiteSpace: 'nowrap',
+          }}
         >
           All Roles ({roleCounts.total})
         </button>
@@ -316,7 +402,12 @@ export default function CentralEmployeesPage() {
               type="button"
               onClick={() => handleRoleChange(r.role)}
               className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: '20px', whiteSpace: 'nowrap' }}
+              style={{
+                padding: '6px 14px',
+                fontSize: '0.8rem',
+                borderRadius: '20px',
+                whiteSpace: 'nowrap',
+              }}
             >
               {getRoleLabel(r.role)} ({r.count})
             </button>
@@ -353,7 +444,11 @@ export default function CentralEmployeesPage() {
               setPage(1);
             }}
             className="input-select"
-            style={{ padding: '8px 12px', fontSize: '0.85rem', borderRadius: '8px' }}
+            style={{
+              padding: '8px 12px',
+              fontSize: '0.85rem',
+              borderRadius: '8px',
+            }}
           >
             <option value="ALL">All Statuses</option>
             <option value="ACTIVE">Active Only</option>
@@ -413,44 +508,118 @@ export default function CentralEmployeesPage() {
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
+              >
                 <User size={20} style={{ color: '#2563EB' }} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                <h3
+                  style={{
+                    fontSize: '1.1rem',
+                    fontWeight: 700,
+                    margin: 0,
+                    color: 'var(--text-primary)',
+                  }}
+                >
                   Employee Details (Read-Only)
                 </h3>
               </div>
               <button
                 onClick={() => setSelectedEmployee(null)}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                }}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '0.9rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+                fontSize: '0.9rem',
+              }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '12px',
+                }}
+              >
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                    }}
+                  >
                     FULL NAME
                   </span>
-                  <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {selectedEmployee.firstName} {selectedEmployee.lastName || ''}
+                  <p
+                    style={{
+                      margin: '2px 0 0 0',
+                      fontWeight: 700,
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {selectedEmployee.firstName}{' '}
+                    {selectedEmployee.lastName || ''}
                   </p>
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                    }}
+                  >
                     EMPLOYEE CODE
                   </span>
-                  <p style={{ margin: '2px 0 0 0', fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                  <p
+                    style={{
+                      margin: '2px 0 0 0',
+                      fontWeight: 700,
+                      fontFamily: 'monospace',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
                     {selectedEmployee.employeeNumber}
                   </p>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '12px',
+                }}
+              >
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                    }}
+                  >
                     ROLE
                   </span>
                   <p style={{ margin: '2px 0 0 0' }}>
@@ -469,26 +638,65 @@ export default function CentralEmployeesPage() {
                   </p>
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                    }}
+                  >
                     DESIGNATION
                   </span>
-                  <p style={{ margin: '2px 0 0 0', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  <p
+                    style={{
+                      margin: '2px 0 0 0',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                    }}
+                  >
                     {selectedEmployee.designation || 'Staff Member'}
                   </p>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '12px',
+                }}
+              >
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                    }}
+                  >
                     PROJECT
                   </span>
-                  <p style={{ margin: '2px 0 0 0', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  <p
+                    style={{
+                      margin: '2px 0 0 0',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                    }}
+                  >
                     {selectedEmployee.client?.companyName || 'N/A'}
                   </p>
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                    }}
+                  >
                     STATUS
                   </span>
                   <p style={{ margin: '2px 0 0 0' }}>
@@ -498,22 +706,88 @@ export default function CentralEmployeesPage() {
               </div>
 
               <div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                  }}
+                >
                   EMAIL
                 </span>
-                <p style={{ margin: '2px 0 0 0', fontWeight: 600, color: 'var(--text-primary)' }}>{selectedEmployee.email || 'N/A'}</p>
+                <p
+                  style={{
+                    margin: '2px 0 0 0',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {selectedEmployee.email || 'N/A'}
+                </p>
               </div>
 
               <div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                  }}
+                >
                   PHONE
                 </span>
-                <p style={{ margin: '2px 0 0 0', fontWeight: 600, color: 'var(--text-primary)' }}>{selectedEmployee.phone || selectedEmployee.phoneNumber || 'N/A'}</p>
+                <p
+                  style={{
+                    margin: '2px 0 0 0',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {selectedEmployee.phone ||
+                    selectedEmployee.phoneNumber ||
+                    'N/A'}
+                </p>
+              </div>
+
+              <div>
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  EMIRATES ID
+                </span>
+                <p
+                  style={{
+                    margin: '2px 0 0 0',
+                    fontWeight: 600,
+                    fontFamily: 'monospace',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {formatEmiratesId(selectedEmployee.emiratesId)}
+                </p>
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
-              <button onClick={() => setSelectedEmployee(null)} className="btn btn-secondary" style={{ padding: '8px 18px', fontSize: '0.85rem' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                paddingTop: '16px',
+                borderTop: '1px solid var(--border-color)',
+              }}
+            >
+              <button
+                onClick={() => setSelectedEmployee(null)}
+                className="btn btn-secondary"
+                style={{ padding: '8px 18px', fontSize: '0.85rem' }}
+              >
                 Close
               </button>
             </div>

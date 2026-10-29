@@ -14,6 +14,7 @@ import {
   filterEligibleCheckpointsForSession,
 } from '../../common/utils/checkpoint-eligibility.util';
 import { buildCheckpointTimeline } from '../../common/utils/checkpoint-timeline.util';
+import { formatEmiratesId } from '../../common/utils/emirates-id.util';
 import { reportRepository } from './report.repository';
 import { ReportQueryDto } from './report.types';
 
@@ -172,8 +173,9 @@ export class ReportService {
       'Report ID',
       'Patrol Code',
       'Inspection Date',
-      'Guard Name',
+      'Employee Name',
       'Employee Code',
+      'Emirates ID',
       'Site Name',
       'Route / Target',
       'Status',
@@ -193,6 +195,11 @@ export class ReportService {
       const empCode = isManager
         ? (session.managerUser as any)?.employee?.employeeNumber || 'MGR'
         : session.assignment?.employee?.employeeNumber || 'N/A';
+      const rawEid =
+        session.assignment?.employee?.emiratesId ||
+        (session.managerUser as any)?.employee?.emiratesId ||
+        (session as any).emiratesId;
+      const emiratesIdDisplay = formatEmiratesId(rawEid);
       const cpSites = Array.from(new Set((session.checkpoints || []).map((cp: any) => cp.gate?.site?.name).filter(Boolean)));
       const siteName = isManager
         ? (cpSites.length > 1 ? `${cpSites.length} Sites (${cpSites.join(', ')})` : (cpSites[0] || 'N/A'))
@@ -244,6 +251,7 @@ export class ReportService {
         new Date(session.startedAt).toLocaleString(),
         `"${guardName.replace(/"/g, '""')}"`,
         empCode,
+        emiratesIdDisplay,
         `"${siteName.replace(/"/g, '""')}"`,
         `"${routeName.replace(/"/g, '""')}"`,
         session.status,
@@ -317,6 +325,10 @@ export class ReportService {
     const employeeId = isManagerSession
       ? (report.managerUser?.employee?.employeeNumber || 'MGR')
       : (report.assignment?.employee?.employeeNumber || emp?.employeeNumber || report.employeeCode || '—');
+
+    const rawEmiratesId =
+      emp?.emiratesId || mgrEmp?.emiratesId || report.emiratesId;
+    const emiratesIdDisplay = formatEmiratesId(rawEmiratesId);
 
     const cpSites = Array.from(new Set((report.checkpoints || []).map((cp: any) => cp.gate?.site?.name).filter(Boolean)));
     const siteName = isManagerSession
@@ -756,7 +768,7 @@ export class ReportService {
     <table class="rpt-details-table">
       <tbody>
         <tr>
-          <td class="rpt-details-label">Officer</td>
+          <td class="rpt-details-label">Employee</td>
           <td class="rpt-details-val">${guardName}</td>
           <td class="rpt-details-label">Company Name</td>
           <td class="rpt-details-val">${clientCompanyName}</td>
@@ -764,24 +776,20 @@ export class ReportService {
         <tr>
           <td class="rpt-details-label">Employee ID</td>
           <td class="rpt-details-val">${employeeId}</td>
-          <td class="rpt-details-label">Monitored Site</td>
-          <td class="rpt-details-val">${siteName}</td>
+          <td class="rpt-details-label">Emirates ID</td>
+          <td class="rpt-details-val">${emiratesIdDisplay}</td>
         </tr>
         <tr>
           <td class="rpt-details-label">Role</td>
           <td class="rpt-details-val">${officerRole === 'CLEANER' ? 'House Keeper' : officerRole}</td>
-          <td class="rpt-details-label">Shift</td>
-          <td class="rpt-details-val">${shiftInfo}</td>
+          <td class="rpt-details-label">Monitored Site</td>
+          <td class="rpt-details-val">${siteName}</td>
         </tr>
         <tr>
           <td class="rpt-details-label">Route / Target</td>
           <td class="rpt-details-val">${routeName}</td>
-          <td class="rpt-details-label">Supervisor Status</td>
-          <td class="rpt-details-val">
-            <span class="rpt-pill ${verificationPillClass}">
-              ${verificationStatus}
-            </span>
-          </td>
+          <td class="rpt-details-label">Shift</td>
+          <td class="rpt-details-val">${shiftInfo}</td>
         </tr>
         <tr>
           <td class="rpt-details-label">Started</td>
@@ -799,6 +807,14 @@ export class ReportService {
           <td class="rpt-details-label">Patrol Duration</td>
           <td class="rpt-details-val" style="color: #0f172a;">
             ${patrolDurationFormatted}
+          </td>
+        </tr>
+        <tr>
+          <td class="rpt-details-label">Supervisor Status</td>
+          <td class="rpt-details-val" colspan="3">
+            <span class="rpt-pill ${verificationPillClass}">
+              ${verificationStatus}
+            </span>
           </td>
         </tr>
       </tbody>
@@ -959,7 +975,7 @@ export class ReportService {
             const snagIdDisplay = `SNAG-${snag.id.slice(-6).toUpperCase()}`;
             const reporterName = snag.employee
               ? `${snag.employee.firstName} ${snag.employee.lastName || ''}`.trim()
-              : 'Security Officer';
+              : 'Employee';
             const reporterEmpId = snag.employee?.employeeNumber || '—';
             const beforeImages = deduplicateImages(Array.isArray(snag.images) ? snag.images : []);
 

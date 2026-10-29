@@ -10,7 +10,7 @@ import { formatPatrolDateTime, formatPatrolDuration, resolveCheckpointTiming } f
 import { resolveImageUrl } from '../../../../lib/image';
 import { filterEligibleCheckpointsForSession } from '../../../../lib/checkpoint-eligibility';
 import { buildCheckpointTimeline, getReportOfficerInfo } from '@/lib/checkpoint-timeline';
-import { maskEmiratesId } from '@/lib/emirates-id';
+import { formatEmiratesId } from '@/lib/emirates-id';
 
 interface DetailedReportModalProps {
   isOpen: boolean;
@@ -259,7 +259,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
           return (
             <div className="rpt-meta-grid">
               <div className="rpt-meta-card">
-                <div className="rpt-meta-label">Security Officer / Inspector</div>
+                <div className="rpt-meta-label">Employee / Inspector</div>
                 <div className="rpt-meta-val">{officerName}</div>
                 {(officerCode || officerRole) && (
                   <div className="rpt-meta-sub" style={{ fontFamily: 'monospace' }}>
@@ -269,7 +269,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
                   </div>
                 )}
                 <div className="rpt-meta-sub" style={{ fontSize: '0.72rem', marginTop: '3px' }}>
-                  Emirates ID: {maskEmiratesId(emp?.emiratesId || mgrEmp?.emiratesId || report.emiratesId)}
+                  Emirates ID: {formatEmiratesId(emp?.emiratesId || mgrEmp?.emiratesId || report.emiratesId)}
                 </div>
               </div>
 

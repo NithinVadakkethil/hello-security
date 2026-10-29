@@ -21,6 +21,7 @@ export interface InspectionRow {
       employeeNumber: string;
       photo?: string | null;
       role?: string | null;
+      emiratesId?: string | null;
     };
     site: {
       name: string;
@@ -159,7 +160,7 @@ export default function InspectionReportTable({
                   {getSortIcon('startedAt')}
                 </div>
               </th>
-              <th style={{ padding: '12px 16px' }}>Security Officer</th>
+              <th style={{ padding: '12px 16px' }}>Employee</th>
               <th style={{ padding: '12px 16px' }}>Role</th>
               <th style={{ padding: '12px 16px' }}>Monitored Site</th>
               <th style={{ padding: '12px 16px' }}>Route / Target</th>

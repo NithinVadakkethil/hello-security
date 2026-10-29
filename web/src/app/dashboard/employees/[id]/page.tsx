@@ -226,7 +226,7 @@ export default function EmployeeDetailPage() {
 
               <div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>DESIGNATION</p>
-                <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{employee.designation || 'Security Officer'}</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{employee.designation || 'Security Guard'}</p>
               </div>
 
               <div>

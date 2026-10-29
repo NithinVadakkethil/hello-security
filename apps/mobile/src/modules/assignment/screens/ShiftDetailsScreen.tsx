@@ -39,7 +39,7 @@ export function ShiftDetailsScreen({ route }: any) {
       <Card style={styles.card}>
         <Text style={[styles.instructionTitle, { color: colors.text }]}>1. Shift Punctuality</Text>
         <Text style={[styles.instructionText, { color: colors.textSecondary }]}>
-          Officers are expected to report for duty 15 minutes prior to shift start time to conduct a hand-over briefing.
+          Employees are expected to report for duty 15 minutes prior to shift start time to conduct a hand-over briefing.
         </Text>
 
         <View style={styles.spacer} />

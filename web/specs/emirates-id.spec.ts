@@ -4,6 +4,7 @@ import {
   formatEmiratesIdInput,
   validateEmiratesId,
   maskEmiratesId,
+  formatEmiratesId,
 } from '../src/lib/emirates-id';
 
 describe('Frontend Emirates ID Utility', () => {
@@ -34,8 +35,18 @@ describe('Frontend Emirates ID Utility', () => {
 
   it('should mask Emirates ID with 784-****-*******-X', () => {
     expect(maskEmiratesId('784-1990-1234567-5')).toBe('784-****-*******-5');
+    expect(maskEmiratesId('784199012345675')).toBe('784-****-*******-5');
     expect(maskEmiratesId(null)).toBe('Not provided');
     expect(maskEmiratesId('')).toBe('Not provided');
+    expect(maskEmiratesId('invalid-string')).toBe('Not provided');
+  });
+
+  it('should format Emirates ID unmasked as 784-XXXX-XXXXXXX-X', () => {
+    expect(formatEmiratesId('784-1990-1234567-5')).toBe('784-1990-1234567-5');
+    expect(formatEmiratesId('784199012345675')).toBe('784-1990-1234567-5');
+    expect(formatEmiratesId(null)).toBe('Not provided');
+    expect(formatEmiratesId('')).toBe('Not provided');
+    expect(formatEmiratesId('   ')).toBe('Not provided');
   });
 });
 

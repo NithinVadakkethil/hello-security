@@ -18,6 +18,7 @@ import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { resolveImageUrl } from '../../../../lib/image';
+import { formatEmiratesId } from '@/lib/emirates-id';
 import { apiClient } from '../../../lib/axios';
 import { getAccessToken } from '../../../utils/token';
 import SearchableSelect, { SearchableOption } from './SearchableSelect';
@@ -46,6 +47,7 @@ export interface ReportDataset {
     employeeName?: string;
     employeeRole?: string;
     employeeNumber?: string;
+    emiratesId?: string | null;
     generatedAt: string;
     timezone: string;
     includeIncidents?: boolean;
@@ -501,15 +503,22 @@ export default function PeriodicReportGenerator({
         `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Employee';
       const role = formatRoleLabel(emp.role, emp.designation);
       const code = emp.employeeNumber || emp.employeeCode || undefined;
+      const rawEid = emp.emiratesId;
+      const eid = rawEid ? formatEmiratesId(rawEid) : undefined;
+      const eidBadge = eid && eid !== 'Not provided' ? `EID: ${eid}` : null;
+      const subLabel = [role, code ? `ID: ${code}` : null, eidBadge].filter(Boolean).join(' • ');
+
       return {
         id: emp.id,
         label: name,
-        subLabel: code ? `${role} • ID: ${code}` : role,
+        subLabel,
         searchValues: [
           name,
           emp.firstName,
           emp.lastName,
           code,
+          eid,
+          emp.emiratesId,
           role,
           emp.role,
           emp.designation,
@@ -1509,6 +1518,8 @@ export default function PeriodicReportGenerator({
                     {reportData.metadata.employeeNumber
                       ? ` • ID: ${reportData.metadata.employeeNumber}`
                       : ''}
+                    {' • Emirates ID: '}
+                    <strong>{reportData.metadata.emiratesId || 'Not provided'}</strong>
                   </div>
                 ) : (
                   <div
@@ -2461,6 +2472,7 @@ export default function PeriodicReportGenerator({
                   >
                     <th style={{ padding: '10px 12px' }}>Sequence</th>
                     <th style={{ padding: '10px 12px' }}>Employee</th>
+                    <th style={{ padding: '10px 12px' }}>Emirates ID</th>
                     <th style={{ padding: '10px 12px' }}>Role</th>
                     <th style={{ padding: '10px 12px' }}>Site</th>
                     <th style={{ padding: '10px 12px' }}>Shift</th>
@@ -2477,7 +2489,15 @@ export default function PeriodicReportGenerator({
                         Patrol {mp.sequence}
                       </td>
                       <td style={{ padding: '10px 12px', fontWeight: 600 }}>
-                        {mp.guardName || mp.employeeName}
+                        <div>{mp.guardName || mp.employeeName}</div>
+                        {mp.employeeNumber && (
+                          <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                            {mp.employeeNumber}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#475569' }}>
+                        {mp.emiratesId || 'Not provided'}
                       </td>
                       <td style={{ padding: '10px 12px' }}>
                         {mp.employeeRole || 'Security Guard'}
@@ -2513,7 +2533,7 @@ export default function PeriodicReportGenerator({
                     reportData.mandatoryPatrols.length === 0) && (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         style={{
                           padding: '24px',
                           textAlign: 'center',
@@ -2546,6 +2566,7 @@ export default function PeriodicReportGenerator({
                   >
                     <th style={{ padding: '10px 12px' }}>Patrol Code</th>
                     <th style={{ padding: '10px 12px' }}>Employee</th>
+                    <th style={{ padding: '10px 12px' }}>Emirates ID</th>
                     <th style={{ padding: '10px 12px' }}>Role</th>
                     <th style={{ padding: '10px 12px' }}>Site / Route</th>
                     <th style={{ padding: '10px 12px' }}>Started At</th>
@@ -2569,6 +2590,9 @@ export default function PeriodicReportGenerator({
                       </td>
                       <td style={{ padding: '10px 12px', fontWeight: 600 }}>
                         {p.employeeName || p.guardName}
+                      </td>
+                      <td style={{ padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#475569' }}>
+                        {p.emiratesId || reportData.metadata?.emiratesId || 'Not provided'}
                       </td>
                       <td style={{ padding: '10px 12px' }}>
                         {p.employeeRole || 'Security Guard'}
@@ -2607,7 +2631,7 @@ export default function PeriodicReportGenerator({
                   {(!reportData.patrols || reportData.patrols.length === 0) && (
                     <tr>
                       <td
-                        colSpan={8}
+                        colSpan={9}
                         style={{
                           padding: '24px',
                           textAlign: 'center',
@@ -2640,6 +2664,7 @@ export default function PeriodicReportGenerator({
                   >
                     <th style={{ padding: '10px 12px' }}>Date</th>
                     <th style={{ padding: '10px 12px' }}>Employee</th>
+                    <th style={{ padding: '10px 12px' }}>Emirates ID</th>
                     <th style={{ padding: '10px 12px' }}>Role</th>
                     <th style={{ padding: '10px 12px' }}>Site</th>
                     <th style={{ padding: '10px 12px' }}>Shift</th>
@@ -2653,7 +2678,15 @@ export default function PeriodicReportGenerator({
                     <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '10px 12px' }}>{att.shiftDate}</td>
                       <td style={{ padding: '10px 12px', fontWeight: 600 }}>
-                        {att.employeeName}
+                        <div>{att.employeeName}</div>
+                        {att.employeeNumber ? (
+                          <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                            {att.employeeNumber}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td style={{ padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#475569' }}>
+                        {att.emiratesId || 'Not provided'}
                       </td>
                       <td style={{ padding: '10px 12px' }}>
                         {att.employeeRole || 'Security Guard'}
@@ -2702,7 +2735,7 @@ export default function PeriodicReportGenerator({
                     reportData.attendance.length === 0) && (
                     <tr>
                       <td
-                        colSpan={8}
+                        colSpan={9}
                         style={{
                           padding: '24px',
                           textAlign: 'center',
@@ -2836,6 +2869,7 @@ export default function PeriodicReportGenerator({
                     }}
                   >
                     <th style={{ padding: '10px 12px' }}>Employee</th>
+                    <th style={{ padding: '10px 12px' }}>Emirates ID</th>
                     <th style={{ padding: '10px 12px' }}>Role</th>
                     <th style={{ padding: '10px 12px' }}>Site</th>
                     <th style={{ padding: '10px 12px' }}>Completed Patrols</th>
@@ -2847,8 +2881,16 @@ export default function PeriodicReportGenerator({
                 <tbody>
                   {reportData.employeeSummary?.map((emp, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>
-                        {emp.employeeName}
+                      <td style={{ padding: '10px 12px' }}>
+                        <div style={{ fontWeight: 600, color: '#0f172a' }}>{emp.employeeName}</div>
+                        {emp.employeeNumber && (
+                          <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                            ID: {emp.employeeNumber}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#475569' }}>
+                        {emp.emiratesId || 'Not provided'}
                       </td>
                       <td style={{ padding: '10px 12px' }}>
                         {emp.employeeRole || 'Security Guard'}
@@ -2924,7 +2966,7 @@ export default function PeriodicReportGenerator({
                     reportData.employeeSummary.length === 0) && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         style={{
                           padding: '24px',
                           textAlign: 'center',

@@ -449,7 +449,7 @@ export function AssignedMaintenanceScreen() {
                         ? `${snag.employee.firstName} ${
                             snag.employee.lastName || ''
                           }`
-                        : 'Security Officer'}
+                        : 'Employee'}
                     </Text>
                   </Text>
                 </View>
@@ -772,7 +772,7 @@ export function AssignedMaintenanceScreen() {
                             style={{ fontWeight: '700', color: colors.text }}
                           >
                             {reportedIssueData?.reportedBy ||
-                              'Security Officer'}
+                              'Employee'}
                           </Text>
                         </Text>
                         <Text

@@ -6,7 +6,7 @@ import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 import { formatPatrolDateTime, formatPatrolDate, formatPatrolTime, calculatePatrolDurationSeconds, resolveCheckpointTiming, calculateOverlapDurationSeconds, formatDurationHuman, getDateStringInTimezone, getReportingPeriodBoundaries, ReportingPeriodResult } from '../../common/utils/date-formatter.util';
 import { isCheckpointEligibleForSession } from '../../common/utils/checkpoint-eligibility.util';
-import { maskEmiratesId } from '../../common/utils/emirates-id.util';
+import { formatEmiratesId } from '../../common/utils/emirates-id.util';
 
 export type ReportPeriodType = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
 
@@ -137,6 +137,7 @@ export interface ReportDataset {
     employeeName: string;
     employeeRole: string;
     employeeNumber: string;
+    emiratesId?: string | null;
     siteName: string;
     shiftName: string;
     checkInTime: string;
@@ -151,6 +152,7 @@ export interface ReportDataset {
     guardName: string;
     employeeRole: string;
     employeeCode: string;
+    emiratesId?: string | null;
     siteName: string;
     routeName: string;
     shiftName: string;
@@ -177,6 +179,8 @@ export interface ReportDataset {
     sequence: number;
     guardName: string;
     employeeRole: string;
+    employeeNumber?: string | null;
+    emiratesId?: string | null;
     siteName: string;
     shiftName: string;
     scheduledAt: string;
@@ -220,6 +224,8 @@ export interface ReportDataset {
   employeeSummary: Array<{
     employeeId: string;
     employeeName: string;
+    employeeNumber?: string | null;
+    emiratesId?: string | null;
     employeeRole: string;
     siteName: string;
     completedPatrols: number;
@@ -755,7 +761,7 @@ export class SummaryReportService {
       const emp = p.assignment?.employee || p.managerUser?.employee;
       const guardName = emp
         ? `${emp.firstName} ${emp.lastName || ''}`.trim()
-        : p.managerUser?.email || 'Officer';
+        : p.managerUser?.email || 'Employee';
       const employeeRole = formatRoleLabel(emp?.role, emp?.designation);
       const employeeCode = emp?.employeeNumber || '—';
 
@@ -790,6 +796,7 @@ export class SummaryReportService {
         guardName,
         employeeRole,
         employeeCode,
+        emiratesId: formatEmiratesId(emp?.emiratesId),
         siteName: p.assignment?.site?.name || 'Monitored Site',
         routeName: p.assignment?.patrolRoute?.name || 'Patrol Route',
         shiftName: p.assignment?.shift?.name || 'Shift',
@@ -908,6 +915,8 @@ export class SummaryReportService {
         sequence: m.sequence,
         guardName,
         employeeRole,
+        employeeNumber: m.employee?.employeeNumber || null,
+        emiratesId: formatEmiratesId(m.employee?.emiratesId),
         siteName: m.assignment?.site?.name || 'Assigned Site',
         shiftName: m.assignment?.shift?.name || m.shift?.name || 'Shift',
         scheduledAt: formatPatrolDateTime(m.scheduledAt, timezone, false),
@@ -924,7 +933,7 @@ export class SummaryReportService {
       const emp = p.assignment?.employee || p.managerUser?.employee;
       const guardName = emp
         ? `${emp.firstName} ${emp.lastName || ''}`.trim()
-        : p.managerUser?.email || 'Officer';
+        : p.managerUser?.email || 'Employee';
 
       p.checkpoints.forEach((cp) => {
         checkpointRows.push({
@@ -1027,6 +1036,8 @@ export class SummaryReportService {
         id: true,
         firstName: true,
         lastName: true,
+        employeeNumber: true,
+        emiratesId: true,
         role: true,
         designation: true,
         assignments: {
@@ -1048,6 +1059,8 @@ export class SummaryReportService {
       empMap.set(emp.id, {
         employeeId: emp.id,
         employeeName: eName,
+        employeeNumber: emp.employeeNumber || null,
+        emiratesId: formatEmiratesId(emp.emiratesId),
         employeeRole: eRole,
         siteName: sName,
         completedPatrols: 0,
@@ -1071,6 +1084,8 @@ export class SummaryReportService {
         empMap.set(eId, {
           employeeId: eId,
           employeeName: eName,
+          employeeNumber: m.employee.employeeNumber || null,
+          emiratesId: formatEmiratesId(m.employee.emiratesId),
           employeeRole: eRole,
           siteName: sName,
           completedPatrols: 0,
@@ -1100,6 +1115,8 @@ export class SummaryReportService {
           empMap.set(eId, {
             employeeId: eId,
             employeeName: eName,
+            employeeNumber: emp.employeeNumber || null,
+            emiratesId: formatEmiratesId(emp.emiratesId),
             employeeRole: eRole,
             siteName: sName,
             completedPatrols: 0,
@@ -1141,6 +1158,8 @@ export class SummaryReportService {
       empMap.set(employeeId, {
         employeeId: scopedEmployee.id,
         employeeName: `${scopedEmployee.firstName} ${scopedEmployee.lastName || ''}`.trim(),
+        employeeNumber: scopedEmployee.employeeNumber || null,
+        emiratesId: formatEmiratesId(scopedEmployee.emiratesId),
         employeeRole: formatRoleLabel(scopedEmployee.role, scopedEmployee.designation),
         siteName: siteName || 'Assigned Site',
         completedPatrols: 0,
@@ -1207,6 +1226,7 @@ export class SummaryReportService {
           employeeName: `${a.employee.firstName} ${a.employee.lastName || ''}`.trim(),
           employeeRole: formatRoleLabel(a.employee.role, a.employee.designation),
           employeeNumber: a.employee.employeeNumber || '—',
+          emiratesId: formatEmiratesId(a.employee.emiratesId),
           siteName: a.site?.name || 'Monitored Site',
           shiftName: a.shift?.name || 'Shift',
           checkInTime: isCheckInVerified ? formatPatrolDateTime(a.checkInAt, timezone, false) : null,
@@ -1240,6 +1260,7 @@ export class SummaryReportService {
         employeeName: `${a.employee.firstName} ${a.employee.lastName || ''}`.trim(),
         employeeRole: formatRoleLabel(a.employee.role, a.employee.designation),
         employeeNumber: a.employee.employeeNumber || '—',
+        emiratesId: formatEmiratesId(a.employee.emiratesId),
         siteName: a.site.name,
         shiftName: a.shift.name,
         checkInTime: null,
@@ -1274,7 +1295,7 @@ export class SummaryReportService {
         employeeName,
         employeeRole,
         employeeNumber,
-        emiratesId: scopedEmployee?.emiratesId ? maskEmiratesId(scopedEmployee.emiratesId) : null,
+        emiratesId: scopedEmployee ? formatEmiratesId(scopedEmployee.emiratesId) : null,
         generatedAt: new Date().toISOString(),
         timezone: 'Asia/Dubai (GST)',
         includeIncidents,
@@ -1590,7 +1611,7 @@ export class SummaryReportService {
         role: employee.role,
         roleLabel: formatRoleLabel(employee.role, employee.designation),
         designation: employee.designation,
-        emiratesId: maskEmiratesId(employee.emiratesId),
+        emiratesId: formatEmiratesId(employee.emiratesId),
       },
       project: {
         id: client.id,

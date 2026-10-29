@@ -17,12 +17,12 @@ import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
+import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 import { ProtectedRoute } from '../components/protected-route';
+import NotificationBell from '../dashboard/components/NotificationBell';
 import { useTheme } from '../providers/theme-provider';
 import { useAuthStore } from '../store/auth-store';
 import { clearTokens } from '../utils/token';
-import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
-import NotificationBell from '../dashboard/components/NotificationBell';
 
 export default function CentralManagerLayout({
   children,
@@ -55,15 +55,24 @@ export default function CentralManagerLayout({
     { href: '/central/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/central/employees', label: 'Employees', icon: Users },
     { href: '/central/attendance', label: 'Attendance', icon: Clock },
-    { href: '/central/observations', label: 'Observation Reports', icon: AlertTriangle },
+    {
+      href: '/central/observations',
+      label: 'Observation Reports',
+      icon: AlertTriangle,
+    },
     { href: '/central/snags', label: 'Snag List', icon: Wrench },
     { href: '/central/reports', label: 'Reports & Analytics', icon: FileText },
     { href: '/central/profile', label: 'My Profile', icon: User },
   ];
 
   const menuItems = rawMenuItems.filter((item) => {
-    if (item.href === '/central/observations' && !DEMO_KAIZEN_FEATURES.observations) return false;
-    if (item.href === '/central/snags' && !DEMO_KAIZEN_FEATURES.snags) return false;
+    if (
+      item.href === '/central/observations' &&
+      !DEMO_KAIZEN_FEATURES.observations
+    )
+      return false;
+    if (item.href === '/central/snags' && !DEMO_KAIZEN_FEATURES.snags)
+      return false;
     return true;
   });
 
@@ -101,7 +110,10 @@ export default function CentralManagerLayout({
             </div>
             <span className="logo-text">
               HELLO
-              <span style={{ color: '#2563EB', fontWeight: '800' }}> ORBIT</span>
+              <span style={{ color: '#2563EB', fontWeight: '800' }}>
+                {' '}
+                ORBIT
+              </span>
             </span>
           </div>
 
@@ -125,14 +137,15 @@ export default function CentralManagerLayout({
                 textAlign: 'center',
               }}
             >
-              Community Manager Portal
+              Kaizen Security Manager
             </p>
           </div>
 
           <nav className="sidebar-menu">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+              const isActive =
+                pathname === item.href || pathname.startsWith(item.href + '/');
 
               return (
                 <Link
@@ -159,11 +172,21 @@ export default function CentralManagerLayout({
             >
               <div className="user-avatar">{getInitials(user?.email)}</div>
               <div className="user-details">
-                <p className="user-name" style={{ fontSize: '12px', fontWeight: '700' }}>
+                <p
+                  className="user-name"
+                  style={{ fontSize: '12px', fontWeight: '700' }}
+                >
                   {user?.email}
                 </p>
-                <p className="user-role" style={{ color: '#2563EB', fontWeight: '800', fontSize: '10px' }}>
-                  COMMUNITY MANAGER
+                <p
+                  className="user-role"
+                  style={{
+                    color: '#2563EB',
+                    fontWeight: '800',
+                    fontSize: '10px',
+                  }}
+                >
+                  KAIZEN SECURITY MANAGER
                 </p>
               </div>
             </Link>
@@ -182,7 +205,10 @@ export default function CentralManagerLayout({
         <div className="app-content">
           <header className="app-header">
             <h2 className="page-title">{getHeaderTitle()}</h2>
-            <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div
+              className="header-actions"
+              style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
+            >
               <NotificationBell />
               <button
                 onClick={toggleTheme}

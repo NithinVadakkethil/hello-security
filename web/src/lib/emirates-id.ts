@@ -109,3 +109,21 @@ export function maskEmiratesId(input?: string | null): string {
   return `784-****-*******-${lastDigit}`;
 }
 
+/**
+ * Formats Emirates ID for report presentation (unmasked).
+ * Presentation format: 784-XXXX-XXXXXXX-X
+ * If null/empty/invalid, returns 'Not provided'.
+ */
+export function formatEmiratesId(input?: string | null): string {
+  if (!input || input.trim() === '') {
+    return 'Not provided';
+  }
+
+  const digits = extractEmiratesIdDigits(input);
+  if (digits.length === 15) {
+    return normalizeEmiratesId(digits);
+  }
+
+  return input.trim() || 'Not provided';
+}
+
