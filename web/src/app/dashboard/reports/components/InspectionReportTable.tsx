@@ -234,7 +234,7 @@ export default function InspectionReportTable({
                 const compliancePct =
                   totalGates > 0
                     ? Math.round((completedCount / totalGates) * 100)
-                    : 100;
+                    : 0;
                 // const durationMins = row.totalDuration
                 //   ? Math.round(row.totalDuration / 60)
                 //   : 0;
@@ -351,7 +351,7 @@ export default function InspectionReportTable({
                         }}
                       >
                         <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>
-                          {totalGates > 0 ? `${completedCount} / ${totalGates} (${compliancePct}%)` : '0 / 0 (N/A)'}
+                          {totalGates > 0 ? `${completedCount} / ${totalGates} (${compliancePct}%)` : '0 / 0 (0%)'}
                         </span>
                         <div
                           style={{

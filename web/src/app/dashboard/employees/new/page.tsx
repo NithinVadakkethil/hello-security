@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { FormInput, Select } from '../../../components/ui/FormControls';
 import Modal from '../../../components/ui/Modal';
 import { apiClient } from '../../../lib/axios';
+import { formatEmiratesIdInput, validateEmiratesId } from '@/lib/emirates-id';
 
 const schema = z
   .object({
@@ -24,6 +25,18 @@ const schema = z
       .min(1, 'Email is required')
       .email('Please enter a valid email address'),
     phone: z.string().optional(),
+    emiratesId: z
+      .string()
+      .optional()
+      .refine(
+        (val) => {
+          if (!val || val.trim() === '') return true;
+          return validateEmiratesId(val).valid;
+        },
+        {
+          message: 'Invalid Emirates ID. Format must be 784-XXXX-XXXXXXX-X (15 digits).',
+        },
+      ),
     designation: z.string().optional(),
     companyName: z.string().optional(),
     joiningDate: z.string().optional(),
@@ -171,7 +184,13 @@ export default function NewEmployeePage() {
     },
     onError: (err: any) => {
       const message: string = err.response?.data?.message || '';
-      if (
+      if (message.toLowerCase().includes('emirates id')) {
+        setError('emiratesId', {
+          type: 'manual',
+          message,
+        });
+        toast.error(message);
+      } else if (
         message.toLowerCase().includes('already registered') ||
         message.toLowerCase().includes('already exists') ||
         message.toLowerCase().includes('duplicate') ||
@@ -290,12 +309,22 @@ export default function NewEmployeePage() {
               {...register('phone')}
             />
 
-            <FormInput
-              label="Designation / Position"
-              placeholder="e.g. Night Patrol Lead"
-              error={errors.designation?.message}
-              {...register('designation')}
-            />
+            <div>
+              <FormInput
+                label="Emirates ID (UAE National ID)"
+                placeholder="784-XXXX-XXXXXXX-X"
+                error={errors.emiratesId?.message}
+                {...register('emiratesId', {
+                  onChange: (e) => {
+                    const formatted = formatEmiratesIdInput(e.target.value);
+                    setValue('emiratesId', formatted);
+                  },
+                })}
+              />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                Standard 15-digit format: 784-XXXX-XXXXXXX-X
+              </span>
+            </div>
           </div>
 
           <div
@@ -306,19 +335,26 @@ export default function NewEmployeePage() {
             }}
           >
             <FormInput
+              label="Designation / Position"
+              placeholder="e.g. Night Patrol Lead"
+              error={errors.designation?.message}
+              {...register('designation')}
+            />
+
+            <FormInput
               label="Company Name (Optional)"
               placeholder="e.g. ABC Security Services LLC"
               error={(errors as any).companyName?.message}
               {...register('companyName')}
             />
-
-            <FormInput
-              label="Joining Date"
-              type="date"
-              error={errors.joiningDate?.message}
-              {...register('joiningDate')}
-            />
           </div>
+
+          <FormInput
+            label="Joining Date"
+            type="date"
+            error={errors.joiningDate?.message}
+            {...register('joiningDate')}
+          />
 
           <Select
             label="App User / Operational Field Role *"

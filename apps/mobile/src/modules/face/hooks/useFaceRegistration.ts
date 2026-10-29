@@ -21,10 +21,7 @@ export interface UseFaceRegistrationReturn {
   reset: () => void;
 }
 
-export function useFaceRegistration(
-  onSuccess?: () => void,
-  cameraRef?: React.RefObject<any>,
-): UseFaceRegistrationReturn {
+export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistrationReturn {
   const user = useAuthStore((state) => state.user);
   const [step, setStep] = useState<RegistrationStep>('FRONT');
   const [capturesCount, setCapturesCount] = useState<number>(0);
@@ -36,7 +33,6 @@ export function useFaceRegistration(
   const capturedEmbeddingsRef = useRef<number[][]>([]);
   const livenessValidatorRef = useRef<FaceLivenessValidator>(new FaceLivenessValidator());
   const isSubmittingRef = useRef<boolean>(false);
-  const isCapturingPhotoRef = useRef<boolean>(false);
 
   const reset = useCallback(() => {
     setStep('FRONT');
@@ -47,13 +43,12 @@ export function useFaceRegistration(
     setError(null);
     capturedEmbeddingsRef.current = [];
     isSubmittingRef.current = false;
-    isCapturingPhotoRef.current = false;
     livenessValidatorRef.current.startChallenge('BLINK');
   }, []);
 
   const processFrame = useCallback(
     async (faces: any[], imageWidth: number, imageHeight: number) => {
-      if (isSubmittingRef.current || isSuccess || isCapturingPhotoRef.current || step === 'COMPLETED') {
+      if (isSubmittingRef.current || isSuccess) {
         return;
       }
 
@@ -94,26 +89,7 @@ export function useFaceRegistration(
         }
 
         // Capture 1: Front Vector
-        let vector: number[];
-        isCapturingPhotoRef.current = true;
-        try {
-          if (cameraRef?.current) {
-            const photo = await cameraRef.current.takePhoto({
-              flash: 'off',
-              enableShutterSound: false,
-            });
-            vector = await FaceEmbedder.generateEmbeddingFromPhoto(photo.path);
-          } else {
-            vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
-          }
-        } catch (err: any) {
-          console.warn('[FaceRegistration] Capture 1 failed, retrying:', err?.message || err);
-          setStatusMessage('Hold still and look directly at camera');
-          return;
-        } finally {
-          isCapturingPhotoRef.current = false;
-        }
-
+        const vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
         capturedEmbeddingsRef.current.push(vector);
         setCapturesCount(1);
         setStep('LEFT');
@@ -139,26 +115,7 @@ export function useFaceRegistration(
         }
 
         // Capture 2: Clean Re-aligned Vector
-        let vector: number[];
-        isCapturingPhotoRef.current = true;
-        try {
-          if (cameraRef?.current) {
-            const photo = await cameraRef.current.takePhoto({
-              flash: 'off',
-              enableShutterSound: false,
-            });
-            vector = await FaceEmbedder.generateEmbeddingFromPhoto(photo.path);
-          } else {
-            vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
-          }
-        } catch (err: any) {
-          console.warn('[FaceRegistration] Capture 2 failed, retrying:', err?.message || err);
-          setStatusMessage('Hold still and look directly at camera');
-          return;
-        } finally {
-          isCapturingPhotoRef.current = false;
-        }
-
+        const vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
         capturedEmbeddingsRef.current.push(vector);
         setCapturesCount(2);
         setStep('RIGHT');
@@ -184,26 +141,7 @@ export function useFaceRegistration(
         }
 
         // Capture 3: Clean Re-aligned Vector
-        let vector: number[];
-        isCapturingPhotoRef.current = true;
-        try {
-          if (cameraRef?.current) {
-            const photo = await cameraRef.current.takePhoto({
-              flash: 'off',
-              enableShutterSound: false,
-            });
-            vector = await FaceEmbedder.generateEmbeddingFromPhoto(photo.path);
-          } else {
-            vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
-          }
-        } catch (err: any) {
-          console.warn('[FaceRegistration] Capture 3 failed, retrying:', err?.message || err);
-          setStatusMessage('Hold still and look directly at camera');
-          return;
-        } finally {
-          isCapturingPhotoRef.current = false;
-        }
-
+        const vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
         capturedEmbeddingsRef.current.push(vector);
         setCapturesCount(3);
         setStep('COMPLETED');

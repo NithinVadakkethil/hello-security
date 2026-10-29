@@ -13,6 +13,7 @@ import {
 import { useState } from 'react';
 import { resolveImageUrl } from '../../../../lib/image';
 import { isRoleMatching } from '../../../utils/role-matching';
+import { formatPatrolDateTime } from '@/lib/date-formatter';
 
 export interface SubTaskResult {
   id: string;
@@ -841,9 +842,9 @@ export default function TaskVerificationChecklist({
                             <Calendar size={13} />
                             <span>
                               Recorded:{' '}
-                              {new Date(
-                                task.completedAt || scannedAt!,
-                              ).toLocaleString()}
+                              {formatPatrolDateTime(
+                                task.completedAt || scannedAt,
+                              )}
                             </span>
                           </span>
                         )}

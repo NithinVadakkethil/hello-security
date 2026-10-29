@@ -235,6 +235,7 @@ export class PatrolRouteService {
         );
       }
 
+      const existingRouteGateIds = new Set((route.routeGates || []).map((rg: any) => rg.gateId));
       for (const cp of dto.checkpoints) {
         const gate = await gateRepository.findById(cp.gateId);
         if (!gate) {
@@ -251,11 +252,11 @@ export class PatrolRouteService {
             `Gate "${gate.name}" belongs to another site.`,
           );
         }
-        if (!gate.isActive) {
+        if (!gate.isActive && !existingRouteGateIds.has(cp.gateId)) {
           throw new AppError(
             HttpStatus.BAD_REQUEST,
             ErrorCodes.VALIDATION_ERROR,
-            `Gate "${gate.name}" is inactive.`,
+            `Gate "${gate.name}" is inactive and cannot be newly added to a patrol route.`,
           );
         }
       }

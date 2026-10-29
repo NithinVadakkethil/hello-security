@@ -6,6 +6,7 @@ import { HttpStatus } from '../../common/errors/HttpStatus';
 import { compareEmployeesByRoleOrder } from '../../common/utils/role-order.util';
 import { prisma } from '../../database/prisma';
 import { reportService } from '../report/report.service';
+import { summaryReportService } from '../report/summary-report.service';
 import { ReportQueryDto } from '../report/report.types';
 
 export interface CentralManagerFilterParams {
@@ -13,6 +14,7 @@ export interface CentralManagerFilterParams {
   dateTo?: string;
   clientId?: string;
   siteId?: string;
+  shiftId?: string;
   role?: string;
   status?: string;
   category?: string;
@@ -86,7 +88,7 @@ export class CentralManagerService {
 
     return totalExpectedSum > 0
       ? Math.round((totalCompletedSum / totalExpectedSum) * 100)
-      : 100;
+      : 0;
   }
 
   private async calculateCheckpointMetrics(
@@ -263,7 +265,17 @@ export class CentralManagerService {
 
     const where: Prisma.EmployeeWhereInput = {
       clientId: { in: authorizedClientIds },
-      ...(params.siteId ? { assignments: { some: { siteId: params.siteId } } } : {}),
+      ...(params.siteId || params.shiftId
+        ? {
+            assignments: {
+              some: {
+                ...(params.siteId ? { siteId: params.siteId } : {}),
+                ...(params.shiftId ? { shiftId: params.shiftId } : {}),
+                isActive: true,
+              },
+            },
+          }
+        : {}),
       ...(params.role ? { role: params.role as any } : {}),
       ...(params.status ? { status: params.status as any } : {}),
       ...(params.search
@@ -284,7 +296,10 @@ export class CentralManagerService {
         client: { select: { id: true, companyName: true, clientCode: true } },
         assignments: {
           where: { isActive: true },
-          include: { site: { select: { name: true } } },
+          include: {
+            site: { select: { id: true, name: true } },
+            shift: { select: { id: true, name: true, startTime: true, endTime: true } },
+          },
         },
       },
     });
@@ -380,7 +395,7 @@ export class CentralManagerService {
           completedPatrols: 0,
           openObservations: 0,
           openSnags: 0,
-          avgCompliance: 100,
+          avgCompliance: 0,
         },
         organizations: [],
         clients: [],
@@ -1048,6 +1063,16 @@ export class CentralManagerService {
     const authorizedClientIds = await assertCentralManagerClientAccess(user, clientId);
     const targetClientId = clientId || (authorizedClientIds.length === 1 ? authorizedClientIds[0] : (authorizedClientIds as any));
     return reportService.getPatrolPdf(id, targetClientId as any);
+  }
+
+  async getEmployeePatrols(
+    user: { id: string; role: string; clientId?: string | null; tenantId?: string | null },
+    params: any,
+  ) {
+    return summaryReportService.getEmployeeCompletedPatrols({
+      ...params,
+      user,
+    });
   }
 }
 

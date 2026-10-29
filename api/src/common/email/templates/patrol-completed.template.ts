@@ -120,7 +120,7 @@ export function buildPatrolCompletedEmailHtml(data: PatrolCompletedEmailData): s
           <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; font-weight: 700; border-bottom: 1px solid #e2e8f0;">${data.patrolCode}</td>
         </tr>
         <tr>
-          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Security Officer</td>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Employee</td>
           <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; font-weight: 600; border-bottom: 1px solid #e2e8f0;">${data.officerName} (${data.employeeId})</td>
         </tr>
         <tr>
@@ -335,7 +335,7 @@ export function buildConsolidatedRouteCycleEmailHtml(data: ConsolidatedRouteCycl
       <h3 style="font-size: 14px; color: #475569; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px;">Assignment Cycle Summary</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; background: #f8fafc; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
         <tr>
-          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Security Officer</td>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Employee</td>
           <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; font-weight: 700; border-bottom: 1px solid #e2e8f0;">${data.officerName} (${data.employeeId})</td>
         </tr>
         <tr>

@@ -219,6 +219,8 @@ model Employee {
 
   siraCardBackImage String?
 
+  emiratesId String?
+
   identificationMethod IdentificationMethod @default(QR)
 
   qrCode String?
@@ -249,6 +251,7 @@ model Employee {
 
   @@unique([clientId, employeeNumber])
   @@index([clientId, supervisedRole])
+  @@index([clientId, emiratesId])
 }
 
 model Site {
@@ -514,7 +517,8 @@ model PatrolCheckpoint {
 
   subTaskResponses PatrolSubTaskResponse[]
 
-  scannedAt DateTime @default(now())
+  scannedAt   DateTime  @default(now())
+  completedAt DateTime?
 
   createdAt DateTime @default(now())
 

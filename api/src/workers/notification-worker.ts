@@ -299,7 +299,7 @@ export async function processCompletedPatrolNotification(
     });
 
     const totalGates = expectedGatesList.length;
-    const compliancePercentage = totalGates > 0 ? Math.round((scannedExpectedCount / totalGates) * 100) : 100;
+    const compliancePercentage = totalGates > 0 ? Math.round((scannedExpectedCount / totalGates) * 100) : 0;
 
     const observations: Array<{ title: string; description?: string }> = [];
     (sess.checkpoints || []).forEach((cp: any) => {
@@ -340,7 +340,7 @@ export async function processCompletedPatrolNotification(
   const overallCompliancePercentage =
     totalCheckpointsCount > 0
       ? Math.round((totalCheckpointsScanned / totalCheckpointsCount) * 100)
-      : 100;
+      : 0;
 
   const emailHtml = buildConsolidatedRouteCycleEmailHtml({
     officerName,

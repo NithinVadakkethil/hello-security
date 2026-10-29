@@ -20,5 +20,6 @@ router.get('/export/csv', (req, res, next) => reportController.exportCsv(req, re
 router.get('/summary/generate', (req, res, next) => reportController.generateSummaryReport(req, res, next));
 router.get('/summary/pdf', (req, res, next) => reportController.downloadSummaryPdf(req, res, next));
 router.get('/summary/excel', (req, res, next) => reportController.downloadSummaryExcel(req, res, next));
+router.get('/employee-patrols', (req, res, next) => reportController.getEmployeePatrols(req, res, next));
 
 export default router;

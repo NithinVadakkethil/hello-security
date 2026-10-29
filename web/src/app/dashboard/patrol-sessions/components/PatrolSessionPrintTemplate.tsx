@@ -96,7 +96,7 @@ export default function PatrolSessionPrintTemplate({
   const completionPct =
     totalCheckpoints > 0
       ? Math.round((completedCheckpoints / totalCheckpoints) * 100)
-      : 100;
+      : 0;
 
   // Flatten all sub-task responses across all scanned checkpoints
   const allSubTaskResponses: any[] = [];

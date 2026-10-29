@@ -9,10 +9,7 @@ import com.facebook.react.uimanager.ViewManager
 
 class ModelAssetPackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-        return listOf(
-            ModelAssetModule(reactContext),
-            FaceImageModule(reactContext)
-        )
+        return listOf(ModelAssetModule(reactContext))
     }
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<View, ReactShadowNode<*>>> {

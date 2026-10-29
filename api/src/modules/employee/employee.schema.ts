@@ -13,6 +13,8 @@ export const createEmployeeSchema = z.object({
 
   phone: z.string().trim().nullable().optional(),
 
+  emiratesId: z.string().trim().nullable().optional(),
+
   designation: z.string().trim().nullable().optional(),
 
   companyName: z.string().trim().max(150, 'Company name cannot exceed 150 characters').nullable().optional(),
@@ -37,6 +39,8 @@ export const updateEmployeeSchema = z.object({
   lastName: z.string().trim().nullable().optional(),
 
   phone: z.string().trim().nullable().optional(),
+
+  emiratesId: z.string().trim().nullable().optional(),
 
   designation: z.string().trim().nullable().optional(),
 

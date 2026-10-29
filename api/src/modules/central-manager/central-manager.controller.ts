@@ -47,13 +47,14 @@ export class CentralManagerController {
   async getEmployees(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const { dateFrom, dateTo, clientId, siteId, role, status, search, page, limit } = req.query as any;
+      const { dateFrom, dateTo, clientId, siteId, shiftId, role, status, search, page, limit } = req.query as any;
 
       const result = await centralManagerService.getEmployees(user, {
         dateFrom,
         dateTo,
         clientId,
         siteId,
+        shiftId,
         role,
         status,
         search,
@@ -241,8 +242,11 @@ export class CentralManagerController {
 
   async getSingleReport(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = currentUser(req);
       const id = req.params.id as string;
+      if (id === 'employee-patrols') {
+        return this.getEmployeePatrols(req, res, next);
+      }
+      const user = currentUser(req);
       const clientId = req.query.clientId as string;
 
       const data = await centralManagerService.getSingleReport(user, id, clientId);
@@ -265,6 +269,58 @@ export class CentralManagerController {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
       return res.status(HttpStatus.OK).send(result.pdfBuffer);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getEmployeePatrols(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const {
+        clientId,
+        employeeId,
+        periodType,
+        date,
+        startDate,
+        endDate,
+        fromDate,
+        toDate,
+        week,
+        month,
+        shiftId,
+        siteId,
+        role,
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+      } = req.query as any;
+
+      const result = await centralManagerService.getEmployeePatrols(user, {
+        clientId,
+        employeeId,
+        periodType: periodType || 'DAILY',
+        date,
+        startDate,
+        endDate,
+        fromDate,
+        toDate,
+        week,
+        month,
+        shiftId,
+        siteId,
+        role,
+        page: page ? parseInt(page, 10) : 1,
+        limit: limit ? parseInt(limit, 10) : 20,
+        sortBy,
+        sortOrder,
+      });
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data: result,
+      });
     } catch (error) {
       return next(error);
     }

@@ -70,8 +70,8 @@ export class ShiftService {
     });
   }
 
-  async list(clientId: string, isActive?: boolean) {
-    return shiftRepository.list(clientId, isActive);
+  async list(clientId?: string, isActive?: boolean, siteId?: string) {
+    return shiftRepository.list(clientId, isActive, siteId);
   }
 
   async get(id: string) {

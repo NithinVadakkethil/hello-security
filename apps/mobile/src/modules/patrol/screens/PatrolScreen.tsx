@@ -948,8 +948,18 @@ export function PatrolScreen() {
       return;
     }
 
-    const totalGates = assignment?.patrolRoute?.routeGates?.length || 0;
-    const remaining = totalGates - scannedGateIds.length;
+    const isDirectAssignmentCheck =
+      assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+      (!assignment?.patrolRoute &&
+        assignment?.assignmentGates &&
+        assignment.assignmentGates.length > 0);
+
+    const eligibleItems = isDirectAssignmentCheck
+      ? (assignment?.assignmentGates || []).filter((ag: any) => !ag.gate || ag.gate.isActive !== false)
+      : (assignment?.patrolRoute?.routeGates || []).filter((rg: any) => !rg.gate || rg.gate.isActive !== false);
+
+    const totalGates = eligibleItems.length;
+    const remaining = Math.max(0, totalGates - scannedGateIds.length);
 
     if (remaining > 0) {
       Alert.alert(
@@ -1064,6 +1074,10 @@ export function PatrolScreen() {
               const cleanedCheckpointRemarks =
                 checkpointRemarks?.trim() || undefined;
 
+              const checkpointScanTime =
+                usePatrolStore.getState().checkpointScanTimes?.[gateId];
+              const completionTime = new Date().toISOString();
+
               await scanCheckpoint({
                 gateId,
                 remarks: cleanedCheckpointRemarks,
@@ -1071,6 +1085,8 @@ export function PatrolScreen() {
                 longitude: lng,
                 images: subTaskImagesList,
                 subTaskResponses: formattedSubTaskResponses,
+                scannedAt: checkpointScanTime || completionTime,
+                completedAt: completionTime,
               });
 
               setSubTaskResponses({});
@@ -1191,23 +1207,23 @@ export function PatrolScreen() {
         assignment.assignmentGates.length > 0);
 
     if (isDirectAssignment) {
-      return (assignment?.assignmentGates || []).map(
-        (ag: any, idx: number) => ({
+      return (assignment?.assignmentGates || [])
+        .filter((ag: any) => !ag.gate || ag.gate.isActive !== false)
+        .map((ag: any, idx: number) => ({
           id: ag.id,
           gateId: ag.gateId || ag.gate?.id || ag.id,
           gate: ag.gate,
           sequence: ag.sequence || idx + 1,
-        }),
-      );
+        }));
     }
-    return (assignment?.patrolRoute?.routeGates || []).map(
-      (rg: any, idx: number) => ({
+    return (assignment?.patrolRoute?.routeGates || [])
+      .filter((rg: any) => !rg.gate || rg.gate.isActive !== false)
+      .map((rg: any, idx: number) => ({
         id: rg.id,
         gateId: rg.gateId || rg.gate?.id || rg.id,
         gate: rg.gate,
         sequence: rg.sequence || idx + 1,
-      }),
-    );
+      }));
   }, [
     isManager,
     (activeSession as any)?.checkpoints,

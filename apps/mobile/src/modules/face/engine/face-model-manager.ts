@@ -13,39 +13,6 @@ const CANONICAL_LANDMARKS_112: [number, number][] = [
   [70.7299, 92.2041], // Right Mouth Corner
 ];
 
-const BASE64_LOOKUP = new Uint8Array(256);
-const b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-for (let i = 0; i < b64chars.length; i++) {
-  BASE64_LOOKUP[b64chars.charCodeAt(i)] = i;
-}
-
-function decodeBase64ToFloat32Array(base64: string): Float32Array {
-  const gBuffer = (globalThis as any).Buffer;
-  if (typeof gBuffer !== 'undefined') {
-    const buf = gBuffer.from(base64, 'base64');
-    return new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
-  }
-  const len = base64.length;
-  let validLen = len;
-  if (base64.endsWith('==')) validLen -= 2;
-  else if (base64.endsWith('=')) validLen -= 1;
-  const byteLen = Math.floor((validLen * 3) / 4);
-  const bytes = new Uint8Array(byteLen);
-
-  let p = 0;
-  for (let i = 0; i < len; i += 4) {
-    const enc1 = BASE64_LOOKUP[base64.charCodeAt(i)];
-    const enc2 = BASE64_LOOKUP[base64.charCodeAt(i + 1)];
-    const enc3 = BASE64_LOOKUP[base64.charCodeAt(i + 2)];
-    const enc4 = BASE64_LOOKUP[base64.charCodeAt(i + 3)];
-
-    bytes[p++] = (enc1 << 2) | (enc2 >> 4);
-    if (p < byteLen) bytes[p++] = ((enc2 & 15) << 4) | (enc3 >> 2);
-    if (p < byteLen) bytes[p++] = ((enc3 & 3) << 6) | enc4;
-  }
-  return new Float32Array(bytes.buffer, bytes.byteOffset, byteLen / 4);
-}
-
 export interface ModelInferenceStats {
   modelLoadTimeMs?: number;
   lastInferenceDurationMs?: number;
@@ -501,50 +468,6 @@ export class FaceModelManager {
       console.error('[FaceModelManager] Neural inference error:', err?.message || err);
       throw new Error(`FACE_MODEL_INFERENCE_UNAVAILABLE: ${err?.message || err}`);
     }
-  }
-
-  /**
-   * Extracts real 128-D SFace embedding from a captured high-res camera photograph
-   * using the native FaceImageModule to crop, rotate, and align real camera pixels.
-   */
-  public async extractEmbeddingFromPhoto(photoPath: string): Promise<number[]> {
-    const session = await this.initSession();
-    const startTime = Date.now();
-
-    const { FaceImageModule } = NativeModules;
-    if (!FaceImageModule || typeof FaceImageModule.extractFaceTensor !== 'function') {
-      throw new Error('NATIVE_FACE_MODULE_UNAVAILABLE: FaceImageModule native module not available');
-    }
-
-    // Native module aligns real face pixels to canonical SFace 112x112 coordinates
-    // and returns base64 encoded Float32 BGR tensor buffer.
-    const result = await FaceImageModule.extractFaceTensor(photoPath, true);
-    const { base64Tensor } = result;
-
-    if (!base64Tensor) {
-      throw new Error('FACE_EXTRACTION_FAILED: Empty tensor returned from native module');
-    }
-
-    // High-performance typed base64 decoding (sub-2ms, zero JS thread stalling)
-    const inputBuffer = decodeBase64ToFloat32Array(base64Tensor);
-
-    const inputTensor = new Tensor('float32', inputBuffer, [1, 3, FaceModelManager.INPUT_SIZE, FaceModelManager.INPUT_SIZE]);
-    const inputName = session.inputNames[0] || 'data';
-    const feeds: Record<string, Tensor> = { [inputName]: inputTensor };
-
-    const outputMap = await session.run(feeds);
-    this.lastInferenceDurationMs = Date.now() - startTime;
-
-    const outputName = session.outputNames[0] || 'fc1';
-    const outputTensor = outputMap[outputName] || Object.values(outputMap)[0];
-
-    if (!outputTensor || !outputTensor.data) {
-      throw new Error('Neural network returned empty output tensor');
-    }
-
-    const rawOutput = outputTensor.data as Float32Array;
-    const normalized = this.normalizeZeroMeanL2(rawOutput);
-    return Array.from(normalized);
   }
 
   /**

@@ -4,11 +4,16 @@ import puppeteer from 'puppeteer';
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
-import { isRoleMatching } from '../../common/utils/role-matching';
 import {
   formatPatrolDateTime,
-  formatPatrolTime,
+  formatPatrolDuration,
+  resolveCheckpointTiming,
 } from '../../common/utils/date-formatter.util';
+import {
+  isCheckpointEligibleForSession,
+  filterEligibleCheckpointsForSession,
+} from '../../common/utils/checkpoint-eligibility.util';
+import { buildCheckpointTimeline } from '../../common/utils/checkpoint-timeline.util';
 import { reportRepository } from './report.repository';
 import { ReportQueryDto } from './report.types';
 
@@ -103,10 +108,6 @@ function getRoleLabel(role?: string | null): string {
   return ROLE_LABELS[u] || role;
 }
 
-function fmtTime(dateStr?: any): string {
-  return formatPatrolTime(dateStr);
-}
-
 function fmtDateTime(dateStr?: any): string {
   return formatPatrolDateTime(dateStr);
 }
@@ -124,153 +125,6 @@ function getVerificationStatusPillClass(status: string): string {
   if (status === 'VERIFIED') return 'green';
   if (status === 'REJECTED' || status === 'NOT_VERIFIED') return 'red';
   return 'yellow';
-}
-
-function buildCheckpointEntry(
-  sequence: number,
-  gate: any,
-  scan: any,
-  guardName: string,
-  officerRole: string,
-) {
-  const scanned = !!scan;
-  const configuredTasks: any[] = Array.isArray(gate?.subTasks)
-    ? gate.subTasks.filter((st: any) => isRoleMatching(st.role, officerRole))
-    : [];
-  const responses: any[] = Array.isArray(scan?.subTaskResponses)
-    ? scan.subTaskResponses.filter((res: any) =>
-        isRoleMatching(res.gateSubTask?.role || res.roleSnapshot || res.role, officerRole),
-      )
-    : [];
-
-  const responseMap = new Map<string, any>();
-  for (const res of responses) {
-    const key = res.gateSubTaskId || res.id;
-    if (key) responseMap.set(key, res);
-  }
-
-  const combinedTasks: any[] = [];
-
-  if (configuredTasks.length > 0) {
-    for (const st of configuredTasks) {
-      const res = responseMap.get(st.id);
-      if (res) {
-        combinedTasks.push({
-          id: st.id,
-          title: st.taskName || 'Verification Task',
-          role: st.role || 'SECURITY',
-          isRequired: st.isRequired ?? false,
-          answer: res.answer || 'UNANSWERED',
-          remarks: res.remarks || null,
-          images: deduplicateImages(Array.isArray(res.images) ? res.images : []),
-          answeredAt: res.answeredAt || res.createdAt || null,
-          submittedBy: guardName,
-        });
-      } else {
-        combinedTasks.push({
-          id: st.id,
-          title: st.taskName || 'Verification Task',
-          role: st.role || 'SECURITY',
-          isRequired: st.isRequired ?? false,
-          answer: 'UNANSWERED',
-          remarks: null,
-          images: [],
-          answeredAt: null,
-          submittedBy: guardName,
-        });
-      }
-    }
-  } else if (responses.length > 0) {
-    for (const res of responses) {
-      combinedTasks.push({
-        id: res.id || res.gateSubTaskId,
-        title: res.gateSubTask?.taskName || res.taskNameSnapshot || res.taskName || 'Verification Task',
-        role: res.gateSubTask?.role || res.roleSnapshot || res.role || 'SECURITY',
-        isRequired: res.gateSubTask?.isRequired ?? res.isRequiredSnapshot ?? res.isRequired ?? false,
-        answer: res.answer || 'UNANSWERED',
-        remarks: res.remarks || null,
-        images: deduplicateImages(Array.isArray(res.images) ? res.images : []),
-        answeredAt: res.answeredAt || res.createdAt || null,
-        submittedBy: guardName,
-      });
-    }
-  }
-
-  return {
-    sequence,
-    gate,
-    scanned,
-    scannedAt: scan?.scannedAt ?? null,
-    remarks: scan?.remarks ?? null,
-    status: scan?.status ?? null,
-    tasks: combinedTasks,
-  };
-}
-
-function buildCheckpointTimeline(
-  report: any,
-  guardName: string,
-  officerRole: string,
-): any[] {
-  const scans: any[] = report.checkpoints || [];
-
-  const isDirectAssignment =
-    report.assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
-    (!report.assignment?.patrolRoute &&
-      report.assignment?.assignmentGates &&
-      report.assignment.assignmentGates.length > 0);
-
-  const routeGates: any[] = isDirectAssignment
-    ? (report.assignment?.assignmentGates || [])
-        .map((ag: any, idx: number) => ({
-          sequence: ag.sequence ?? idx + 1,
-          gate: ag.gate,
-        }))
-        .filter((rg: any) => !!rg.gate)
-    : (report.assignment?.patrolRoute?.routeGates || [])
-        .map((rg: any) => ({
-          sequence: rg.sequence ?? 0,
-          gate: rg.gate ?? rg,
-        }))
-        .filter((rg: any) => !!rg.gate);
-
-  if (routeGates.length > 0) {
-    const sorted = [...routeGates].sort((a, b) => a.sequence - b.sequence);
-    const seen = new Set<string>();
-    return sorted
-      .filter((rg) => {
-        const gateId = rg.gate?.id;
-        if (!gateId || seen.has(gateId)) return false;
-        seen.add(gateId);
-        return true;
-      })
-      .map((rg) => {
-        const scan = scans.find((s: any) => s.gateId === rg.gate.id);
-        return buildCheckpointEntry(
-          rg.sequence,
-          rg.gate,
-          scan,
-          guardName,
-          officerRole,
-        );
-      });
-  }
-
-  const seen = new Set<string>();
-  return scans
-    .filter((scan: any) => {
-      if (!scan.id || seen.has(scan.id)) return false;
-      seen.add(scan.id);
-      return true;
-    })
-    .map((scan: any, idx: number) => {
-      const gate = scan.gate || {
-        id: scan.gateId,
-        name: scan.gate?.name || `Checkpoint ${idx + 1}`,
-        gateCode: scan.gate?.gateCode || '—',
-      };
-      return buildCheckpointEntry(idx + 1, gate, scan, guardName, officerRole);
-    });
 }
 
 export function findChromeExecutable(): string | undefined {
@@ -348,20 +202,39 @@ export class ReportService {
         (session.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
         (!session.assignment?.patrolRoute && (session.assignment?.assignmentGates?.length || 0) > 0);
 
+      const scannedGateIds = (session.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean);
+
       const expectedGateIds: string[] = isManager
-        ? Array.from(new Set((session.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean)))
+        ? Array.from(new Set(scannedGateIds))
         : isDirect
-        ? (session.assignment?.assignmentGates || []).map((ag: any) => ag.gateId).filter(Boolean)
-        : (session.assignment?.patrolRoute?.routeGates || []).map((rg: any) => rg.gateId).filter(Boolean);
+        ? (session.assignment?.assignmentGates || [])
+            .filter((ag: any) =>
+              isCheckpointEligibleForSession({
+                gate: ag.gate,
+                session,
+                isScanned: scannedGateIds.includes(ag.gateId || ag.gate?.id),
+              }),
+            )
+            .map((ag: any) => ag.gateId || ag.gate?.id)
+            .filter(Boolean)
+        : (session.assignment?.patrolRoute?.routeGates || [])
+            .filter((rg: any) =>
+              isCheckpointEligibleForSession({
+                gate: rg.gate,
+                session,
+                isScanned: scannedGateIds.includes(rg.gateId || rg.gate?.id),
+              }),
+            )
+            .map((rg: any) => rg.gateId || rg.gate?.id)
+            .filter(Boolean);
 
       const expectedGatesSet = new Set(expectedGateIds);
       const totalGates = expectedGatesSet.size;
 
-      const scannedGateIds = (session.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean);
       const scannedAssignedCount = new Set(scannedGateIds.filter((id) => expectedGatesSet.has(id))).size;
 
       const scannedCount = isManager ? (session.checkpoints?.length ? totalGates : 0) : scannedAssignedCount;
-      const compliance = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
+      const compliance = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 0;
       const durationMins = session.totalDuration ? Math.round(session.totalDuration / 60) : 0;
       const incidentCount = session.incidents?.length || 0;
 
@@ -401,17 +274,22 @@ export class ReportService {
       ? 'MANAGER'
       : (emp?.role || report.employeeRole || 'SECURITY');
 
-    const checkpointsTimeline = buildCheckpointTimeline(
+    const rawTimeline = buildCheckpointTimeline(
       report,
       guardName,
       officerRole,
     );
+    // Authoritatively filter to eligible checkpoints:
+    // - Checkpoints scanned in this session are always preserved (historical evidence)
+    // - Checkpoints active during this patrol session are included
+    // - Checkpoints deactivated prior to the session (and not scanned) are excluded
+    const checkpointsTimeline = filterEligibleCheckpointsForSession(rawTimeline, report);
     const snags = report.snags || [];
     const totalGates = checkpointsTimeline.length;
     const scannedCount = checkpointsTimeline.filter((c) => c.scanned).length;
     const pendingGatesCount = Math.max(totalGates - scannedCount, 0);
     const gateCompliancePct =
-      totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
+      totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 0;
 
     let allTasksTotal = 0,
       allTasksYes = 0,
@@ -432,13 +310,13 @@ export class ReportService {
     }
 
     const taskCompliancePct =
-      allTasksTotal > 0 ? Math.round((allTasksYes / allTasksTotal) * 100) : 100;
+      allTasksTotal > 0 ? Math.round((allTasksYes / allTasksTotal) * 100) : 0;
     const completedTasksCount = allTasksCompleted;
     const notCompletedTasksCount = Math.max(allTasksTotal - completedTasksCount, 0);
 
     const employeeId = isManagerSession
       ? (report.managerUser?.employee?.employeeNumber || 'MGR')
-      : (report.assignment?.employee?.employeeNumber || '—');
+      : (report.assignment?.employee?.employeeNumber || emp?.employeeNumber || report.employeeCode || '—');
 
     const cpSites = Array.from(new Set((report.checkpoints || []).map((cp: any) => cp.gate?.site?.name).filter(Boolean)));
     const siteName = isManagerSession
@@ -448,9 +326,13 @@ export class ReportService {
     const routeName = isManagerSession
       ? 'Manager Inspection'
       : (report.assignment?.patrolRoute?.name || 'Direct Checkpoints');
-    const shiftInfo = report.assignment?.shift
-      ? `Day (${report.assignment.shift.startTime} - ${report.assignment.shift.endTime})`
+
+    const shift = report.assignment?.shift || report.shift;
+    const shiftInfo = shift
+      ? `${shift.name || 'Day'} (${shift.startTime} - ${shift.endTime})`
       : 'Day (06:00 - 5:59)';
+
+    const patrolDurationFormatted = formatPatrolDuration(report);
 
     const clientCompanyName =
       report.client?.companyName ||
@@ -663,6 +545,44 @@ export class ReportService {
       font-weight: 700;
       color: #b45309;
     }
+    .rpt-cp-timing-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .rpt-cp-timing-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 7.5pt;
+      font-weight: 600;
+      color: #334155;
+    }
+    .rpt-timing-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .rpt-timing-lbl {
+      color: #64748b;
+      font-weight: 500;
+      font-size: 7pt;
+    }
+    .rpt-timing-sep {
+      color: #cbd5e1;
+      font-size: 7pt;
+    }
+    .rpt-timing-duration {
+      font-weight: 700;
+      color: #0f172a;
+      background: #f1f5f9;
+      padding: 1px 5px;
+      border-radius: 3px;
+      border: 1px solid #e2e8f0;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
     .rpt-task-summary-bar {
       display: flex;
       justify-content: space-between;
@@ -836,7 +756,7 @@ export class ReportService {
     <table class="rpt-details-table">
       <tbody>
         <tr>
-          <td class="rpt-details-label">Security Officer</td>
+          <td class="rpt-details-label">Officer</td>
           <td class="rpt-details-val">${guardName}</td>
           <td class="rpt-details-label">Company Name</td>
           <td class="rpt-details-val">${clientCompanyName}</td>
@@ -876,9 +796,9 @@ export class ReportService {
         <tr>
           <td class="rpt-details-label">Completed</td>
           <td class="rpt-details-val">${fmtDateTime(report.endedAt)}</td>
-          <td class="rpt-details-label">Compliance / Score</td>
-          <td class="rpt-details-val" style="color: #1d4ed8;">
-            ${gateCompliancePct}% (${scannedCount} / ${totalGates})
+          <td class="rpt-details-label">Patrol Duration</td>
+          <td class="rpt-details-val" style="color: #0f172a;">
+            ${patrolDurationFormatted}
           </td>
         </tr>
       </tbody>
@@ -919,7 +839,8 @@ export class ReportService {
         const taskNo = tasksList.filter((t: any) => t.answer === 'NO').length;
         const taskCompleted = taskYes + taskNo;
         const taskCompliance =
-          taskTotal > 0 ? Math.round((taskYes / taskTotal) * 100) : 100;
+          taskTotal > 0 ? Math.round((taskYes / taskTotal) * 100) : 0;
+        const timing = resolveCheckpointTiming(item);
 
         return `
         <div class="rpt-cp-card">
@@ -933,11 +854,17 @@ export class ReportService {
                 ${item.gate?.name || 'Checkpoint'} (${item.gate?.gateCode || '—'})
               </span>
             </div>
-            <div>
+            <div class="rpt-cp-timing-wrap">
               ${
-                item.scanned
-                  ? `<span class="rpt-scan-time">Scan Time: ${fmtTime(item.scannedAt)}</span>`
-                  : `<span class="rpt-pending-scan">⏳ PENDING SCAN</span>`
+                timing.isPending
+                  ? `<span class="rpt-pending-scan">⏳ PENDING SCAN</span>`
+                  : `<div class="rpt-cp-timing-row">
+                      <span class="rpt-timing-item"><span class="rpt-timing-lbl">Start Time:</span> ${timing.startTimeFormatted}</span>
+                      <span class="rpt-timing-sep">•</span>
+                      <span class="rpt-timing-item"><span class="rpt-timing-lbl">End Time:</span> ${timing.endTimeFormatted}</span>
+                      <span class="rpt-timing-sep">•</span>
+                      <span class="rpt-timing-duration"><span class="rpt-timing-lbl">Duration:</span> ${timing.durationFormatted}</span>
+                    </div>`
               }
             </div>
           </div>

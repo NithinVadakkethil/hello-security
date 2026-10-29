@@ -20,6 +20,8 @@ export class ExcelGeneratorService {
       ['Reporting Period', dataset.metadata.periodLabel],
       ['Organization / Client', dataset.metadata.clientName],
       ['Site', dataset.metadata.siteName || 'All Sites'],
+      ['Shift', dataset.metadata.shiftName || 'All Shifts'],
+      ['Employee Category / Role', dataset.metadata.roleLabel || 'All Roles'],
     ];
 
     if (dataset.metadata.employeeName) {
@@ -28,19 +30,27 @@ export class ExcelGeneratorService {
         ['Employee Role', dataset.metadata.employeeRole || 'Security Guard'],
         ['Staff ID', dataset.metadata.employeeNumber || '—']
       );
+      if (dataset.metadata.emiratesId) {
+        summarySheetData.push(['Emirates ID', dataset.metadata.emiratesId]);
+      }
     }
 
     summarySheetData.push(
       ['Generated Date & Time', `${dataset.metadata.generatedAt.split('T')[0]} (${dataset.metadata.timezone})`],
       [],
       ['EXECUTIVE METRICS SUMMARY', 'VALUE'],
-      ['Mandatory Patrols Completed', dataset.summary.mandatoryCompleted],
-      ['Mandatory Patrols Missed', dataset.summary.mandatoryMissed],
-      ['Total Patrol Sessions', dataset.summary.assignedPatrols],
-      ['Total Checkpoints', dataset.summary.totalCheckpoints ?? dataset.summary.requiredCheckpoints],
+      ['Total Patrol Duration', dataset.summary.totalPatrolDurationFormatted || '0 sec'],
+      ['Total Checkpoint Duration', dataset.summary.totalCheckpointDurationFormatted || '0 sec'],
+      ['Completed Patrol Sessions', dataset.summary.completedPatrolsCount ?? dataset.summary.completedPatrols],
+      ['Completed Checkpoint Inspections', dataset.summary.completedCheckpointsCount ?? dataset.summary.checkpointsScanned],
+      ['Average Patrol Duration', dataset.summary.avgPatrolDurationFormatted || '0 sec'],
+      ['Average Checkpoint Duration', dataset.summary.avgCheckpointDurationFormatted || '0 sec'],
+      ['Total Patrol Sessions (Scheduled/Started)', dataset.summary.assignedPatrols],
+      ['Total Checkpoints Required', dataset.summary.totalCheckpoints ?? dataset.summary.requiredCheckpoints],
       ['Checkpoints Scanned', dataset.summary.checkpointsScanned ?? dataset.summary.completedCheckpoints],
       ['Checkpoints Missed', dataset.summary.checkpointsMissed ?? dataset.summary.missedCheckpoints],
-      ['Completed Patrol Sessions', dataset.summary.completedPatrols],
+      ['Mandatory Patrols Completed', dataset.summary.mandatoryCompleted],
+      ['Mandatory Patrols Missed', dataset.summary.mandatoryMissed],
       ['Incomplete / Ongoing Patrols', dataset.summary.incompletePatrols],
       ['Additional / Extra Patrols', dataset.summary.additionalPatrols],
       ['Mandatory Patrols Scheduled', dataset.summary.mandatoryScheduled],
@@ -52,10 +62,29 @@ export class ExcelGeneratorService {
       summarySheetData.push(['Reported Security Incidents', dataset.summary.incidentsCount]);
     }
 
+    summarySheetData.push(
+      [],
+      ['* Note: Total Patrol Duration and Total Checkpoint Duration represent cumulative durations clipped to the period.', ''],
+      ['Checkpoint inspection occurs within patrol time and values must not be combined as physical working time.', '']
+    );
+
     const wsSummary = XLSX.utils.aoa_to_sheet(summarySheetData);
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Executive Summary');
 
-    // 2. Attendance Sheet
+    // 2. Daily Duration Breakdown Sheet
+    if (dataset.dailyBreakdown && dataset.dailyBreakdown.length > 0) {
+      const formattedDaily = dataset.dailyBreakdown.map((d) => ({
+        'Date': d.dateFormatted || d.date,
+        'Shift': d.shiftName,
+        'Site': d.siteName,
+        'Patrol Sessions': d.patrolSessionsCount,
+        'Patrol Duration': d.patrolDurationFormatted,
+      }));
+      const wsDaily = XLSX.utils.json_to_sheet(formattedDaily);
+      XLSX.utils.book_append_sheet(wb, wsDaily, 'Daily Duration Breakdown');
+    }
+
+    // 3. Attendance Sheet
     if (dataset.attendance && dataset.attendance.length > 0) {
       const formattedAttendance = dataset.attendance.map((att) => ({
         'Shift Date': att.shiftDate,
@@ -72,7 +101,7 @@ export class ExcelGeneratorService {
       XLSX.utils.book_append_sheet(wb, wsAttendance, 'Attendance');
     }
 
-    // 3. Mandatory Patrol Compliance Sheet
+    // 4. Mandatory Patrol Compliance Sheet
     if (dataset.mandatoryPatrols.length > 0) {
       const formattedMandatory = dataset.mandatoryPatrols.map((m) => ({
         'Patrol Sequence': `Patrol ${m.sequence}`,
@@ -90,7 +119,7 @@ export class ExcelGeneratorService {
       XLSX.utils.book_append_sheet(wb, wsMandatory, 'Mandatory Patrols');
     }
 
-    // 4. Patrol Sessions Sheet (Employee Scoped Report Only)
+    // 5. Patrol Sessions Sheet (Employee Scoped Report Only)
     if (dataset.metadata.employeeId && dataset.patrols && dataset.patrols.length > 0) {
       const formattedPatrols = dataset.patrols.map((p) => ({
         'Patrol Code': p.patrolCode,
@@ -99,15 +128,18 @@ export class ExcelGeneratorService {
         'Site / Route': `${p.siteName} - ${p.routeName}`,
         'Started At': p.startedAt,
         'Completed At': p.completedAt || '—',
+        'Patrol Duration (Clipped)': p.durationFormatted || '—',
+        'Full Session Duration': p.fullDurationFormatted || '—',
         'Checkpoints Completed': p.checkpointsCompleted,
         'Checkpoints Required': p.checkpointsRequired,
+        'Checkpoint Duration': p.checkpointDurationFormatted || '—',
         'Status': p.status,
       }));
       const wsPatrols = XLSX.utils.json_to_sheet(formattedPatrols);
       XLSX.utils.book_append_sheet(wb, wsPatrols, 'Patrol Sessions');
     }
 
-    // 5. Checkpoints Sheet
+    // 6. Checkpoints Sheet
     if (dataset.checkpoints.length > 0) {
       const formattedCheckpoints = dataset.checkpoints.map((cp) => ({
         'Checkpoint Gate': cp.gateName,
@@ -122,7 +154,7 @@ export class ExcelGeneratorService {
       XLSX.utils.book_append_sheet(wb, wsCheckpoints, 'Checkpoints');
     }
 
-    // 6. Incidents Sheet (Completely omitted for Kaizen)
+    // 7. Incidents Sheet (Completely omitted for Kaizen)
     if (!isKaizen && dataset.incidents && dataset.incidents.length > 0) {
       const formattedIncidents = dataset.incidents.map((inc) => ({
         'Incident ID': inc.id,
@@ -138,7 +170,7 @@ export class ExcelGeneratorService {
       XLSX.utils.book_append_sheet(wb, wsIncidents, 'Incidents');
     }
 
-    // 7. Site Summary Sheet
+    // 8. Site Summary Sheet
     if (dataset.siteSummary.length > 0) {
       const formattedSiteSummary = dataset.siteSummary.map((s) => ({
         'Site Name': s.siteName,
@@ -152,17 +184,17 @@ export class ExcelGeneratorService {
       XLSX.utils.book_append_sheet(wb, wsSiteSummary, 'Site Summary');
     }
 
-    // 8. Employee Summary Sheet
+    // 9. Employee Summary Sheet
     if (dataset.employeeSummary.length > 0) {
       const formattedEmpSummary = dataset.employeeSummary.map((e) => ({
         'Employee': e.employeeName,
         'Role': e.employeeRole || 'Security Guard',
         'Site Name': e.siteName,
         'Completed Patrols': e.completedPatrols,
+        'Patrol Duration': e.patrolDurationFormatted || '0 sec',
         'Mandatory Scheduled': e.mandatoryScheduled,
         'Mandatory Completed': e.mandatoryCompleted,
         'Mandatory Compliance %': `${e.mandatoryCompliancePct}%`,
-        'Checkpoints Scanned': e.checkpointsScanned,
       }));
       const wsEmpSummary = XLSX.utils.json_to_sheet(formattedEmpSummary);
       XLSX.utils.book_append_sheet(wb, wsEmpSummary, 'Employee Summary');

@@ -188,17 +188,35 @@ export class AttendanceService {
     let status: 'PRESENT' | 'LATE' | 'OFF' | 'COMPLETED' = 'OFF';
     let isLate = false;
 
-    if (attendanceRecord && attendanceRecord.checkInAt) {
-      checkInDate = new Date(attendanceRecord.checkInAt);
-      checkOutDate = attendanceRecord.checkOutAt ? new Date(attendanceRecord.checkOutAt) : null;
+    const isCheckInVerified = Boolean(
+      attendanceRecord &&
+      attendanceRecord.checkInAt &&
+      (attendanceRecord.verificationStatus === 'VERIFIED' || attendanceRecord.verificationMethod === 'FACE_VERIFICATION') &&
+      attendanceRecord.verificationStatus !== 'PENDING' &&
+      attendanceRecord.verificationStatus !== 'FAILED'
+    );
+
+    const isCheckOutVerified = Boolean(
+      attendanceRecord &&
+      attendanceRecord.checkOutAt &&
+      (attendanceRecord.verificationStatus === 'VERIFIED' || attendanceRecord.verificationMethod === 'FACE_VERIFICATION') &&
+      attendanceRecord.verificationStatus !== 'PENDING' &&
+      attendanceRecord.verificationStatus !== 'FAILED'
+    );
+
+    if (attendanceRecord) {
+      checkInDate = isCheckInVerified ? new Date(attendanceRecord.checkInAt) : null;
+      checkOutDate = isCheckOutVerified && attendanceRecord.checkOutAt ? new Date(attendanceRecord.checkOutAt) : null;
       isLate = Boolean(attendanceRecord.isLate);
 
       if (checkOutDate) {
         status = 'COMPLETED';
       } else if (attendanceRecord.status === 'LATE' || isLate) {
         status = 'LATE';
+      } else if (attendanceRecord.status) {
+        status = attendanceRecord.status;
       } else {
-        status = 'PRESENT';
+        status = checkInDate ? 'PRESENT' : 'OFF';
       }
     } else {
       // No attendance marked for this date -> strictly OFF, null timestamps

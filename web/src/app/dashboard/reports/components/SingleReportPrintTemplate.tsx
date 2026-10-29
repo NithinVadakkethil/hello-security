@@ -1,10 +1,16 @@
 'use client';
 
-import { formatPatrolDateTime, formatPatrolTime } from '@/lib/date-formatter';
+import {
+  formatPatrolDateTime,
+  formatPatrolDuration,
+  resolveCheckpointTiming,
+} from '@/lib/date-formatter';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { resolveImageUrl } from '../../../../lib/image';
-import { isRoleMatching } from '../../../utils/role-matching';
+import { filterEligibleCheckpointsForSession } from '../../../../lib/checkpoint-eligibility';
+import { buildCheckpointTimeline, getReportOfficerInfo } from '@/lib/checkpoint-timeline';
+import { maskEmiratesId } from '@/lib/emirates-id';
 
 interface SingleReportPrintTemplateProps {
   report: any;
@@ -53,20 +59,7 @@ const PRINT_CSS = `
       margin: 8mm 8mm 10mm 8mm;
     }
 
-    @page {
-      @bottom-left {
-        content: "Hello Orbit • Security Patrol Audit Report";
-        font-size: 8pt;
-        color: #475569;
-        font-family: system-ui, -apple-system, sans-serif;
-      }
-      @bottom-right {
-        content: "Page " counter(page) " of " counter(pages);
-        font-size: 8pt;
-        color: #475569;
-        font-family: system-ui, -apple-system, sans-serif;
-      }
-    }
+
 
     /* Top Brand Header */
     .rpt-header {
@@ -240,6 +233,44 @@ const PRINT_CSS = `
       font-size: 8pt;
       font-weight: 700;
       color: #b45309;
+    }
+    .rpt-cp-timing-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .rpt-cp-timing-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 7.5pt;
+      font-weight: 600;
+      color: #334155;
+    }
+    .rpt-timing-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .rpt-timing-lbl {
+      color: #64748b;
+      font-weight: 500;
+      font-size: 7pt;
+    }
+    .rpt-timing-sep {
+      color: #cbd5e1;
+      font-size: 7pt;
+    }
+    .rpt-timing-duration {
+      font-weight: 700;
+      color: #0f172a;
+      background: #f1f5f9;
+      padding: 1px 5px;
+      border-radius: 3px;
+      border: 1px solid #e2e8f0;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
     }
 
     /* Checkpoint Sub-bar */
@@ -448,9 +479,6 @@ function getRoleLabel(role?: string | null): string {
 }
 
 // ─── Format helpers ──────────────────────────────────────────────────────────
-function fmtTime(dateStr?: string | null): string {
-  return formatPatrolTime(dateStr);
-}
 
 function fmtDateTime(dateStr?: string | null): string {
   return formatPatrolDateTime(dateStr);
@@ -471,155 +499,6 @@ function getVerificationStatusPillClass(status: string): string {
   return 'yellow';
 }
 
-// ─── Build Checkpoint Entry with combined configured tasks + responses ───────
-function buildCheckpointEntry(
-  sequence: number,
-  gate: any,
-  scan: any,
-  guardName: string,
-  officerRole: string,
-) {
-  const scanned = !!scan;
-  const configuredTasks: any[] = Array.isArray(gate?.subTasks)
-    ? gate.subTasks.filter((st: any) => isRoleMatching(st.role, officerRole))
-    : [];
-  const responses: any[] = Array.isArray(scan?.subTaskResponses)
-    ? scan.subTaskResponses.filter((res: any) =>
-        isRoleMatching(res.gateSubTask?.role || res.role, officerRole),
-      )
-    : [];
-
-  const responseMap = new Map<string, any>();
-  for (const res of responses) {
-    const key = res.gateSubTaskId || res.id;
-    if (key) responseMap.set(key, res);
-  }
-
-  const combinedTasks: any[] = [];
-
-  if (configuredTasks.length > 0) {
-    for (const st of configuredTasks) {
-      const res = responseMap.get(st.id);
-      if (res) {
-        combinedTasks.push({
-          id: st.id,
-          title: st.taskName || 'Verification Task',
-          role: st.role || 'SECURITY',
-          isRequired: st.isRequired ?? false,
-          answer: res.answer || 'UNANSWERED',
-          remarks: res.remarks || null,
-          images: Array.isArray(res.images) ? res.images : [],
-          answeredAt: res.answeredAt || res.createdAt || null,
-          submittedBy: guardName,
-        });
-      } else {
-        combinedTasks.push({
-          id: st.id,
-          title: st.taskName || 'Verification Task',
-          role: st.role || 'SECURITY',
-          isRequired: st.isRequired ?? false,
-          answer: 'UNANSWERED',
-          remarks: null,
-          images: [],
-          answeredAt: null,
-          submittedBy: guardName,
-        });
-      }
-    }
-  } else if (responses.length > 0) {
-    for (const res of responses) {
-      combinedTasks.push({
-        id: res.id || res.gateSubTaskId,
-        title: res.gateSubTask?.taskName || res.taskName || 'Verification Task',
-        role: res.gateSubTask?.role || res.role || 'SECURITY',
-        isRequired: res.gateSubTask?.isRequired ?? res.isRequired ?? false,
-        answer: res.answer || 'UNANSWERED',
-        remarks: res.remarks || null,
-        images: Array.isArray(res.images) ? res.images : [],
-        answeredAt: res.answeredAt || res.createdAt || null,
-        submittedBy: guardName,
-      });
-    }
-  }
-
-  return {
-    sequence,
-    gate,
-    scanned,
-    scannedAt: scan?.scannedAt ?? null,
-    remarks: scan?.remarks ?? null,
-    status: scan?.status ?? null,
-    tasks: combinedTasks,
-  };
-}
-
-// ─── Build Timeline ──────────────────────────────────────────────────────────
-function buildCheckpointTimeline(
-  report: any,
-  guardName: string,
-  officerRole: string,
-): any[] {
-  const scans: any[] = report.checkpoints || [];
-
-  const isDirectAssignment =
-    (report.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
-    (!report.assignment?.patrolRoute &&
-      report.assignment?.assignmentGates &&
-      report.assignment.assignmentGates.length > 0);
-
-  const routeGates: any[] = isDirectAssignment
-    ? (report.assignment?.assignmentGates || [])
-        .map((ag: any, idx: number) => ({
-          sequence: ag.sequence ?? idx + 1,
-          gate: ag.gate,
-        }))
-        .filter((rg: any) => !!rg.gate)
-    : (report.assignment?.patrolRoute?.routeGates || [])
-        .map((rg: any) => ({
-          sequence: rg.sequence ?? 0,
-          gate: rg.gate ?? rg,
-        }))
-        .filter((rg: any) => !!rg.gate);
-
-  if (routeGates.length > 0) {
-    const sorted = [...routeGates].sort((a, b) => a.sequence - b.sequence);
-    const seen = new Set<string>();
-    return sorted
-      .filter((rg) => {
-        const gateId = rg.gate?.id;
-        if (!gateId || seen.has(gateId)) return false;
-        seen.add(gateId);
-        return true;
-      })
-      .map((rg) => {
-        const scan = scans.find((s: any) => s.gateId === rg.gate.id);
-        return buildCheckpointEntry(
-          rg.sequence,
-          rg.gate,
-          scan,
-          guardName,
-          officerRole,
-        );
-      });
-  }
-
-  const seen = new Set<string>();
-  return scans
-    .filter((scan: any) => {
-      if (!scan.id || seen.has(scan.id)) return false;
-      seen.add(scan.id);
-      return true;
-    })
-    .map((scan: any, idx: number) => {
-      const gate = scan.gate || {
-        id: scan.gateId,
-        name: scan.gate?.name || `Checkpoint ${idx + 1}`,
-        gateCode: scan.gate?.gateCode || '—',
-      };
-      return buildCheckpointEntry(idx + 1, gate, scan, guardName, officerRole);
-    });
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function SingleReportPrintTemplate({
   report,
@@ -632,42 +511,25 @@ export default function SingleReportPrintTemplate({
 
   if (!report || !mounted) return null;
 
-  const emp = report.assignment?.employee || report.employee;
-  const mgrEmp = report.managerUser?.employee;
-  const guardName = emp
-    ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() ||
-      emp.name ||
-      emp.email ||
-      '—'
-    : mgrEmp
-      ? `${mgrEmp.firstName || ''} ${mgrEmp.lastName || ''}`.trim() || '—'
-      : report.managerUser?.email ||
-        (report.user
-          ? `${report.user.firstName || ''} ${report.user.lastName || ''}`.trim() ||
-            report.user.name
-          : '') ||
-        (report.officerName && report.officerName !== 'Inspector'
-          ? report.officerName
-          : '—');
+  const { guardName, officerRole } = getReportOfficerInfo(report);
 
-  const officerRole =
-    emp?.role ||
-    mgrEmp?.role ||
-    report.employeeRole ||
-    (report.managerUserId ? 'MANAGER' : 'SECURITY');
-
-  const checkpointsTimeline = buildCheckpointTimeline(
+  const rawTimeline = buildCheckpointTimeline(
     report,
     guardName,
     officerRole,
   );
+  // Authoritatively filter to eligible checkpoints:
+  // - Checkpoints scanned in this session are always preserved (historical evidence)
+  // - Checkpoints active during this patrol session are included
+  // - Checkpoints deactivated prior to the session (and not scanned) are excluded
+  const checkpointsTimeline = filterEligibleCheckpointsForSession(rawTimeline, report);
   const snags = report.snags || [];
 
   const totalGates = checkpointsTimeline.length;
   const scannedCount = checkpointsTimeline.filter((c) => c.scanned).length;
   const pendingGatesCount = Math.max(totalGates - scannedCount, 0);
   const gateCompliancePct =
-    totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
+    totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 0;
 
   let allTasksTotal = 0,
     allTasksYes = 0,
@@ -686,7 +548,7 @@ export default function SingleReportPrintTemplate({
     }
   }
   const taskCompliancePct =
-    allTasksTotal > 0 ? Math.round((allTasksYes / allTasksTotal) * 100) : 100;
+    allTasksTotal > 0 ? Math.round((allTasksYes / allTasksTotal) * 100) : 0;
   const completedTasksCount = allTasksCompleted;
   const notCompletedTasksCount = Math.max(
     allTasksTotal - completedTasksCount,
@@ -694,12 +556,19 @@ export default function SingleReportPrintTemplate({
   );
 
   const employeeId = report.assignment?.employee?.employeeNumber;
+  const emp = report.assignment?.employee || report.employee;
+  const mgrEmp = report.managerUser?.employee;
+  const rawEmiratesId = emp?.emiratesId || mgrEmp?.emiratesId || report.emiratesId;
+  const emiratesIdDisplay = maskEmiratesId(rawEmiratesId);
   const siteName = report.assignment?.site?.name;
   const routeName =
     report.assignment?.patrolRoute?.name || 'Direct Checkpoints';
-  const shiftInfo = report.assignment?.shift
-    ? `Day (${report.assignment.shift.startTime} - ${report.assignment.shift.endTime})`
+  const shift = report.assignment?.shift || report.shift;
+  const shiftInfo = shift
+    ? `${shift.name || 'Day'} (${shift.startTime} - ${shift.endTime})`
     : 'Day (06:00 - 5:59)';
+
+  const patrolDurationFormatted = formatPatrolDuration(report);
 
   const clientCompanyName =
     report.client?.companyName ||
@@ -733,7 +602,11 @@ export default function SingleReportPrintTemplate({
             <img
               src={resolvedLogo}
               alt="Logo"
-              style={{ maxHeight: '48px', maxWidth: '140px', objectFit: 'contain' }}
+              style={{
+                maxHeight: '48px',
+                maxWidth: '140px',
+                objectFit: 'contain',
+              }}
             />
           ) : null}
           <div>
@@ -760,27 +633,23 @@ export default function SingleReportPrintTemplate({
           </tr>
           <tr>
             <td className="rpt-details-label">Employee ID</td>
-            <td className="rpt-details-val">{employeeId}</td>
-            <td className="rpt-details-label">Monitored Site</td>
-            <td className="rpt-details-val">{siteName}</td>
+            <td className="rpt-details-val">{employeeId || '—'}</td>
+            <td className="rpt-details-label">Emirates ID</td>
+            <td className="rpt-details-val">{emiratesIdDisplay}</td>
           </tr>
           <tr>
             <td className="rpt-details-label">Role</td>
             <td className="rpt-details-val">
               {officerRole === 'CLEANER' ? 'House Keeper' : officerRole}
             </td>
-            <td className="rpt-details-label">Shift</td>
-            <td className="rpt-details-val">{shiftInfo}</td>
+            <td className="rpt-details-label">Monitored Site</td>
+            <td className="rpt-details-val">{siteName}</td>
           </tr>
           <tr>
             <td className="rpt-details-label">Route / Target</td>
             <td className="rpt-details-val">{routeName}</td>
-            <td className="rpt-details-label">Supervisor Status</td>
-            <td className="rpt-details-val">
-              <span className={`rpt-pill ${verificationPillClass}`}>
-                {verificationStatus}
-              </span>
-            </td>
+            <td className="rpt-details-label">Shift</td>
+            <td className="rpt-details-val">{shiftInfo}</td>
           </tr>
           <tr>
             <td className="rpt-details-label">Started</td>
@@ -797,9 +666,17 @@ export default function SingleReportPrintTemplate({
           <tr>
             <td className="rpt-details-label">Completed</td>
             <td className="rpt-details-val">{fmtDateTime(report.endedAt)}</td>
-            <td className="rpt-details-label">Compliance / Score</td>
-            <td className="rpt-details-val" style={{ color: '#1d4ed8' }}>
-              {gateCompliancePct}% ({scannedCount} / {totalGates})
+            <td className="rpt-details-label">Patrol Duration</td>
+            <td className="rpt-details-val" style={{ color: '#0f172a' }}>
+              {patrolDurationFormatted}
+            </td>
+          </tr>
+          <tr>
+            <td className="rpt-details-label">Supervisor Status</td>
+            <td className="rpt-details-val" colSpan={3}>
+              <span className={`rpt-pill ${verificationPillClass}`}>
+                {verificationStatus}
+              </span>
             </td>
           </tr>
         </tbody>
@@ -837,28 +714,42 @@ export default function SingleReportPrintTemplate({
 
       {checkpointsTimeline.map((item, cpIdx) => {
         const tasksList = item.tasks;
+        const timing = resolveCheckpointTiming(item);
 
         return (
           <div key={`cp-${item.gate?.id || cpIdx}`} className="rpt-cp-card">
             {/* Header bar */}
             <div className="rpt-cp-header">
               <div className="rpt-cp-header-left">
-                <span
+                {/* <span
                   className={`rpt-seq-pill ${item.scanned ? 'scanned' : 'pending'}`}
                 >
                   Seq #{item.sequence} — {item.scanned ? 'SCANNED' : 'PENDING'}
-                </span>
+                </span> */}
                 <span className="rpt-cp-name">
                   {item.gate?.name} ({item.gate?.gateCode})
                 </span>
               </div>
-              <div>
-                {item.scanned ? (
-                  <span className="rpt-scan-time">
-                    Scan Time: {fmtTime(item.scannedAt)}
-                  </span>
-                ) : (
+              <div className="rpt-cp-timing-wrap">
+                {timing.isPending ? (
                   <span className="rpt-pending-scan">⏳ PENDING SCAN</span>
+                ) : (
+                  <div className="rpt-cp-timing-row">
+                    <span className="rpt-timing-item">
+                      <span className="rpt-timing-lbl">Started:</span>{' '}
+                      {timing.startTimeFormatted}
+                    </span>
+                    <span className="rpt-timing-sep">•</span>
+                    <span className="rpt-timing-item">
+                      <span className="rpt-timing-lbl">Ended:</span>{' '}
+                      {timing.endTimeFormatted}
+                    </span>
+                    <span className="rpt-timing-sep">•</span>
+                    <span className="rpt-timing-duration">
+                      <span className="rpt-timing-lbl">Duration:</span>{' '}
+                      {timing.durationFormatted}
+                    </span>
+                  </div>
                 )}
               </div>
             </div>

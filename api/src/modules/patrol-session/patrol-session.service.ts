@@ -53,6 +53,26 @@ export class PatrolSessionService {
       );
     }
 
+    const isDirect =
+      (assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+      (!assignment?.patrolRoute && (assignment?.assignmentGates?.length || 0) > 0);
+
+    const totalConfigured = isDirect
+      ? (assignment?.assignmentGates?.length || 0)
+      : ((assignment?.patrolRoute as any)?.routeGates?.length || 0);
+
+    const activeGates = isDirect
+      ? (assignment?.assignmentGates || []).filter((ag: any) => !ag.gate || ag.gate.isActive !== false)
+      : ((assignment?.patrolRoute as any)?.routeGates || []).filter((rg: any) => !rg.gate || rg.gate.isActive !== false);
+
+    if (totalConfigured > 0 && activeGates.length === 0) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Cannot start patrol session: all assigned checkpoints are deactivated.',
+      );
+    }
+
     // Parse provided event timestamp or fallback to server time
     let startedAt = new Date();
     if (customStartedAt) {
@@ -92,7 +112,7 @@ export class PatrolSessionService {
           const endedAt = new Date();
           const totalDuration = Math.max(
             0,
-            Math.floor((endedAt.getTime() - running.startedAt.getTime()) / 60000),
+            Math.round((endedAt.getTime() - running.startedAt.getTime()) / 1000),
           );
           await patrolSessionRepository.update(running.id, {
             status: PatrolStatus.COMPLETED,
@@ -218,7 +238,7 @@ export class PatrolSessionService {
       where: { patrolSessionId: id },
     });
 
-    if (checkpointCount === 0) {
+    if (checkpointCount === 0 && !customEndedAt) {
       return patrolSessionRepository.cancel(id);
     }
 
@@ -233,7 +253,7 @@ export class PatrolSessionService {
 
     const totalDuration = Math.max(
       0,
-      Math.floor((endedAt.getTime() - patrol.startedAt.getTime()) / 60000),
+      Math.round((endedAt.getTime() - patrol.startedAt.getTime()) / 1000),
     );
 
     const completedPatrol = await patrolSessionRepository.update(id, {

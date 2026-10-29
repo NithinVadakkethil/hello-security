@@ -70,7 +70,6 @@ export class PatrolSessionRepository {
             patrolRoute: {
               include: {
                 routeGates: {
-                  where: { gate: { isActive: true } },
                   include: {
                     gate: {
                       include: {
@@ -88,7 +87,6 @@ export class PatrolSessionRepository {
               },
             },
             assignmentGates: {
-              where: { gate: { isActive: true } },
               include: {
                 gate: {
                   include: {
@@ -133,7 +131,6 @@ export class PatrolSessionRepository {
             patrolRoute: {
               include: {
                 routeGates: {
-                  where: { gate: { isActive: true } },
                   include: {
                     gate: {
                       include: {
@@ -151,7 +148,6 @@ export class PatrolSessionRepository {
               },
             },
             assignmentGates: {
-              where: { gate: { isActive: true } },
               include: {
                 gate: {
                   include: {
@@ -194,7 +190,6 @@ export class PatrolSessionRepository {
             patrolRoute: {
               include: {
                 routeGates: {
-                  where: { gate: { isActive: true } },
                   include: {
                     gate: {
                       include: {
@@ -212,7 +207,6 @@ export class PatrolSessionRepository {
               },
             },
             assignmentGates: {
-              where: { gate: { isActive: true } },
               include: {
                 gate: {
                   include: {
@@ -466,7 +460,14 @@ export class PatrolSessionRepository {
     }
 
     // If zero checkpoints scanned and no incidents/snags recorded, delete completely so it does not burn patrol code or clutter lists
-    if (session.checkpoints.length === 0 && session.incidents.length === 0 && session.snags.length === 0) {
+    if (
+      Array.isArray((session as any).checkpoints) &&
+      (session as any).checkpoints.length === 0 &&
+      Array.isArray((session as any).incidents) &&
+      (session as any).incidents.length === 0 &&
+      Array.isArray((session as any).snags) &&
+      (session as any).snags.length === 0
+    ) {
       await prisma.patrolSession.delete({ where: { id } });
       return { success: true, message: 'Quit zero-checkpoint patrol session deleted.' };
     }

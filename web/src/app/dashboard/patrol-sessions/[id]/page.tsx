@@ -14,7 +14,8 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { formatPatrolDateTime, formatPatrolTime } from '@/lib/date-formatter';
+import { formatPatrolDateTime, formatPatrolDuration, formatPatrolTime } from '@/lib/date-formatter';
+import { filterEligibleCheckpointsForSession } from '@/lib/checkpoint-eligibility';
 import LoadingState from '../../../components/ui/LoadingState';
 import Modal from '../../../components/ui/Modal';
 import StatusChip from '../../../components/ui/StatusChip';
@@ -57,6 +58,8 @@ interface CheckpointScan {
   status?: string | null;
   images?: string[] | null;
   scannedAt: string;
+  completedAt?: string | null;
+  subTaskResponses?: any[];
   gate: Gate;
 }
 
@@ -246,10 +249,18 @@ export default function PatrolSessionDetailPage() {
   const scans = session.checkpoints || [];
 
   // Map route gates to their scan status
-  const checkpointsTimeline = routeGates
-    .sort((a, b) => a.sequence - b.sequence)
+  const sortedRouteGates = [...routeGates].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+  const seenGateIds = new Set<string>();
+
+  const baseTimeline = sortedRouteGates
+    .filter((rg) => {
+      const gateId = rg.gate?.id;
+      if (!gateId || seenGateIds.has(gateId)) return false;
+      seenGateIds.add(gateId);
+      return true;
+    })
     .map((rg) => {
-      const scan = scans.find((s) => s.gateId === rg.gate.id);
+      const scan = scans.find((s: any) => s.gateId === rg.gate.id);
       return {
         sequence: rg.sequence,
         expectedDuration: rg.expectedDuration,
@@ -257,6 +268,7 @@ export default function PatrolSessionDetailPage() {
         scanned: !!scan,
         checkpointId: scan?.id,
         scannedAt: scan?.scannedAt,
+        completedAt: scan?.completedAt,
         remarks: scan?.remarks,
         status: scan?.status,
         images: scan?.images || [],
@@ -268,10 +280,44 @@ export default function PatrolSessionDetailPage() {
       };
     });
 
+  // Include any recorded scans not present in routeGates (offline scans, deactivated gates, etc.)
+  let extraSeq = baseTimeline.length > 0 ? Math.max(...baseTimeline.map((item) => item.sequence || 0)) + 1 : 1;
+  for (const scan of scans) {
+    const gateId = scan.gateId || scan.gate?.id;
+    if (gateId && !seenGateIds.has(gateId)) {
+      seenGateIds.add(gateId);
+      const gate = scan.gate || {
+        id: gateId,
+        name: `Checkpoint ${extraSeq}`,
+        gateCode: '—',
+      };
+      baseTimeline.push({
+        sequence: extraSeq++,
+        expectedDuration: null,
+        gate,
+        scanned: true,
+        checkpointId: scan.id,
+        scannedAt: scan.scannedAt,
+        completedAt: scan.completedAt,
+        remarks: scan.remarks,
+        status: scan.status,
+        images: scan.images || [],
+        subTaskResponses: (scan as any)?.subTaskResponses || [],
+        scanCoords:
+          scan?.latitude && scan?.longitude
+            ? `${scan.latitude.toFixed(5)}, ${scan.longitude.toFixed(5)}`
+            : null,
+      });
+    }
+  }
+
+  // Filter to eligible checkpoints for this session (Rule 1: Scanned is always eligible!)
+  const checkpointsTimeline = filterEligibleCheckpointsForSession(baseTimeline, session);
+
+  const scannedCheckpointsCount = checkpointsTimeline.filter((c) => c.scanned).length;
+  const totalCheckpointsCount = checkpointsTimeline.length;
   const completionPercentage = Math.round(
-    (checkpointsTimeline.filter((c) => c.scanned).length /
-      Math.max(1, checkpointsTimeline.length)) *
-      100,
+    (scannedCheckpointsCount / Math.max(1, totalCheckpointsCount)) * 100,
   );
 
   return (
@@ -819,9 +865,7 @@ export default function PatrolSessionDetailPage() {
                     margin: 0,
                   }}
                 >
-                  {session.totalDuration
-                    ? `${session.totalDuration} minutes`
-                    : 'In progress'}
+                  {formatPatrolDuration(session)}
                 </p>
               </div>
 

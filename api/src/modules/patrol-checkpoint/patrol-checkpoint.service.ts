@@ -388,7 +388,15 @@ export class PatrolCheckpointService {
     // Standardize dto.gateId to actual Gate.id so FK relations persist smoothly
     dto.gateId = targetGateId;
 
-    if (gateRecord && gateRecord.isActive === false) {
+    const effectiveScanTime = dto.scannedAt ? new Date(dto.scannedAt) : new Date();
+    const isHistoricalOfflineScan =
+      dto.scannedAt &&
+      gateRecord &&
+      gateRecord.isActive === false &&
+      (effectiveScanTime.getTime() <= new Date(gateRecord.updatedAt).getTime() ||
+        (patrol?.startedAt && new Date(patrol.startedAt).getTime() <= new Date(gateRecord.updatedAt).getTime()));
+
+    if (gateRecord && gateRecord.isActive === false && !isHistoricalOfflineScan) {
       throw new AppError(
         HttpStatus.BAD_REQUEST,
         ErrorCodes.VALIDATION_ERROR,
@@ -515,6 +523,21 @@ export class PatrolCheckpointService {
             }
           }
 
+          let completedAt: Date | undefined = undefined;
+          if (dto.completedAt) {
+            const parsedComp = new Date(dto.completedAt);
+            if (!isNaN(parsedComp.getTime())) {
+              const maxFuture = Date.now() + 5 * 60 * 1000;
+              completedAt = parsedComp.getTime() > maxFuture ? new Date() : parsedComp;
+            }
+          } else {
+            completedAt = new Date();
+          }
+
+          if (completedAt && scannedAt.getTime() > completedAt.getTime()) {
+            scannedAt = completedAt;
+          }
+
           const checkpointRemarks = dto.remarks?.trim() || null;
 
           let cp;
@@ -528,6 +551,7 @@ export class PatrolCheckpointService {
                 status: dto.status,
                 images: allImages,
                 scannedAt,
+                completedAt,
               },
             });
           } else {
@@ -541,6 +565,7 @@ export class PatrolCheckpointService {
                 status: dto.status,
                 images: allImages,
                 scannedAt,
+                completedAt,
               },
             });
           }
@@ -550,7 +575,7 @@ export class PatrolCheckpointService {
             processedSubTaskResponses.length > 0
           ) {
             for (const resp of processedSubTaskResponses) {
-              let answeredAt = scannedAt;
+              let answeredAt = completedAt || scannedAt;
               if (resp.answeredAt) {
                 const parsedAns = new Date(resp.answeredAt);
                 if (!isNaN(parsedAns.getTime())) {

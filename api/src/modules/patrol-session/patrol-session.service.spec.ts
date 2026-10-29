@@ -22,7 +22,11 @@ describe('PatrolSession Lifecycle & Cancellation Logic', () => {
 
       expect(prisma.patrolSession.findUnique).toHaveBeenCalledWith({
         where: { id: 'session-123' },
-        select: { id: true, status: true },
+        include: {
+          checkpoints: { select: { id: true } },
+          incidents: { select: { id: true } },
+          snags: { select: { id: true } },
+        },
       });
       expect(updateSpy).toHaveBeenCalledWith({
         where: { id: 'session-123' },
@@ -60,11 +64,11 @@ describe('PatrolSession Lifecycle & Cancellation Logic', () => {
 
   describe('patrolSessionService.start', () => {
     it('should auto-clear abandoned zero-checkpoint session and create new patrol', async () => {
-      const mockAssignment = { id: 'assignment-1', employeeId: 'emp-1', isActive: true };
+      const mockAssignment = { id: 'assignment-1', employeeId: 'emp-1', isActive: true, assignmentGates: [{ gate: { id: 'g1', isActive: true } }] };
       const runningSession = { id: 'session-zero', status: PatrolStatus.IN_PROGRESS };
 
       jest.spyOn(prisma.patrolCheckpoint, 'count').mockResolvedValue(0);
-      jest.spyOn(patrolSessionRepository, 'findActiveByAssignment').mockResolvedValue(runningSession as any);
+      jest.spyOn(patrolSessionRepository, 'findActiveByEmployee').mockResolvedValue(runningSession as any);
       const cancelSpy = jest.spyOn(patrolSessionRepository, 'cancel').mockResolvedValue({
         id: 'session-zero',
         status: PatrolStatus.CANCELLED,
@@ -80,24 +84,24 @@ describe('PatrolSession Lifecycle & Cancellation Logic', () => {
       const { counterService } = require('../../common/counter/counter.service');
       jest.spyOn(counterService, 'next').mockResolvedValue(10001);
 
-      const result = await patrolSessionService.start('client-1', 'emp-1');
+      const result = await patrolSessionService.start('client-1', 'emp-1', undefined, true);
 
       expect(cancelSpy).toHaveBeenCalledWith('session-zero');
       expect(patrolSessionRepository.create).toHaveBeenCalled();
       expect(result).toEqual({ id: 'new-session-789', patrolCode: 'PTS-10001' });
     });
 
-    it('should throw CONFLICT error if running session has scanned checkpoints', async () => {
-      const mockAssignment = { id: 'assignment-1', employeeId: 'emp-1', isActive: true };
+    it('should throw CONFLICT error if running session has active patrol and resolveExistingPatrol is false', async () => {
+      const mockAssignment = { id: 'assignment-1', employeeId: 'emp-1', isActive: true, assignmentGates: [{ gate: { id: 'g1', isActive: true } }] };
       const runningSession = { id: 'session-scanned', status: PatrolStatus.IN_PROGRESS };
 
       jest.spyOn(prisma.patrolCheckpoint, 'count').mockResolvedValue(3);
-      jest.spyOn(patrolSessionRepository, 'findActiveByAssignment').mockResolvedValue(runningSession as any);
+      jest.spyOn(patrolSessionRepository, 'findActiveByEmployee').mockResolvedValue(runningSession as any);
 
       const { assignmentRepository } = require('../assignment/assignment.repository');
       jest.spyOn(assignmentRepository, 'findEmployeeActiveAssignment').mockResolvedValue(mockAssignment as any);
 
-      await expect(patrolSessionService.start('client-1', 'emp-1')).rejects.toThrow('Patrol already in progress.');
+      await expect(patrolSessionService.start('client-1', 'emp-1')).rejects.toThrow('You already have a patrol in progress.');
     });
   });
 

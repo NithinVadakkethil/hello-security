@@ -63,18 +63,6 @@ export const secureFaceCache = {
         return null;
       }
 
-      // Verify model version and embedding dimension: purge legacy/incompatible templates
-      if (
-        payload.modelVersion !== 'v2' ||
-        payload.embeddingDimension !== 128 ||
-        !Array.isArray(payload.template) ||
-        payload.template.length !== 128
-      ) {
-        console.warn('[secureFaceCache] Incompatible or legacy face template in local cache. Clearing cache.');
-        await EncryptedStorage.removeItem(SECURE_FACE_KEY);
-        return null;
-      }
-
       return payload;
     } catch (error) {
       console.warn('[secureFaceCache] Failed to read encrypted local cache:', error);

@@ -68,7 +68,25 @@ export class AssignmentRepository {
         employee: true,
         site: true,
         shift: true,
-        patrolRoute: true,
+        patrolRoute: {
+          include: {
+            routeGates: {
+              include: {
+                gate: {
+                  include: {
+                    subTasks: {
+                      where: { isActive: true },
+                      orderBy: { displayOrder: 'asc' },
+                    },
+                  },
+                },
+              },
+              orderBy: {
+                sequence: 'asc',
+              },
+            },
+          },
+        },
         assignmentGates: {
           include: {
             gate: {
@@ -79,6 +97,9 @@ export class AssignmentRepository {
                 },
               },
             },
+          },
+          orderBy: {
+            sequence: 'asc',
           },
         },
       },

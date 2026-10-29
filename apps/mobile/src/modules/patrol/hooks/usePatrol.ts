@@ -109,31 +109,82 @@ export function usePatrol() {
     },
   });
 
-  const scanMutation = useMutation<any, Error, { gateId: string; remarks?: string; status?: string; images?: string[]; latitude?: number; longitude?: number; subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string; images?: string[] }> }>({
-    mutationFn: async ({ gateId, remarks, status, images, latitude, longitude, subTaskResponses }) => {
-      const currentSessionId = usePatrolStore.getState().activeSession?.id || 'temp-active-session';
-      const scannedAt = new Date().toISOString();
+  const scanMutation = useMutation<
+    any,
+    Error,
+    {
+      gateId: string;
+      remarks?: string;
+      status?: string;
+      images?: string[];
+      latitude?: number;
+      longitude?: number;
+      subTaskResponses?: Array<{
+        gateSubTaskId: string;
+        answer: 'YES' | 'NO';
+        remarks?: string;
+        images?: string[];
+        answeredAt?: string;
+      }>;
+      scannedAt?: string;
+      completedAt?: string;
+    }
+  >({
+    mutationFn: async ({
+      gateId,
+      remarks,
+      status,
+      images,
+      latitude,
+      longitude,
+      subTaskResponses,
+      scannedAt: customScannedAt,
+      completedAt: customCompletedAt,
+    }) => {
+      const currentSessionId =
+        usePatrolStore.getState().activeSession?.id || 'temp-active-session';
+      const storeScanTime =
+        usePatrolStore.getState().checkpointScanTimes?.[gateId];
+      const completedAt = customCompletedAt || new Date().toISOString();
+      const scannedAt = customScannedAt || storeScanTime || completedAt;
       const formattedResponses = subTaskResponses?.map((st) => ({
         ...st,
-        answeredAt: scannedAt,
+        answeredAt: st.answeredAt || completedAt,
       }));
 
       if (!isConnected) {
-        await useOfflineStore.getState().enqueue('/patrol-checkpoints/scan', 'POST', {
-          gateId,
-          patrolSessionId: currentSessionId,
-          offlineSessionId: currentSessionId,
-          remarks,
-          status,
-          images,
-          latitude,
-          longitude,
-          scannedAt,
-          subTaskResponses: formattedResponses,
-        }, currentSessionId);
+        await useOfflineStore.getState().enqueue(
+          '/patrol-checkpoints/scan',
+          'POST',
+          {
+            gateId,
+            patrolSessionId: currentSessionId,
+            offlineSessionId: currentSessionId,
+            remarks,
+            status,
+            images,
+            latitude,
+            longitude,
+            scannedAt,
+            completedAt,
+            subTaskResponses: formattedResponses,
+          },
+          currentSessionId,
+        );
         return { success: true };
       }
-      return patrolApi.scanCheckpoint(gateId, remarks, status, images, latitude, longitude, formattedResponses, currentSessionId, scannedAt);
+      return patrolApi.scanCheckpoint(
+        gateId,
+        remarks,
+        status,
+        images,
+        latitude,
+        longitude,
+        formattedResponses,
+        currentSessionId,
+        scannedAt,
+        completedAt,
+      );
     },
     onSuccess: async (data, variables) => {
       if (data?.patrolSession) {

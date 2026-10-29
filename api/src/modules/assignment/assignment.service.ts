@@ -117,6 +117,17 @@ export class AssignmentService {
             `Patrol route "${patrolRoute.name}" does not belong to the selected site.`,
           );
         }
+
+        const eligibleRouteGates = (patrolRoute.routeGates || []).filter(
+          (rg: any) => rg.gate && rg.gate.isActive !== false,
+        );
+        if (patrolRoute.routeGates && patrolRoute.routeGates.length > 0 && eligibleRouteGates.length === 0) {
+          throw new AppError(
+            HttpStatus.BAD_REQUEST,
+            ErrorCodes.VALIDATION_ERROR,
+            `Patrol route "${patrolRoute.name}" has no currently eligible checkpoints (all checkpoints are deactivated).`,
+          );
+        }
       }
     } else if (assignmentType === 'DIRECT_CHECKPOINTS') {
       if (!dto.gateIds || dto.gateIds.length === 0) {
@@ -280,8 +291,24 @@ export class AssignmentService {
     if (!assignment) return assignment;
     const latestSession = assignment.patrolSessions?.[0];
     const lastCompletedAt = latestSession?.endedAt || latestSession?.updatedAt || null;
+
+    const filteredPatrolRoute = assignment.patrolRoute
+      ? {
+          ...assignment.patrolRoute,
+          routeGates: (assignment.patrolRoute.routeGates || []).filter(
+            (rg: any) => !rg.gate || rg.gate.isActive !== false,
+          ),
+        }
+      : assignment.patrolRoute;
+
+    const filteredAssignmentGates = (assignment.assignmentGates || []).filter(
+      (ag: any) => !ag.gate || ag.gate.isActive !== false,
+    );
+
     return {
       ...assignment,
+      patrolRoute: filteredPatrolRoute,
+      assignmentGates: filteredAssignmentGates,
       lastCompletedAt,
     };
   }

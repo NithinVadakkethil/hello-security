@@ -1,13 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Printer, Shield } from 'lucide-react';
 import Modal from '../../../components/ui/Modal';
 import StatusChip from '../../../components/ui/StatusChip';
 import SingleReportPrintTemplate from './SingleReportPrintTemplate';
 import TaskVerificationChecklist from '../../patrol-sessions/components/TaskVerificationChecklist';
-import { formatPatrolDateTime, formatPatrolTime } from '@/lib/date-formatter';
+import { formatPatrolDateTime, formatPatrolDuration, resolveCheckpointTiming } from '@/lib/date-formatter';
 import { resolveImageUrl } from '../../../../lib/image';
+import { filterEligibleCheckpointsForSession } from '../../../../lib/checkpoint-eligibility';
+import { buildCheckpointTimeline, getReportOfficerInfo } from '@/lib/checkpoint-timeline';
+import { maskEmiratesId } from '@/lib/emirates-id';
 
 interface DetailedReportModalProps {
   isOpen: boolean;
@@ -17,64 +20,115 @@ interface DetailedReportModalProps {
 
 export default function DetailedReportModal({ isOpen, onClose, report }: DetailedReportModalProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [highlightedCheckpointSeq, setHighlightedCheckpointSeq] = useState<number | null>(null);
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  const checkpointCardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const highlightTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  if (!report) return null;
+  const { guardName, officerRole } = useMemo(
+    () => getReportOfficerInfo(report),
+    [report],
+  );
 
-  const isDirectAssignment =
-    (report.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
-    (!report.assignment?.patrolRoute &&
-      report.assignment?.assignmentGates &&
-      report.assignment.assignmentGates.length > 0);
+  const incidents = report?.incidents || [];
+  const snags = report?.snags || [];
 
-  const routeGates = isDirectAssignment
-    ? (report.assignment?.assignmentGates || []).map((ag: any, idx: number) => ({
-        sequence: ag.sequence || idx + 1,
-        gate: ag.gate,
-      }))
-    : report.assignment?.patrolRoute?.routeGates || [];
+  const rawTimeline = useMemo(() => {
+    if (!report) return [];
+    return buildCheckpointTimeline(report, guardName, officerRole);
+  }, [report, guardName, officerRole]);
 
-  const scans = report.checkpoints || [];
-  const incidents = report.incidents || [];
-  const snags = report.snags || [];
+  // Authoritatively filter to eligible checkpoints:
+  // - Checkpoints scanned in this session are always preserved (historical evidence)
+  // - Checkpoints active during this patrol session are included
+  // - Checkpoints deactivated prior to the session (and not scanned) are excluded
+  const checkpointsTimeline = useMemo(() => {
+    if (!report) return [];
+    return filterEligibleCheckpointsForSession(rawTimeline, report);
+  }, [rawTimeline, report]);
 
-  const checkpointsTimeline = routeGates
-    .sort((a: any, b: any) => a.sequence - b.sequence)
-    .map((rg: any) => {
-      const scan = scans.find((s: any) => s.gateId === rg.gate.id);
-      return {
-        sequence: rg.sequence,
-        gate: rg.gate,
-        scanned: !!scan,
-        scannedAt: scan?.scannedAt,
-        remarks: scan?.remarks,
-        status: scan?.status,
-        images: scan?.images || [],
-        subTaskResponses: scan?.subTaskResponses || [],
-        scanCoords: scan?.latitude && scan?.longitude ? `${scan.latitude.toFixed(5)}, ${scan.longitude.toFixed(5)}` : null,
-      };
-    });
-
-  const isManagerSession = !report.assignment && !!(report as any).managerUserId;
-  const expectedGateIds: string[] = isManagerSession
-    ? Array.from(new Set((scans || []).map((cp: any) => cp.gateId || cp.gate?.id).filter(Boolean)))
-    : isDirectAssignment
-    ? (report.assignment?.assignmentGates || []).map((ag: any) => ag.gateId || ag.gate?.id).filter(Boolean)
-    : (report.assignment?.patrolRoute?.routeGates || []).map((rg: any) => rg.gateId || rg.gate?.id).filter(Boolean);
-
-  const expectedGatesSet = new Set(expectedGateIds);
-  const totalGates = expectedGatesSet.size;
-
-  const scannedGateIds = (scans || []).map((cp: any) => cp.gateId || cp.gate?.id).filter(Boolean);
-  const scannedAssignedCount = new Set(scannedGateIds.filter((id: string) => expectedGatesSet.has(id))).size;
-
-  const completedCount = isManagerSession ? (scans.length ? totalGates : 0) : scannedAssignedCount;
+  const totalGates = checkpointsTimeline.length;
+  const completedCount = checkpointsTimeline.filter((item: any) => item.scanned).length;
   const unscannedCount = Math.max(0, totalGates - completedCount);
-  const compliancePct = totalGates > 0 ? Math.round((completedCount / totalGates) * 100) : 100;
-  const durationMins = report.totalDuration ? Math.round(report.totalDuration / 60) : 0;
+  const compliancePct = totalGates > 0 ? Math.round((completedCount / totalGates) * 100) : 0;
+  const patrolDurationFormatted = report ? formatPatrolDuration(report) : '—';
 
-  const handlePrintSingle = () => {
+  const handleScrollToFirstUnscanned = useCallback(() => {
+    if (!report || unscannedCount === 0) return;
+
+    // Authoritative unscanned checkpoint check using existing timeline sequence
+    const firstUnscanned = checkpointsTimeline.find((item: any) => !item.scanned);
+    if (!firstUnscanned) return;
+
+    const targetEl = checkpointCardRefs.current.get(firstUnscanned.sequence);
+    if (!targetEl) return;
+
+    // Locate the scrollable modal container (.modal-content-body)
+    const scrollContainer = modalContentRef.current?.closest('.modal-content-body') as HTMLElement | null;
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (scrollContainer) {
+      // Calculate target element's top position relative to the scroll container's current visible viewport
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const targetRect = targetEl.getBoundingClientRect();
+      const offsetFromContainerTop = targetRect.top - containerRect.top;
+      // Position checkpoint comfortably near the top with 16px offset
+      const targetScrollTop = scrollContainer.scrollTop + offsetFromContainerTop - 16;
+
+      scrollContainer.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      });
+    } else {
+      targetEl.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    }
+
+    try {
+      targetEl.focus({ preventScroll: true });
+    } catch {
+      // ignore
+    }
+
+    // Set brief visual highlight for 2.5 seconds
+    setHighlightedCheckpointSeq(firstUnscanned.sequence);
+    if (highlightTimerRef.current) {
+      clearTimeout(highlightTimerRef.current);
+    }
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedCheckpointSeq(null);
+      highlightTimerRef.current = null;
+    }, 2500);
+  }, [report, unscannedCount, checkpointsTimeline]);
+
+  // Clean up highlight timer on modal close or report change
+  useEffect(() => {
+    if (!isOpen || !report) {
+      setHighlightedCheckpointSeq(null);
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = null;
+      }
+    };
+  }, [isOpen, report?.id]);
+
+  const handlePrintSingle = useCallback(() => {
     window.print();
-  };
+  }, []);
+
+  // Conditional rendering must occur strictly after all hooks have executed
+  if (!isOpen || !report) return null;
 
   return (
     <Modal
@@ -94,7 +148,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
         </button>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '10px 0' }}>
+      <div ref={modalContentRef} style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '10px 0' }}>
         {/* Company & Executive Header */}
         {(() => {
           const rawLogo =
@@ -190,24 +244,40 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
             ? `${mgrEmp.firstName || ''} ${mgrEmp.lastName || ''}`.trim() || '—'
             : report.managerUser?.email || (report.user ? `${report.user.firstName || ''} ${report.user.lastName || ''}`.trim() || report.user.name : '') || (report.officerName && report.officerName !== 'Inspector' ? report.officerName : '—');
           const officerCode = emp?.employeeNumber || emp?.employeeCode || mgrEmp?.employeeNumber || report.employeeCode || null;
+          const officerRole = emp?.role || mgrEmp?.role || report.employeeRole || (report.managerUserId ? 'MANAGER' : null);
+
+          const shift = report.assignment?.shift || report.shift;
+          const shiftDisplay = shift?.name
+            ? `Shift: ${shift.name}${shift.startTime && shift.endTime ? ` (${shift.startTime} - ${shift.endTime})` : ''}`
+            : shift?.startTime && shift?.endTime
+            ? `Shift: ${shift.startTime} - ${shift.endTime}`
+            : 'Shift: —';
+
+          const startedFormatted = report.startedAt ? formatPatrolDateTime(report.startedAt) : null;
+          const completedFormatted = report.endedAt ? formatPatrolDateTime(report.endedAt) : null;
 
           return (
             <div className="rpt-meta-grid">
               <div className="rpt-meta-card">
                 <div className="rpt-meta-label">Security Officer / Inspector</div>
                 <div className="rpt-meta-val">{officerName}</div>
-                {officerCode && (
+                {(officerCode || officerRole) && (
                   <div className="rpt-meta-sub" style={{ fontFamily: 'monospace' }}>
-                    ID: {officerCode}
+                    {officerCode ? `ID: ${officerCode}` : ''}
+                    {officerCode && officerRole ? ' • ' : ''}
+                    {officerRole ? (officerRole === 'CLEANER' ? 'House Keeping' : officerRole.replace('_', ' ')) : ''}
                   </div>
                 )}
+                <div className="rpt-meta-sub" style={{ fontSize: '0.72rem', marginTop: '3px' }}>
+                  Emirates ID: {maskEmiratesId(emp?.emiratesId || mgrEmp?.emiratesId || report.emiratesId)}
+                </div>
               </div>
 
               <div className="rpt-meta-card">
                 <div className="rpt-meta-label">Monitored Site</div>
-                <div className="rpt-meta-val">{report.assignment?.site?.name || 'N/A'}</div>
+                <div className="rpt-meta-val">{report.assignment?.site?.name || report.site?.name || 'N/A'}</div>
                 <div className="rpt-meta-sub">
-                  {report.assignment?.site?.address || 'Standard Location'}
+                  {report.assignment?.site?.address || report.site?.address || 'Standard Location'}
                 </div>
               </div>
 
@@ -217,7 +287,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
                   {report.assignment?.patrolRoute?.name || '🚧 Direct Checkpoints'}
                 </div>
                 <div className="rpt-meta-sub">
-                  Shift: {report.assignment?.shift?.startTime || '—'} - {report.assignment?.shift?.endTime || '—'}
+                  {shiftDisplay}
                 </div>
               </div>
 
@@ -225,8 +295,14 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
                 <div className="rpt-meta-label">Status & Duration</div>
                 <div className="rpt-meta-status-row">
                   <StatusChip status={report.status} />
-                  <span className="rpt-meta-duration">{durationMins} mins</span>
+                  <span className="rpt-meta-duration">{patrolDurationFormatted}</span>
                 </div>
+                {startedFormatted && (
+                  <div className="rpt-meta-sub" style={{ fontSize: '0.72rem', marginTop: '4px' }}>
+                    Started: {startedFormatted}
+                    {completedFormatted ? ` • Completed: ${completedFormatted}` : ''}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -271,11 +347,33 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
             </div>
 
             <div
+              className={`rpt-summary-unscanned-card ${unscannedCount > 0 ? 'is-clickable' : ''}`}
+              role={unscannedCount > 0 ? 'button' : undefined}
+              tabIndex={unscannedCount > 0 ? 0 : undefined}
+              aria-label={
+                unscannedCount > 0
+                  ? `Scroll to first unscanned checkpoint (${unscannedCount} unscanned)`
+                  : 'No unscanned checkpoints'
+              }
+              title={
+                unscannedCount > 0
+                  ? 'Click to scroll to first unscanned checkpoint'
+                  : 'All checkpoints scanned'
+              }
+              onClick={unscannedCount > 0 ? handleScrollToFirstUnscanned : undefined}
+              onKeyDown={(e) => {
+                if (unscannedCount > 0 && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault();
+                  handleScrollToFirstUnscanned();
+                }
+              }}
               style={{
                 padding: '12px 14px',
                 borderRadius: '8px',
                 border: '1px solid rgba(239, 68, 68, 0.25)',
                 backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                cursor: unscannedCount > 0 ? 'pointer' : 'default',
+                userSelect: 'none',
               }}
             >
               <div style={{ fontSize: '0.72rem', color: '#ef4444', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>
@@ -313,9 +411,22 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
           <h4 style={{ margin: '0 0 16px 0', fontSize: '1.05rem', fontWeight: 700 }}>Detailed Checkpoint Timeline</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {checkpointsTimeline.map((item: any, idx: number) => {
+              const timing = resolveCheckpointTiming(item);
+              const isHighlighted = highlightedCheckpointSeq === item.sequence;
+
               return (
                 <div
-                  key={idx}
+                  key={item.sequence ?? idx}
+                  ref={(el) => {
+                    if (el) {
+                      checkpointCardRefs.current.set(item.sequence, el);
+                    } else {
+                      checkpointCardRefs.current.delete(item.sequence);
+                    }
+                  }}
+                  id={`checkpoint-timeline-item-${item.sequence}`}
+                  tabIndex={-1}
+                  className={`rpt-checkpoint-item ${isHighlighted ? 'is-highlighted' : ''}`}
                   style={{
                     padding: '16px',
                     borderRadius: '10px',
@@ -326,7 +437,7 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
                     gap: '10px',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span
@@ -348,11 +459,38 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
                       </div>
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
-                      {item.scanned ? (
+                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
+                      {timing.isPending ? (
+                        <em style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Pending</em>
+                      ) : (
                         <>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>
-                            {formatPatrolTime(item.scannedAt)}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            <span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Start Time: </span>
+                              <strong>{timing.startTimeFormatted}</strong>
+                            </span>
+                            <span style={{ color: 'var(--border-color, #cbd5e1)' }}>•</span>
+                            <span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>End Time: </span>
+                              <strong style={{ color: timing.isIncomplete ? '#ef4444' : 'inherit' }}>
+                                {timing.endTimeFormatted}
+                              </strong>
+                            </span>
+                            <span style={{ color: 'var(--border-color, #cbd5e1)' }}>•</span>
+                            <span
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                backgroundColor: timing.isIncomplete
+                                  ? 'rgba(239, 68, 68, 0.12)'
+                                  : 'rgba(16, 185, 129, 0.12)',
+                                color: timing.isIncomplete ? '#ef4444' : '#10b981',
+                                fontWeight: 700,
+                                fontSize: '0.78rem',
+                              }}
+                            >
+                              Duration: {timing.durationFormatted}
+                            </span>
                           </div>
                           {item.scanCoords && (
                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
@@ -360,8 +498,6 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
                             </div>
                           )}
                         </>
-                      ) : (
-                        <em style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Pending</em>
                       )}
                     </div>
                   </div>
@@ -386,14 +522,8 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
                     configuredSubTasks={item.gate?.subTasks || []}
                     subTaskResponses={item.subTaskResponses || []}
                     checkpointImages={item.images || []}
-                    employeeRole={
-                      report.assignment?.employee?.role || report.employeeRole || 'SECURITY'
-                    }
-                    employeeName={
-                      report.assignment?.employee
-                        ? `${report.assignment.employee.firstName} ${report.assignment.employee.lastName}`
-                        : report.employeeName
-                    }
+                    employeeRole={officerRole}
+                    employeeName={guardName}
                     scannedAt={item.scannedAt}
                   />
                 </div>
@@ -536,6 +666,38 @@ export default function DetailedReportModal({ isOpen, onClose, report }: Detaile
         @media (max-width: 640px) {
           .rpt-summary-cards-row {
             grid-template-columns: 1fr;
+          }
+        }
+        .rpt-summary-unscanned-card.is-clickable {
+          cursor: pointer;
+          transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+        }
+        .rpt-summary-unscanned-card.is-clickable:hover {
+          background-color: rgba(239, 68, 68, 0.12) !important;
+          border-color: rgba(239, 68, 68, 0.45) !important;
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.12);
+        }
+        .rpt-summary-unscanned-card.is-clickable:focus-visible {
+          outline: 2px solid #ef4444;
+          outline-offset: 2px;
+        }
+        .rpt-checkpoint-item {
+          transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+        }
+        .rpt-checkpoint-item:focus {
+          outline: none;
+        }
+        .rpt-checkpoint-item.is-highlighted {
+          border-color: rgba(239, 68, 68, 0.65) !important;
+          background-color: rgba(239, 68, 68, 0.06) !important;
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3), 0 6px 20px rgba(239, 68, 68, 0.12) !important;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .rpt-summary-unscanned-card.is-clickable {
+            transition: none !important;
+          }
+          .rpt-checkpoint-item {
+            transition: none !important;
           }
         }
       `}</style>

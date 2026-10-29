@@ -5,6 +5,7 @@ export interface CreateEmployeeDto {
   lastName?: string | null;
   email: string;
   phone?: string | null;
+  emiratesId?: string | null;
   designation?: string | null;
   companyName?: string | null;
   joiningDate?: Date | null;
@@ -20,6 +21,7 @@ export interface UpdateEmployeeDto {
   firstName?: string;
   lastName?: string | null;
   phone?: string | null;
+  emiratesId?: string | null;
   designation?: string | null;
   companyName?: string | null;
   joiningDate?: Date | null;

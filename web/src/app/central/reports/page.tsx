@@ -290,8 +290,8 @@ export default function CentralReportsPage() {
       label: 'Compliance',
       render: (row: any) => {
         const scanned = row.checkpoints?.length || row.checkpointsCount || 0;
-        const total = row.totalGates || row.assignment?.patrolRoute?.routeGates?.length || scanned || 1;
-        const compliancePct = total > 0 ? Math.round((scanned / total) * 100) : 100;
+        const total = row.totalGates || row.assignment?.patrolRoute?.routeGates?.length || (scanned > 0 ? scanned : 0);
+        const compliancePct = total > 0 ? Math.round((scanned / total) * 100) : 0;
         return (
           <span
             style={{

@@ -15,7 +15,9 @@ export function PatrolRouteScreen({ route }: any) {
     );
   }
 
-  const gatesCount = patrolRoute.routeGates?.length || 0;
+  const gatesCount = (patrolRoute.routeGates || []).filter(
+    (rg: any) => !rg.gate || rg.gate.isActive !== false,
+  ).length;
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>

@@ -187,7 +187,7 @@ export default function CentralDashboardPage() {
     totalCheckpointsScanned: 0,
     totalCheckpointsMissed: 0,
     totalCheckpoints: 0,
-    avgCompliance: 100,
+    avgCompliance: 0,
   };
 
   const clientsList = dashboardData?.clients || [];
