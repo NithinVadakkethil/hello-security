@@ -18,6 +18,7 @@ import DetailedReportModal from '../../../dashboard/reports/components/DetailedR
 import DataTable from '../../../components/ui/DataTable';
 import Pagination from '../../../components/ui/Pagination';
 import StatusChip from '../../../components/ui/StatusChip';
+import { derivePatrolReportingStatus } from '../components/CompletedPatrolSessionsTable';
 
 interface EmployeePatrolsData {
   employee: {
@@ -360,7 +361,7 @@ export default function EmployeeCompletedPatrolsPage() {
       {
         key: 'status',
         label: 'Status',
-        render: (row: any) => <StatusChip status={row.status || 'COMPLETED'} />,
+        render: (row: any) => <StatusChip status={derivePatrolReportingStatus(row)} />,
       },
       {
         key: 'actions',
@@ -505,9 +506,9 @@ export default function EmployeeCompletedPatrolsPage() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                      {data.employee.fullName}
+                      {data.employee?.fullName || 'All Matching Employees'}
                     </h2>
-                    {data.employee.employeeNumber && (
+                    {data.employee?.employeeNumber && (
                       <span
                         style={{
                           fontSize: '11px',
@@ -522,19 +523,21 @@ export default function EmployeeCompletedPatrolsPage() {
                         {data.employee.employeeNumber}
                       </span>
                     )}
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        padding: '2px 10px',
-                        borderRadius: '12px',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                        color: '#2563eb',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {data.employee.roleLabel}
-                    </span>
+                    {data.employee?.roleLabel && (
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '2px 10px',
+                          borderRadius: '12px',
+                          backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                          color: '#2563eb',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {data.employee.roleLabel}
+                      </span>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '6px', flexWrap: 'wrap', fontSize: '13px', color: 'var(--text-secondary)' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>

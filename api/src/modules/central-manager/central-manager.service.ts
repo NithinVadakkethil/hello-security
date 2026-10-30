@@ -182,6 +182,7 @@ export class CentralManagerService {
       recentSnags,
       complianceRate,
       clientCheckpoints,
+      totalConfiguredCheckpoints,
     ] = await Promise.all([
       prisma.employee.count({ where: { clientId, status: 'ACTIVE' } }),
       prisma.patrolSession.count({ where: { clientId, status: 'IN_PROGRESS' } }),
@@ -223,6 +224,7 @@ export class CentralManagerService {
       }),
       this.calculateWeightedCompliance([clientId], hasDateFilter ? dateFilter : undefined),
       this.calculateCheckpointMetrics([clientId], hasDateFilter ? dateFilter : undefined),
+      prisma.gate.count({ where: { site: { clientId } } }),
     ]);
 
     return {
@@ -236,7 +238,8 @@ export class CentralManagerService {
         openSnagsCount,
         totalCheckpointsScanned: clientCheckpoints.scanned,
         totalCheckpointsMissed: clientCheckpoints.missed,
-        totalCheckpoints: clientCheckpoints.total,
+        totalCheckpoints: totalConfiguredCheckpoints,
+        totalConfiguredCheckpoints,
         complianceRate,
       },
       checkpointSummary: clientCheckpoints,
@@ -395,6 +398,10 @@ export class CentralManagerService {
           completedPatrols: 0,
           openObservations: 0,
           openSnags: 0,
+          totalCheckpointsScanned: 0,
+          totalCheckpointsMissed: 0,
+          totalCheckpoints: 0,
+          totalConfiguredCheckpoints: 0,
           avgCompliance: 0,
         },
         organizations: [],
@@ -421,6 +428,7 @@ export class CentralManagerService {
       closedSnagsCount,
       globalComplianceRate,
       globalCheckpoints,
+      totalConfiguredCheckpoints,
     ] = await Promise.all([
       prisma.site.count({
         where: { clientId: { in: authorizedClientIds }, isActive: true },
@@ -470,6 +478,13 @@ export class CentralManagerService {
       }),
       this.calculateWeightedCompliance(authorizedClientIds, hasDateFilter ? dateFilter : undefined),
       this.calculateCheckpointMetrics(authorizedClientIds, hasDateFilter ? dateFilter : undefined),
+      prisma.gate.count({
+        where: {
+          site: {
+            clientId: { in: authorizedClientIds },
+          },
+        },
+      }),
     ]);
 
     // 3. Deep Analytics for Selected Client
@@ -492,6 +507,7 @@ export class CentralManagerService {
       urgentIncidents,
       cCompliance,
       clientCheckpoints,
+      clientConfiguredCheckpoints,
     ] = await Promise.all([
       prisma.employee.count({
         where: { clientId: targetClientId, status: 'ACTIVE' },
@@ -591,6 +607,13 @@ export class CentralManagerService {
       }),
       this.calculateWeightedCompliance([targetClientId], hasDateFilter ? dateFilter : undefined),
       this.calculateCheckpointMetrics([targetClientId], hasDateFilter ? dateFilter : undefined),
+      prisma.gate.count({
+        where: {
+          site: {
+            clientId: targetClientId,
+          },
+        },
+      }),
     ]);
 
     const snagDistribution = snagCategoriesGroup.map((g) => ({
@@ -632,7 +655,8 @@ export class CentralManagerService {
         openSnags: openSnagsCount,
         totalCheckpointsScanned: globalCheckpoints.scanned,
         totalCheckpointsMissed: globalCheckpoints.missed,
-        totalCheckpoints: globalCheckpoints.total,
+        totalCheckpoints: totalConfiguredCheckpoints,
+        totalConfiguredCheckpoints,
         avgCompliance: globalComplianceRate,
       },
       overview: {
@@ -646,7 +670,8 @@ export class CentralManagerService {
         closedSnags: closedSnagsCount,
         totalCheckpointsScanned: globalCheckpoints.scanned,
         totalCheckpointsMissed: globalCheckpoints.missed,
-        totalCheckpoints: globalCheckpoints.total,
+        totalCheckpoints: totalConfiguredCheckpoints,
+        totalConfiguredCheckpoints,
         globalComplianceRate,
       },
       organizations: clients,
@@ -674,7 +699,8 @@ export class CentralManagerService {
               closedSnagsCount: cClosedSnags,
               totalCheckpointsScanned: clientCheckpoints.scanned,
               totalCheckpointsMissed: clientCheckpoints.missed,
-              totalCheckpoints: clientCheckpoints.total,
+              totalCheckpoints: clientConfiguredCheckpoints,
+              totalConfiguredCheckpoints: clientConfiguredCheckpoints,
               complianceRate: cCompliance,
             },
             checkpointSummary: clientCheckpoints,
@@ -899,7 +925,7 @@ export class CentralManagerService {
     };
   }
 
-  async getOrganizations(user: { id: string; role: string }) {
+  async getOrganizations(user: { id: string; role: string }, options?: { lite?: boolean }) {
     const authorizedClientIds = await assertCentralManagerClientAccess(user);
 
     const clients = await prisma.client.findMany({
@@ -919,6 +945,25 @@ export class CentralManagerService {
       },
       orderBy: { companyName: 'asc' },
     });
+
+    if (options?.lite) {
+      return clients.map((client) => ({
+        id: client.id,
+        companyName: client.companyName,
+        clientCode: client.clientCode,
+        clientLogoUrl: client.clientLogoUrl,
+        dashboardImageUrl: client.dashboardImageUrl,
+        address: client.address,
+        email: client.email,
+        phone: client.phone,
+        metrics: {
+          employeesCount: 0,
+          observations: { open: 0, reviewed: 0, total: 0 },
+          snags: { open: 0, inProgress: 0, resolved: 0, closed: 0, total: 0 },
+          reports: { completedPatrols: 0, totalPatrols: 0 },
+        },
+      }));
+    }
 
     const organizations = await Promise.all(
       clients.map(async (client) => {
@@ -1057,6 +1102,12 @@ export class CentralManagerService {
     const authorizedClientIds = await assertCentralManagerClientAccess(user, clientId);
     const targetClientId = clientId || (authorizedClientIds.length === 1 ? authorizedClientIds[0] : (authorizedClientIds as any));
     return reportService.getSingleInspectionReport(id, targetClientId as any);
+  }
+
+  async getPatrolMissedCheckpoints(user: { id: string; role: string }, id: string, clientId?: string) {
+    const authorizedClientIds = await assertCentralManagerClientAccess(user, clientId);
+    const targetClientId = clientId || (authorizedClientIds.length === 1 ? authorizedClientIds[0] : (authorizedClientIds as any));
+    return reportService.getPatrolMissedCheckpoints(id, targetClientId as any);
   }
 
   async getReportPdf(user: { id: string; role: string }, id: string, clientId?: string) {

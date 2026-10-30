@@ -158,6 +158,7 @@ export class PdfGeneratorService {
       text-transform: uppercase;
     }
     .badge-completed { background-color: #d1fae5; color: #065f46; }
+    .badge-incomplete { background-color: #fef3c7; color: #92400e; }
     .badge-present { background-color: #d1fae5; color: #065f46; }
     .badge-due { background-color: #fee2e2; color: #991b1b; }
     .badge-late { background-color: #fef3c7; color: #92400e; }
@@ -420,9 +421,22 @@ export class PdfGeneratorService {
           <td>${p.siteName} - ${p.routeName}</td>
           <td>${p.startedAt}</td>
           <td>${p.completedAt || '—'}</td>
-          <td><strong>${p.checkpointsDisplay || `${p.checkpointsCompleted} / ${p.checkpointsRequired}`}</strong></td>
+          <td><strong>${p.checkpointsDisplay || `${p.checkpointsCompleted} / ${p.checkpointsRequired} (${Math.max(0, (p.checkpointsRequired || 0) - (p.checkpointsCompleted || 0))} Missed)`}</strong></td>
           <td>
-            <span class="badge badge-${p.status.toLowerCase() === 'completed' ? 'completed' : 'upcoming'}">${p.status}</span>
+            ${(() => {
+              const displayStatus = (p as any).checkpointCompletionStatus || (
+                p.status === 'COMPLETED' && Math.max(0, (p.checkpointsRequired || 0) - (p.checkpointsCompleted || 0)) > 0
+                  ? 'INCOMPLETE'
+                  : p.status
+              );
+              const badgeClass =
+                displayStatus.toLowerCase() === 'completed'
+                  ? 'completed'
+                  : displayStatus.toLowerCase() === 'incomplete'
+                    ? 'incomplete'
+                    : 'upcoming';
+              return `<span class="badge badge-${badgeClass}">${displayStatus}</span>`;
+            })()}
           </td>
         </tr>
       `,

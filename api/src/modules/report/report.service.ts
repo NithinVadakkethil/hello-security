@@ -12,9 +12,14 @@ import {
 import {
   isCheckpointEligibleForSession,
   filterEligibleCheckpointsForSession,
+  calculateSessionCheckpointMetrics,
 } from '../../common/utils/checkpoint-eligibility.util';
-import { buildCheckpointTimeline } from '../../common/utils/checkpoint-timeline.util';
+import {
+  buildCheckpointTimeline,
+  getReportOfficerInfo,
+} from '../../common/utils/checkpoint-timeline.util';
 import { formatEmiratesId } from '../../common/utils/emirates-id.util';
+import { formatRoleLabel } from './summary-report.service';
 import { reportRepository } from './report.repository';
 import { ReportQueryDto } from './report.types';
 
@@ -160,6 +165,84 @@ export class ReportService {
       );
     }
     return session;
+  }
+
+  async getPatrolMissedCheckpoints(patrolSessionId: string, clientId?: string | string[]) {
+    const session = await reportRepository.findSingleInspectionReport(patrolSessionId, clientId);
+    if (!session) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Patrol report not found.',
+      );
+    }
+
+    const metrics = calculateSessionCheckpointMetrics(session);
+    const { guardName, officerRole } = getReportOfficerInfo(session);
+    const rawTimeline = buildCheckpointTimeline(session, guardName, officerRole);
+    const eligibleTimeline = filterEligibleCheckpointsForSession(rawTimeline, session);
+
+    const totalCheckpoints = metrics.totalCheckpoints;
+    const scannedCheckpoints = metrics.scannedCheckpoints;
+    const missedCheckpoints = metrics.missedCheckpoints;
+
+    const missedSet = new Set(metrics.missedGateIds);
+    const missedItems = eligibleTimeline.filter((item: any) => {
+      const gid = item.gate?.id || item.gateId;
+      return missedSet.has(gid) || (!item.scanned && metrics.missedCheckpoints > 0);
+    });
+
+    const emp = session.assignment?.employee || session.managerUser?.employee;
+    const employeeName = emp
+      ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim()
+      : guardName;
+    const employeeCode = emp?.employeeNumber || (session.managerUserId ? 'MGR' : '—');
+    const employeeRole = emp
+      ? formatRoleLabel(emp.role, (emp as any).designation)
+      : (session.managerUserId ? 'Community Manager' : 'Security Guard');
+    const rawEid = emp?.emiratesId || (session as any).emiratesId;
+    const emiratesId = formatEmiratesId(rawEid);
+
+    const siteName = session.assignment?.site?.name || 'N/A';
+    const routeName = session.assignment?.patrolRoute?.name || 'Manager Inspection';
+
+    const missedGates = missedItems.map((item: any, idx: number) => {
+      const gate = item.gate || {};
+      const tasks = (item.tasks || []).map((t: any) => ({
+        id: t.id,
+        taskName: t.title || 'Verification Task',
+        role: t.role,
+        isRequired: t.isRequired,
+        status: t.answer === 'UNANSWERED' ? 'NOT ANSWERED' : t.answer,
+      }));
+
+      return {
+        sequence: item.sequence ?? idx + 1,
+        gateId: gate.id || item.gateId,
+        name: gate.name || 'Unnamed Checkpoint',
+        gateCode: gate.gateCode || '—',
+        routeName,
+        status: 'MISSED',
+        tasks,
+      };
+    });
+
+    return {
+      patrolId: session.id,
+      patrolCode: session.patrolCode || session.id,
+      status: session.status,
+      employeeName,
+      employeeCode,
+      employeeRole,
+      emiratesId,
+      siteName,
+      routeName,
+      shiftName: session.assignment?.shift?.name || 'N/A',
+      totalCheckpoints,
+      scannedCheckpoints,
+      missedCheckpoints,
+      missedGates,
+    };
   }
 
   async generateCsv(clientId: string | undefined, query: ReportQueryDto) {

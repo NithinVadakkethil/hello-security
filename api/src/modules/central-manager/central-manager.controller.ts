@@ -169,7 +169,8 @@ export class CentralManagerController {
   async getOrganizations(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const data = await centralManagerService.getOrganizations(user);
+      const lite = req.query.lite === 'true' || req.query.lite === '1';
+      const data = await centralManagerService.getOrganizations(user, { lite });
       return res.status(HttpStatus.OK).json({
         success: true,
         data,
@@ -259,6 +260,22 @@ export class CentralManagerController {
     }
   }
 
+  async getMissedCheckpoints(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const id = req.params.id as string;
+      const clientId = req.query.clientId as string;
+
+      const data = await centralManagerService.getPatrolMissedCheckpoints(user, id, clientId);
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   async getReportPdf(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
@@ -297,9 +314,23 @@ export class CentralManagerController {
         sortOrder,
       } = req.query as any;
 
+      const cleanFilterVal = (val?: string) => {
+        if (!val || typeof val !== 'string') return undefined;
+        const trimmed = val.trim();
+        if (
+          trimmed === '' ||
+          trimmed.toLowerCase() === 'all' ||
+          trimmed.toLowerCase() === 'null' ||
+          trimmed.toLowerCase() === 'undefined'
+        ) {
+          return undefined;
+        }
+        return trimmed;
+      };
+
       const result = await centralManagerService.getEmployeePatrols(user, {
         clientId,
-        employeeId,
+        employeeId: cleanFilterVal(employeeId),
         periodType: periodType || 'DAILY',
         date,
         startDate,
@@ -308,9 +339,9 @@ export class CentralManagerController {
         toDate,
         week,
         month,
-        shiftId,
-        siteId,
-        role,
+        shiftId: cleanFilterVal(shiftId),
+        siteId: cleanFilterVal(siteId),
+        role: cleanFilterVal(role),
         page: page ? parseInt(page, 10) : 1,
         limit: limit ? parseInt(limit, 10) : 20,
         sortBy,

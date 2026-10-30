@@ -2,7 +2,6 @@
 
 import {
   AlertTriangle,
-  Clock,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -54,7 +53,6 @@ export default function CentralManagerLayout({
   const rawMenuItems = [
     { href: '/central/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/central/employees', label: 'Employees', icon: Users },
-    { href: '/central/attendance', label: 'Attendance', icon: Clock },
     {
       href: '/central/observations',
       label: 'Observation Reports',
@@ -77,6 +75,9 @@ export default function CentralManagerLayout({
   });
 
   const getHeaderTitle = () => {
+    if (pathname.startsWith('/central/projects')) {
+      return 'All Projects';
+    }
     const activeItem = menuItems.find((item) => pathname.startsWith(item.href));
     return activeItem ? activeItem.label : 'Community Manager Portal';
   };

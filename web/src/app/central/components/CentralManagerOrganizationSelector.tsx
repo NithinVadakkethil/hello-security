@@ -1,7 +1,21 @@
 'use client';
 
-import { Building2, ChevronRight, Users, AlertTriangle, Wrench, FileText } from 'lucide-react';
-import React from 'react';
+import {
+  Building2,
+  ChevronRight,
+  Users,
+  AlertTriangle,
+  Wrench,
+  FileText,
+  Search,
+  X,
+} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import {
+  ProjectSelectionCard,
+  ProjectCardSkeleton,
+  ProjectCardStyles,
+} from './ProjectSelectionCard';
 
 export interface OrganizationMetric {
   id: string;
@@ -27,6 +41,7 @@ interface CentralManagerOrganizationSelectorProps {
   error?: string | null;
   onRetry?: () => void;
   onSelectOrganization: (clientId: string) => void;
+  simplified?: boolean;
 }
 
 export function CentralManagerOrganizationSelector({
@@ -36,7 +51,26 @@ export function CentralManagerOrganizationSelector({
   error,
   onRetry,
   onSelectOrganization,
+  simplified,
 }: CentralManagerOrganizationSelectorProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const isSimplified =
+    simplified ??
+    (moduleName === 'Reports & Analytics' ||
+      moduleName === 'Employees' ||
+      moduleName === 'Attendance' ||
+      moduleName === 'Attendance Management');
+
+  const trimmedSearch = searchTerm.trim().toLowerCase();
+
+  const filteredOrgs = useMemo(() => {
+    if (!trimmedSearch) return organizations;
+    return organizations.filter((org) =>
+      org.companyName.toLowerCase().includes(trimmedSearch)
+    );
+  }, [organizations, trimmedSearch]);
+
   const getInitials = (name: string) => {
     if (!name) return 'ORG';
     const parts = name.trim().split(/\s+/);
@@ -62,6 +96,29 @@ export function CentralManagerOrganizationSelector({
   const ModuleIcon = getModuleIcon();
 
   if (isLoading) {
+    if (isSimplified) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <ModuleIcon size={22} style={{ color: '#2563EB' }} />
+              <span>Select Project</span>
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+              Choose an assigned project to view its {moduleName.toLowerCase()}.
+            </p>
+          </div>
+
+          <div className="projects-grid">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <ProjectCardSkeleton key={i} />
+            ))}
+          </div>
+          <ProjectCardStyles />
+        </div>
+      );
+    }
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div>
@@ -144,6 +201,105 @@ export function CentralManagerOrganizationSelector({
         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, maxWidth: '420px' }}>
           No active projects are currently assigned to your Community Manager account. Please contact Super Admin to assign clients.
         </p>
+      </div>
+    );
+  }
+
+  if (isSimplified) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Header Row with Heading and Search Bar */}
+        <div className="projects-header-row">
+          <div>
+            <h2
+              style={{
+                fontSize: '20px',
+                fontWeight: '800',
+                margin: 0,
+                color: 'var(--text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+              }}
+            >
+              <ModuleIcon size={22} style={{ color: '#2563EB' }} />
+              <span>Select Project</span>
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+              Choose an assigned project to view its {moduleName.toLowerCase()}.
+            </p>
+          </div>
+
+          <div className="projects-search-wrapper">
+            <Search size={18} className="search-icon" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search projects..."
+              className="projects-search-input"
+              aria-label="Search projects by name"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="search-clear-btn"
+                aria-label="Clear search"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Empty Search State */}
+        {organizations.length > 0 && filteredOrgs.length === 0 && (
+          <div className="projects-state-card">
+            <Search
+              size={44}
+              style={{ color: 'var(--text-muted)', marginBottom: '12px' }}
+            />
+            <h3>No matching projects found</h3>
+            <p>
+              No projects match &ldquo;<strong>{searchTerm}</strong>&rdquo;. Try a
+              different search term.
+            </p>
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="btn btn-secondary"
+              style={{ marginTop: '14px' }}
+            >
+              Clear Search
+            </button>
+          </div>
+        )}
+
+        {/* Simplified Project Cards Grid */}
+        {filteredOrgs.length > 0 && (
+          <div className="projects-grid">
+            {filteredOrgs.map((org) => (
+              <ProjectSelectionCard
+                key={org.id}
+                project={org}
+                onSelect={onSelectOrganization}
+                ariaLabel={`Select ${org.companyName}`}
+              />
+            ))}
+          </div>
+        )}
+
+        <ProjectCardStyles />
+        <style>{`
+          .projects-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+          }
+        `}</style>
       </div>
     );
   }

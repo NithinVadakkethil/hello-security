@@ -30,6 +30,7 @@ export default function StatusChip({ status }: StatusChipProps) {
       case 'SUSPENDED':
       case 'PENDING':
       case 'LATE':
+      case 'INCOMPLETE':
         colorClass = 'orange';
         break;
       case 'EXPIRED':
@@ -43,6 +44,8 @@ export default function StatusChip({ status }: StatusChipProps) {
       case 'NOT STARTED':
       case 'NOT_STARTED':
       case 'INACTIVE':
+      case 'NO CHECKPOINTS':
+      case 'NOT APPLICABLE':
       default:
         colorClass = 'gray';
         break;

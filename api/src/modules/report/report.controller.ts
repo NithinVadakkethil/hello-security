@@ -66,6 +66,22 @@ export class ReportController {
     }
   }
 
+  async getMissedCheckpoints(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const isSuperAdmin = user.role === 'SUPER_ADMIN';
+      const clientId = isSuperAdmin || !user.tenantId ? (req.query.clientId as string) : user.tenantId;
+
+      const data = await reportService.getPatrolMissedCheckpoints(req.params.id as string, clientId);
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   async getPatrolPdf(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
@@ -241,9 +257,28 @@ export class ReportController {
     try {
       const params = this.extractSummaryParams(req);
       const query = req.query as any;
+
+      const cleanFilterVal = (val?: string) => {
+        if (!val || typeof val !== 'string') return undefined;
+        const trimmed = val.trim();
+        if (
+          trimmed === '' ||
+          trimmed.toLowerCase() === 'all' ||
+          trimmed.toLowerCase() === 'null' ||
+          trimmed.toLowerCase() === 'undefined'
+        ) {
+          return undefined;
+        }
+        return trimmed;
+      };
+
+      const rawEmpId = (query.employeeId || params.employeeId) as string;
       const result = await summaryReportService.getEmployeeCompletedPatrols({
         ...params,
-        employeeId: (query.employeeId || params.employeeId) as string,
+        employeeId: cleanFilterVal(rawEmpId),
+        shiftId: cleanFilterVal(query.shiftId || params.shiftId),
+        siteId: cleanFilterVal(query.siteId || params.siteId),
+        role: cleanFilterVal(query.role || params.role),
         page: query.page ? parseInt(query.page, 10) : 1,
         limit: query.limit ? parseInt(query.limit, 10) : 20,
         sortBy: query.sortBy,

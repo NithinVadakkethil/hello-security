@@ -136,8 +136,13 @@ export class ExcelGeneratorService {
         'Full Session Duration': p.fullDurationFormatted || '—',
         'Checkpoints Completed': p.checkpointsCompleted,
         'Checkpoints Required': p.checkpointsRequired,
+        'Checkpoints Missed': Math.max(0, (p.checkpointsRequired || 0) - (p.checkpointsCompleted || 0)),
         'Checkpoint Duration': p.checkpointDurationFormatted || '—',
-        'Status': p.status,
+        'Status': (p as any).checkpointCompletionStatus || (
+          p.status === 'COMPLETED' && Math.max(0, (p.checkpointsRequired || 0) - (p.checkpointsCompleted || 0)) > 0
+            ? 'INCOMPLETE'
+            : p.status
+        ),
       }));
       const wsPatrols = XLSX.utils.json_to_sheet(formattedPatrols);
       XLSX.utils.book_append_sheet(wb, wsPatrols, 'Patrol Sessions');

@@ -79,6 +79,12 @@ router.get(
 );
 
 router.get(
+  '/reports/:id/missed-checkpoints',
+  authorize(...CENTRAL_MANAGER_ROLES),
+  centralManagerController.getMissedCheckpoints.bind(centralManagerController),
+);
+
+router.get(
   '/reports/:id',
   authorize(...CENTRAL_MANAGER_ROLES),
   centralManagerController.getSingleReport.bind(centralManagerController),

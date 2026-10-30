@@ -6,11 +6,10 @@ import {
   AlertCircle,
   AlertTriangle,
   Building2,
-  Calendar,
   CheckCircle2,
   CheckSquare,
   ChevronRight,
-  FileText,
+  MapPin,
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
@@ -25,87 +24,27 @@ import OrganizationHeroCard, { SelectedClientData } from './components/Organizat
 import SnagDonutChart from './components/SnagDonutChart';
 import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 
-const ROLE_LABELS: Record<string, string> = {
-  SECURITY: 'Security Guard',
-  SECURITY_GUARD: 'Security Guard',
-  TECHNICIAN: 'Technician',
-  CLEANER: 'House Keeping',
-  SERVICE_ENGINEER: 'Service Engineer',
-  SUPERVISOR: 'Supervisor',
-  MANAGER: 'Community Manager',
-  LIFE_GUARD: 'Lifeguard',
-  PLUMBER: 'Plumber',
-};
-
-function getRoleLabel(role?: string): string {
-  if (!role) return 'Employee';
-  return ROLE_LABELS[role.toUpperCase()] || role.replace('_', ' ');
-}
-
 export default function CentralDashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clientId = searchParams?.get('clientId') || '';
 
-  const [dateRange, setDateRange] = useState<string>('ALL');
-  const [customFrom, setCustomFrom] = useState<string>('');
-  const [customTo, setCustomTo] = useState<string>('');
-
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Compute dateFrom and dateTo strings based on dateRange selection
-  const getDateParams = () => {
-    const now = new Date();
-    let from: string | undefined;
-    let to: string | undefined;
-
-    if (dateRange === 'ALL') {
-      from = undefined;
-      to = undefined;
-    } else if (dateRange === 'TODAY') {
-      from = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
-    } else if (dateRange === 'YESTERDAY') {
-      const y = new Date(now);
-      y.setDate(y.getDate() - 1);
-      from = new Date(y.getFullYear(), y.getMonth(), y.getDate()).toISOString();
-      to = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59).toISOString();
-    } else if (dateRange === 'LAST_7_DAYS') {
-      const d = new Date(now);
-      d.setDate(d.getDate() - 7);
-      from = d.toISOString();
-    } else if (dateRange === 'LAST_30_DAYS') {
-      const d = new Date(now);
-      d.setDate(d.getDate() - 30);
-      from = d.toISOString();
-    } else if (dateRange === 'THIS_MONTH') {
-      from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    } else if (dateRange === 'THIS_YEAR') {
-      from = new Date(now.getFullYear(), 0, 1).toISOString();
-      to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
-    } else if (dateRange === 'CUSTOM' && customFrom && customTo) {
-      from = new Date(customFrom).toISOString();
-      to = new Date(customTo).toISOString();
-    }
-
-    return { dateFrom: from, dateTo: to };
-  };
 
   const fetchDashboard = async (targetClientId?: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      const { dateFrom, dateTo } = getDateParams();
       const params = new URLSearchParams();
       if (targetClientId || clientId) {
         params.set('clientId', targetClientId || clientId);
       }
-      if (dateFrom) params.set('dateFrom', dateFrom);
-      if (dateTo) params.set('dateTo', dateTo);
 
-      const res: any = await apiClient.get(`/central-manager/dashboard?${params.toString()}`);
+      const res: any = await apiClient.get(
+        `/central-manager/dashboard${params.toString() ? `?${params.toString()}` : ''}`
+      );
       setDashboardData(res?.data || res);
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Unable to load dashboard data. Please try again.';
@@ -118,7 +57,7 @@ export default function CentralDashboardPage() {
 
   useEffect(() => {
     fetchDashboard(clientId);
-  }, [clientId, dateRange, customFrom, customTo]);
+  }, [clientId]);
 
   const handleSelectClient = (newClientId: string) => {
     router.push(`/central/dashboard?clientId=${newClientId}`);
@@ -184,28 +123,15 @@ export default function CentralDashboardPage() {
     completedPatrols: 0,
     openObservations: 0,
     openSnags: 0,
+    totalCheckpoints: 0,
+    totalConfiguredCheckpoints: 0,
     totalCheckpointsScanned: 0,
     totalCheckpointsMissed: 0,
-    totalCheckpoints: 0,
     avgCompliance: 0,
   };
 
   const clientsList = dashboardData?.clients || [];
   const selectedClient: SelectedClientData | null = dashboardData?.selectedClient || null;
-
-  const getDatePeriodLabel = (): string | undefined => {
-    switch (dateRange) {
-      case 'ALL': return undefined;
-      case 'TODAY': return 'Today';
-      case 'YESTERDAY': return 'Yesterday';
-      case 'LAST_7_DAYS': return 'Last 7 Days';
-      case 'LAST_30_DAYS': return 'Last 30 Days';
-      case 'THIS_MONTH': return 'This Month';
-      case 'THIS_YEAR': return 'This Year';
-      case 'CUSTOM': return customFrom && customTo ? `${customFrom} to ${customTo}` : 'Custom Range';
-      default: return undefined;
-    }
-  };
 
   return (
     <div className="central-dashboard-root">
@@ -215,65 +141,24 @@ export default function CentralDashboardPage() {
           <h1 className="page-header-title">Executive Dashboard</h1>
           <p className="page-header-subtitle">Multi-project operational overview & analytics</p>
         </div>
-
-        {/* Date Range Selector */}
-        <div className="date-filter-group">
-          <div className="date-select-wrapper">
-            <Calendar size={16} className="date-icon" />
-            <select
-              value={dateRange}
-              onChange={(e) => {
-                const val = e.target.value;
-                setDateRange(val);
-                if (val !== 'CUSTOM') {
-                  setCustomFrom('');
-                  setCustomTo('');
-                }
-              }}
-              className="date-select-input"
-            >
-              <option value="ALL">All</option>
-              <option value="TODAY">Today</option>
-              <option value="YESTERDAY">Yesterday</option>
-              <option value="LAST_7_DAYS">Last 7 Days</option>
-              <option value="LAST_30_DAYS">Last 30 Days</option>
-              <option value="THIS_MONTH">This Month</option>
-              <option value="THIS_YEAR">This Year</option>
-              <option value="CUSTOM">Custom Range</option>
-            </select>
-          </div>
-
-          {dateRange === 'CUSTOM' && (
-            <div className="custom-date-inputs">
-              <input
-                type="date"
-                value={customFrom}
-                onChange={(e) => setCustomFrom(e.target.value)}
-                className="custom-date-field"
-              />
-              <span style={{ color: 'var(--text-muted)' }}>to</span>
-              <input
-                type="date"
-                value={customTo}
-                onChange={(e) => setCustomTo(e.target.value)}
-                className="custom-date-field"
-              />
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Global Multi-Company KPI Strip */}
       <div className="global-kpi-strip">
-        <div className="global-kpi-card">
+        <button
+          type="button"
+          onClick={() => router.push('/central/projects')}
+          className="global-kpi-card clickable"
+          aria-label="View all authorized projects"
+        >
           <div className="kpi-icon-badge" style={{ background: 'rgba(37, 99, 235, 0.12)', color: '#2563EB' }}>
             <Building2 size={20} />
           </div>
           <div className="kpi-text-box">
             <span className="global-kpi-value">{global.organizationsCount}</span>
-            <span className="global-kpi-label">Projects</span>
+            <span className="global-kpi-label">Total Projects</span>
           </div>
-        </div>
+        </button>
 
         <button
           type="button"
@@ -299,9 +184,24 @@ export default function CentralDashboardPage() {
           </div>
           <div className="kpi-text-box">
             <span className="global-kpi-value">{global.completedPatrols}</span>
-            <span className="global-kpi-label">
-              Completed Patrols{getDatePeriodLabel() ? ` (${getDatePeriodLabel()})` : ''}
+            <span className="global-kpi-label">Completed Patrols</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push('/central/reports')}
+          className="global-kpi-card clickable"
+          aria-label="View all checkpoints in reports"
+        >
+          <div className="kpi-icon-badge" style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6' }}>
+            <MapPin size={20} />
+          </div>
+          <div className="kpi-text-box">
+            <span className="global-kpi-value">
+              {global.totalCheckpoints ?? global.totalConfiguredCheckpoints ?? 0}
             </span>
+            <span className="global-kpi-label">Total Checkpoints</span>
           </div>
         </button>
 
@@ -386,7 +286,7 @@ export default function CentralDashboardPage() {
           </div>
           <div className="kpi-text-box">
             <span className="global-kpi-value">{global.avgCompliance}%</span>
-            <span className="global-kpi-label">Avg Compliance</span>
+            <span className="global-kpi-label">Average Compliance</span>
           </div>
         </button>
       </div>
@@ -399,7 +299,7 @@ export default function CentralDashboardPage() {
             selectedClientId={selectedClient.id}
             onSelectClient={handleSelectClient}
           />
-          <OrganizationHeroCard client={selectedClient} periodLabel={getDatePeriodLabel()} />
+          <OrganizationHeroCard client={selectedClient} />
         </div>
       ) : (
         <div className="no-orgs-empty-card">
@@ -409,170 +309,33 @@ export default function CentralDashboardPage() {
         </div>
       )}
 
-      {/* Secondary Analytics Area */}
-      {selectedClient && (
-        <div className="analytics-two-col-grid" style={{ gridTemplateColumns: DEMO_KAIZEN_FEATURES.snags ? undefined : '1fr' }}>
-          {/* LEFT: Snag Donut & Categories */}
-          {DEMO_KAIZEN_FEATURES.snags && (
-            <div className="analytics-card">
-              <div className="card-header-bar">
-                <div className="card-header-title">
-                  <Wrench size={18} style={{ color: '#2563EB' }} />
-                  <h3>Snag Categories & Status Breakdown</h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => router.push(`/central/snags?clientId=${selectedClient.id}`)}
-                  className="view-all-link"
-                >
-                  <span>View Snags</span>
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-
-              <div className="card-body">
-                <SnagDonutChart
-                  clientId={selectedClient.id}
-                  totalSnags={selectedClient.snagStatusSummary?.total ?? selectedClient.metrics?.totalSnagsCount ?? 0}
-                  openSnags={selectedClient.snagStatusSummary?.open ?? selectedClient.metrics?.openSnagsCount ?? 0}
-                  wipSnags={selectedClient.snagStatusSummary?.wip ?? selectedClient.metrics?.wipSnagsCount ?? 0}
-                  closedSnags={selectedClient.snagStatusSummary?.closed ?? selectedClient.metrics?.closedSnagsCount ?? 0}
-                  categories={selectedClient.snagDistribution || []}
-                />
-              </div>
+      {/* Snag Analytics Area (if enabled) */}
+      {selectedClient && DEMO_KAIZEN_FEATURES.snags && (
+        <div className="analytics-card">
+          <div className="card-header-bar">
+            <div className="card-header-title">
+              <Wrench size={18} style={{ color: '#2563EB' }} />
+              <h3>Snag Categories & Status Breakdown</h3>
             </div>
-          )}
+            <button
+              type="button"
+              onClick={() => router.push(`/central/snags?clientId=${selectedClient.id}`)}
+              className="view-all-link"
+            >
+              <span>View Snags</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
 
-          {/* RIGHT: Operational Summary & Employee Roles */}
-          <div className="analytics-card">
-            <div className="card-header-bar">
-              <div className="card-header-title">
-                <FileText size={18} style={{ color: '#2563EB' }} />
-                <h3>Operational & Workforce Summary</h3>
-              </div>
-            </div>
-
-            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Observation Summary */}
-              {DEMO_KAIZEN_FEATURES.observations && (
-                <div className="sub-analytics-box">
-                  <div className="sub-box-header">
-                    <span className="sub-title">Observation Reports</span>
-                    <button
-                      onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}`)}
-                      className="view-link-sm"
-                    >
-                      View All ({selectedClient.observationSummary?.total ?? selectedClient.metrics?.totalObservationsCount ?? 0})
-                    </button>
-                  </div>
-                  <div className="metric-pills-row">
-                    <button
-                      onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}`)}
-                      className="metric-pill"
-                    >
-                      <span className="pill-val">{selectedClient.observationSummary?.total ?? selectedClient.metrics?.totalObservationsCount ?? 0}</span>
-                      <span className="pill-lbl">Total</span>
-                    </button>
-                    <button
-                      onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}&status=OPEN`)}
-                      className="metric-pill open"
-                    >
-                      <span className="pill-val">{selectedClient.observationSummary?.open ?? selectedClient.metrics?.openObservationsCount ?? 0}</span>
-                      <span className="pill-lbl">Open</span>
-                    </button>
-                    <button
-                      onClick={() => router.push(`/central/observations?clientId=${selectedClient.id}&status=REVIEWED`)}
-                      className="metric-pill reviewed"
-                    >
-                      <span className="pill-val">{selectedClient.observationSummary?.reviewed ?? selectedClient.metrics?.reviewedObservationsCount ?? 0}</span>
-                      <span className="pill-lbl">Reviewed</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Patrol & Checkpoint Summary */}
-              <div className="sub-analytics-box">
-                <div className="sub-box-header">
-                  <span className="sub-title">Patrol & Checkpoint Performance</span>
-                  <button
-                    onClick={() => router.push(`/central/reports?clientId=${selectedClient.id}`)}
-                    className="view-link-sm"
-                  >
-                    Audit Reports
-                  </button>
-                </div>
-                <div className="metric-pills-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-                  <button
-                    onClick={() => router.push(`/central/reports?clientId=${selectedClient.id}`)}
-                    className="metric-pill"
-                  >
-                    <span className="pill-val">{selectedClient.patrolSummary?.completedPatrols ?? selectedClient.metrics?.completedPatrolsCount ?? 0}</span>
-                    <span className="pill-lbl">Patrols</span>
-                  </button>
-                  <button
-                    onClick={() => router.push(`/central/reports?clientId=${selectedClient.id}`)}
-                    className="metric-pill active"
-                  >
-                    <span className="pill-val">{selectedClient.checkpointSummary?.scanned ?? selectedClient.metrics?.totalCheckpointsScanned ?? 0}</span>
-                    <span className="pill-lbl">Scanned</span>
-                  </button>
-                  <button
-                    onClick={() => router.push(`/central/reports?clientId=${selectedClient.id}`)}
-                    className="metric-pill"
-                  >
-                    <span
-                      className="pill-val"
-                      style={{ color: (selectedClient.checkpointSummary?.missed ?? selectedClient.metrics?.totalCheckpointsMissed ?? 0) > 0 ? '#ef4444' : undefined }}
-                    >
-                      {selectedClient.checkpointSummary?.missed ?? selectedClient.metrics?.totalCheckpointsMissed ?? 0}
-                    </span>
-                    <span className="pill-lbl">Missed</span>
-                  </button>
-                  <button
-                    onClick={() => router.push(`/central/reports?clientId=${selectedClient.id}`)}
-                    className="metric-pill compliance"
-                  >
-                    <span className="pill-val">{selectedClient.patrolSummary?.avgCompliance ?? selectedClient.metrics?.complianceRate ?? 0}%</span>
-                    <span className="pill-lbl">Compliance</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Employee Role Distribution */}
-              <div className="sub-analytics-box">
-                <div className="sub-box-header">
-                  <span className="sub-title">Workforce Roles ({selectedClient.metrics?.employeesCount ?? 0})</span>
-                  <button
-                    onClick={() => router.push(`/central/employees?clientId=${selectedClient.id}`)}
-                    className="view-link-sm"
-                  >
-                    Employees List
-                  </button>
-                </div>
-                <div className="role-tags-grid">
-                  {(selectedClient.employeeRoles && selectedClient.employeeRoles.length > 0) ? (
-                    selectedClient.employeeRoles.map((r, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() =>
-                          router.push(
-                            `/central/employees?clientId=${selectedClient.id}&role=${encodeURIComponent(r.role)}`
-                          )
-                        }
-                        className="role-tag-btn"
-                      >
-                        <span className="role-name">{getRoleLabel(r.role)}</span>
-                        <span className="role-count">{r.count}</span>
-                      </button>
-                    ))
-                  ) : (
-                    <span className="muted-text">No active employee roles recorded.</span>
-                  )}
-                </div>
-              </div>
-            </div>
+          <div className="card-body">
+            <SnagDonutChart
+              clientId={selectedClient.id}
+              totalSnags={selectedClient.snagStatusSummary?.total ?? selectedClient.metrics?.totalSnagsCount ?? 0}
+              openSnags={selectedClient.snagStatusSummary?.open ?? selectedClient.metrics?.openSnagsCount ?? 0}
+              wipSnags={selectedClient.snagStatusSummary?.wip ?? selectedClient.metrics?.wipSnagsCount ?? 0}
+              closedSnags={selectedClient.snagStatusSummary?.closed ?? selectedClient.metrics?.closedSnagsCount ?? 0}
+              categories={selectedClient.snagDistribution || []}
+            />
           </div>
         </div>
       )}
@@ -654,48 +417,9 @@ export default function CentralDashboardPage() {
           color: var(--text-secondary, #64748b);
           margin: 2px 0 0 0;
         }
-        .date-filter-group {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-        .date-select-wrapper {
-          position: relative;
-          display: flex;
-          align-items: center;
-        }
-        :global(.date-icon) {
-          position: absolute;
-          left: 12px;
-          color: var(--text-secondary, #64748b);
-          pointer-events: none;
-        }
-        .date-select-input {
-          padding: 8px 16px 8px 36px;
-          border-radius: 8px;
-          border: 1px solid var(--border-color, #e2e8f0);
-          background: var(--bg-card, #ffffff);
-          color: var(--text-primary, #0f172a);
-          font-size: 0.85rem;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .custom-date-inputs {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .custom-date-field {
-          padding: 6px 10px;
-          border-radius: 6px;
-          border: 1px solid var(--border-color, #e2e8f0);
-          font-size: 0.8rem;
-          background: var(--bg-card, #ffffff);
-        }
         .global-kpi-strip {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
           gap: 16px;
         }
         .global-kpi-card {
@@ -717,6 +441,10 @@ export default function CentralDashboardPage() {
           border-color: #2563eb;
           transform: translateY(-2px);
           box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.12);
+        }
+        .global-kpi-card.clickable:focus-visible {
+          outline: 2px solid #2563eb;
+          outline-offset: 2px;
         }
         .kpi-icon-badge {
           width: 44px;
@@ -759,11 +487,6 @@ export default function CentralDashboardPage() {
           border-radius: 16px;
           text-align: center;
           color: var(--text-secondary);
-        }
-        .analytics-two-col-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 24px;
         }
         .analytics-card {
           background: var(--bg-card, #ffffff);
@@ -810,124 +533,6 @@ export default function CentralDashboardPage() {
         .card-body {
           padding: 20px;
           flex: 1;
-        }
-        .stacked-analytics {
-          display: flex;
-          flex-direction: column;
-          gap: 18px;
-        }
-        .sub-analytics-box {
-          background: var(--surface-color, #f8fafc);
-          border: 1px solid var(--border-color, #e2e8f0);
-          border-radius: 12px;
-          padding: 14px;
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-        .sub-box-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-        .sub-title {
-          font-size: 0.82rem;
-          font-weight: 700;
-          color: var(--text-primary, #0f172a);
-          text-transform: uppercase;
-          letter-spacing: 0.03em;
-        }
-        .view-link-sm {
-          background: transparent;
-          border: none;
-          color: #2563eb;
-          font-size: 0.75rem;
-          font-weight: 700;
-          cursor: pointer;
-        }
-        .view-link-sm:hover {
-          text-decoration: underline;
-        }
-        .metric-pills-row {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 8px;
-        }
-        .metric-pill {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 8px;
-          background: var(--bg-card, #ffffff);
-          border: 1px solid var(--border-color, #e2e8f0);
-          border-radius: 8px;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-        .metric-pill:hover {
-          border-color: #2563eb;
-          transform: translateY(-1px);
-        }
-        .pill-val {
-          font-size: 1.15rem;
-          font-weight: 800;
-          color: var(--text-primary, #0f172a);
-        }
-        .metric-pill.open .pill-val {
-          color: #f59e0b;
-        }
-        .metric-pill.reviewed .pill-val {
-          color: #10b981;
-        }
-        .metric-pill.active .pill-val {
-          color: #3b82f6;
-        }
-        .metric-pill.compliance .pill-val {
-          color: #6366f1;
-        }
-        .pill-lbl {
-          font-size: 0.7rem;
-          font-weight: 600;
-          color: var(--text-secondary, #64748b);
-          margin-top: 2px;
-        }
-        .role-tags-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-        .role-tag-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 6px 12px;
-          background: var(--bg-card, #ffffff);
-          border: 1px solid var(--border-color, #e2e8f0);
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 0.8rem;
-          transition: all 0.15s ease;
-        }
-        .role-tag-btn:hover {
-          border-color: #2563eb;
-          color: #2563eb;
-          transform: translateY(-1px);
-        }
-        .role-name {
-          font-weight: 600;
-          color: var(--text-primary, #0f172a);
-        }
-        .role-count {
-          font-weight: 800;
-          color: #2563eb;
-          background: rgba(37, 99, 235, 0.1);
-          padding: 2px 6px;
-          border-radius: 4px;
-        }
-        .muted-text {
-          font-size: 0.8rem;
-          color: var(--text-secondary);
-          font-style: italic;
         }
         .attention-section-card {
           background: var(--bg-card, #ffffff);
@@ -998,11 +603,6 @@ export default function CentralDashboardPage() {
           margin: 4px 0 0 0;
           font-size: 0.78rem;
           color: var(--text-secondary, #64748b);
-        }
-        @media (max-width: 960px) {
-          .analytics-two-col-grid {
-            grid-template-columns: 1fr;
-          }
         }
       `}</style>
     </div>

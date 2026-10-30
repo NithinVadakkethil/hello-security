@@ -80,7 +80,7 @@ export default function CentralEmployeesPage() {
     setIsOrgsLoading(true);
     setOrgsError(null);
     try {
-      const res: any = await apiClient.get('/central-manager/organizations');
+      const res: any = await apiClient.get('/central-manager/organizations?lite=true');
       const orgsList = res?.data || (Array.isArray(res) ? res : []);
       setOrganizations(orgsList);
     } catch (err: any) {
@@ -327,14 +327,38 @@ export default function CentralEmployeesPage() {
   // If no company selected, render Organization Selector
   if (!clientId) {
     return (
-      <CentralManagerOrganizationSelector
-        moduleName="Employees"
-        organizations={organizations}
-        isLoading={isOrgsLoading}
-        error={orgsError}
-        onRetry={fetchOrganizations}
-        onSelectOrganization={handleSelectOrganization}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div>
+          <h1
+            style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              margin: 0,
+              color: 'var(--text-primary)',
+            }}
+          >
+            Employees
+          </h1>
+          <p
+            style={{
+              fontSize: '0.9rem',
+              color: 'var(--text-secondary)',
+              margin: '4px 0 0 0',
+            }}
+          >
+            Select an assigned project to view and manage personnel assigned to this organization.
+          </p>
+        </div>
+
+        <CentralManagerOrganizationSelector
+          moduleName="Employees"
+          organizations={organizations}
+          isLoading={isOrgsLoading}
+          error={orgsError}
+          onRetry={fetchOrganizations}
+          onSelectOrganization={handleSelectOrganization}
+        />
+      </div>
     );
   }
 

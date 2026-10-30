@@ -8,6 +8,7 @@ import {
   Building2,
   CheckCircle2,
   CheckSquare,
+  MapPin,
   ShieldCheck,
   Users,
   Wrench,
@@ -36,6 +37,7 @@ export interface SelectedClientData {
     totalCheckpointsScanned?: number;
     totalCheckpointsMissed?: number;
     totalCheckpoints?: number;
+    totalConfiguredCheckpoints?: number;
     complianceRate: number;
   };
   checkpointSummary?: {
@@ -162,9 +164,23 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
           </div>
           <div className="kpi-info">
             <span className="kpi-value">{client.metrics.completedPatrolsCount}</span>
-            <span className="kpi-label">
-              Completed Patrols {periodLabel && <small style={{ fontSize: '10px', color: '#10B981' }}>({periodLabel})</small>}
+            <span className="kpi-label">Completed Patrols</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
+          className="kpi-card"
+        >
+          <div className="kpi-icon-box" style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6' }}>
+            <MapPin size={18} />
+          </div>
+          <div className="kpi-info">
+            <span className="kpi-value">
+              {client.metrics.totalCheckpoints ?? client.metrics.totalConfiguredCheckpoints ?? 0}
             </span>
+            <span className="kpi-label">Total Checkpoints</span>
           </div>
         </button>
 

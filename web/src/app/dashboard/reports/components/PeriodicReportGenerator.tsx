@@ -1,5 +1,8 @@
 'use client';
 
+import CompletedPatrolSessionsTable from '@/app/central/reports/components/CompletedPatrolSessionsTable';
+import MissedCheckpointsModal from '@/app/central/reports/components/MissedCheckpointsModal';
+import { formatEmiratesId } from '@/lib/emirates-id';
 import {
   AlertCircle,
   BarChart2,
@@ -14,13 +17,13 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { resolveImageUrl } from '../../../../lib/image';
-import { formatEmiratesId } from '@/lib/emirates-id';
 import { apiClient } from '../../../lib/axios';
 import { getAccessToken } from '../../../utils/token';
+import DetailedReportModal from './DetailedReportModal';
 import SearchableSelect, { SearchableOption } from './SearchableSelect';
 import WeekPickerPopover, { getWeekBoundaries } from './WeekPickerPopover';
 
@@ -200,6 +203,19 @@ export default function PeriodicReportGenerator({
     | 'incidents'
     | 'employeeSummary'
   >(['summary', 'mandatory', 'attendance', 'patrols', 'checkpoints', 'incidents', 'employeeSummary'].includes(urlTab) ? urlTab : 'summary');
+
+  // Central Manager Filtered Completed Patrols State
+  const [centralPatrolsData, setCentralPatrolsData] = useState<any | null>(null);
+  const [isLoadingCentralPatrols, setIsLoadingCentralPatrols] = useState(false);
+  const [centralPatrolsPage, setCentralPatrolsPage] = useState<number>(1);
+  const [centralPatrolsLimit, setCentralPatrolsLimit] = useState<number | 'all'>(20);
+  const [centralPatrolsSortBy, setCentralPatrolsSortBy] = useState<string>('startedAt');
+  const [centralPatrolsSortOrder, setCentralPatrolsSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [detailedReportData, setDetailedReportData] = useState<any | null>(null);
+  const [selectedMissedPatrolId, setSelectedMissedPatrolId] = useState<string | null>(null);
+  const [selectedMissedPatrolCode, setSelectedMissedPatrolCode] = useState<string | null>(null);
+  const [lastGeneratedKey, setLastGeneratedKey] = useState<string | null>(null);
 
   // Sites, Shifts, Employees
   const [localSites, setLocalSites] = useState<any[]>(propSites || []);
@@ -562,10 +578,204 @@ export default function PeriodicReportGenerator({
     return params.toString();
   };
 
+  // Active Filter Key for Detecting Changes
+  const currentFilterKey = `${reportType}|${selectedDate}|${customStartDate}|${customEndDate}|${selectedShiftId}|${selectedRole}|${selectedEmployeeId}|${selectedSiteId}`;
+
+  // When any filter changes after report generation, clear previous results so stale data is never shown
+  useEffect(() => {
+    if (lastGeneratedKey && lastGeneratedKey !== currentFilterKey) {
+      setCentralPatrolsData(null);
+      setReportData(null);
+      setLastGeneratedKey(null);
+    }
+  }, [currentFilterKey, lastGeneratedKey]);
+
+  // Fetch Central Manager Filtered Patrol Sessions
+  const fetchCentralPatrols = useCallback(
+    async (
+      targetPage: number = centralPatrolsPage,
+      targetLimit: number | 'all' = centralPatrolsLimit,
+      targetSortBy: string = centralPatrolsSortBy,
+      targetSortOrder: 'asc' | 'desc' = centralPatrolsSortOrder,
+    ) => {
+      if (!clientId) return;
+      if (isCustomRangeInvalid) {
+        toast.error('To Date cannot be earlier than From Date.');
+        return;
+      }
+
+      setIsLoadingCentralPatrols(true);
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.append('clientId', clientId);
+        params.append('periodType', reportType);
+
+        if (reportType === 'CUSTOM') {
+          params.append('startDate', customStartDate);
+          params.append('endDate', customEndDate);
+          params.append('fromDate', customStartDate);
+          params.append('toDate', customEndDate);
+        } else if (reportType === 'MONTHLY') {
+          params.append('month', selectedDate.substring(0, 7));
+          params.append('date', selectedDate);
+        } else {
+          params.append('date', selectedDate);
+        }
+
+        if (selectedSiteId) params.append('siteId', selectedSiteId);
+        if (selectedShiftId) params.append('shiftId', selectedShiftId);
+        if (selectedRole && selectedRole !== 'ALL') params.append('role', selectedRole);
+        if (selectedEmployeeId) params.append('employeeId', selectedEmployeeId);
+
+        params.append('page', String(targetPage));
+        params.append('limit', targetLimit === 'all' ? '100' : String(targetLimit));
+        params.append('sortBy', targetSortBy);
+        params.append('sortOrder', targetSortOrder);
+
+        const res: any = await apiClient.get(
+          `/central-manager/reports/employee-patrols?${params.toString()}`,
+        );
+        const data = res?.data || res;
+        setCentralPatrolsData(data);
+        setLastGeneratedKey(currentFilterKey);
+
+        const totalCount =
+          data?.pagination?.totalRecords ??
+          data?.summary?.totalCompletedPatrols ??
+          0;
+        const scopeDesc = selectedEmployeeObj
+          ? `${selectedEmployeeObj.firstName} ${selectedEmployeeObj.lastName || ''}`.trim()
+          : selectedRole !== 'ALL'
+            ? `All ${formatRoleLabel(selectedRole)}s`
+            : 'All Matching Employees';
+
+        toast.success(
+          `${reportType} Report generated: ${totalCount} completed patrol session(s) found for ${scopeDesc}!`,
+        );
+      } catch (err: any) {
+        const msg =
+          err?.response?.data?.message ||
+          err?.response?.data?.error?.message ||
+          'Failed to retrieve completed patrol sessions.';
+        toast.error(msg);
+      } finally {
+        setIsLoadingCentralPatrols(false);
+        setIsLoading(false);
+      }
+    },
+    [
+      clientId,
+      isCustomRangeInvalid,
+      reportType,
+      customStartDate,
+      customEndDate,
+      selectedDate,
+      selectedSiteId,
+      selectedShiftId,
+      selectedRole,
+      selectedEmployeeId,
+      currentFilterKey,
+      selectedEmployeeObj,
+      centralPatrolsPage,
+      centralPatrolsLimit,
+      centralPatrolsSortBy,
+      centralPatrolsSortOrder,
+    ],
+  );
+
+  const handlePatrolPageChange = (newPage: number) => {
+    setCentralPatrolsPage(newPage);
+    fetchCentralPatrols(newPage, centralPatrolsLimit, centralPatrolsSortBy, centralPatrolsSortOrder);
+  };
+
+  const handlePatrolPageSizeChange = (newSize: number | 'all') => {
+    setCentralPatrolsLimit(newSize);
+    setCentralPatrolsPage(1);
+    fetchCentralPatrols(1, newSize, centralPatrolsSortBy, centralPatrolsSortOrder);
+  };
+
+  const handlePatrolSort = (key: string) => {
+    const newSortOrder =
+      centralPatrolsSortBy === key && centralPatrolsSortOrder === 'desc'
+        ? 'asc'
+        : 'desc';
+    setCentralPatrolsSortBy(key);
+    setCentralPatrolsSortOrder(newSortOrder);
+    fetchCentralPatrols(
+      centralPatrolsPage,
+      centralPatrolsLimit,
+      key,
+      newSortOrder,
+    );
+  };
+
+  const handleViewReport = async (patrolId: string) => {
+    try {
+      const res: any = await apiClient.get(
+        `/central-manager/reports/${patrolId}?clientId=${clientId}`,
+      );
+      const data = res?.data || res;
+      setDetailedReportData(data);
+      setSelectedReportId(patrolId);
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message || 'Failed to load report details',
+      );
+    }
+  };
+
+  const handleOpenMissedModal = (patrolId: string, patrolCode: string) => {
+    setSelectedMissedPatrolId(patrolId);
+    setSelectedMissedPatrolCode(patrolCode);
+  };
+
+  const handleDownloadSinglePdf = async (
+    patrolId: string,
+    patrolCode: string,
+  ) => {
+    try {
+      toast.loading('Generating PDF...', { id: 'single-pdf-toast' });
+      const response = await apiClient.get(
+        `/central-manager/reports/${patrolId}/pdf?clientId=${clientId}`,
+        {
+          responseType: 'blob',
+        },
+      );
+      const blob = response?.data || response;
+      const url = window.URL.createObjectURL(
+        new Blob([blob], { type: 'application/pdf' }),
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute(
+        'download',
+        `Patrol_Report_${patrolCode || patrolId}.pdf`,
+      );
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('Report downloaded successfully', {
+        id: 'single-pdf-toast',
+      });
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message || 'Failed to download PDF',
+        { id: 'single-pdf-toast' },
+      );
+    }
+  };
+
   // Generate Report Action
   const handleGenerateReport = async () => {
     if (isCustomRangeInvalid) {
       toast.error('To Date cannot be earlier than From Date.');
+      return;
+    }
+
+    if (isCentralManager) {
+      setCentralPatrolsPage(1);
+      await fetchCentralPatrols(1, centralPatrolsLimit, centralPatrolsSortBy, centralPatrolsSortOrder);
       return;
     }
 
@@ -577,6 +787,7 @@ export default function PeriodicReportGenerator({
       );
       const data = res?.data || res;
       setReportData(data);
+      setLastGeneratedKey(currentFilterKey);
       if (!selectedEmployeeId && activeTab === 'patrols') {
         setActiveTab('summary');
       }
@@ -1429,8 +1640,466 @@ export default function PeriodicReportGenerator({
         </div>
       </div>
 
-      {/* Generated Report Summary Container */}
-      {reportData && (
+      {/* Central Manager: Completed Patrol Sessions Table */}
+      {isCentralManager && centralPatrolsData && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Header & Export Toolbar */}
+          <div
+            className="glass-card"
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 20px',
+              borderRadius: '12px',
+              backgroundColor: isEmployeeScoped ? '#f0fdf4' : '#eff6ff',
+              border: `1px solid ${isEmployeeScoped ? '#bbf7d0' : '#bfdbfe'}`,
+              gap: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              {centralPatrolsData.project?.clientLogoUrl && (
+                <div
+                  style={{
+                    maxHeight: '48px',
+                    maxWidth: '120px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '8px',
+                    backgroundColor: '#ffffff',
+                    padding: '4px 8px',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  <img
+                    src={resolveImageUrl(centralPatrolsData.project.clientLogoUrl)}
+                    alt="Client Logo"
+                    style={{
+                      maxHeight: '40px',
+                      maxWidth: '100px',
+                      objectFit: 'contain',
+                    }}
+                  />
+                </div>
+              )}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                    Completed Patrol Sessions
+                  </h2>
+                  <span
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      backgroundColor: '#2563eb',
+                      color: '#ffffff',
+                    }}
+                  >
+                    {centralPatrolsData.pagination?.totalRecords ?? centralPatrolsData.summary?.totalCompletedPatrols ?? 0}
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                  Patrol sessions matching the selected reporting filters.
+                </p>
+                <div
+                  style={{
+                    fontSize: '0.82rem',
+                    color: isEmployeeScoped ? '#15803d' : '#3b82f6',
+                    marginTop: '6px',
+                    display: 'flex',
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <span>
+                    Period:{' '}
+                    <strong>
+                      {centralPatrolsData.period?.periodLabel ||
+                        `${centralPatrolsData.period?.startDate} to ${centralPatrolsData.period?.endDate}`}
+                    </strong>
+                  </span>
+                  <span>Timezone: {centralPatrolsData.period?.timezone || 'Asia/Dubai'}</span>
+                  {selectedEmployeeObj ? (
+                    <span>
+                      Employee: <strong>{selectedEmployeeObj.firstName} {selectedEmployeeObj.lastName || ''}</strong>
+                    </span>
+                  ) : (
+                    <span>
+                      Scope: <strong>{selectedRole !== 'ALL' ? formatRoleLabel(selectedRole) : 'All Matching Employees'}</strong>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Export Action Controls */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isDownloadingPdf}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: isDownloadingPdf ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 4px rgba(220, 38, 38, 0.2)',
+                }}
+              >
+                <Download size={14} />
+                <span>{isDownloadingPdf ? 'Downloading...' : 'PDF Report'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadExcel}
+                disabled={isDownloadingExcel}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  backgroundColor: '#16a34a',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: isDownloadingExcel ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)',
+                }}
+              >
+                <Download size={14} />
+                <span>{isDownloadingExcel ? 'Downloading...' : 'Excel (.xlsx)'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* KPI Summary Metric Cards */}
+          {centralPatrolsData.summary && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '16px',
+              }}
+            >
+              {/* Card 1: Completed Patrols */}
+              <div
+                className="glass-card"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: '12px',
+                  borderLeft: '4px solid #2563eb',
+                  backgroundColor: 'var(--bg-card)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Completed Patrols
+                </div>
+                <div
+                  style={{
+                    fontSize: '1.75rem',
+                    fontWeight: 800,
+                    color: '#2563eb',
+                  }}
+                >
+                  {centralPatrolsData.summary.totalCompletedPatrols ??
+                    centralPatrolsData.pagination?.totalRecords ??
+                    0}
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-muted)',
+                    marginTop: '4px',
+                  }}
+                >
+                  Eligible patrol sessions
+                </div>
+              </div>
+
+              {/* Card 2: Total Patrol Duration */}
+              <div
+                className="glass-card"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: '12px',
+                  borderLeft: '4px solid #16a34a',
+                  backgroundColor: 'var(--bg-card)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Total Patrol Duration
+                </div>
+                <div
+                  style={{
+                    fontSize: '1.75rem',
+                    fontWeight: 800,
+                    color: '#16a34a',
+                  }}
+                >
+                  {centralPatrolsData.summary.totalPatrolDurationFormatted ||
+                    '0 sec'}
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-muted)',
+                    marginTop: '4px',
+                  }}
+                >
+                  Period overlap duration
+                </div>
+              </div>
+
+              {/* Card 3: Total Checkpoints */}
+              <div
+                className="glass-card"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: '12px',
+                  borderLeft: '4px solid #0891b2',
+                  backgroundColor: 'var(--bg-card)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Total Checkpoints
+                </div>
+                <div
+                  style={{
+                    fontSize: '1.75rem',
+                    fontWeight: 800,
+                    color: '#0891b2',
+                  }}
+                >
+                  {centralPatrolsData.summary.totalCheckpoints ??
+                    centralPatrolsData.summary.totalCheckpointsRequired ??
+                    0}
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-muted)',
+                    marginTop: '4px',
+                  }}
+                >
+                  Total checkpoints
+                </div>
+              </div>
+
+              {/* Card 4: Checkpoints Scanned */}
+              <div
+                className="glass-card"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: '12px',
+                  borderLeft: '4px solid #8b5cf6',
+                  backgroundColor: 'var(--bg-card)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Checkpoints Scanned
+                </div>
+                <div
+                  style={{
+                    fontSize: '1.75rem',
+                    fontWeight: 800,
+                    color: '#8b5cf6',
+                  }}
+                >
+                  {centralPatrolsData.summary.totalCheckpointsScanned ?? 0}
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-muted)',
+                    marginTop: '4px',
+                  }}
+                >
+                  Eligible checkpoint scans
+                </div>
+              </div>
+
+              {/* Card 5: Checkpoints Missed */}
+              <div
+                className="glass-card"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: '12px',
+                  borderLeft: '4px solid #dc2626',
+                  backgroundColor: 'var(--bg-card)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Checkpoints Missed
+                </div>
+                <div
+                  style={{
+                    fontSize: '1.75rem',
+                    fontWeight: 800,
+                    color: '#dc2626',
+                  }}
+                >
+                  {centralPatrolsData.summary.totalCheckpointsMissed ?? 0}
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-muted)',
+                    marginTop: '4px',
+                  }}
+                >
+                  Unscanned checkpoints
+                </div>
+              </div>
+
+              {/* Card 6: Average Compliance */}
+              <div
+                className="glass-card"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: '12px',
+                  borderLeft: '4px solid #f59e0b',
+                  backgroundColor: 'var(--bg-card)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Average Compliance
+                </div>
+                <div
+                  style={{
+                    fontSize: '1.75rem',
+                    fontWeight: 800,
+                    color: '#f59e0b',
+                  }}
+                >
+                  {centralPatrolsData.summary.averageCompliancePct ?? 0}%
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-muted)',
+                    marginTop: '4px',
+                  }}
+                >
+                  Checkpoint scan rate
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Reusable Completed Patrol Sessions Table */}
+          <CompletedPatrolSessionsTable
+            patrols={centralPatrolsData.patrols || []}
+            showEmployeeColumn={true}
+            showSiteColumn={false}
+            showComplianceColumn={false}
+            isLoading={isLoadingCentralPatrols}
+            clientId={clientId || ''}
+            onViewReport={handleViewReport}
+            onDownloadPdf={handleDownloadSinglePdf}
+            onOpenMissedModal={handleOpenMissedModal}
+            page={centralPatrolsData.pagination?.currentPage || centralPatrolsPage}
+            pageSize={centralPatrolsData.pagination?.pageSize || centralPatrolsLimit}
+            totalPages={centralPatrolsData.pagination?.totalPages || 1}
+            totalCount={centralPatrolsData.pagination?.totalRecords ?? centralPatrolsData.summary?.totalCompletedPatrols ?? 0}
+            onPageChange={handlePatrolPageChange}
+            onPageSizeChange={handlePatrolPageSizeChange}
+            sortBy={centralPatrolsSortBy}
+            sortOrder={centralPatrolsSortOrder}
+            onSort={handlePatrolSort}
+          />
+
+          {/* Detailed Report Modal */}
+          {selectedReportId && (
+            <DetailedReportModal
+              isOpen={!!selectedReportId}
+              onClose={() => {
+                setSelectedReportId(null);
+                setDetailedReportData(null);
+              }}
+              report={detailedReportData}
+            />
+          )}
+
+          {/* Missed Checkpoints Modal */}
+          {selectedMissedPatrolId && (
+            <MissedCheckpointsModal
+              isOpen={!!selectedMissedPatrolId}
+              onClose={() => {
+                setSelectedMissedPatrolId(null);
+                setSelectedMissedPatrolCode(null);
+              }}
+              patrolId={selectedMissedPatrolId}
+              patrolCode={selectedMissedPatrolCode}
+              clientId={clientId || ''}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Generated Report Summary Container (Client Admin Portal) */}
+      {!isCentralManager && reportData && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Metadata Banner & Export Controls */}
           <div

@@ -12,6 +12,8 @@ router.use(authenticate);
 
 router.get('/analytics', (req, res, next) => reportController.getAnalytics(req, res, next));
 router.get('/inspections', (req, res, next) => reportController.getInspectionReports(req, res, next));
+router.get('/inspections/:id/missed-checkpoints', (req, res, next) => reportController.getMissedCheckpoints(req, res, next));
+router.get('/reports/:id/missed-checkpoints', (req, res, next) => reportController.getMissedCheckpoints(req, res, next));
 router.get('/inspections/:id', (req, res, next) => reportController.getSingleInspectionReport(req, res, next));
 router.get('/inspections/:id/pdf', (req, res, next) => reportController.getPatrolPdf(req, res, next));
 router.get('/export/csv', (req, res, next) => reportController.exportCsv(req, res, next));
