@@ -1,7 +1,5 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
 import {
   AlertCircle,
   AlertTriangle,
@@ -16,13 +14,17 @@ import {
   Users,
   Wrench,
 } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { apiClient } from '../../lib/axios';
 
-import CompanyCarouselHeader from './components/CompanyCarouselHeader';
-import OrganizationHeroCard, { SelectedClientData } from './components/OrganizationHeroCard';
-import SnagDonutChart from './components/SnagDonutChart';
 import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
+import CompanyCarouselHeader from './components/CompanyCarouselHeader';
+import OrganizationHeroCard, {
+  SelectedClientData,
+} from './components/OrganizationHeroCard';
+import SnagDonutChart from './components/SnagDonutChart';
 
 export default function CentralDashboardPage() {
   const router = useRouter();
@@ -43,11 +45,13 @@ export default function CentralDashboardPage() {
       }
 
       const res: any = await apiClient.get(
-        `/central-manager/dashboard${params.toString() ? `?${params.toString()}` : ''}`
+        `/central-manager/dashboard${params.toString() ? `?${params.toString()}` : ''}`,
       );
       setDashboardData(res?.data || res);
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Unable to load dashboard data. Please try again.';
+      const msg =
+        err?.response?.data?.message ||
+        'Unable to load dashboard data. Please try again.';
       setError(msg);
       toast.error(msg);
     } finally {
@@ -96,7 +100,11 @@ export default function CentralDashboardPage() {
         <AlertTriangle size={40} style={{ color: '#ef4444' }} />
         <h3>Unable to load dashboard</h3>
         <p>{error}</p>
-        <button onClick={() => fetchDashboard(clientId)} className="btn btn-primary" style={{ marginTop: '12px' }}>
+        <button
+          onClick={() => fetchDashboard(clientId)}
+          className="btn btn-primary"
+          style={{ marginTop: '12px' }}
+        >
           Retry Loading
         </button>
         <style>{`
@@ -131,7 +139,8 @@ export default function CentralDashboardPage() {
   };
 
   const clientsList = dashboardData?.clients || [];
-  const selectedClient: SelectedClientData | null = dashboardData?.selectedClient || null;
+  const selectedClient: SelectedClientData | null =
+    dashboardData?.selectedClient || null;
 
   return (
     <div className="central-dashboard-root">
@@ -139,7 +148,9 @@ export default function CentralDashboardPage() {
       <div className="dashboard-header-row">
         <div>
           <h1 className="page-header-title">Executive Dashboard</h1>
-          <p className="page-header-subtitle">Multi-project operational overview & analytics</p>
+          <p className="page-header-subtitle">
+            Multi-project operational overview & analytics
+          </p>
         </div>
       </div>
 
@@ -151,11 +162,16 @@ export default function CentralDashboardPage() {
           className="global-kpi-card clickable"
           aria-label="View all authorized projects"
         >
-          <div className="kpi-icon-badge" style={{ background: 'rgba(37, 99, 235, 0.12)', color: '#2563EB' }}>
+          <div
+            className="kpi-icon-badge"
+            style={{ background: 'rgba(37, 99, 235, 0.12)', color: '#2563EB' }}
+          >
             <Building2 size={20} />
           </div>
           <div className="kpi-text-box">
-            <span className="global-kpi-value">{global.organizationsCount}</span>
+            <span className="global-kpi-value">
+              {global.organizationsCount}
+            </span>
             <span className="global-kpi-label">Total Projects</span>
           </div>
         </button>
@@ -165,7 +181,10 @@ export default function CentralDashboardPage() {
           onClick={() => router.push('/central/employees')}
           className="global-kpi-card clickable"
         >
-          <div className="kpi-icon-badge" style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3B82F6' }}>
+          <div
+            className="kpi-icon-badge"
+            style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3B82F6' }}
+          >
             <Users size={20} />
           </div>
           <div className="kpi-text-box">
@@ -179,7 +198,10 @@ export default function CentralDashboardPage() {
           onClick={() => router.push('/central/reports')}
           className="global-kpi-card clickable"
         >
-          <div className="kpi-icon-badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
+          <div
+            className="kpi-icon-badge"
+            style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}
+          >
             <CheckCircle2 size={20} />
           </div>
           <div className="kpi-text-box">
@@ -194,12 +216,17 @@ export default function CentralDashboardPage() {
           className="global-kpi-card clickable"
           aria-label="View all checkpoints in reports"
         >
-          <div className="kpi-icon-badge" style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6' }}>
+          <div
+            className="kpi-icon-badge"
+            style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6' }}
+          >
             <MapPin size={20} />
           </div>
           <div className="kpi-text-box">
             <span className="global-kpi-value">
-              {global.totalCheckpoints ?? global.totalConfiguredCheckpoints ?? 0}
+              {global.totalCheckpoints ??
+                global.totalConfiguredCheckpoints ??
+                0}
             </span>
             <span className="global-kpi-label">Total Checkpoints</span>
           </div>
@@ -210,12 +237,17 @@ export default function CentralDashboardPage() {
           onClick={() => router.push('/central/reports')}
           className="global-kpi-card clickable"
         >
-          <div className="kpi-icon-badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
+          <div
+            className="kpi-icon-badge"
+            style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}
+          >
             <CheckSquare size={20} />
           </div>
           <div className="kpi-text-box">
-            <span className="global-kpi-value">{global.totalCheckpointsScanned ?? 0}</span>
-            <span className="global-kpi-label">Total Checkpoints Scanned</span>
+            <span className="global-kpi-value">
+              {global.totalCheckpointsScanned ?? 0}
+            </span>
+            <span className="global-kpi-label">Times Scanned</span>
           </div>
         </button>
 
@@ -227,8 +259,14 @@ export default function CentralDashboardPage() {
           <div
             className="kpi-icon-badge"
             style={{
-              background: (global.totalCheckpointsMissed ?? 0) > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-              color: (global.totalCheckpointsMissed ?? 0) > 0 ? '#EF4444' : '#64748B',
+              background:
+                (global.totalCheckpointsMissed ?? 0) > 0
+                  ? 'rgba(239, 68, 68, 0.12)'
+                  : 'rgba(148, 163, 184, 0.12)',
+              color:
+                (global.totalCheckpointsMissed ?? 0) > 0
+                  ? '#EF4444'
+                  : '#64748B',
             }}
           >
             <AlertCircle size={20} />
@@ -236,11 +274,16 @@ export default function CentralDashboardPage() {
           <div className="kpi-text-box">
             <span
               className="global-kpi-value"
-              style={{ color: (global.totalCheckpointsMissed ?? 0) > 0 ? '#dc2626' : undefined }}
+              style={{
+                color:
+                  (global.totalCheckpointsMissed ?? 0) > 0
+                    ? '#dc2626'
+                    : undefined,
+              }}
             >
               {global.totalCheckpointsMissed ?? 0}
             </span>
-            <span className="global-kpi-label">Total Checkpoints Missed</span>
+            <span className="global-kpi-label">Times Missed</span>
           </div>
         </button>
 
@@ -250,11 +293,19 @@ export default function CentralDashboardPage() {
             onClick={() => router.push('/central/observations')}
             className="global-kpi-card clickable"
           >
-            <div className="kpi-icon-badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}>
+            <div
+              className="kpi-icon-badge"
+              style={{
+                background: 'rgba(245, 158, 11, 0.12)',
+                color: '#F59E0B',
+              }}
+            >
               <AlertTriangle size={20} />
             </div>
             <div className="kpi-text-box">
-              <span className="global-kpi-value">{global.openObservations}</span>
+              <span className="global-kpi-value">
+                {global.openObservations}
+              </span>
               <span className="global-kpi-label">Open Observations</span>
             </div>
           </button>
@@ -266,7 +317,13 @@ export default function CentralDashboardPage() {
             onClick={() => router.push('/central/snags')}
             className="global-kpi-card clickable"
           >
-            <div className="kpi-icon-badge" style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#EF4444' }}>
+            <div
+              className="kpi-icon-badge"
+              style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                color: '#EF4444',
+              }}
+            >
               <Wrench size={20} />
             </div>
             <div className="kpi-text-box">
@@ -281,7 +338,10 @@ export default function CentralDashboardPage() {
           onClick={() => router.push('/central/reports')}
           className="global-kpi-card clickable"
         >
-          <div className="kpi-icon-badge" style={{ background: 'rgba(99, 102, 241, 0.12)', color: '#6366F1' }}>
+          <div
+            className="kpi-icon-badge"
+            style={{ background: 'rgba(99, 102, 241, 0.12)', color: '#6366F1' }}
+          >
             <ShieldCheck size={20} />
           </div>
           <div className="kpi-text-box">
@@ -303,7 +363,10 @@ export default function CentralDashboardPage() {
         </div>
       ) : (
         <div className="no-orgs-empty-card">
-          <Building2 size={48} style={{ color: 'var(--text-muted)', marginBottom: '12px' }} />
+          <Building2
+            size={48}
+            style={{ color: 'var(--text-muted)', marginBottom: '12px' }}
+          />
           <h3>No Projects Assigned</h3>
           <p>You currently have no assigned projects to manage.</p>
         </div>
@@ -319,7 +382,9 @@ export default function CentralDashboardPage() {
             </div>
             <button
               type="button"
-              onClick={() => router.push(`/central/snags?clientId=${selectedClient.id}`)}
+              onClick={() =>
+                router.push(`/central/snags?clientId=${selectedClient.id}`)
+              }
               className="view-all-link"
             >
               <span>View Snags</span>
@@ -330,10 +395,26 @@ export default function CentralDashboardPage() {
           <div className="card-body">
             <SnagDonutChart
               clientId={selectedClient.id}
-              totalSnags={selectedClient.snagStatusSummary?.total ?? selectedClient.metrics?.totalSnagsCount ?? 0}
-              openSnags={selectedClient.snagStatusSummary?.open ?? selectedClient.metrics?.openSnagsCount ?? 0}
-              wipSnags={selectedClient.snagStatusSummary?.wip ?? selectedClient.metrics?.wipSnagsCount ?? 0}
-              closedSnags={selectedClient.snagStatusSummary?.closed ?? selectedClient.metrics?.closedSnagsCount ?? 0}
+              totalSnags={
+                selectedClient.snagStatusSummary?.total ??
+                selectedClient.metrics?.totalSnagsCount ??
+                0
+              }
+              openSnags={
+                selectedClient.snagStatusSummary?.open ??
+                selectedClient.metrics?.openSnagsCount ??
+                0
+              }
+              wipSnags={
+                selectedClient.snagStatusSummary?.wip ??
+                selectedClient.metrics?.wipSnagsCount ??
+                0
+              }
+              closedSnags={
+                selectedClient.snagStatusSummary?.closed ??
+                selectedClient.metrics?.closedSnagsCount ??
+                0
+              }
               categories={selectedClient.snagDistribution || []}
             />
           </div>
@@ -345,50 +426,54 @@ export default function CentralDashboardPage() {
         selectedClient &&
         selectedClient.attentionRequired &&
         selectedClient.attentionRequired.length > 0 && (
-        <div className="attention-section-card">
-          <div className="card-header-bar">
-            <div className="card-header-title">
-              <ShieldAlert size={20} style={{ color: '#EF4444' }} />
-              <h3>Attention Required Items</h3>
-            </div>
-            <span className="attention-count-badge">
-              {selectedClient.attentionRequired.length} Urgent Items
-            </span>
-          </div>
-
-          <div className="attention-list-grid">
-            {selectedClient.attentionRequired.map((item: any) => (
-              <div
-                key={item.id}
-                onClick={() => {
-                  if (item.type === 'SNAG') {
-                    router.push(`/central/snags?clientId=${selectedClient.id}`);
-                  } else {
-                    router.push(`/central/observations?clientId=${selectedClient.id}`);
-                  }
-                }}
-                className="attention-item-card"
-              >
-                <div className="attention-item-header">
-                  <span
-                    className={`attention-type-badge ${item.type.toLowerCase()}`}
-                  >
-                    {item.type}
-                  </span>
-                  <span className="attention-date">
-                    {new Date(item.createdAt).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                    })}
-                  </span>
-                </div>
-                <h4 className="attention-item-title">{item.title}</h4>
-                <p className="attention-item-sub">{item.subtitle}</p>
+          <div className="attention-section-card">
+            <div className="card-header-bar">
+              <div className="card-header-title">
+                <ShieldAlert size={20} style={{ color: '#EF4444' }} />
+                <h3>Attention Required Items</h3>
               </div>
-            ))}
+              <span className="attention-count-badge">
+                {selectedClient.attentionRequired.length} Urgent Items
+              </span>
+            </div>
+
+            <div className="attention-list-grid">
+              {selectedClient.attentionRequired.map((item: any) => (
+                <div
+                  key={item.id}
+                  onClick={() => {
+                    if (item.type === 'SNAG') {
+                      router.push(
+                        `/central/snags?clientId=${selectedClient.id}`,
+                      );
+                    } else {
+                      router.push(
+                        `/central/observations?clientId=${selectedClient.id}`,
+                      );
+                    }
+                  }}
+                  className="attention-item-card"
+                >
+                  <div className="attention-item-header">
+                    <span
+                      className={`attention-type-badge ${item.type.toLowerCase()}`}
+                    >
+                      {item.type}
+                    </span>
+                    <span className="attention-date">
+                      {new Date(item.createdAt).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                  <h4 className="attention-item-title">{item.title}</h4>
+                  <p className="attention-item-sub">{item.subtitle}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       <style>{`
         .central-dashboard-root {
