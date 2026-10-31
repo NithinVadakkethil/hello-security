@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   CheckSquare,
   MapPin,
+  Shield,
   ShieldCheck,
   Users,
   Wrench,
@@ -25,6 +26,9 @@ export interface SelectedClientData {
   address?: string | null;
   metrics: {
     employeesCount: number;
+    totalPatrolSessionsCount?: number;
+    completedPatrolSessionsCount?: number;
+    incompletePatrolSessionsCount?: number;
     completedPatrolsCount: number;
     activePatrolsCount: number;
     totalObservationsCount: number;
@@ -158,13 +162,55 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
           type="button"
           onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
           className="kpi-card"
+          aria-label="View all patrol sessions for this project"
+        >
+          <div className="kpi-icon-box" style={{ background: 'rgba(37, 99, 235, 0.12)', color: '#2563EB' }}>
+            <Shield size={18} />
+          </div>
+          <div className="kpi-info">
+            <span className="kpi-value">
+              {client.metrics.totalPatrolSessionsCount ?? client.metrics.completedPatrolsCount ?? 0}
+            </span>
+            <span className="kpi-label">Total Patrol Sessions</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
+          className="kpi-card"
+          aria-label="View completed patrol sessions for this project"
         >
           <div className="kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
             <CheckCircle2 size={18} />
           </div>
           <div className="kpi-info">
-            <span className="kpi-value">{client.metrics.completedPatrolsCount}</span>
-            <span className="kpi-label">Completed Patrols</span>
+            <span className="kpi-value">
+              {client.metrics.completedPatrolSessionsCount ?? client.metrics.completedPatrolsCount ?? 0}
+            </span>
+            <span className="kpi-label">Completed Patrol Sessions</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
+          className="kpi-card"
+          aria-label="View incomplete patrol sessions for this project"
+        >
+          <div className="kpi-icon-box" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}>
+            <AlertCircle size={18} />
+          </div>
+          <div className="kpi-info">
+            <span
+              className="kpi-value"
+              style={{
+                color: (client.metrics.incompletePatrolSessionsCount ?? 0) > 0 ? '#d97706' : undefined,
+              }}
+            >
+              {client.metrics.incompletePatrolSessionsCount ?? 0}
+            </span>
+            <span className="kpi-label">Incomplete Patrol Sessions</span>
           </div>
         </button>
 
@@ -376,11 +422,21 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
         }
         .hero-kpi-overlay-strip {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
           gap: 12px;
           padding: 16px 20px;
           background: var(--surface-color, #f8fafc);
           border-top: 1px solid var(--border-color, #e2e8f0);
+        }
+        @media (min-width: 1280px) {
+          .hero-kpi-overlay-strip {
+            grid-template-columns: repeat(4, 1fr);
+          }
+        }
+        @media (max-width: 640px) {
+          .hero-kpi-overlay-strip {
+            grid-template-columns: 1fr;
+          }
         }
         .kpi-card {
           display: flex;

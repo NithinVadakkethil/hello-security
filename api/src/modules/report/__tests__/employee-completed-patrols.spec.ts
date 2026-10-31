@@ -1,6 +1,7 @@
 import { summaryReportService } from '../summary-report.service';
 import { reportService } from '../report.service';
 import { prisma } from '../../../database/prisma';
+import { calculateEmployeeAssignedCheckpoints } from '../../../common/utils/checkpoint-eligibility.util';
 
 describe('Employee Completed Patrols Drill-Down Service', () => {
   const CLIENT_ID = 'cmsh1eerr0009hpaxnr8dbvz4'; // Atlabs Demo
@@ -234,6 +235,204 @@ describe('Employee Completed Patrols Drill-Down Service', () => {
         user: { id: 'unauth-client-admin', role: 'CLIENT_ADMIN', clientId: 'different-client-id' },
       }),
     ).rejects.toThrow('Unauthorized client access requested');
+  });
+
+  describe('TASK 1 — Employee Total Assigned Checkpoints KPI', () => {
+    it('returns totalAssignedCheckpoints when a specific employee is selected', async () => {
+      const result = await summaryReportService.getEmployeeCompletedPatrols({
+        clientId: CLIENT_ID,
+        employeeId: HABEEB_ID,
+        periodType: 'MONTHLY',
+        month: '2026-09',
+        user: { id: 'admin-test', role: 'SUPER_ADMIN' },
+      });
+
+      expect(result.summary.totalAssignedCheckpoints).toBeDefined();
+      expect(typeof result.summary.totalAssignedCheckpoints).toBe('number');
+      expect(result.summary.totalAssignedCheckpoints).toBeGreaterThanOrEqual(0);
+    });
+
+    it('omits totalAssignedCheckpoints when All Matching Employees is selected', async () => {
+      const result = await summaryReportService.getEmployeeCompletedPatrols({
+        clientId: CLIENT_ID,
+        periodType: 'MONTHLY',
+        month: '2026-09',
+        user: { id: 'admin-test', role: 'SUPER_ADMIN' },
+      });
+
+      expect(result.summary.totalAssignedCheckpoints).toBeUndefined();
+    });
+
+    it('correctly calculates assigned checkpoints across routes and direct assignments with deduplication and deactivation handling', () => {
+      const now = new Date('2026-10-31T12:00:00Z');
+
+      const mockAssignments = [
+        // Route Assignment 1: 3 gates (GATE-1, GATE-2, GATE-3)
+        {
+          id: 'asgn-1',
+          isActive: true,
+          effectiveFrom: new Date('2026-01-01'),
+          effectiveTo: null,
+          patrolRoute: {
+            id: 'route-1',
+            isActive: true,
+            routeGates: [
+              { gateId: 'gate-1', gate: { id: 'gate-1', isActive: true } },
+              { gateId: 'gate-2', gate: { id: 'gate-2', isActive: true } },
+              { gateId: 'gate-3', gate: { id: 'gate-3', isActive: true } },
+            ],
+          },
+        },
+        // Route Assignment 2: 2 gates (GATE-2 is shared duplicate with Route 1, GATE-4 is new, GATE-5 is deactivated)
+        {
+          id: 'asgn-2',
+          isActive: true,
+          effectiveFrom: new Date('2026-01-01'),
+          effectiveTo: null,
+          patrolRoute: {
+            id: 'route-2',
+            isActive: true,
+            routeGates: [
+              { gateId: 'gate-2', gate: { id: 'gate-2', isActive: true } }, // Duplicate! Must not be counted twice
+              { gateId: 'gate-4', gate: { id: 'gate-4', isActive: true } },
+              { gateId: 'gate-5', gate: { id: 'gate-5', isActive: false } }, // Deactivated gate! Must be excluded
+            ],
+          },
+        },
+        // Direct Checkpoints Assignment: 2 gates (GATE-1 is duplicate from Route 1, GATE-6 is new active)
+        {
+          id: 'asgn-3',
+          isActive: true,
+          effectiveFrom: new Date('2026-01-01'),
+          effectiveTo: null,
+          assignmentGates: [
+            { gateId: 'gate-1', gate: { id: 'gate-1', isActive: true } }, // Duplicate! Must not be counted twice
+            { gateId: 'gate-6', gate: { id: 'gate-6', isActive: true } },
+          ],
+        },
+        // Expired assignment: Should be ignored completely
+        {
+          id: 'asgn-expired',
+          isActive: true,
+          effectiveFrom: new Date('2025-01-01'),
+          effectiveTo: new Date('2025-12-31'),
+          patrolRoute: {
+            id: 'route-old',
+            isActive: true,
+            routeGates: [
+              { gateId: 'gate-99', gate: { id: 'gate-99', isActive: true } },
+            ],
+          },
+        },
+        // Inactive assignment: Should be ignored completely
+        {
+          id: 'asgn-inactive',
+          isActive: false,
+          effectiveFrom: new Date('2026-01-01'),
+          effectiveTo: null,
+          patrolRoute: {
+            id: 'route-inactive',
+            isActive: true,
+            routeGates: [
+              { gateId: 'gate-100', gate: { id: 'gate-100', isActive: true } },
+            ],
+          },
+        },
+        // Inactive route on active assignment: Route gates should be ignored
+        {
+          id: 'asgn-inactive-route',
+          isActive: true,
+          effectiveFrom: new Date('2026-01-01'),
+          effectiveTo: null,
+          patrolRoute: {
+            id: 'route-disabled',
+            isActive: false,
+            routeGates: [
+              { gateId: 'gate-200', gate: { id: 'gate-200', isActive: true } },
+            ],
+          },
+        },
+      ];
+
+      // Eligible distinct gates:
+      // gate-1, gate-2, gate-3, gate-4, gate-6 = exactly 5 distinct active gates
+      const total = calculateEmployeeAssignedCheckpoints(mockAssignments, now);
+      expect(total).toBe(5);
+    });
+  });
+
+  describe('TASK 2 — Completed/Incomplete Patrol Sessions Table Filter', () => {
+    it('preserves all summary KPI cards identically when filtering table by completionStatus', async () => {
+      // 1. Fetch with ALL (default)
+      const allResult = await summaryReportService.getEmployeeCompletedPatrols({
+        clientId: CLIENT_ID,
+        periodType: 'MONTHLY',
+        month: '2026-09',
+        completionStatus: 'ALL',
+        user: { id: 'admin-test', role: 'SUPER_ADMIN' },
+      });
+
+      // 2. Fetch with COMPLETED
+      const completedResult = await summaryReportService.getEmployeeCompletedPatrols({
+        clientId: CLIENT_ID,
+        periodType: 'MONTHLY',
+        month: '2026-09',
+        completionStatus: 'COMPLETED',
+        user: { id: 'admin-test', role: 'SUPER_ADMIN' },
+      });
+
+      // 3. Fetch with INCOMPLETE
+      const incompleteResult = await summaryReportService.getEmployeeCompletedPatrols({
+        clientId: CLIENT_ID,
+        periodType: 'MONTHLY',
+        month: '2026-09',
+        completionStatus: 'INCOMPLETE',
+        user: { id: 'admin-test', role: 'SUPER_ADMIN' },
+      });
+
+      // CRITICAL INVARIANT: The 8 KPI summary cards represent the entire report scope
+      // and MUST NOT change when table status filter is changed!
+      expect(completedResult.summary.totalPatrolSessions).toBe(allResult.summary.totalPatrolSessions);
+      expect(incompleteResult.summary.totalPatrolSessions).toBe(allResult.summary.totalPatrolSessions);
+
+      expect(completedResult.summary.completedPatrolSessions).toBe(allResult.summary.completedPatrolSessions);
+      expect(incompleteResult.summary.completedPatrolSessions).toBe(allResult.summary.completedPatrolSessions);
+
+      expect(completedResult.summary.incompletePatrolSessions).toBe(allResult.summary.incompletePatrolSessions);
+      expect(incompleteResult.summary.incompletePatrolSessions).toBe(allResult.summary.incompletePatrolSessions);
+
+      expect(completedResult.summary.totalPatrolDurationSeconds).toBe(allResult.summary.totalPatrolDurationSeconds);
+      expect(incompleteResult.summary.totalPatrolDurationSeconds).toBe(allResult.summary.totalPatrolDurationSeconds);
+
+      expect(completedResult.summary.totalCheckpoints).toBe(allResult.summary.totalCheckpoints);
+      expect(incompleteResult.summary.totalCheckpoints).toBe(allResult.summary.totalCheckpoints);
+
+      expect(completedResult.summary.totalCheckpointsScanned).toBe(allResult.summary.totalCheckpointsScanned);
+      expect(incompleteResult.summary.totalCheckpointsScanned).toBe(allResult.summary.totalCheckpointsScanned);
+
+      expect(completedResult.summary.totalCheckpointsMissed).toBe(allResult.summary.totalCheckpointsMissed);
+      expect(incompleteResult.summary.totalCheckpointsMissed).toBe(allResult.summary.totalCheckpointsMissed);
+
+      expect(completedResult.summary.averageCompliancePct).toBe(allResult.summary.averageCompliancePct);
+      expect(incompleteResult.summary.averageCompliancePct).toBe(allResult.summary.averageCompliancePct);
+
+      // TABLE ROWS & PAGINATION: Reflect only the filtered status
+      for (const p of completedResult.patrols) {
+        expect(p.checkpointCompletionStatus).toBe('COMPLETED');
+        expect(p.missedCheckpoints).toBe(0);
+      }
+
+      for (const p of incompleteResult.patrols) {
+        expect(p.checkpointCompletionStatus).toBe('INCOMPLETE');
+        expect(p.missedCheckpoints).toBeGreaterThan(0);
+      }
+
+      expect(completedResult.pagination.totalCount).toBe(allResult.summary.completedPatrolSessions);
+      expect(incompleteResult.pagination.totalCount).toBe(allResult.summary.incompletePatrolSessions);
+      expect(completedResult.pagination.totalCount + incompleteResult.pagination.totalCount).toBeLessThanOrEqual(
+        allResult.summary.totalPatrolSessions ?? allResult.pagination.totalCount
+      );
+    });
   });
 });
 

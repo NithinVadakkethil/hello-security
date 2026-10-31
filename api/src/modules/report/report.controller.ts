@@ -279,6 +279,7 @@ export class ReportController {
         shiftId: cleanFilterVal(query.shiftId || params.shiftId),
         siteId: cleanFilterVal(query.siteId || params.siteId),
         role: cleanFilterVal(query.role || params.role),
+        completionStatus: cleanFilterVal(query.completionStatus) as any,
         page: query.page ? parseInt(query.page, 10) : 1,
         limit: query.limit ? parseInt(query.limit, 10) : 20,
         sortBy: query.sortBy,

@@ -1,7 +1,5 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Building2,
@@ -12,12 +10,14 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { apiClient } from '../../../lib/axios';
-import DetailedReportModal from '../../../dashboard/reports/components/DetailedReportModal';
 import DataTable from '../../../components/ui/DataTable';
 import Pagination from '../../../components/ui/Pagination';
 import StatusChip from '../../../components/ui/StatusChip';
+import DetailedReportModal from '../../../dashboard/reports/components/DetailedReportModal';
+import { apiClient } from '../../../lib/axios';
 import { derivePatrolReportingStatus } from '../components/CompletedPatrolSessionsTable';
 
 interface EmployeePatrolsData {
@@ -122,7 +122,9 @@ export default function EmployeeCompletedPatrolsPage() {
   const fetchPatrols = useCallback(async () => {
     if (!clientId || !employeeId) {
       setIsLoading(false);
-      setError('Client ID and Employee ID are required to view employee completed patrols.');
+      setError(
+        'Client ID and Employee ID are required to view employee completed patrols.',
+      );
       return;
     }
 
@@ -152,7 +154,9 @@ export default function EmployeeCompletedPatrolsPage() {
       if (siteId) params.append('siteId', siteId);
       if (role) params.append('role', role);
 
-      const res: any = await apiClient.get(`/central-manager/reports/employee-patrols?${params.toString()}`);
+      const res: any = await apiClient.get(
+        `/central-manager/reports/employee-patrols?${params.toString()}`,
+      );
       const payload: EmployeePatrolsData = res?.data || res;
       setData(payload);
     } catch (err: any) {
@@ -215,13 +219,18 @@ export default function EmployeeCompletedPatrolsPage() {
   // View Report Action -> fetches full single inspection report and opens DetailedReportModal
   const handleViewReport = async (patrolId: string) => {
     try {
-      toast.loading('Loading inspection report...', { id: 'report-modal-load' });
-      const res: any = await apiClient.get(`/central-manager/reports/${patrolId}?clientId=${clientId}`);
+      toast.loading('Loading inspection report...', {
+        id: 'report-modal-load',
+      });
+      const res: any = await apiClient.get(
+        `/central-manager/reports/${patrolId}?clientId=${clientId}`,
+      );
       const reportPayload = res?.data || res;
       setSelectedReport(reportPayload);
       toast.dismiss('report-modal-load');
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Failed to load report details.';
+      const msg =
+        err?.response?.data?.message || 'Failed to load report details.';
       toast.error(msg, { id: 'report-modal-load' });
     }
   };
@@ -235,7 +244,9 @@ export default function EmployeeCompletedPatrolsPage() {
         { responseType: 'blob' },
       );
       const blob = res?.data || res;
-      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const url = window.URL.createObjectURL(
+        new Blob([blob], { type: 'application/pdf' }),
+      );
       const a = document.createElement('a');
       a.href = url;
       a.setAttribute('download', `Patrol_Report_${patrolCode || patrolId}.pdf`);
@@ -266,7 +277,14 @@ export default function EmployeeCompletedPatrolsPage() {
         label: 'Patrol Code',
         sortable: true,
         render: (row: any) => (
-          <span style={{ fontWeight: 700, color: '#2563eb', fontSize: '0.88rem', fontFamily: 'monospace' }}>
+          <span
+            style={{
+              fontWeight: 700,
+              color: '#2563eb',
+              fontSize: '0.88rem',
+              fontFamily: 'monospace',
+            }}
+          >
             {row.patrolCode}
           </span>
         ),
@@ -276,7 +294,13 @@ export default function EmployeeCompletedPatrolsPage() {
         label: 'Date',
         sortable: true,
         render: (row: any) => (
-          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 500 }}>
+          <span
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: '0.85rem',
+              fontWeight: 500,
+            }}
+          >
             {row.dateFormatted}
           </span>
         ),
@@ -285,35 +309,45 @@ export default function EmployeeCompletedPatrolsPage() {
         key: 'siteName',
         label: 'Site',
         render: (row: any) => (
-          <span style={{ color: 'var(--text-primary)', fontSize: '0.85rem' }}>{row.siteName}</span>
+          <span style={{ color: 'var(--text-primary)', fontSize: '0.85rem' }}>
+            {row.siteName}
+          </span>
         ),
       },
       {
         key: 'routeName',
         label: 'Route / Target',
         render: (row: any) => (
-          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{row.routeName}</span>
+          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            {row.routeName}
+          </span>
         ),
       },
       {
         key: 'shiftName',
         label: 'Shift',
         render: (row: any) => (
-          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{row.shiftName}</span>
+          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            {row.shiftName}
+          </span>
         ),
       },
       {
         key: 'startTime',
         label: 'Start Time',
         render: (row: any) => (
-          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{row.startTimeFormatted}</span>
+          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            {row.startTimeFormatted}
+          </span>
         ),
       },
       {
         key: 'endTime',
         label: 'Completion Time',
         render: (row: any) => (
-          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{row.endTimeFormatted}</span>
+          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            {row.endTimeFormatted}
+          </span>
         ),
       },
       {
@@ -321,7 +355,9 @@ export default function EmployeeCompletedPatrolsPage() {
         label: 'Duration',
         sortable: true,
         render: (row: any) => (
-          <span style={{ fontWeight: 600, color: '#1e40af', fontSize: '0.85rem' }}>
+          <span
+            style={{ fontWeight: 600, color: '#1e40af', fontSize: '0.85rem' }}
+          >
             {row.durationFormatted || '0 sec'}
           </span>
         ),
@@ -330,7 +366,13 @@ export default function EmployeeCompletedPatrolsPage() {
         key: 'checkpoints',
         label: 'Checkpoints',
         render: (row: any) => (
-          <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.85rem' }}>
+          <span
+            style={{
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              fontSize: '0.85rem',
+            }}
+          >
             {row.scannedCheckpoints} / {row.totalCheckpoints}
           </span>
         ),
@@ -340,8 +382,14 @@ export default function EmployeeCompletedPatrolsPage() {
         label: 'Compliance',
         render: (row: any) => {
           const comp = row.compliancePct ?? 0;
-          const bg = comp >= 90 ? 'rgba(22, 163, 74, 0.1)' : comp >= 70 ? 'rgba(217, 119, 6, 0.1)' : 'rgba(220, 38, 38, 0.1)';
-          const color = comp >= 90 ? '#16a34a' : comp >= 70 ? '#d97706' : '#dc2626';
+          const bg =
+            comp >= 90
+              ? 'rgba(22, 163, 74, 0.1)'
+              : comp >= 70
+                ? 'rgba(217, 119, 6, 0.1)'
+                : 'rgba(220, 38, 38, 0.1)';
+          const color =
+            comp >= 90 ? '#16a34a' : comp >= 70 ? '#d97706' : '#dc2626';
           return (
             <span
               style={{
@@ -361,18 +409,27 @@ export default function EmployeeCompletedPatrolsPage() {
       {
         key: 'status',
         label: 'Status',
-        render: (row: any) => <StatusChip status={derivePatrolReportingStatus(row)} />,
+        render: (row: any) => (
+          <StatusChip status={derivePatrolReportingStatus(row)} />
+        ),
       },
       {
         key: 'actions',
         label: 'Action',
         render: (row: any) => (
-          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+          <div
+            style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}
+          >
             <button
               type="button"
               onClick={() => handleViewReport(row.id)}
               className="btn btn-secondary"
-              style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px', cursor: 'pointer' }}
+              style={{
+                padding: '6px 10px',
+                fontSize: '0.8rem',
+                gap: '4px',
+                cursor: 'pointer',
+              }}
               title="View detailed inspection report"
             >
               <Eye size={14} />
@@ -382,7 +439,12 @@ export default function EmployeeCompletedPatrolsPage() {
               type="button"
               onClick={() => handleDownloadPdf(row.id, row.patrolCode)}
               className="btn btn-secondary"
-              style={{ padding: '6px 10px', fontSize: '0.8rem', color: '#2563eb', cursor: 'pointer' }}
+              style={{
+                padding: '6px 10px',
+                fontSize: '0.8rem',
+                color: '#2563eb',
+                cursor: 'pointer',
+              }}
               title="Download PDF"
             >
               <Download size={14} />
@@ -397,7 +459,15 @@ export default function EmployeeCompletedPatrolsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Top Navigation & Breadcrumbs */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+        }}
+      >
         <button
           type="button"
           onClick={handleBackToPeriodicReport}
@@ -415,12 +485,22 @@ export default function EmployeeCompletedPatrolsPage() {
           <span>Back to Periodic Report</span>
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '13px',
+            color: 'var(--text-secondary)',
+          }}
+        >
           <span>Reports & Analytics</span>
           <span>/</span>
           <span>Periodic Summary</span>
           <span>/</span>
-          <strong style={{ color: 'var(--text-primary)' }}>Employee Completed Patrols</strong>
+          <strong style={{ color: 'var(--text-primary)' }}>
+            Employee Completed Patrols
+          </strong>
         </div>
       </div>
 
@@ -435,8 +515,14 @@ export default function EmployeeCompletedPatrolsPage() {
             color: 'var(--text-secondary)',
           }}
         >
-          <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 12px auto', color: '#2563eb' }} />
-          <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>Loading completed patrol sessions...</p>
+          <RefreshCw
+            size={24}
+            className="animate-spin"
+            style={{ margin: '0 auto 12px auto', color: '#2563eb' }}
+          />
+          <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>
+            Loading completed patrol sessions...
+          </p>
         </div>
       )}
 
@@ -451,10 +537,25 @@ export default function EmployeeCompletedPatrolsPage() {
             backgroundColor: 'rgba(220, 38, 38, 0.05)',
           }}
         >
-          <h3 style={{ margin: '0 0 6px 0', fontSize: '15px', color: '#dc2626', fontWeight: 700 }}>
+          <h3
+            style={{
+              margin: '0 0 6px 0',
+              fontSize: '15px',
+              color: '#dc2626',
+              fontWeight: 700,
+            }}
+          >
             Unable to Load Patrol Sessions
           </h3>
-          <p style={{ margin: '0 0 14px 0', fontSize: '13px', color: 'var(--text-secondary)' }}>{error}</p>
+          <p
+            style={{
+              margin: '0 0 14px 0',
+              fontSize: '13px',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            {error}
+          </p>
           <button
             type="button"
             onClick={fetchPatrols}
@@ -488,7 +589,9 @@ export default function EmployeeCompletedPatrolsPage() {
                 gap: '16px',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '16px' }}
+              >
                 <div
                   style={{
                     width: '48px',
@@ -504,8 +607,22 @@ export default function EmployeeCompletedPatrolsPage() {
                   <User size={24} />
                 </div>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <h2
+                      style={{
+                        fontSize: '1.25rem',
+                        fontWeight: 700,
+                        margin: 0,
+                        color: 'var(--text-primary)',
+                      }}
+                    >
                       {data.employee?.fullName || 'All Matching Employees'}
                     </h2>
                     {data.employee?.employeeNumber && (
@@ -539,31 +656,71 @@ export default function EmployeeCompletedPatrolsPage() {
                       </span>
                     )}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '6px', flexWrap: 'wrap', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '14px',
+                      marginTop: '6px',
+                      flexWrap: 'wrap',
+                      fontSize: '13px',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                      }}
+                    >
                       <Building2 size={14} style={{ color: '#2563eb' }} />
                       <strong>{data.project.companyName}</strong>
                     </span>
                     <span>•</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                      }}
+                    >
                       <Calendar size={14} style={{ color: '#2563eb' }} />
                       <span>{data.period.periodLabel}</span>
                     </span>
                     <span>•</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                      }}
+                    >
                       <ShieldCheck size={14} style={{ color: '#16a34a' }} />
-                      <span>Emirates ID: {data.employee.emiratesId || 'Not provided'}</span>
+                      <span>
+                        Emirates ID:{' '}
+                        {data.employee.emiratesId || 'Not provided'}
+                      </span>
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <div
+                style={{ display: 'flex', gap: '10px', alignItems: 'center' }}
+              >
                 <button
                   type="button"
                   onClick={fetchPatrols}
                   className="btn btn-secondary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '7px 12px', cursor: 'pointer' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    padding: '7px 12px',
+                    cursor: 'pointer',
+                  }}
                   title="Refresh patrol sessions"
                 >
                   <RefreshCw size={14} />
@@ -590,13 +747,33 @@ export default function EmployeeCompletedPatrolsPage() {
                 backgroundColor: 'var(--bg-card)',
               }}
             >
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '6px' }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: 'var(--text-secondary)',
+                  textTransform: 'uppercase',
+                  marginBottom: '6px',
+                }}
+              >
                 Completed Patrols
               </div>
-              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#2563eb' }}>
+              <div
+                style={{
+                  fontSize: '1.75rem',
+                  fontWeight: 800,
+                  color: '#2563eb',
+                }}
+              >
                 {data.summary.totalCompletedPatrols}
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--text-muted)',
+                  marginTop: '4px',
+                }}
+              >
                 Eligible patrol sessions
               </div>
             </div>
@@ -610,13 +787,33 @@ export default function EmployeeCompletedPatrolsPage() {
                 backgroundColor: 'var(--bg-card)',
               }}
             >
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '6px' }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: 'var(--text-secondary)',
+                  textTransform: 'uppercase',
+                  marginBottom: '6px',
+                }}
+              >
                 Total Patrol Duration
               </div>
-              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#16a34a' }}>
+              <div
+                style={{
+                  fontSize: '1.75rem',
+                  fontWeight: 800,
+                  color: '#16a34a',
+                }}
+              >
                 {data.summary.totalPatrolDurationFormatted || '0 sec'}
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--text-muted)',
+                  marginTop: '4px',
+                }}
+              >
                 Period overlap duration
               </div>
             </div>
@@ -630,14 +827,35 @@ export default function EmployeeCompletedPatrolsPage() {
                 backgroundColor: 'var(--bg-card)',
               }}
             >
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '6px' }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: 'var(--text-secondary)',
+                  textTransform: 'uppercase',
+                  marginBottom: '6px',
+                }}
+              >
                 Checkpoints Scanned
               </div>
-              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#8b5cf6' }}>
-                {data.summary.totalCheckpointsScanned} / {data.summary.totalCheckpointsRequired}
+              <div
+                style={{
+                  fontSize: '1.75rem',
+                  fontWeight: 800,
+                  color: '#8b5cf6',
+                }}
+              >
+                {data.summary.totalCheckpointsScanned} /{' '}
+                {data.summary.totalCheckpointsRequired}
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                Eligible checkpoint scans
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--text-muted)',
+                  marginTop: '4px',
+                }}
+              >
+                checkpoint scans
               </div>
             </div>
 
@@ -650,13 +868,33 @@ export default function EmployeeCompletedPatrolsPage() {
                 backgroundColor: 'var(--bg-card)',
               }}
             >
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '6px' }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: 'var(--text-secondary)',
+                  textTransform: 'uppercase',
+                  marginBottom: '6px',
+                }}
+              >
                 Average Compliance
               </div>
-              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b' }}>
+              <div
+                style={{
+                  fontSize: '1.75rem',
+                  fontWeight: 800,
+                  color: '#f59e0b',
+                }}
+              >
                 {data.summary.averageCompliancePct}%
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--text-muted)',
+                  marginTop: '4px',
+                }}
+              >
                 Checkpoint scan rate
               </div>
             </div>

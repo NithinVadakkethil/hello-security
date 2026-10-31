@@ -8,6 +8,7 @@ import { formatPatrolDateTime, formatPatrolDate, formatPatrolTime, calculatePatr
 import {
   isCheckpointEligibleForSession,
   calculateSessionCheckpointMetrics,
+  calculateEmployeeAssignedCheckpoints,
 } from '../../common/utils/checkpoint-eligibility.util';
 import { formatEmiratesId } from '../../common/utils/emirates-id.util';
 
@@ -89,6 +90,10 @@ export interface ReportDataset {
     totalEmployees: number;
     activeEmployees: number;
     totalShifts: number;
+    totalPatrolSessions?: number;
+    completedPatrolSessions?: number;
+    incompletePatrolSessions?: number;
+    unclassifiablePatrolSessions?: number;
     assignedPatrols: number;
     completedPatrols: number;
     incompletePatrols: number;
@@ -121,6 +126,7 @@ export interface ReportDataset {
     unavailableCheckpointDurationsCount: number;
     untrackedDurationPatrolsCount?: number;
     untrackedDurationCheckpointsCount?: number;
+    totalAssignedCheckpoints?: number;
   };
   dailyBreakdown: Array<{
     date: string;
@@ -247,6 +253,7 @@ export interface ReportDataset {
 
 export interface EmployeePatrolsQueryParams extends SummaryReportParams {
   employeeId?: string;
+  completionStatus?: 'ALL' | 'COMPLETED' | 'INCOMPLETE';
   page?: number;
   limit?: number;
   sortBy?: string;
@@ -283,8 +290,13 @@ export interface EmployeeCompletedPatrolsResult {
     siteId: string | null;
     role: string | null;
     employeeId?: string | null;
+    completionStatus?: 'ALL' | 'COMPLETED' | 'INCOMPLETE';
   };
   summary: {
+    totalPatrolSessions?: number;
+    completedPatrolSessions?: number;
+    incompletePatrolSessions?: number;
+    unclassifiablePatrolSessions?: number;
     totalCompletedPatrols: number;
     totalPatrolDurationSeconds: number;
     totalPatrolDurationFormatted: string;
@@ -293,6 +305,7 @@ export interface EmployeeCompletedPatrolsResult {
     totalCheckpointsMissed: number;
     totalCheckpointsRequired: number;
     averageCompliancePct: number;
+    totalAssignedCheckpoints?: number;
   };
   pagination: {
     page: number;
@@ -639,6 +652,32 @@ export class SummaryReportService {
       if (p.status === 'COMPLETED') return false;
       return p.startedAt >= from && p.startedAt < to;
     }).length;
+
+    let completedPatrolSessions = 0;
+    let incompletePatrolSessions = 0;
+    let unclassifiablePatrolSessions = 0;
+
+    const finalizedSessionsInPeriod = patrolSessions.filter((p) => {
+      const isFin = p.status === 'COMPLETED' || Boolean(p.endedAt);
+      if (!isFin) return false;
+      if (p.endedAt) {
+        return p.endedAt > from && p.startedAt < to;
+      }
+      return p.startedAt >= from && p.startedAt < to;
+    });
+
+    for (const p of finalizedSessionsInPeriod) {
+      const m = calculateSessionCheckpointMetrics(p);
+      if (m.checkpointCompletionStatus === 'COMPLETED') {
+        completedPatrolSessions++;
+      } else if (m.checkpointCompletionStatus === 'INCOMPLETE') {
+        incompletePatrolSessions++;
+      } else if (m.checkpointCompletionStatus === 'NO_CHECKPOINTS') {
+        unclassifiablePatrolSessions++;
+      }
+    }
+
+    const totalPatrolSessionsCount = finalizedSessionsInPeriod.length;
 
     // 4. Mandatory Patrol Instances query
     const dateOnlyFrom = new Date(`${startDateStr}T00:00:00.000Z`);
@@ -1295,6 +1334,43 @@ export class SummaryReportService {
       reportTitle = `Hello Orbit ${periodType.toUpperCase()} ${roleLabel} Operations Report`;
     }
 
+    let totalAssignedCheckpoints: number | undefined = undefined;
+    if (scopedEmployee) {
+      const activeAssignments = await prisma.guardAssignment.findMany({
+        where: {
+          employeeId: scopedEmployee.id,
+          clientId: { in: clientIds },
+          isActive: true,
+          effectiveFrom: { lte: new Date() },
+          OR: [
+            { effectiveTo: null },
+            { effectiveTo: { gte: new Date() } },
+          ],
+        },
+        include: {
+          patrolRoute: {
+            include: {
+              routeGates: {
+                include: {
+                  gate: {
+                    select: { id: true, isActive: true },
+                  },
+                },
+              },
+            },
+          },
+          assignmentGates: {
+            include: {
+              gate: {
+                select: { id: true, isActive: true },
+              },
+            },
+          },
+        },
+      });
+      totalAssignedCheckpoints = calculateEmployeeAssignedCheckpoints(activeAssignments);
+    }
+
     return {
       metadata: {
         title: reportTitle,
@@ -1321,6 +1397,10 @@ export class SummaryReportService {
         totalEmployees,
         activeEmployees,
         totalShifts,
+        totalPatrolSessions: totalPatrolSessionsCount,
+        completedPatrolSessions,
+        incompletePatrolSessions,
+        unclassifiablePatrolSessions,
         assignedPatrols: patrolSessions.length,
         completedPatrols: completedPatrolsCount,
         incompletePatrols: incompletePatrolsCount,
@@ -1353,6 +1433,7 @@ export class SummaryReportService {
         unavailableCheckpointDurationsCount,
         untrackedDurationPatrolsCount: unavailablePatrolDurationsCount,
         untrackedDurationCheckpointsCount: unavailableCheckpointDurationsCount,
+        totalAssignedCheckpoints,
       },
       dailyBreakdown,
       attendance: attendanceRows,
@@ -1433,6 +1514,7 @@ export class SummaryReportService {
         : undefined;
 
     let employee: any = null;
+    let totalAssignedCheckpoints: number | undefined = undefined;
     if (employeeId) {
       employee = await prisma.employee.findFirst({
         where: {
@@ -1444,6 +1526,41 @@ export class SummaryReportService {
       if (!employee) {
         throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Employee not found for this client.');
       }
+
+      // Query active assignments for this employee to compute total assigned distinct checkpoints
+      const activeAssignments = await prisma.guardAssignment.findMany({
+        where: {
+          employeeId,
+          clientId: targetClientId,
+          isActive: true,
+          effectiveFrom: { lte: new Date() },
+          OR: [
+            { effectiveTo: null },
+            { effectiveTo: { gte: new Date() } },
+          ],
+        },
+        include: {
+          patrolRoute: {
+            include: {
+              routeGates: {
+                include: {
+                  gate: {
+                    select: { id: true, isActive: true },
+                  },
+                },
+              },
+            },
+          },
+          assignmentGates: {
+            include: {
+              gate: {
+                select: { id: true, isActive: true },
+              },
+            },
+          },
+        },
+      });
+      totalAssignedCheckpoints = calculateEmployeeAssignedCheckpoints(activeAssignments);
     }
 
     const timezone = 'Asia/Dubai';
@@ -1517,12 +1634,12 @@ export class SummaryReportService {
             patrolRoute: {
               select: {
                 routeGates: {
-                  select: { gateId: true, gate: { select: { id: true, isActive: true } } },
+                  select: { gateId: true, gate: { select: { id: true, isActive: true, updatedAt: true } } },
                 },
               },
             },
             assignmentGates: {
-              select: { gateId: true, gate: { select: { id: true, isActive: true } } },
+              select: { gateId: true, gate: { select: { id: true, isActive: true, updatedAt: true } } },
             },
           },
         },
@@ -1543,6 +1660,17 @@ export class SummaryReportService {
     let totalCheckpointsScanned = 0;
     let totalCheckpointsRequired = 0;
     let totalCheckpointsMissed = 0;
+    let completedPatrolSessions = 0;
+    let incompletePatrolSessions = 0;
+    let unclassifiablePatrolSessions = 0;
+
+    const rawCompletionStatus = (params.completionStatus || '').toUpperCase();
+    const filterCompletionStatus: 'ALL' | 'COMPLETED' | 'INCOMPLETE' =
+      rawCompletionStatus === 'COMPLETED' || rawCompletionStatus === 'INCOMPLETE'
+        ? rawCompletionStatus
+        : 'ALL';
+
+    const matchingTableSessionIds: string[] = [];
 
     for (const s of allSessions) {
       const sOverlap = calculateOverlapDurationSeconds(s.startedAt, s.endedAt, from, to);
@@ -1551,19 +1679,39 @@ export class SummaryReportService {
       }
 
       const metrics = calculateSessionCheckpointMetrics(s);
+      if (metrics.checkpointCompletionStatus === 'COMPLETED') {
+        completedPatrolSessions++;
+      } else if (metrics.checkpointCompletionStatus === 'INCOMPLETE') {
+        incompletePatrolSessions++;
+      } else if (metrics.checkpointCompletionStatus === 'NO_CHECKPOINTS') {
+        unclassifiablePatrolSessions++;
+      }
+
       totalCheckpointsRequired += metrics.totalCheckpoints;
       totalCheckpointsScanned += metrics.scannedCheckpoints;
       totalCheckpointsMissed += metrics.missedCheckpoints;
+
+      if (
+        filterCompletionStatus === 'ALL' ||
+        metrics.checkpointCompletionStatus === filterCompletionStatus
+      ) {
+        matchingTableSessionIds.push(s.id);
+      }
     }
+
+    const totalPatrolSessions = completedPatrolSessions + incompletePatrolSessions + unclassifiablePatrolSessions;
 
     const averageCompliancePct = totalCheckpointsRequired > 0
       ? Math.min(100, Math.round((totalCheckpointsScanned / totalCheckpointsRequired) * 100))
       : 0;
 
+    const tableTotalCount = matchingTableSessionIds.length;
+
     // Pagination
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.max(1, Math.min(100, Number(params.limit) || 20));
     const skip = (page - 1) * limit;
+    const totalPages = Math.ceil(tableTotalCount / limit) || 1;
 
     const transformSession = (s: any) => {
       const emp = s.assignment?.employee || s.managerUser?.employee;
@@ -1635,9 +1783,14 @@ export class SummaryReportService {
 
     let transformedPatrols: any[] = [];
 
-    if (isComplianceSort) {
+    if (tableTotalCount === 0) {
+      transformedPatrols = [];
+    } else if (isComplianceSort) {
       const allSessionsForSort = await prisma.patrolSession.findMany({
-        where: patrolWhere,
+        where: {
+          ...patrolWhere,
+          id: { in: matchingTableSessionIds },
+        },
         include: sessionInclude as any,
       });
 
@@ -1671,7 +1824,10 @@ export class SummaryReportService {
       }
 
       const paginatedSessions = await prisma.patrolSession.findMany({
-        where: patrolWhere,
+        where: {
+          ...patrolWhere,
+          id: { in: matchingTableSessionIds },
+        },
         skip,
         take: limit,
         orderBy: [
@@ -1716,8 +1872,13 @@ export class SummaryReportService {
         siteId: siteId || null,
         role: role || null,
         employeeId: employeeId || null,
+        completionStatus: filterCompletionStatus,
       },
       summary: {
+        totalPatrolSessions,
+        completedPatrolSessions,
+        incompletePatrolSessions,
+        unclassifiablePatrolSessions,
         totalCompletedPatrols: totalCount,
         totalPatrolDurationSeconds,
         totalPatrolDurationFormatted: formatDurationHuman(totalPatrolDurationSeconds),
@@ -1726,13 +1887,14 @@ export class SummaryReportService {
         totalCheckpointsMissed,
         totalCheckpointsRequired,
         averageCompliancePct,
+        totalAssignedCheckpoints,
       },
       pagination: {
         page,
         limit,
-        totalPages: Math.ceil(totalCount / limit) || 1,
-        totalCount,
-        totalRecords: totalCount,
+        totalPages,
+        totalCount: tableTotalCount,
+        totalRecords: tableTotalCount,
         currentPage: page,
         pageSize: limit,
       },

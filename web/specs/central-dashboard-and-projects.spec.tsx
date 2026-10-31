@@ -157,6 +157,9 @@ describe('Community Manager Executive Dashboard & All Projects Page', () => {
       metrics: {
         employeesCount: 15,
         completedPatrolsCount: 42,
+        totalPatrolSessionsCount: 42,
+        completedPatrolSessionsCount: 38,
+        incompletePatrolSessionsCount: 4,
         activePatrolsCount: 2,
         totalObservationsCount: 0,
         openObservationsCount: 0,
@@ -193,6 +196,9 @@ describe('Community Manager Executive Dashboard & All Projects Page', () => {
         organizationsCount: 5,
         totalEmployees: 48,
         completedPatrols: 132,
+        totalPatrolSessions: 132,
+        completedPatrolSessions: 120,
+        incompletePatrolSessions: 12,
         totalCheckpoints: 64,
         totalConfiguredCheckpoints: 64,
         totalCheckpointsScanned: 820,
@@ -215,6 +221,9 @@ describe('Community Manager Executive Dashboard & All Projects Page', () => {
         metrics: {
           employeesCount: 15,
           completedPatrolsCount: 42,
+          totalPatrolSessionsCount: 42,
+          completedPatrolSessionsCount: 38,
+          incompletePatrolSessionsCount: 4,
           activePatrolsCount: 2,
           totalObservationsCount: 0,
           openObservationsCount: 0,
@@ -250,7 +259,7 @@ describe('Community Manager Executive Dashboard & All Projects Page', () => {
       expect(calledUrl).not.toContain('periodType');
     });
 
-    it('renders the 7 Executive Dashboard KPIs including Total Projects and Total Checkpoints', async () => {
+    it('renders the 9 Executive Dashboard KPIs including Total Projects and Total Checkpoints', async () => {
       (apiClient.get as jest.Mock).mockResolvedValueOnce({
         data: mockDashboardData,
       });
@@ -268,8 +277,14 @@ describe('Community Manager Executive Dashboard & All Projects Page', () => {
       expect(screen.getByText('Total Employees')).toBeTruthy();
       expect(screen.getByText('48')).toBeTruthy();
 
-      expect(screen.getAllByText('Completed Patrols').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Total Patrol Sessions').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('132')).toBeTruthy();
+
+      expect(screen.getAllByText('Completed Patrol Sessions').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('120')).toBeTruthy();
+
+      expect(screen.getAllByText('Incomplete Patrol Sessions').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('12')).toBeTruthy();
 
       expect(screen.getAllByText('Total Checkpoints').length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText('64').length).toBeGreaterThanOrEqual(1);

@@ -63,6 +63,9 @@ const mockPatrolsResponse = {
   },
   summary: {
     totalCompletedPatrols: 2,
+    totalPatrolSessions: 2,
+    completedPatrolSessions: 1,
+    incompletePatrolSessions: 1,
     totalPatrolDurationSeconds: 7200,
     totalPatrolDurationFormatted: '2 hr 0 min',
     totalCheckpoints: 10,
@@ -302,7 +305,7 @@ describe('Community Manager Periodic Reports Simplification', () => {
     });
   });
 
-  describe('Task 2 & 3 — Generator controls preserved and 6 KPI summary cards rendered', () => {
+  describe('Task 2 & 3 — Generator controls preserved and 8 KPI summary cards rendered', () => {
     it('preserves all report generator controls', async () => {
       render(
         <PeriodicReportGenerator
@@ -326,7 +329,7 @@ describe('Community Manager Periodic Reports Simplification', () => {
       expect(screen.getAllByText(/All Sites/i).length).toBeGreaterThan(0);
     });
 
-    it('renders the 6 KPI summary cards after generate but suppresses the old breakdown tables', async () => {
+    it('renders the 8 KPI summary cards after generate but suppresses the old breakdown tables', async () => {
       render(
         <PeriodicReportGenerator
           clientId="client-1"
@@ -336,7 +339,9 @@ describe('Community Manager Periodic Reports Simplification', () => {
       );
 
       // Before generate: No cards
-      expect(screen.queryByText('Completed Patrols')).toBeNull();
+      expect(screen.queryByText('Total Patrol Sessions')).toBeNull();
+      expect(screen.queryByText('Completed Patrol Sessions')).toBeNull();
+      expect(screen.queryByText('Incomplete Patrol Sessions')).toBeNull();
       expect(screen.queryByText('Total Patrol Duration')).toBeNull();
       expect(screen.queryByText('Total Checkpoints')).toBeNull();
       expect(screen.queryByText('Checkpoints Scanned')).toBeNull();
@@ -353,8 +358,10 @@ describe('Community Manager Periodic Reports Simplification', () => {
         );
       });
 
-      // After generate: The 6 KPI cards MUST be rendered
-      expect(screen.getByText('Completed Patrols')).toBeTruthy();
+      // After generate: The 8 KPI cards MUST be rendered
+      expect(screen.getByText('Total Patrol Sessions')).toBeTruthy();
+      expect(screen.getAllByText('Completed Patrol Sessions').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Incomplete Patrol Sessions')).toBeTruthy();
       expect(screen.getByText('Total Patrol Duration')).toBeTruthy();
       expect(screen.getByText('2 hr 0 min')).toBeTruthy();
       expect(screen.getByText('Total Checkpoints')).toBeTruthy();
@@ -387,7 +394,7 @@ describe('Community Manager Periodic Reports Simplification', () => {
       fireEvent.click(screen.getByRole('button', { name: /Generate/i }));
 
       await waitFor(() => {
-        expect(screen.getByText('Completed Patrol Sessions')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: /Completed Patrol Sessions/i })).toBeTruthy();
         expect(screen.getByText('Patrol sessions matching the selected reporting filters.')).toBeTruthy();
       });
 
@@ -524,7 +531,7 @@ describe('Community Manager Periodic Reports Simplification', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/Missed Checkpoints/i)).toBeTruthy();
+        expect(screen.getByRole('heading', { name: /Missed Checkpoints/i })).toBeTruthy();
         expect(screen.getByText('Emergency Exit 4')).toBeTruthy();
         expect(screen.getByText('EE-04')).toBeTruthy();
         expect(screen.getByText('MISSED')).toBeTruthy();
@@ -629,6 +636,175 @@ describe('Community Manager Periodic Reports Simplification', () => {
 
       const headerTexts = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
       expect(headerTexts).toContain('Site');
+    });
+  });
+
+  describe('TASK 1 & TASK 2 — Employee Total Assigned Checkpoints KPI & Patrol Status Filter', () => {
+    it('renders exactly 8 KPI cards for All Matching Employees report (no Total Assigned Checkpoints)', async () => {
+      (apiClient.get as jest.Mock).mockImplementation((url: string) => {
+        if (url.includes('/shifts')) return Promise.resolve({ data: [] });
+        if (url.includes('/employees')) return Promise.resolve({ data: [] });
+        if (url.includes('/central-manager/reports/employee-patrols')) {
+          return Promise.resolve({
+            data: {
+              ...mockPatrolsResponse,
+              summary: {
+                ...mockPatrolsResponse.summary,
+                totalAssignedCheckpoints: undefined,
+              },
+            },
+          });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      render(
+        <PeriodicReportGenerator
+          clientId="client-1"
+          isCentralManager={true}
+        />
+      );
+
+      const generateBtn = screen.getByRole('button', { name: /Generate/i });
+      fireEvent.click(generateBtn);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /Completed Patrol Sessions/i })).toBeTruthy();
+      });
+
+      // Assert the 8 KPI cards
+      expect(screen.getByText('Total Patrol Sessions')).toBeTruthy();
+      expect(screen.getAllByText('Completed Patrol Sessions').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Incomplete Patrol Sessions')).toBeTruthy();
+      expect(screen.getByText('Total Patrol Duration')).toBeTruthy();
+      expect(screen.getByText('Total Checkpoints')).toBeTruthy();
+      expect(screen.getByText('Checkpoints Scanned')).toBeTruthy();
+      expect(screen.getByText('Checkpoints Missed')).toBeTruthy();
+      expect(screen.getByText('Average Compliance')).toBeTruthy();
+
+      // Total Assigned Checkpoints must NOT be present
+      expect(screen.queryByText('Total Assigned Checkpoints')).toBeNull();
+    });
+
+    it('renders 9 KPI cards including Total Assigned Checkpoints when one specific employee is selected', async () => {
+      const singleEmployee = {
+        id: 'emp-habeeb',
+        firstName: 'Habeeb',
+        lastName: 'Atlabs',
+        employeeNumber: 'EMP-001',
+        role: 'SECURITY',
+        assignments: [{ shiftId: 'shift-1', siteId: 'site-1' }],
+      };
+
+      (apiClient.get as jest.Mock).mockImplementation((url: string) => {
+        if (url.includes('/shifts')) return Promise.resolve({ data: [] });
+        if (url.includes('/employees')) return Promise.resolve({ data: [singleEmployee] });
+        if (url.includes('/central-manager/reports/employee-patrols')) {
+          return Promise.resolve({
+            data: {
+              ...mockPatrolsResponse,
+              employee: singleEmployee,
+              summary: {
+                ...mockPatrolsResponse.summary,
+                totalAssignedCheckpoints: 19,
+              },
+            },
+          });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      render(
+        <PeriodicReportGenerator
+          clientId="client-1"
+          isCentralManager={true}
+          propEmployees={[singleEmployee]}
+        />
+      );
+
+      // Wait for shifts and employees initial load to finish
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading employees.../i)).toBeNull();
+      });
+
+      // Open SearchableSelect dropdown for Employee
+      const employeeTrigger = screen.getByLabelText(/Filter Report by Employee/i);
+      fireEvent.click(employeeTrigger);
+
+      // Click the employee option
+      const employeeOption = await screen.findByText(/Habeeb Atlabs/i);
+      fireEvent.click(employeeOption);
+
+      const generateBtn = screen.getByRole('button', { name: /Generate/i });
+      fireEvent.click(generateBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('Total Assigned Checkpoints')).toBeTruthy();
+      });
+
+      expect(screen.getByText('19')).toBeTruthy();
+      expect(screen.getByText('Current active checkpoint assignments')).toBeTruthy();
+
+      // Verify the other 8 KPI cards are also present
+      expect(screen.getByText('Total Patrol Sessions')).toBeTruthy();
+      expect(screen.getAllByText('Completed Patrol Sessions').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Incomplete Patrol Sessions')).toBeTruthy();
+      expect(screen.getByText('Total Patrol Duration')).toBeTruthy();
+      expect(screen.getByText('Total Checkpoints')).toBeTruthy();
+      expect(screen.getByText('Checkpoints Scanned')).toBeTruthy();
+      expect(screen.getByText('Checkpoints Missed')).toBeTruthy();
+      expect(screen.getByText('Average Compliance')).toBeTruthy();
+    });
+
+    it('renders the Patrol Status filter dropdown and triggers filter queries on change', async () => {
+      (apiClient.get as jest.Mock).mockImplementation((url: string) => {
+        if (url.includes('/shifts')) return Promise.resolve({ data: [] });
+        if (url.includes('/employees')) return Promise.resolve({ data: [] });
+        if (url.includes('/central-manager/reports/employee-patrols')) {
+          return Promise.resolve({ data: mockPatrolsResponse });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      render(
+        <PeriodicReportGenerator
+          clientId="client-1"
+          isCentralManager={true}
+        />
+      );
+
+      // Wait for initial load to finish
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading shifts.../i)).toBeNull();
+      });
+
+      const generateBtn = screen.getByRole('button', { name: /Generate/i });
+      fireEvent.click(generateBtn);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /Completed Patrol Sessions/i })).toBeTruthy();
+      });
+
+      const statusFilter = screen.getByLabelText(/Patrol Status/i);
+      expect((statusFilter as HTMLSelectElement).value).toBe('ALL');
+
+      // Change status to COMPLETED
+      fireEvent.change(statusFilter, { target: { value: 'COMPLETED' } });
+
+      await waitFor(() => {
+        expect(apiClient.get).toHaveBeenCalledWith(
+          expect.stringContaining('completionStatus=COMPLETED')
+        );
+      });
+
+      // Change status to INCOMPLETE
+      fireEvent.change(statusFilter, { target: { value: 'INCOMPLETE' } });
+
+      await waitFor(() => {
+        expect(apiClient.get).toHaveBeenCalledWith(
+          expect.stringContaining('completionStatus=INCOMPLETE')
+        );
+      });
     });
   });
 });

@@ -243,3 +243,146 @@ export function calculateSessionCheckpointMetrics(session: any): SessionCheckpoi
     missedItems,
   };
 }
+
+export interface PatrolSessionsAggregateResult {
+  totalPatrolSessions: number;
+  completedPatrolSessions: number;
+  incompletePatrolSessions: number;
+  unclassifiablePatrolSessions: number;
+  totalCheckpoints: number;
+  checkpointsScanned: number;
+  checkpointsMissed: number;
+  averageCompliancePct: number;
+  totalDurationSeconds: number;
+  diagnostics: {
+    unclassifiableIds: string[];
+  };
+}
+
+/**
+ * Shared authoritative aggregation across multiple patrol sessions.
+ * 
+ * Invariants guaranteed:
+ * - Only finalized sessions are processed (status === 'COMPLETED' or endedAt is present).
+ * - Excludes ongoing (IN_PROGRESS, PAUSED), CANCELLED, and FAILED sessions.
+ * - For classifiable finalized sessions: totalPatrolSessions = completedPatrolSessions + incompletePatrolSessions + unclassifiablePatrolSessions
+ * - checkpointsScanned <= totalCheckpoints
+ * - checkpointsMissed === totalCheckpoints - checkpointsScanned
+ * - 0 <= averageCompliancePct <= 100 (0% when totalCheckpoints === 0)
+ */
+export function calculatePatrolSessionsAggregate(sessions: any[]): PatrolSessionsAggregateResult {
+  let completedPatrolSessions = 0;
+  let incompletePatrolSessions = 0;
+  let unclassifiablePatrolSessions = 0;
+  let totalCheckpoints = 0;
+  let checkpointsScanned = 0;
+  let checkpointsMissed = 0;
+  let totalDurationSeconds = 0;
+  const unclassifiableIds: string[] = [];
+
+  for (const session of sessions) {
+    if (!session) continue;
+    const status = (session.status || '').toUpperCase();
+    if (status === 'CANCELLED' || status === 'FAILED' || status === 'IN_PROGRESS' || status === 'PAUSED') {
+      continue;
+    }
+    const isFinalized = status === 'COMPLETED' || Boolean(session.endedAt);
+    if (!isFinalized) {
+      continue;
+    }
+
+    const metrics = calculateSessionCheckpointMetrics(session);
+    if (metrics.checkpointCompletionStatus === 'COMPLETED') {
+      completedPatrolSessions++;
+    } else if (metrics.checkpointCompletionStatus === 'INCOMPLETE') {
+      incompletePatrolSessions++;
+    } else if (metrics.checkpointCompletionStatus === 'NO_CHECKPOINTS') {
+      unclassifiablePatrolSessions++;
+      unclassifiableIds.push(session.id || session.patrolCode || 'unknown');
+    }
+
+    totalCheckpoints += metrics.totalCheckpoints;
+    checkpointsScanned += metrics.scannedCheckpoints;
+    checkpointsMissed += metrics.missedCheckpoints;
+
+    if (session.totalDuration && typeof session.totalDuration === 'number') {
+      totalDurationSeconds += session.totalDuration;
+    }
+  }
+
+  const totalPatrolSessions = completedPatrolSessions + incompletePatrolSessions + unclassifiablePatrolSessions;
+  const averageCompliancePct =
+    totalCheckpoints > 0
+      ? Math.min(100, Math.round((checkpointsScanned / totalCheckpoints) * 100))
+      : 0;
+
+  return {
+    totalPatrolSessions,
+    completedPatrolSessions,
+    incompletePatrolSessions,
+    unclassifiablePatrolSessions,
+    totalCheckpoints,
+    checkpointsScanned,
+    checkpointsMissed,
+    averageCompliancePct,
+    totalDurationSeconds,
+    diagnostics: {
+      unclassifiableIds,
+    },
+  };
+}
+
+/**
+ * Calculates distinct active assigned checkpoints for an employee.
+ * 
+ * Rules:
+ * 1. Only active assignments are included (isActive !== false, within effectiveFrom/effectiveTo).
+ * 2. Only active routes are included (patrolRoute.isActive !== false).
+ * 3. Only active checkpoints are included (gate.isActive !== false).
+ * 4. Deduplication: Count distinct physical checkpoints by gateId (stable ID Set).
+ *    If a gate is assigned across multiple routes or direct assignments, it is counted once.
+ * 5. Does NOT multiply by patrol sessions, days, weeks, months, or completion counts.
+ */
+export function calculateEmployeeAssignedCheckpoints(
+  assignments: any[],
+  currentDate: Date = new Date(),
+): number {
+  if (!Array.isArray(assignments) || assignments.length === 0) {
+    return 0;
+  }
+
+  const assignedGateIds = new Set<string>();
+  const nowTime = currentDate.getTime();
+
+  for (const assignment of assignments) {
+    if (!assignment || assignment.isActive === false) continue;
+    if (assignment.effectiveFrom && new Date(assignment.effectiveFrom).getTime() > nowTime) continue;
+    if (assignment.effectiveTo && new Date(assignment.effectiveTo).getTime() < nowTime) continue;
+
+    // Route-based checkpoint assignments
+    if (assignment.patrolRoute && assignment.patrolRoute.isActive !== false) {
+      const routeGates = assignment.patrolRoute.routeGates || [];
+      for (const rg of routeGates) {
+        const gate = rg.gate;
+        const gateId = rg.gateId || gate?.id;
+        if (gateId && gate?.isActive !== false) {
+          assignedGateIds.add(gateId);
+        }
+      }
+    }
+
+    // Direct checkpoint assignments
+    if (assignment.assignmentGates && Array.isArray(assignment.assignmentGates)) {
+      for (const ag of assignment.assignmentGates) {
+        const gate = ag.gate;
+        const gateId = ag.gateId || gate?.id;
+        if (gateId && gate?.isActive !== false) {
+          assignedGateIds.add(gateId);
+        }
+      }
+    }
+  }
+
+  return assignedGateIds.size;
+}
+

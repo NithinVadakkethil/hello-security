@@ -239,23 +239,23 @@ export class PdfGeneratorService {
   </div>
 
   <!-- Patrol & Checkpoint Duration Summary -->
-  <div class="section-title">Patrol & Checkpoint Duration Summary</div>
+  <div class="section-title">Patrol Sessions & Duration Summary</div>
   <div class="metrics-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 8px;">
     <div class="metric-card">
-      <div class="metric-label">TOTAL PATROL<br>DURATION</div>
-      <div class="metric-value highlight" style="font-size: 15px;">${summary.totalPatrolDurationFormatted || '0 sec'}</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">TOTAL CHECKPOINT<br>DURATION</div>
-      <div class="metric-value success" style="font-size: 15px;">${summary.totalCheckpointDurationFormatted || '0 sec'}</div>
+      <div class="metric-label">TOTAL PATROL<br>SESSIONS</div>
+      <div class="metric-value highlight">${summary.totalPatrolSessions ?? summary.assignedPatrols}</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">COMPLETED PATROL<br>SESSIONS</div>
-      <div class="metric-value">${summary.completedPatrolsCount ?? summary.completedPatrols}</div>
+      <div class="metric-value success">${summary.completedPatrolSessions ?? summary.completedPatrols}</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">COMPLETED CHECKPOINT<br>INSPECTIONS</div>
-      <div class="metric-value">${summary.completedCheckpointsCount ?? summary.checkpointsScanned}</div>
+      <div class="metric-label">INCOMPLETE PATROL<br>SESSIONS</div>
+      <div class="metric-value ${(summary.incompletePatrolSessions ?? summary.incompletePatrols ?? 0) > 0 ? 'warning' : ''}">${summary.incompletePatrolSessions ?? summary.incompletePatrols ?? 0}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">TOTAL PATROL<br>DURATION</div>
+      <div class="metric-value highlight" style="font-size: 15px;">${summary.totalPatrolDurationFormatted || '0 sec'}</div>
     </div>
   </div>
   <p style="font-size: 8.5px; color: #64748b; margin: 0 0 16px 2px; font-style: italic;">

@@ -18,7 +18,13 @@ import {
   X,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import toast from 'react-hot-toast';
 import { resolveImageUrl } from '../../../../lib/image';
 import { apiClient } from '../../../lib/axios';
@@ -156,10 +162,13 @@ export default function PeriodicReportGenerator({
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const urlReportType = (searchParams?.get('reportType') || searchParams?.get('periodType')) as any;
+  const urlReportType = (searchParams?.get('reportType') ||
+    searchParams?.get('periodType')) as any;
   const urlDate = searchParams?.get('date') || searchParams?.get('month');
-  const urlStartDate = searchParams?.get('startDate') || searchParams?.get('fromDate');
-  const urlEndDate = searchParams?.get('endDate') || searchParams?.get('toDate');
+  const urlStartDate =
+    searchParams?.get('startDate') || searchParams?.get('fromDate');
+  const urlEndDate =
+    searchParams?.get('endDate') || searchParams?.get('toDate');
   const urlTab = searchParams?.get('tab') as any;
   const urlSiteId = searchParams?.get('siteId');
   const urlShiftId = searchParams?.get('shiftId');
@@ -168,7 +177,11 @@ export default function PeriodicReportGenerator({
   // 1. Report Mode State
   const [reportType, setReportType] = useState<
     'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM'
-  >(['DAILY', 'WEEKLY', 'MONTHLY', 'CUSTOM'].includes(urlReportType) ? urlReportType : 'DAILY');
+  >(
+    ['DAILY', 'WEEKLY', 'MONTHLY', 'CUSTOM'].includes(urlReportType)
+      ? urlReportType
+      : 'DAILY',
+  );
 
   // Date States
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -179,14 +192,19 @@ export default function PeriodicReportGenerator({
   }, []);
 
   const [selectedDate, setSelectedDate] = useState<string>(urlDate || todayStr);
-  const [customStartDate, setCustomStartDate] =
-    useState<string>(urlStartDate || defaultPastWeekStr);
-  const [customEndDate, setCustomEndDate] = useState<string>(urlEndDate || todayStr);
+  const [customStartDate, setCustomStartDate] = useState<string>(
+    urlStartDate || defaultPastWeekStr,
+  );
+  const [customEndDate, setCustomEndDate] = useState<string>(
+    urlEndDate || todayStr,
+  );
 
   // Filter States
   const [selectedRole, setSelectedRole] = useState<string>(urlRole || 'ALL');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
-  const [selectedShiftId, setSelectedShiftId] = useState<string>(urlShiftId || '');
+  const [selectedShiftId, setSelectedShiftId] = useState<string>(
+    urlShiftId || '',
+  );
   const [selectedSiteId, setSelectedSiteId] = useState<string>(urlSiteId || '');
 
   // UI / Async States
@@ -202,19 +220,47 @@ export default function PeriodicReportGenerator({
     | 'checkpoints'
     | 'incidents'
     | 'employeeSummary'
-  >(['summary', 'mandatory', 'attendance', 'patrols', 'checkpoints', 'incidents', 'employeeSummary'].includes(urlTab) ? urlTab : 'summary');
+  >(
+    [
+      'summary',
+      'mandatory',
+      'attendance',
+      'patrols',
+      'checkpoints',
+      'incidents',
+      'employeeSummary',
+    ].includes(urlTab)
+      ? urlTab
+      : 'summary',
+  );
 
   // Central Manager Filtered Completed Patrols State
-  const [centralPatrolsData, setCentralPatrolsData] = useState<any | null>(null);
+  const [centralPatrolsData, setCentralPatrolsData] = useState<any | null>(
+    null,
+  );
   const [isLoadingCentralPatrols, setIsLoadingCentralPatrols] = useState(false);
   const [centralPatrolsPage, setCentralPatrolsPage] = useState<number>(1);
-  const [centralPatrolsLimit, setCentralPatrolsLimit] = useState<number | 'all'>(20);
-  const [centralPatrolsSortBy, setCentralPatrolsSortBy] = useState<string>('startedAt');
-  const [centralPatrolsSortOrder, setCentralPatrolsSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [centralPatrolsLimit, setCentralPatrolsLimit] = useState<
+    number | 'all'
+  >(20);
+  const [centralPatrolsSortBy, setCentralPatrolsSortBy] =
+    useState<string>('startedAt');
+  const [centralPatrolsSortOrder, setCentralPatrolsSortOrder] = useState<
+    'asc' | 'desc'
+  >('desc');
+  const [tableStatusFilter, setTableStatusFilter] = useState<
+    'ALL' | 'COMPLETED' | 'INCOMPLETE'
+  >('ALL');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
-  const [detailedReportData, setDetailedReportData] = useState<any | null>(null);
-  const [selectedMissedPatrolId, setSelectedMissedPatrolId] = useState<string | null>(null);
-  const [selectedMissedPatrolCode, setSelectedMissedPatrolCode] = useState<string | null>(null);
+  const [detailedReportData, setDetailedReportData] = useState<any | null>(
+    null,
+  );
+  const [selectedMissedPatrolId, setSelectedMissedPatrolId] = useState<
+    string | null
+  >(null);
+  const [selectedMissedPatrolCode, setSelectedMissedPatrolCode] = useState<
+    string | null
+  >(null);
   const [lastGeneratedKey, setLastGeneratedKey] = useState<string | null>(null);
 
   // Sites, Shifts, Employees
@@ -522,7 +568,9 @@ export default function PeriodicReportGenerator({
       const rawEid = emp.emiratesId;
       const eid = rawEid ? formatEmiratesId(rawEid) : undefined;
       const eidBadge = eid && eid !== 'Not provided' ? `EID: ${eid}` : null;
-      const subLabel = [role, code ? `ID: ${code}` : null, eidBadge].filter(Boolean).join(' • ');
+      const subLabel = [role, code ? `ID: ${code}` : null, eidBadge]
+        .filter(Boolean)
+        .join(' • ');
 
       return {
         id: emp.id,
@@ -587,6 +635,7 @@ export default function PeriodicReportGenerator({
       setCentralPatrolsData(null);
       setReportData(null);
       setLastGeneratedKey(null);
+      setTableStatusFilter('ALL');
     }
   }, [currentFilterKey, lastGeneratedKey]);
 
@@ -597,6 +646,8 @@ export default function PeriodicReportGenerator({
       targetLimit: number | 'all' = centralPatrolsLimit,
       targetSortBy: string = centralPatrolsSortBy,
       targetSortOrder: 'asc' | 'desc' = centralPatrolsSortOrder,
+      targetStatusFilter:
+        'ALL' | 'COMPLETED' | 'INCOMPLETE' = tableStatusFilter,
     ) => {
       if (!clientId) return;
       if (isCustomRangeInvalid) {
@@ -625,11 +676,18 @@ export default function PeriodicReportGenerator({
 
         if (selectedSiteId) params.append('siteId', selectedSiteId);
         if (selectedShiftId) params.append('shiftId', selectedShiftId);
-        if (selectedRole && selectedRole !== 'ALL') params.append('role', selectedRole);
+        if (selectedRole && selectedRole !== 'ALL')
+          params.append('role', selectedRole);
         if (selectedEmployeeId) params.append('employeeId', selectedEmployeeId);
+        if (targetStatusFilter && targetStatusFilter !== 'ALL') {
+          params.append('completionStatus', targetStatusFilter);
+        }
 
         params.append('page', String(targetPage));
-        params.append('limit', targetLimit === 'all' ? '100' : String(targetLimit));
+        params.append(
+          'limit',
+          targetLimit === 'all' ? '100' : String(targetLimit),
+        );
         params.append('sortBy', targetSortBy);
         params.append('sortOrder', targetSortOrder);
 
@@ -681,18 +739,45 @@ export default function PeriodicReportGenerator({
       centralPatrolsLimit,
       centralPatrolsSortBy,
       centralPatrolsSortOrder,
+      tableStatusFilter,
     ],
   );
 
+  const handleTableStatusFilterChange = (
+    newStatus: 'ALL' | 'COMPLETED' | 'INCOMPLETE',
+  ) => {
+    setTableStatusFilter(newStatus);
+    setCentralPatrolsPage(1);
+    fetchCentralPatrols(
+      1,
+      centralPatrolsLimit,
+      centralPatrolsSortBy,
+      centralPatrolsSortOrder,
+      newStatus,
+    );
+  };
+
   const handlePatrolPageChange = (newPage: number) => {
     setCentralPatrolsPage(newPage);
-    fetchCentralPatrols(newPage, centralPatrolsLimit, centralPatrolsSortBy, centralPatrolsSortOrder);
+    fetchCentralPatrols(
+      newPage,
+      centralPatrolsLimit,
+      centralPatrolsSortBy,
+      centralPatrolsSortOrder,
+      tableStatusFilter,
+    );
   };
 
   const handlePatrolPageSizeChange = (newSize: number | 'all') => {
     setCentralPatrolsLimit(newSize);
     setCentralPatrolsPage(1);
-    fetchCentralPatrols(1, newSize, centralPatrolsSortBy, centralPatrolsSortOrder);
+    fetchCentralPatrols(
+      1,
+      newSize,
+      centralPatrolsSortBy,
+      centralPatrolsSortOrder,
+      tableStatusFilter,
+    );
   };
 
   const handlePatrolSort = (key: string) => {
@@ -707,6 +792,7 @@ export default function PeriodicReportGenerator({
       centralPatrolsLimit,
       key,
       newSortOrder,
+      tableStatusFilter,
     );
   };
 
@@ -759,10 +845,9 @@ export default function PeriodicReportGenerator({
         id: 'single-pdf-toast',
       });
     } catch (err: any) {
-      toast.error(
-        err?.response?.data?.message || 'Failed to download PDF',
-        { id: 'single-pdf-toast' },
-      );
+      toast.error(err?.response?.data?.message || 'Failed to download PDF', {
+        id: 'single-pdf-toast',
+      });
     }
   };
 
@@ -775,7 +860,14 @@ export default function PeriodicReportGenerator({
 
     if (isCentralManager) {
       setCentralPatrolsPage(1);
-      await fetchCentralPatrols(1, centralPatrolsLimit, centralPatrolsSortBy, centralPatrolsSortOrder);
+      setTableStatusFilter('ALL');
+      await fetchCentralPatrols(
+        1,
+        centralPatrolsLimit,
+        centralPatrolsSortBy,
+        centralPatrolsSortOrder,
+        'ALL',
+      );
       return;
     }
 
@@ -833,7 +925,8 @@ export default function PeriodicReportGenerator({
 
       if (selectedSiteId) params.append('siteId', selectedSiteId);
       if (selectedShiftId) params.append('shiftId', selectedShiftId);
-      if (selectedRole && selectedRole !== 'ALL') params.append('role', selectedRole);
+      if (selectedRole && selectedRole !== 'ALL')
+        params.append('role', selectedRole);
 
       const targetRoute = isCentralManager
         ? `/central/reports/employee-patrols?${params.toString()}`
@@ -858,7 +951,11 @@ export default function PeriodicReportGenerator({
   // Auto-generate report if returning from drill-down with URL parameters
   const hasAutoTriggeredRef = useRef(false);
   useEffect(() => {
-    if (!hasAutoTriggeredRef.current && clientId && (urlReportType || urlDate)) {
+    if (
+      !hasAutoTriggeredRef.current &&
+      clientId &&
+      (urlReportType || urlDate)
+    ) {
       hasAutoTriggeredRef.current = true;
       handleGenerateReport();
     }
@@ -960,7 +1057,11 @@ export default function PeriodicReportGenerator({
     }
   };
 
-  const isEmployeeScoped = Boolean(reportData?.metadata?.employeeId);
+  const isEmployeeScoped = Boolean(
+    isCentralManager
+      ? centralPatrolsData?.employee?.id || selectedEmployeeId
+      : reportData?.metadata?.employeeId,
+  );
 
   // Real-time formatted period string for summary badge
   const activePeriodSummary = useMemo(() => {
@@ -1674,7 +1775,9 @@ export default function PeriodicReportGenerator({
                   }}
                 >
                   <img
-                    src={resolveImageUrl(centralPatrolsData.project.clientLogoUrl)}
+                    src={resolveImageUrl(
+                      centralPatrolsData.project.clientLogoUrl,
+                    )}
                     alt="Client Logo"
                     style={{
                       maxHeight: '40px',
@@ -1685,8 +1788,17 @@ export default function PeriodicReportGenerator({
                 </div>
               )}
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <h2
+                    style={{
+                      fontSize: '1.25rem',
+                      fontWeight: 700,
+                      margin: 0,
+                      color: 'var(--text-primary)',
+                    }}
+                  >
                     Completed Patrol Sessions
                   </h2>
                   <span
@@ -1699,10 +1811,18 @@ export default function PeriodicReportGenerator({
                       color: '#ffffff',
                     }}
                   >
-                    {centralPatrolsData.pagination?.totalRecords ?? centralPatrolsData.summary?.totalCompletedPatrols ?? 0}
+                    {centralPatrolsData.pagination?.totalRecords ??
+                      centralPatrolsData.summary?.totalCompletedPatrols ??
+                      0}
                   </span>
                 </div>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                <p
+                  style={{
+                    fontSize: '0.88rem',
+                    color: 'var(--text-secondary)',
+                    margin: '4px 0 0 0',
+                  }}
+                >
                   Patrol sessions matching the selected reporting filters.
                 </p>
                 <div
@@ -1722,14 +1842,26 @@ export default function PeriodicReportGenerator({
                         `${centralPatrolsData.period?.startDate} to ${centralPatrolsData.period?.endDate}`}
                     </strong>
                   </span>
-                  <span>Timezone: {centralPatrolsData.period?.timezone || 'Asia/Dubai'}</span>
+                  <span>
+                    Timezone:{' '}
+                    {centralPatrolsData.period?.timezone || 'Asia/Dubai'}
+                  </span>
                   {selectedEmployeeObj ? (
                     <span>
-                      Employee: <strong>{selectedEmployeeObj.firstName} {selectedEmployeeObj.lastName || ''}</strong>
+                      Employee:{' '}
+                      <strong>
+                        {selectedEmployeeObj.firstName}{' '}
+                        {selectedEmployeeObj.lastName || ''}
+                      </strong>
                     </span>
                   ) : (
                     <span>
-                      Scope: <strong>{selectedRole !== 'ALL' ? formatRoleLabel(selectedRole) : 'All Matching Employees'}</strong>
+                      Scope:{' '}
+                      <strong>
+                        {selectedRole !== 'ALL'
+                          ? formatRoleLabel(selectedRole)
+                          : 'All Matching Employees'}
+                      </strong>
                     </span>
                   )}
                 </div>
@@ -1758,7 +1890,9 @@ export default function PeriodicReportGenerator({
                 }}
               >
                 <Download size={14} />
-                <span>{isDownloadingPdf ? 'Downloading...' : 'PDF Report'}</span>
+                <span>
+                  {isDownloadingPdf ? 'Downloading...' : 'PDF Report'}
+                </span>
               </button>
 
               <button
@@ -1781,7 +1915,9 @@ export default function PeriodicReportGenerator({
                 }}
               >
                 <Download size={14} />
-                <span>{isDownloadingExcel ? 'Downloading...' : 'Excel (.xlsx)'}</span>
+                <span>
+                  {isDownloadingExcel ? 'Downloading...' : 'Excel (.xlsx)'}
+                </span>
               </button>
             </div>
           </div>
@@ -1791,11 +1927,11 @@ export default function PeriodicReportGenerator({
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                 gap: '16px',
               }}
             >
-              {/* Card 1: Completed Patrols */}
+              {/* Card 1: Total Patrol Sessions */}
               <div
                 className="glass-card"
                 style={{
@@ -1814,7 +1950,7 @@ export default function PeriodicReportGenerator({
                     marginBottom: '6px',
                   }}
                 >
-                  Completed Patrols
+                  Total Patrol Sessions
                 </div>
                 <div
                   style={{
@@ -1823,7 +1959,8 @@ export default function PeriodicReportGenerator({
                     color: '#2563eb',
                   }}
                 >
-                  {centralPatrolsData.summary.totalCompletedPatrols ??
+                  {centralPatrolsData.summary.totalPatrolSessions ??
+                    centralPatrolsData.summary.totalCompletedPatrols ??
                     centralPatrolsData.pagination?.totalRecords ??
                     0}
                 </div>
@@ -1834,11 +1971,11 @@ export default function PeriodicReportGenerator({
                     marginTop: '4px',
                   }}
                 >
-                  Eligible patrol sessions
+                  Finalized patrol sessions
                 </div>
               </div>
 
-              {/* Card 2: Total Patrol Duration */}
+              {/* Card 2: Completed Patrol Sessions */}
               <div
                 className="glass-card"
                 style={{
@@ -1857,13 +1994,95 @@ export default function PeriodicReportGenerator({
                     marginBottom: '6px',
                   }}
                 >
-                  Total Patrol Duration
+                  Completed Patrol Sessions
                 </div>
                 <div
                   style={{
                     fontSize: '1.75rem',
                     fontWeight: 800,
                     color: '#16a34a',
+                  }}
+                >
+                  {centralPatrolsData.summary.completedPatrolSessions ?? 0}
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-muted)',
+                    marginTop: '4px',
+                  }}
+                >
+                  100% checkpoints scanned
+                </div>
+              </div>
+
+              {/* Card 3: Incomplete Patrol Sessions */}
+              <div
+                className="glass-card"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: '12px',
+                  borderLeft: '4px solid #f59e0b',
+                  backgroundColor: 'var(--bg-card)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Incomplete Patrol Sessions
+                </div>
+                <div
+                  style={{
+                    fontSize: '1.75rem',
+                    fontWeight: 800,
+                    color: '#d97706',
+                  }}
+                >
+                  {centralPatrolsData.summary.incompletePatrolSessions ?? 0}
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-muted)',
+                    marginTop: '4px',
+                  }}
+                >
+                  Missed checkpoints
+                </div>
+              </div>
+
+              {/* Card 4: Total Patrol Duration */}
+              <div
+                className="glass-card"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: '12px',
+                  borderLeft: '4px solid #0d9488',
+                  backgroundColor: 'var(--bg-card)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Total Patrol Duration
+                </div>
+                <div
+                  style={{
+                    fontSize: '1.75rem',
+                    fontWeight: 800,
+                    color: '#0d9488',
                   }}
                 >
                   {centralPatrolsData.summary.totalPatrolDurationFormatted ||
@@ -1880,7 +2099,7 @@ export default function PeriodicReportGenerator({
                 </div>
               </div>
 
-              {/* Card 3: Total Checkpoints */}
+              {/* Card 5: Total Checkpoints */}
               <div
                 className="glass-card"
                 style={{
@@ -1923,7 +2142,7 @@ export default function PeriodicReportGenerator({
                 </div>
               </div>
 
-              {/* Card 4: Checkpoints Scanned */}
+              {/* Card 6: Checkpoints Scanned */}
               <div
                 className="glass-card"
                 style={{
@@ -1960,11 +2179,11 @@ export default function PeriodicReportGenerator({
                     marginTop: '4px',
                   }}
                 >
-                  Eligible checkpoint scans
+                  checkpoint scans
                 </div>
               </div>
 
-              {/* Card 5: Checkpoints Missed */}
+              {/* Card 7: Checkpoints Missed */}
               <div
                 className="glass-card"
                 style={{
@@ -2005,13 +2224,13 @@ export default function PeriodicReportGenerator({
                 </div>
               </div>
 
-              {/* Card 6: Average Compliance */}
+              {/* Card 8: Average Compliance */}
               <div
                 className="glass-card"
                 style={{
                   padding: '18px 20px',
                   borderRadius: '12px',
-                  borderLeft: '4px solid #f59e0b',
+                  borderLeft: '4px solid #10b981',
                   backgroundColor: 'var(--bg-card)',
                 }}
               >
@@ -2030,7 +2249,7 @@ export default function PeriodicReportGenerator({
                   style={{
                     fontSize: '1.75rem',
                     fontWeight: 800,
-                    color: '#f59e0b',
+                    color: '#10b981',
                   }}
                 >
                   {centralPatrolsData.summary.averageCompliancePct ?? 0}%
@@ -2045,8 +2264,187 @@ export default function PeriodicReportGenerator({
                   Checkpoint scan rate
                 </div>
               </div>
+
+              {/* Card 9: Total Assigned Checkpoints (visible exclusively when one specific employee is selected) */}
+              {isEmployeeScoped &&
+                centralPatrolsData.summary.totalAssignedCheckpoints !==
+                  undefined && (
+                  <div
+                    className="glass-card"
+                    style={{
+                      padding: '18px 20px',
+                      borderRadius: '12px',
+                      borderLeft: '4px solid #06b6d4',
+                      backgroundColor: 'var(--bg-card)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        marginBottom: '6px',
+                      }}
+                    >
+                      Total Assigned Checkpoints
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '1.75rem',
+                        fontWeight: 800,
+                        color: '#0891b2',
+                      }}
+                    >
+                      {centralPatrolsData.summary.totalAssignedCheckpoints}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '12px',
+                        color: 'var(--text-muted)',
+                        marginTop: '4px',
+                      }}
+                    >
+                      Current active checkpoint assignments
+                    </div>
+                  </div>
+                )}
             </div>
           )}
+
+          {/* Table Header & Status Filter Toolbar */}
+          <div
+            className="glass-card"
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '14px 18px',
+              borderRadius: '10px',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-color, #e2e8f0)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                }}
+              >
+                Patrol Sessions
+              </h3>
+              <span
+                style={{
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  backgroundColor: '#f1f5f9',
+                  color: 'var(--text-secondary, #475569)',
+                  border: '1px solid #cbd5e1',
+                }}
+              >
+                {centralPatrolsData.pagination?.totalRecords ??
+                  centralPatrolsData.pagination?.totalCount ??
+                  0}
+              </span>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                flexWrap: 'wrap',
+              }}
+            >
+              {/* Patrol Status Filter */}
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <label
+                  htmlFor="patrol-status-filter"
+                  style={{
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: 'var(--text-secondary, #64748b)',
+                  }}
+                >
+                  Patrol Status:
+                </label>
+                <select
+                  id="patrol-status-filter"
+                  aria-label="Filter Patrol Sessions by Completion Status"
+                  value={tableStatusFilter}
+                  onChange={(e) =>
+                    handleTableStatusFilterChange(e.target.value as any)
+                  }
+                  className="form-input"
+                  style={{
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    backgroundColor: 'var(--bg-input, #ffffff)',
+                    border: '1px solid var(--border-color, #cbd5e1)',
+                    cursor: 'pointer',
+                    color:
+                      tableStatusFilter === 'COMPLETED'
+                        ? '#16a34a'
+                        : tableStatusFilter === 'INCOMPLETE'
+                          ? '#d97706'
+                          : 'var(--text-primary)',
+                  }}
+                >
+                  <option value="ALL">All Patrols</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="INCOMPLETE">Incomplete</option>
+                </select>
+              </div>
+
+              {/* Page Size Selector */}
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <span
+                  style={{
+                    fontSize: '0.85rem',
+                    color: 'var(--text-secondary, #64748b)',
+                    fontWeight: 600,
+                  }}
+                >
+                  Show:
+                </span>
+                <select
+                  aria-label="Table page size"
+                  value={centralPatrolsLimit}
+                  onChange={(e) =>
+                    handlePatrolPageSizeChange(
+                      e.target.value === 'all' ? 'all' : Number(e.target.value),
+                    )
+                  }
+                  className="form-input"
+                  style={{
+                    fontSize: '0.85rem',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    border: '1px solid var(--border-color, #cbd5e1)',
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value="all">All</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
           {/* Reusable Completed Patrol Sessions Table */}
           <CompletedPatrolSessionsTable
@@ -2059,10 +2457,18 @@ export default function PeriodicReportGenerator({
             onViewReport={handleViewReport}
             onDownloadPdf={handleDownloadSinglePdf}
             onOpenMissedModal={handleOpenMissedModal}
-            page={centralPatrolsData.pagination?.currentPage || centralPatrolsPage}
-            pageSize={centralPatrolsData.pagination?.pageSize || centralPatrolsLimit}
+            page={
+              centralPatrolsData.pagination?.currentPage || centralPatrolsPage
+            }
+            pageSize={
+              centralPatrolsData.pagination?.pageSize || centralPatrolsLimit
+            }
             totalPages={centralPatrolsData.pagination?.totalPages || 1}
-            totalCount={centralPatrolsData.pagination?.totalRecords ?? centralPatrolsData.summary?.totalCompletedPatrols ?? 0}
+            totalCount={
+              centralPatrolsData.pagination?.totalRecords ??
+              centralPatrolsData.summary?.totalCompletedPatrols ??
+              0
+            }
             onPageChange={handlePatrolPageChange}
             onPageSizeChange={handlePatrolPageSizeChange}
             sortBy={centralPatrolsSortBy}
@@ -2188,7 +2594,9 @@ export default function PeriodicReportGenerator({
                       ? ` • ID: ${reportData.metadata.employeeNumber}`
                       : ''}
                     {' • Emirates ID: '}
-                    <strong>{reportData.metadata.emiratesId || 'Not provided'}</strong>
+                    <strong>
+                      {reportData.metadata.emiratesId || 'Not provided'}
+                    </strong>
                   </div>
                 ) : (
                   <div
@@ -3160,12 +3568,25 @@ export default function PeriodicReportGenerator({
                       <td style={{ padding: '10px 12px', fontWeight: 600 }}>
                         <div>{mp.guardName || mp.employeeName}</div>
                         {mp.employeeNumber && (
-                          <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              color: '#64748b',
+                              fontFamily: 'monospace',
+                            }}
+                          >
                             {mp.employeeNumber}
                           </div>
                         )}
                       </td>
-                      <td style={{ padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#475569' }}>
+                      <td
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '12px',
+                          fontFamily: 'monospace',
+                          color: '#475569',
+                        }}
+                      >
                         {mp.emiratesId || 'Not provided'}
                       </td>
                       <td style={{ padding: '10px 12px' }}>
@@ -3260,8 +3681,17 @@ export default function PeriodicReportGenerator({
                       <td style={{ padding: '10px 12px', fontWeight: 600 }}>
                         {p.employeeName || p.guardName}
                       </td>
-                      <td style={{ padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#475569' }}>
-                        {p.emiratesId || reportData.metadata?.emiratesId || 'Not provided'}
+                      <td
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '12px',
+                          fontFamily: 'monospace',
+                          color: '#475569',
+                        }}
+                      >
+                        {p.emiratesId ||
+                          reportData.metadata?.emiratesId ||
+                          'Not provided'}
                       </td>
                       <td style={{ padding: '10px 12px' }}>
                         {p.employeeRole || 'Security Guard'}
@@ -3349,12 +3779,25 @@ export default function PeriodicReportGenerator({
                       <td style={{ padding: '10px 12px', fontWeight: 600 }}>
                         <div>{att.employeeName}</div>
                         {att.employeeNumber ? (
-                          <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              color: '#64748b',
+                              fontFamily: 'monospace',
+                            }}
+                          >
                             {att.employeeNumber}
                           </div>
                         ) : null}
                       </td>
-                      <td style={{ padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#475569' }}>
+                      <td
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '12px',
+                          fontFamily: 'monospace',
+                          color: '#475569',
+                        }}
+                      >
                         {att.emiratesId || 'Not provided'}
                       </td>
                       <td style={{ padding: '10px 12px' }}>
@@ -3551,14 +3994,29 @@ export default function PeriodicReportGenerator({
                   {reportData.employeeSummary?.map((emp, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '10px 12px' }}>
-                        <div style={{ fontWeight: 600, color: '#0f172a' }}>{emp.employeeName}</div>
+                        <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                          {emp.employeeName}
+                        </div>
                         {emp.employeeNumber && (
-                          <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              color: '#64748b',
+                              fontFamily: 'monospace',
+                            }}
+                          >
                             ID: {emp.employeeNumber}
                           </div>
                         )}
                       </td>
-                      <td style={{ padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#475569' }}>
+                      <td
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '12px',
+                          fontFamily: 'monospace',
+                          color: '#475569',
+                        }}
+                      >
                         {emp.emiratesId || 'Not provided'}
                       </td>
                       <td style={{ padding: '10px 12px' }}>
@@ -3600,7 +4058,12 @@ export default function PeriodicReportGenerator({
                             <ExternalLink size={12} style={{ opacity: 0.7 }} />
                           </button>
                         ) : (
-                          <span style={{ color: 'var(--text-muted, #94a3b8)', padding: '3px 8px' }}>
+                          <span
+                            style={{
+                              color: 'var(--text-muted, #94a3b8)',
+                              padding: '3px 8px',
+                            }}
+                          >
                             0
                           </span>
                         )}

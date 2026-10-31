@@ -9,6 +9,7 @@ import {
   ChevronRight,
   MapPin,
   RefreshCw,
+  Shield,
   ShieldAlert,
   ShieldCheck,
   Users,
@@ -128,6 +129,9 @@ export default function CentralDashboardPage() {
   const global = dashboardData?.global || {
     organizationsCount: 0,
     totalEmployees: 0,
+    totalPatrolSessions: 0,
+    completedPatrolSessions: 0,
+    incompletePatrolSessions: 0,
     completedPatrols: 0,
     openObservations: 0,
     openSnags: 0,
@@ -197,6 +201,27 @@ export default function CentralDashboardPage() {
           type="button"
           onClick={() => router.push('/central/reports')}
           className="global-kpi-card clickable"
+          aria-label="View all patrol sessions in reports"
+        >
+          <div
+            className="kpi-icon-badge"
+            style={{ background: 'rgba(37, 99, 235, 0.12)', color: '#2563EB' }}
+          >
+            <Shield size={20} />
+          </div>
+          <div className="kpi-text-box">
+            <span className="global-kpi-value">
+              {global.totalPatrolSessions ?? global.completedPatrols ?? 0}
+            </span>
+            <span className="global-kpi-label">Total Patrol Sessions</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push('/central/reports')}
+          className="global-kpi-card clickable"
+          aria-label="View completed patrol sessions in reports"
         >
           <div
             className="kpi-icon-badge"
@@ -205,8 +230,38 @@ export default function CentralDashboardPage() {
             <CheckCircle2 size={20} />
           </div>
           <div className="kpi-text-box">
-            <span className="global-kpi-value">{global.completedPatrols}</span>
-            <span className="global-kpi-label">Completed Patrols</span>
+            <span className="global-kpi-value">
+              {global.completedPatrolSessions ?? global.completedPatrols ?? 0}
+            </span>
+            <span className="global-kpi-label">Completed Patrol Sessions</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push('/central/reports')}
+          className="global-kpi-card clickable"
+          aria-label="View incomplete patrol sessions in reports"
+        >
+          <div
+            className="kpi-icon-badge"
+            style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}
+          >
+            <AlertCircle size={20} />
+          </div>
+          <div className="kpi-text-box">
+            <span
+              className="global-kpi-value"
+              style={{
+                color:
+                  (global.incompletePatrolSessions ?? 0) > 0
+                    ? '#d97706'
+                    : undefined,
+              }}
+            >
+              {global.incompletePatrolSessions ?? 0}
+            </span>
+            <span className="global-kpi-label">Incomplete Patrol Sessions</span>
           </div>
         </button>
 
@@ -504,8 +559,18 @@ export default function CentralDashboardPage() {
         }
         .global-kpi-strip {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
           gap: 16px;
+        }
+        @media (min-width: 1024px) {
+          .global-kpi-strip {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+        @media (max-width: 640px) {
+          .global-kpi-strip {
+            grid-template-columns: 1fr;
+          }
         }
         .global-kpi-card {
           display: flex;
