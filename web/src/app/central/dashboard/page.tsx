@@ -8,7 +8,6 @@ import {
   CheckSquare,
   ChevronRight,
   MapPin,
-  RefreshCw,
   Shield,
   ShieldAlert,
   ShieldCheck,
@@ -19,6 +18,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { apiClient } from '../../lib/axios';
+import LoadingState from '../../components/ui/LoadingState';
 
 import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 import CompanyCarouselHeader from './components/CompanyCarouselHeader';
@@ -61,37 +61,22 @@ export default function CentralDashboardPage() {
   };
 
   useEffect(() => {
+    setDashboardData(null);
     fetchDashboard(clientId);
   }, [clientId]);
 
   const handleSelectClient = (newClientId: string) => {
+    setDashboardData(null);
     router.push(`/central/dashboard?clientId=${newClientId}`);
   };
 
   if (isLoading && !dashboardData) {
     return (
-      <div className="dashboard-loading-container">
-        <RefreshCw className="spin-icon" size={32} />
-        <p>Loading Community Manager Executive Dashboard...</p>
-        <style>{`
-          .dashboard-loading-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 400px;
-            gap: 16px;
-            color: var(--text-secondary);
-          }
-          :global(.spin-icon) {
-            animation: spin 1s linear infinite;
-            color: #2563eb;
-          }
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
+      <LoadingState
+        variant="page"
+        size="lg"
+        message="Loading Executive Dashboard..."
+      />
     );
   }
 

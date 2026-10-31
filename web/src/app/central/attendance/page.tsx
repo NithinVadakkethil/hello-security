@@ -3,6 +3,7 @@
 import React, { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Clock } from 'lucide-react';
+import LoadingState from '../../components/ui/LoadingState';
 
 function CentralAttendanceRedirectContent() {
   const router = useRouter();
@@ -42,9 +43,11 @@ export default function CentralAttendancePage() {
   return (
     <Suspense
       fallback={
-        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-          Loading Attendance Reports...
-        </div>
+        <LoadingState
+          variant="page"
+          size="md"
+          message="Loading Attendance Reports..."
+        />
       }
     >
       <CentralAttendanceRedirectContent />

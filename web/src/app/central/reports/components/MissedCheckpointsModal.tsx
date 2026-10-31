@@ -1,6 +1,7 @@
 'use client';
 
 import Modal from '@/app/components/ui/Modal';
+import LoadingState from '@/app/components/ui/LoadingState';
 import { apiClient } from '@/app/lib/axios';
 import { AlertCircle, CheckCircle, MapPin, User } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -105,28 +106,11 @@ export default function MissedCheckpointsModal({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {/* Loading State */}
         {isLoading && (
-          <div
-            style={{
-              padding: '40px 20px',
-              textAlign: 'center',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                border: '3px solid rgba(220, 38, 38, 0.2)',
-                borderTopColor: '#dc2626',
-                borderRadius: '50%',
-                animation: 'spin 0.8s linear infinite',
-                margin: '0 auto 12px auto',
-              }}
-            />
-            <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 500 }}>
-              Loading missed checkpoint details...
-            </p>
-          </div>
+          <LoadingState
+            variant="card"
+            size="sm"
+            message="Loading missed checkpoint details..."
+          />
         )}
 
         {/* Error State */}

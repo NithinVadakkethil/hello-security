@@ -14,6 +14,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import DataTable from '../../../components/ui/DataTable';
+import LoadingState from '../../../components/ui/LoadingState';
 import Pagination from '../../../components/ui/Pagination';
 import StatusChip from '../../../components/ui/StatusChip';
 import DetailedReportModal from '../../../dashboard/reports/components/DetailedReportModal';
@@ -506,24 +507,11 @@ export default function EmployeeCompletedPatrolsPage() {
 
       {/* Loading State */}
       {isLoading && (
-        <div
-          className="glass-card"
-          style={{
-            padding: '40px',
-            textAlign: 'center',
-            borderRadius: '12px',
-            color: 'var(--text-secondary)',
-          }}
-        >
-          <RefreshCw
-            size={24}
-            className="animate-spin"
-            style={{ margin: '0 auto 12px auto', color: '#2563eb' }}
-          />
-          <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>
-            Loading completed patrol sessions...
-          </p>
-        </div>
+        <LoadingState
+          variant="card"
+          size="md"
+          message="Loading completed patrol sessions..."
+        />
       )}
 
       {/* Error State */}

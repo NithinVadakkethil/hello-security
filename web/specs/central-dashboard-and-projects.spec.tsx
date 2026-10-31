@@ -241,6 +241,23 @@ describe('Community Manager Executive Dashboard & All Projects Page', () => {
       },
     };
 
+    it('renders branded Hello Orbit LoadingState during initial load and omits generic loader', () => {
+      // Mock apiClient.get to remain pending
+      (apiClient.get as jest.Mock).mockReturnValue(new Promise(() => {}));
+
+      render(<CentralDashboardPage />);
+
+      // Verify branded LoadingState is present with accessible status role and label
+      expect(screen.getByRole('status', { name: /loading/i })).toBeTruthy();
+      expect(screen.getByText('Loading Executive Dashboard...')).toBeTruthy();
+      expect(screen.getByAltText('Hello Orbit Logo')).toBeTruthy();
+
+      // Ensure the old generic spinner and text are not present
+      expect(
+        screen.queryByText('Loading Community Manager Executive Dashboard...')
+      ).toBeNull();
+    });
+
     it('fetches dashboard data without any date parameters (all-time metrics)', async () => {
       (apiClient.get as jest.Mock).mockResolvedValueOnce({
         data: mockDashboardData,

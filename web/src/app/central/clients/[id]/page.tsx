@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { apiClient } from '../../../lib/axios';
+import LoadingState from '../../../components/ui/LoadingState';
 import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 
 export default function CentralClientDetailPage() {
@@ -37,9 +38,11 @@ export default function CentralClientDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="card" style={{ padding: '40px', textAlign: 'center' }}>
-        <p>Loading client dashboard...</p>
-      </div>
+      <LoadingState
+        variant="page"
+        size="lg"
+        message="Loading project dashboard..."
+      />
     );
   }
 
