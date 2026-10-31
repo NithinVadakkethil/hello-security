@@ -184,6 +184,27 @@ export default function CentralDashboardPage() {
 
         <button
           type="button"
+          className="global-kpi-card clickable"
+          aria-label="View all checkpoints in reports"
+        >
+          <div
+            className="kpi-icon-badge"
+            style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6' }}
+          >
+            <MapPin size={20} />
+          </div>
+          <div className="kpi-text-box">
+            <span className="global-kpi-value">
+              {global.totalCheckpoints ??
+                global.totalConfiguredCheckpoints ??
+                0}
+            </span>
+            <span className="global-kpi-label">Total Checkpoints</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
           onClick={() => router.push('/central/reports')}
           className="global-kpi-card clickable"
           aria-label="View all patrol sessions in reports"
@@ -204,7 +225,6 @@ export default function CentralDashboardPage() {
 
         <button
           type="button"
-          onClick={() => router.push('/central/reports')}
           className="global-kpi-card clickable"
           aria-label="View completed patrol sessions in reports"
         >
@@ -224,7 +244,6 @@ export default function CentralDashboardPage() {
 
         <button
           type="button"
-          onClick={() => router.push('/central/reports')}
           className="global-kpi-card clickable"
           aria-label="View incomplete patrol sessions in reports"
         >
@@ -250,33 +269,7 @@ export default function CentralDashboardPage() {
           </div>
         </button>
 
-        <button
-          type="button"
-          onClick={() => router.push('/central/reports')}
-          className="global-kpi-card clickable"
-          aria-label="View all checkpoints in reports"
-        >
-          <div
-            className="kpi-icon-badge"
-            style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6' }}
-          >
-            <MapPin size={20} />
-          </div>
-          <div className="kpi-text-box">
-            <span className="global-kpi-value">
-              {global.totalCheckpoints ??
-                global.totalConfiguredCheckpoints ??
-                0}
-            </span>
-            <span className="global-kpi-label">Total Checkpoints</span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => router.push('/central/reports')}
-          className="global-kpi-card clickable"
-        >
+        <button type="button" className="global-kpi-card clickable">
           <div
             className="kpi-icon-badge"
             style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}
@@ -287,15 +280,11 @@ export default function CentralDashboardPage() {
             <span className="global-kpi-value">
               {global.totalCheckpointsScanned ?? 0}
             </span>
-            <span className="global-kpi-label">Times Scanned</span>
+            <span className="global-kpi-label">Times Scanned/ Checked</span>
           </div>
         </button>
 
-        <button
-          type="button"
-          onClick={() => router.push('/central/reports')}
-          className="global-kpi-card clickable"
-        >
+        <button type="button" className="global-kpi-card clickable">
           <div
             className="kpi-icon-badge"
             style={{
@@ -323,16 +312,12 @@ export default function CentralDashboardPage() {
             >
               {global.totalCheckpointsMissed ?? 0}
             </span>
-            <span className="global-kpi-label">Times Missed</span>
+            <span className="global-kpi-label">Missed</span>
           </div>
         </button>
 
         {DEMO_KAIZEN_FEATURES.observations && (
-          <button
-            type="button"
-            onClick={() => router.push('/central/observations')}
-            className="global-kpi-card clickable"
-          >
+          <button type="button" className="global-kpi-card clickable">
             <div
               className="kpi-icon-badge"
               style={{
@@ -352,11 +337,7 @@ export default function CentralDashboardPage() {
         )}
 
         {DEMO_KAIZEN_FEATURES.snags && (
-          <button
-            type="button"
-            onClick={() => router.push('/central/snags')}
-            className="global-kpi-card clickable"
-          >
+          <button type="button" className="global-kpi-card clickable">
             <div
               className="kpi-icon-badge"
               style={{
@@ -373,11 +354,7 @@ export default function CentralDashboardPage() {
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => router.push('/central/reports')}
-          className="global-kpi-card clickable"
-        >
+        <button type="button" className="global-kpi-card clickable">
           <div
             className="kpi-icon-badge"
             style={{ background: 'rgba(99, 102, 241, 0.12)', color: '#6366F1' }}

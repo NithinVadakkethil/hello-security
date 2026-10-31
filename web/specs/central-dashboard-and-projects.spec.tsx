@@ -306,10 +306,10 @@ describe('Community Manager Executive Dashboard & All Projects Page', () => {
       expect(screen.getAllByText('Total Checkpoints').length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText('64').length).toBeGreaterThanOrEqual(1);
 
-      expect(screen.getByText('Times Scanned')).toBeTruthy();
+      expect(screen.getByText('Times Scanned/ Checked')).toBeTruthy();
       expect(screen.getByText('820')).toBeTruthy();
 
-      expect(screen.getByText('Times Missed')).toBeTruthy();
+      expect(screen.getByText('Missed')).toBeTruthy();
       expect(screen.getByText('18')).toBeTruthy();
 
       expect(screen.getByText('Average Compliance')).toBeTruthy();

@@ -158,18 +158,87 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
           </div>
         </button>
 
+        <button type="button" className="kpi-card">
+          <div
+            className="kpi-icon-box"
+            style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6' }}
+          >
+            <MapPin size={18} />
+          </div>
+          <div className="kpi-info">
+            <span className="kpi-value">
+              {client.metrics.totalCheckpoints ??
+                client.metrics.totalConfiguredCheckpoints ??
+                0}
+            </span>
+            <span className="kpi-label">Total Checkpoints</span>
+          </div>
+        </button>
+
+        <button type="button" className="kpi-card">
+          <div
+            className="kpi-icon-box"
+            style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}
+          >
+            <CheckSquare size={18} />
+          </div>
+          <div className="kpi-info">
+            <span className="kpi-value">
+              {client.metrics.totalCheckpointsScanned ?? 0}
+            </span>
+            <span className="kpi-label">Checkpoints Scanned</span>
+          </div>
+        </button>
+
+        <button type="button" className="kpi-card">
+          <div
+            className="kpi-icon-box"
+            style={{
+              background:
+                (client.metrics.totalCheckpointsMissed ?? 0) > 0
+                  ? 'rgba(239, 68, 68, 0.12)'
+                  : 'rgba(148, 163, 184, 0.12)',
+              color:
+                (client.metrics.totalCheckpointsMissed ?? 0) > 0
+                  ? '#EF4444'
+                  : '#64748B',
+            }}
+          >
+            <AlertCircle size={18} />
+          </div>
+          <div className="kpi-info">
+            <span
+              className="kpi-value"
+              style={{
+                color:
+                  (client.metrics.totalCheckpointsMissed ?? 0) > 0
+                    ? '#dc2626'
+                    : undefined,
+              }}
+            >
+              {client.metrics.totalCheckpointsMissed ?? 0}
+            </span>
+            <span className="kpi-label">Checkpoints Missed</span>
+          </div>
+        </button>
+
         <button
           type="button"
           onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
           className="kpi-card"
           aria-label="View all patrol sessions for this project"
         >
-          <div className="kpi-icon-box" style={{ background: 'rgba(37, 99, 235, 0.12)', color: '#2563EB' }}>
+          <div
+            className="kpi-icon-box"
+            style={{ background: 'rgba(37, 99, 235, 0.12)', color: '#2563EB' }}
+          >
             <Shield size={18} />
           </div>
           <div className="kpi-info">
             <span className="kpi-value">
-              {client.metrics.totalPatrolSessionsCount ?? client.metrics.completedPatrolsCount ?? 0}
+              {client.metrics.totalPatrolSessionsCount ??
+                client.metrics.completedPatrolsCount ??
+                0}
             </span>
             <span className="kpi-label">Total Patrol Sessions</span>
           </div>
@@ -177,16 +246,20 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
 
         <button
           type="button"
-          onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
           className="kpi-card"
           aria-label="View completed patrol sessions for this project"
         >
-          <div className="kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
+          <div
+            className="kpi-icon-box"
+            style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}
+          >
             <CheckCircle2 size={18} />
           </div>
           <div className="kpi-info">
             <span className="kpi-value">
-              {client.metrics.completedPatrolSessionsCount ?? client.metrics.completedPatrolsCount ?? 0}
+              {client.metrics.completedPatrolSessionsCount ??
+                client.metrics.completedPatrolsCount ??
+                0}
             </span>
             <span className="kpi-label">Completed Patrol Sessions</span>
           </div>
@@ -194,18 +267,23 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
 
         <button
           type="button"
-          onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
           className="kpi-card"
           aria-label="View incomplete patrol sessions for this project"
         >
-          <div className="kpi-icon-box" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}>
+          <div
+            className="kpi-icon-box"
+            style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}
+          >
             <AlertCircle size={18} />
           </div>
           <div className="kpi-info">
             <span
               className="kpi-value"
               style={{
-                color: (client.metrics.incompletePatrolSessionsCount ?? 0) > 0 ? '#d97706' : undefined,
+                color:
+                  (client.metrics.incompletePatrolSessionsCount ?? 0) > 0
+                    ? '#d97706'
+                    : undefined,
               }}
             >
               {client.metrics.incompletePatrolSessionsCount ?? 0}
@@ -214,74 +292,32 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
           </div>
         </button>
 
-        <button
-          type="button"
-          onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
-          className="kpi-card"
-        >
-          <div className="kpi-icon-box" style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6' }}>
-            <MapPin size={18} />
-          </div>
-          <div className="kpi-info">
-            <span className="kpi-value">
-              {client.metrics.totalCheckpoints ?? client.metrics.totalConfiguredCheckpoints ?? 0}
-            </span>
-            <span className="kpi-label">Total Checkpoints</span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
-          className="kpi-card"
-        >
-          <div className="kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
-            <CheckSquare size={18} />
-          </div>
-          <div className="kpi-info">
-            <span className="kpi-value">{client.metrics.totalCheckpointsScanned ?? 0}</span>
-            <span className="kpi-label">Checkpoints Scanned</span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
-          className="kpi-card"
-        >
-          <div
-            className="kpi-icon-box"
-            style={{
-              background: (client.metrics.totalCheckpointsMissed ?? 0) > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-              color: (client.metrics.totalCheckpointsMissed ?? 0) > 0 ? '#EF4444' : '#64748B',
-            }}
-          >
-            <AlertCircle size={18} />
-          </div>
-          <div className="kpi-info">
-            <span
-              className="kpi-value"
-              style={{ color: (client.metrics.totalCheckpointsMissed ?? 0) > 0 ? '#dc2626' : undefined }}
-            >
-              {client.metrics.totalCheckpointsMissed ?? 0}
-            </span>
-            <span className="kpi-label">Checkpoints Missed</span>
-          </div>
-        </button>
-
         {DEMO_KAIZEN_FEATURES.observations && (
           <button
             type="button"
-            onClick={() => router.push(`/central/observations?clientId=${client.id}`)}
+            onClick={() =>
+              router.push(`/central/observations?clientId=${client.id}`)
+            }
             className="kpi-card"
           >
-            <div className="kpi-icon-box" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}>
+            <div
+              className="kpi-icon-box"
+              style={{
+                background: 'rgba(245, 158, 11, 0.12)',
+                color: '#F59E0B',
+              }}
+            >
               <AlertTriangle size={18} />
             </div>
             <div className="kpi-info">
-              <span className="kpi-value">{client.metrics.totalObservationsCount}</span>
+              <span className="kpi-value">
+                {client.metrics.totalObservationsCount}
+              </span>
               <span className="kpi-label">
-                Observations <small style={{ color: '#F59E0B' }}>({client.metrics.openObservationsCount} Open)</small>
+                Observations{' '}
+                <small style={{ color: '#F59E0B' }}>
+                  ({client.metrics.openObservationsCount} Open)
+                </small>
               </span>
             </div>
           </button>
@@ -293,24 +329,34 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
             onClick={() => router.push(`/central/snags?clientId=${client.id}`)}
             className="kpi-card"
           >
-            <div className="kpi-icon-box" style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#EF4444' }}>
+            <div
+              className="kpi-icon-box"
+              style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                color: '#EF4444',
+              }}
+            >
               <Wrench size={18} />
             </div>
             <div className="kpi-info">
-              <span className="kpi-value">{client.metrics.totalSnagsCount}</span>
+              <span className="kpi-value">
+                {client.metrics.totalSnagsCount}
+              </span>
               <span className="kpi-label">
-                Total Snags <small style={{ color: '#EF4444' }}>({client.metrics.openSnagsCount} Open)</small>
+                Total Snags{' '}
+                <small style={{ color: '#EF4444' }}>
+                  ({client.metrics.openSnagsCount} Open)
+                </small>
               </span>
             </div>
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
-          className="kpi-card"
-        >
-          <div className="kpi-icon-box" style={{ background: 'rgba(99, 102, 241, 0.12)', color: '#6366F1' }}>
+        <button type="button" className="kpi-card">
+          <div
+            className="kpi-icon-box"
+            style={{ background: 'rgba(99, 102, 241, 0.12)', color: '#6366F1' }}
+          >
             <ShieldCheck size={18} />
           </div>
           <div className="kpi-info">
