@@ -147,10 +147,10 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
         <button
           type="button"
           onClick={() => router.push(`/central/employees?clientId=${client.id}`)}
-          className="kpi-card"
+          className="kpi-card clickable"
         >
           <div className="kpi-icon-box" style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3B82F6' }}>
-            <Users size={18} />
+            <Users size={20} />
           </div>
           <div className="kpi-info">
             <span className="kpi-value">{client.metrics.employeesCount}</span>
@@ -163,7 +163,7 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
             className="kpi-icon-box"
             style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6' }}
           >
-            <MapPin size={18} />
+            <MapPin size={20} />
           </div>
           <div className="kpi-info">
             <span className="kpi-value">
@@ -180,7 +180,7 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
             className="kpi-icon-box"
             style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}
           >
-            <CheckSquare size={18} />
+            <CheckSquare size={20} />
           </div>
           <div className="kpi-info">
             <span className="kpi-value">
@@ -204,7 +204,7 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
                   : '#64748B',
             }}
           >
-            <AlertCircle size={18} />
+            <AlertCircle size={20} />
           </div>
           <div className="kpi-info">
             <span
@@ -225,14 +225,14 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
         <button
           type="button"
           onClick={() => router.push(`/central/reports?clientId=${client.id}`)}
-          className="kpi-card"
+          className="kpi-card clickable"
           aria-label="View all patrol sessions for this project"
         >
           <div
             className="kpi-icon-box"
             style={{ background: 'rgba(37, 99, 235, 0.12)', color: '#2563EB' }}
           >
-            <Shield size={18} />
+            <Shield size={20} />
           </div>
           <div className="kpi-info">
             <span className="kpi-value">
@@ -253,7 +253,7 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
             className="kpi-icon-box"
             style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}
           >
-            <CheckCircle2 size={18} />
+            <CheckCircle2 size={20} />
           </div>
           <div className="kpi-info">
             <span className="kpi-value">
@@ -274,7 +274,7 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
             className="kpi-icon-box"
             style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}
           >
-            <AlertCircle size={18} />
+            <AlertCircle size={20} />
           </div>
           <div className="kpi-info">
             <span
@@ -298,7 +298,7 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
             onClick={() =>
               router.push(`/central/observations?clientId=${client.id}`)
             }
-            className="kpi-card"
+            className="kpi-card clickable"
           >
             <div
               className="kpi-icon-box"
@@ -307,7 +307,7 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
                 color: '#F59E0B',
               }}
             >
-              <AlertTriangle size={18} />
+              <AlertTriangle size={20} />
             </div>
             <div className="kpi-info">
               <span className="kpi-value">
@@ -327,7 +327,7 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
           <button
             type="button"
             onClick={() => router.push(`/central/snags?clientId=${client.id}`)}
-            className="kpi-card"
+            className="kpi-card clickable"
           >
             <div
               className="kpi-icon-box"
@@ -336,7 +336,7 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
                 color: '#EF4444',
               }}
             >
-              <Wrench size={18} />
+              <Wrench size={20} />
             </div>
             <div className="kpi-info">
               <span className="kpi-value">
@@ -357,7 +357,7 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
             className="kpi-icon-box"
             style={{ background: 'rgba(99, 102, 241, 0.12)', color: '#6366F1' }}
           >
-            <ShieldCheck size={18} />
+            <ShieldCheck size={20} />
           </div>
           <div className="kpi-info">
             <span className="kpi-value">{client.metrics.complianceRate}%</span>
@@ -379,7 +379,8 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
         .hero-visual-area {
           position: relative;
           width: 100%;
-          min-height: 280px;
+          min-height: 160px;
+          max-height: 185px;
           background: #0f172a;
           overflow: hidden;
         }
@@ -408,26 +409,26 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
         .hero-gradient-overlay {
           position: absolute;
           inset: 0;
-          background: linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.4) 60%, rgba(15, 23, 42, 0.1) 100%);
+          background: linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.45) 60%, rgba(15, 23, 42, 0.15) 100%);
         }
         .hero-header-overlay {
           position: absolute;
-          bottom: 20px;
-          left: 24px;
-          right: 24px;
+          bottom: 14px;
+          left: 20px;
+          right: 20px;
           z-index: 2;
         }
         .company-branding-group {
           display: flex;
           align-items: center;
-          gap: 16px;
+          gap: 14px;
         }
         .client-logo-box {
-          width: 56px;
-          height: 56px;
-          border-radius: 12px;
+          width: 48px;
+          height: 48px;
+          border-radius: 10px;
           background: #ffffff;
-          border: 2px solid rgba(255, 255, 255, 0.8);
+          border: 2px solid rgba(255, 255, 255, 0.85);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -442,22 +443,22 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
           padding: 4px;
         }
         .logo-initials {
-          font-size: 1.25rem;
+          font-size: 1.15rem;
           font-weight: 800;
           color: #2563eb;
         }
         .company-name {
           margin: 0;
-          font-size: 1.6rem;
+          font-size: 1.35rem;
           font-weight: 800;
           color: #ffffff;
           text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
           letter-spacing: -0.01em;
         }
         .company-subtext {
-          margin: 4px 0 0 0;
-          font-size: 0.85rem;
-          color: rgba(255, 255, 255, 0.85);
+          margin: 3px 0 0 0;
+          font-size: 0.82rem;
+          color: rgba(255, 255, 255, 0.88);
         }
         .code-tag {
           font-family: monospace;
@@ -468,16 +469,11 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
         }
         .hero-kpi-overlay-strip {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-          gap: 12px;
-          padding: 16px 20px;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 14px;
+          padding: 18px 20px;
           background: var(--surface-color, #f8fafc);
           border-top: 1px solid var(--border-color, #e2e8f0);
-        }
-        @media (min-width: 1280px) {
-          .hero-kpi-overlay-strip {
-            grid-template-columns: repeat(4, 1fr);
-          }
         }
         @media (max-width: 640px) {
           .hero-kpi-overlay-strip {
@@ -487,24 +483,32 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
         .kpi-card {
           display: flex;
           align-items: center;
-          gap: 12px;
-          padding: 12px 14px;
+          gap: 14px;
+          padding: 16px 18px;
           background: var(--bg-card, #ffffff);
           border: 1px solid var(--border-color, #e2e8f0);
-          border-radius: 10px;
-          cursor: pointer;
+          border-radius: 14px;
+          box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+          cursor: default;
           transition: all 0.15s ease;
           text-align: left;
         }
-        .kpi-card:hover {
+        .kpi-card.clickable {
+          cursor: pointer;
+        }
+        .kpi-card.clickable:hover {
           border-color: #2563eb;
           transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+          box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.12);
+        }
+        .kpi-card.clickable:focus-visible {
+          outline: 2px solid #2563eb;
+          outline-offset: 2px;
         }
         .kpi-icon-box {
-          width: 36px;
-          height: 36px;
-          border-radius: 8px;
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -515,13 +519,13 @@ export default function OrganizationHeroCard({ client, periodLabel }: Organizati
           flex-direction: column;
         }
         .kpi-value {
-          font-size: 1.2rem;
+          font-size: 1.5rem;
           font-weight: 800;
           color: var(--text-primary, #0f172a);
           line-height: 1.1;
         }
         .kpi-label {
-          font-size: 0.72rem;
+          font-size: 0.78rem;
           font-weight: 600;
           color: var(--text-secondary, #64748b);
           margin-top: 2px;

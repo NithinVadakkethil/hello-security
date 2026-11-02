@@ -15,10 +15,10 @@ import {
   Wrench,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { apiClient } from '../../lib/axios';
 import LoadingState from '../../components/ui/LoadingState';
+import { apiClient } from '../../lib/axios';
 
 import { DEMO_KAIZEN_FEATURES } from '@/config/demo-config';
 import CompanyCarouselHeader from './components/CompanyCarouselHeader';
@@ -35,6 +35,30 @@ export default function CentralDashboardPage() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const selectedProjectRef = useRef<HTMLDivElement>(null);
+  const hasScrolledRef = useRef(false);
+
+  useEffect(() => {
+    // Only scroll into view when arriving with explicit project-selection intent from All Projects
+    if (
+      !isLoading &&
+      dashboardData?.selectedClient &&
+      searchParams?.get('from') === 'projects' &&
+      !hasScrolledRef.current
+    ) {
+      hasScrolledRef.current = true;
+      const el = selectedProjectRef.current;
+      if (el) {
+        const prefersReducedMotion =
+          typeof window !== 'undefined' &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+          block: 'start',
+        });
+      }
+    }
+  }, [isLoading, dashboardData, searchParams]);
 
   const fetchDashboard = async (targetClientId?: string) => {
     setIsLoading(true);
@@ -184,7 +208,7 @@ export default function CentralDashboardPage() {
 
         <button
           type="button"
-          className="global-kpi-card clickable"
+          className="global-kpi-card"
           aria-label="View all checkpoints in reports"
         >
           <div
@@ -225,7 +249,7 @@ export default function CentralDashboardPage() {
 
         <button
           type="button"
-          className="global-kpi-card clickable"
+          className="global-kpi-card"
           aria-label="View completed patrol sessions in reports"
         >
           <div
@@ -244,7 +268,7 @@ export default function CentralDashboardPage() {
 
         <button
           type="button"
-          className="global-kpi-card clickable"
+          className="global-kpi-card"
           aria-label="View incomplete patrol sessions in reports"
         >
           <div
@@ -269,7 +293,7 @@ export default function CentralDashboardPage() {
           </div>
         </button>
 
-        <button type="button" className="global-kpi-card clickable">
+        <button type="button" className="global-kpi-card">
           <div
             className="kpi-icon-badge"
             style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}
@@ -284,7 +308,7 @@ export default function CentralDashboardPage() {
           </div>
         </button>
 
-        <button type="button" className="global-kpi-card clickable">
+        <button type="button" className="global-kpi-card">
           <div
             className="kpi-icon-badge"
             style={{
@@ -317,7 +341,7 @@ export default function CentralDashboardPage() {
         </button>
 
         {DEMO_KAIZEN_FEATURES.observations && (
-          <button type="button" className="global-kpi-card clickable">
+          <button type="button" className="global-kpi-card">
             <div
               className="kpi-icon-badge"
               style={{
@@ -354,7 +378,7 @@ export default function CentralDashboardPage() {
           </button>
         )}
 
-        <button type="button" className="global-kpi-card clickable">
+        <button type="button" className="global-kpi-card">
           <div
             className="kpi-icon-badge"
             style={{ background: 'rgba(99, 102, 241, 0.12)', color: '#6366F1' }}
@@ -370,7 +394,11 @@ export default function CentralDashboardPage() {
 
       {/* Multi-Company Carousel Header & Selected Hero Card */}
       {clientsList.length > 0 && selectedClient ? (
-        <div className="hero-section-wrapper">
+        <div
+          className="hero-section-wrapper"
+          id="selected-project-section"
+          ref={selectedProjectRef}
+        >
           <CompanyCarouselHeader
             clients={clientsList}
             selectedClientId={selectedClient.id}
@@ -521,13 +549,8 @@ export default function CentralDashboardPage() {
         }
         .global-kpi-strip {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-          gap: 16px;
-        }
-        @media (min-width: 1024px) {
-          .global-kpi-strip {
-            grid-template-columns: repeat(3, 1fr);
-          }
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 14px;
         }
         @media (max-width: 640px) {
           .global-kpi-strip {
@@ -544,6 +567,7 @@ export default function CentralDashboardPage() {
           border-radius: 14px;
           box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.03);
           text-align: left;
+          cursor: auto;
         }
         .global-kpi-card.clickable {
           cursor: pointer;
@@ -587,6 +611,7 @@ export default function CentralDashboardPage() {
           display: flex;
           flex-direction: column;
           gap: 16px;
+          scroll-margin-top: 24px;
         }
         .no-orgs-empty-card {
           display: flex;

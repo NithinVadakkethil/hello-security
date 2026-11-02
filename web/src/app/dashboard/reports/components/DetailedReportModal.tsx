@@ -1008,7 +1008,12 @@ export default function DetailedReportModal({
         .rpt-wide-modal {
           width: 90vw !important;
           max-width: 1200px !important;
-          max-height: 90vh !important;
+          max-height: calc(100vh - 32px) !important;
+        }
+        @media (max-height: 720px) {
+          .rpt-wide-modal {
+            max-height: calc(100vh - 24px) !important;
+          }
         }
         @media (max-width: 1024px) {
           .rpt-wide-modal {

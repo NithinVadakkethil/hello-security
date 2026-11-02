@@ -168,6 +168,7 @@ export class AttendanceService {
     dateStr: string,
     timezone: string = 'Asia/Dubai',
     attendanceRecord?: any | null,
+    requestedShiftId?: string,
   ): AttendanceRecordDto {
     const empName = `${employee.firstName} ${employee.lastName || ''}`.trim();
     const empRole = formatRoleLabel(employee.role, employee.designation);
@@ -230,11 +231,47 @@ export class AttendanceService {
     const checkInFormatted = checkInDate ? formatPatrolDateTime(checkInDate, timezone, false) : null;
     const checkOutFormatted = checkOutDate ? formatPatrolDateTime(checkOutDate, timezone, false) : null;
 
-    // Pick primary assignment for site/shift info
+    // Authoritative assignment and shift resolution:
+    // 1. If attendanceRecord has an assignment, that is the authoritative assignment for this record
+    const recordAssignment = attendanceRecord?.assignment || null;
+
+    // 2. If requestedShiftId is provided, find assignment matching that shift
+    const matchingShiftAssignment = requestedShiftId
+      ? employeeAssignments.find((a) => a.shiftId === requestedShiftId)
+      : null;
+
     const primaryAssignment =
+      recordAssignment ||
+      matchingShiftAssignment ||
       employeeAssignments.find((a) => a.isActive && a.site && a.shift) ||
       employeeAssignments.find((a) => a.site) ||
       employeeAssignments[0] ||
+      null;
+
+    // Authoritative shift:
+    // Priority: attendanceRecord.shift / attendanceRecord.shiftId > recordAssignment.shift > primaryAssignment.shift
+    const resolvedShiftId =
+      attendanceRecord?.shiftId ||
+      recordAssignment?.shiftId ||
+      primaryAssignment?.shiftId ||
+      '';
+
+    const resolvedShift =
+      attendanceRecord?.shift ||
+      recordAssignment?.shift ||
+      primaryAssignment?.shift ||
+      null;
+
+    const resolvedSiteId =
+      attendanceRecord?.siteId ||
+      recordAssignment?.siteId ||
+      primaryAssignment?.siteId ||
+      '';
+
+    const resolvedSite =
+      attendanceRecord?.site ||
+      recordAssignment?.site ||
+      primaryAssignment?.site ||
       null;
 
     // Calculate working duration from actual attendance timestamps
@@ -255,7 +292,7 @@ export class AttendanceService {
 
     return {
       id: attendanceRecord?.id || (primaryAssignment ? primaryAssignment.id : `att_${employee.id}_${shiftDate}`),
-      assignmentId: primaryAssignment ? primaryAssignment.id : `att_${employee.id}_${shiftDate}`,
+      assignmentId: recordAssignment?.id || primaryAssignment?.id || `att_${employee.id}_${shiftDate}`,
       employeeId: employee.id,
       employeeName: empName,
       employeeRole: empRole,
@@ -264,13 +301,13 @@ export class AttendanceService {
       employeeEmail: employee.email,
       employeePhone: employee.phone,
       employeeDesignation: employee.designation,
-      siteId: primaryAssignment?.siteId || attendanceRecord?.siteId || '',
-      siteName: primaryAssignment?.site?.name || attendanceRecord?.site?.name || (attendanceRecord?.checkInAt ? 'Direct Check-In' : 'Unassigned'),
-      siteAddress: primaryAssignment?.site?.address || attendanceRecord?.site?.address || null,
-      shiftId: primaryAssignment?.shiftId || attendanceRecord?.shiftId || '',
-      shiftName: primaryAssignment?.shift?.name || attendanceRecord?.shift?.name || (attendanceRecord?.checkInAt ? 'General Shift' : 'Unassigned'),
-      shiftStartTime: primaryAssignment?.shift?.startTime || attendanceRecord?.shift?.startTime || '—',
-      shiftEndTime: primaryAssignment?.shift?.endTime || attendanceRecord?.shift?.endTime || '—',
+      siteId: resolvedSiteId,
+      siteName: resolvedSite?.name || (attendanceRecord?.checkInAt ? 'Direct Check-In' : 'Unassigned'),
+      siteAddress: resolvedSite?.address || null,
+      shiftId: resolvedShiftId,
+      shiftName: resolvedShift?.name || (attendanceRecord?.checkInAt ? 'General Shift' : 'Unassigned'),
+      shiftStartTime: resolvedShift?.startTime || '—',
+      shiftEndTime: resolvedShift?.endTime || '—',
       shiftDate,
       date: shiftDate,
       employeeCode: employee.employeeNumber || undefined,
@@ -287,8 +324,16 @@ export class AttendanceService {
       patrolSessionsCount: allSessions.length,
       completedPatrolsCount: completedPatrols,
       assignmentType: primaryAssignment?.assignmentType || 'ROUTE',
-      createdAt: (attendanceRecord?.createdAt || employee.createdAt).toISOString(),
-      updatedAt: (attendanceRecord?.updatedAt || employee.updatedAt).toISOString(),
+      createdAt: attendanceRecord?.createdAt
+        ? new Date(attendanceRecord.createdAt).toISOString()
+        : employee?.createdAt
+          ? new Date(employee.createdAt).toISOString()
+          : new Date().toISOString(),
+      updatedAt: attendanceRecord?.updatedAt
+        ? new Date(attendanceRecord.updatedAt).toISOString()
+        : employee?.updatedAt
+          ? new Date(employee.updatedAt).toISOString()
+          : new Date().toISOString(),
     };
   }
 
@@ -314,6 +359,40 @@ export class AttendanceService {
       rawEmployeeId.toLowerCase() !== 'undefined'
         ? rawEmployeeId.trim()
         : undefined;
+
+    // Normalize role filter
+    const rawRole = query.role;
+    const roleFilter =
+      rawRole &&
+      typeof rawRole === 'string' &&
+      rawRole.trim() !== '' &&
+      rawRole.toUpperCase() !== 'ALL'
+        ? rawRole.trim()
+        : undefined;
+
+    // Normalize shift filter
+    const rawShiftId = query.shiftId || (query as any).shift;
+    const shiftId =
+      rawShiftId &&
+      typeof rawShiftId === 'string' &&
+      rawShiftId.trim() !== '' &&
+      rawShiftId.toUpperCase() !== 'ALL' &&
+      rawShiftId.toLowerCase() !== 'all' &&
+      rawShiftId.toLowerCase() !== 'null' &&
+      rawShiftId.toLowerCase() !== 'undefined'
+        ? rawShiftId.trim()
+        : undefined;
+
+    // Verify shift authorization if provided
+    if (shiftId) {
+      const shift = await prisma.shift.findUnique({
+        where: { id: shiftId },
+        select: { id: true, clientId: true, name: true, startTime: true, endTime: true },
+      });
+      if (!shift || !authorizedClientIds.includes(shift.clientId)) {
+        throw new AppError(HttpStatus.FORBIDDEN, ErrorCodes.FORBIDDEN, 'Unauthorized shift attendance access requested.');
+      }
+    }
 
     // Verify employeeId access if passed
     if (employeeId) {
@@ -342,6 +421,18 @@ export class AttendanceService {
       clientId: { in: authorizedClientIds },
       status: 'ACTIVE',
       ...(employeeId ? { id: employeeId } : {}),
+      ...(roleFilter ? { role: roleFilter as any } : {}),
+      ...(shiftId
+        ? {
+            assignments: {
+              some: {
+                shiftId,
+                isActive: true,
+                ...(query.siteId ? { siteId: query.siteId } : {}),
+              },
+            },
+          }
+        : {}),
     };
 
     if (query.search && query.search.trim()) {
@@ -371,6 +462,7 @@ export class AttendanceService {
               effectiveFrom: { lte: to },
               OR: [{ effectiveTo: null }, { effectiveTo: { gte: from } }],
               ...(query.siteId ? { siteId: query.siteId } : {}),
+              ...(shiftId ? { shiftId } : {}),
             },
             include: {
               site: true,
@@ -401,14 +493,33 @@ export class AttendanceService {
           },
           ...(employeeId ? { employeeId } : {}),
           ...(query.siteId ? { siteId: query.siteId } : {}),
+          ...(roleFilter ? { employee: { role: roleFilter as any } } : {}),
+          ...(shiftId
+            ? {
+                OR: [
+                  { shiftId },
+                  { assignment: { shiftId } },
+                ],
+              }
+            : {}),
         },
         include: {
           site: true,
           shift: true,
+          assignment: {
+            include: {
+              site: true,
+              shift: true,
+            },
+          },
           employee: {
             include: {
               assignments: {
-                where: { isActive: true },
+                where: {
+                  isActive: true,
+                  ...(shiftId ? { shiftId } : {}),
+                  ...(query.siteId ? { siteId: query.siteId } : {}),
+                },
                 include: { site: true, shift: true },
               },
             },
@@ -419,6 +530,18 @@ export class AttendanceService {
         where: {
           clientId: { in: authorizedClientIds },
           status: 'ACTIVE',
+          ...(roleFilter ? { role: roleFilter as any } : {}),
+          ...(shiftId
+            ? {
+                assignments: {
+                  some: {
+                    shiftId,
+                    isActive: true,
+                    ...(query.siteId ? { siteId: query.siteId } : {}),
+                  },
+                },
+              }
+            : {}),
         },
       }),
     ]);
@@ -459,7 +582,7 @@ export class AttendanceService {
 
       for (const [, { employee, assignments }] of employeeMap.entries()) {
         const attRecord = attendanceMap.get(`${employee.id}_${dateStr}`) || attendanceMap.get(employee.id) || null;
-        const record = this.mapEmployeeToAttendanceRecord(employee, assignments, dateStr, timezone, attRecord);
+        const record = this.mapEmployeeToAttendanceRecord(employee, assignments, dateStr, timezone, attRecord, shiftId);
         mappedRecords.push(record);
       }
     } else {
@@ -474,7 +597,7 @@ export class AttendanceService {
         const emp = allEmployees.find((e) => e.id === att.employeeId) || att.employee;
         if (!emp) continue;
         const attDateStr = att.attendanceDate.toISOString().split('T')[0];
-        const record = this.mapEmployeeToAttendanceRecord(emp, emp.assignments || [], attDateStr, timezone, att);
+        const record = this.mapEmployeeToAttendanceRecord(emp, emp.assignments || [], attDateStr, timezone, att, shiftId);
         mappedRecords.push(record);
         seenEmployeesInAttendance.add(emp.id);
       }
@@ -485,17 +608,20 @@ export class AttendanceService {
           if (query.siteId && emp.assignments.length === 0) {
             continue;
           }
-          const record = this.mapEmployeeToAttendanceRecord(emp, emp.assignments || [], dateStr, timezone, null);
+          const record = this.mapEmployeeToAttendanceRecord(emp, emp.assignments || [], dateStr, timezone, null, shiftId);
           mappedRecords.push(record);
         }
       }
     }
 
-    // Filter by status if specified
-    const filteredRecords =
-      query.status && query.status !== 'ALL'
-        ? mappedRecords.filter((r) => r.status === query.status)
-        : mappedRecords;
+    // Filter by shiftId and status if specified
+    let filteredRecords = mappedRecords;
+    if (shiftId) {
+      filteredRecords = filteredRecords.filter((r) => r.shiftId === shiftId);
+    }
+    if (query.status && query.status !== 'ALL') {
+      filteredRecords = filteredRecords.filter((r) => r.status === query.status);
+    }
 
     return {
       authorizedClientIds,
@@ -993,6 +1119,29 @@ export class AttendanceService {
       }
     }
 
+    let shiftFilter: string | undefined;
+    const rawShiftId = query.shiftId || (query as any).shift;
+    const cleanShiftId =
+      rawShiftId &&
+      typeof rawShiftId === 'string' &&
+      rawShiftId.trim() !== '' &&
+      rawShiftId.toUpperCase() !== 'ALL' &&
+      rawShiftId.toLowerCase() !== 'all' &&
+      rawShiftId.toLowerCase() !== 'null' &&
+      rawShiftId.toLowerCase() !== 'undefined'
+        ? rawShiftId.trim()
+        : undefined;
+
+    if (cleanShiftId) {
+      const shift = await prisma.shift.findUnique({
+        where: { id: cleanShiftId },
+        select: { name: true, startTime: true, endTime: true },
+      });
+      if (shift) {
+        shiftFilter = `${shift.name} (${shift.startTime} - ${shift.endTime})`;
+      }
+    }
+
     const metadata: AttendanceReportMetadata = {
       title: 'ATTENDANCE REPORT',
       clientName,
@@ -1001,6 +1150,8 @@ export class AttendanceService {
       employeeName,
       employeeRole,
       employeeNumber,
+      roleFilter: query.role && query.role !== 'ALL' ? formatRoleLabel(query.role) : undefined,
+      shiftFilter,
       dateStr,
       statusFilter: query.status && query.status !== 'ALL' ? query.status : undefined,
       generatedAt: formatPatrolDateTime(new Date(), 'Asia/Dubai', true),

@@ -143,7 +143,7 @@ describe('Community Manager Executive Dashboard & All Projects Page', () => {
       });
       fireEvent.click(card);
 
-      expect(mockPush).toHaveBeenCalledWith('/central/dashboard?clientId=client-1');
+      expect(mockPush).toHaveBeenCalledWith('/central/dashboard?clientId=client-1&from=projects');
     });
   });
 

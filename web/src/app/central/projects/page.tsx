@@ -51,7 +51,7 @@ export default function CentralProjectsPage() {
   }, []);
 
   const handleSelectProject = (projectId: string) => {
-    router.push(`/central/dashboard?clientId=${projectId}`);
+    router.push(`/central/dashboard?clientId=${projectId}&from=projects`);
   };
 
   const trimmedSearch = searchTerm.trim().toLowerCase();

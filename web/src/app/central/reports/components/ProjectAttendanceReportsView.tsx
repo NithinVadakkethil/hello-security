@@ -84,6 +84,8 @@ export default function ProjectAttendanceReportsView({
   const [date, setDate] = useState<string>(getTodayString());
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const [shiftId, setShiftId] = useState<string>('ALL');
+  const [selectedRole, setSelectedRole] = useState<string>('ALL');
   const [employeeId, setEmployeeId] = useState<string>('');
   const [siteId, setSiteId] = useState<string>('');
   const [status, setStatus] = useState<string>('ALL');
@@ -103,6 +105,7 @@ export default function ProjectAttendanceReportsView({
   // Metadata for filters
   const [employees, setEmployees] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
+  const [shifts, setShifts] = useState<any[]>([]);
 
   // Detail Modal
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
@@ -112,12 +115,13 @@ export default function ProjectAttendanceReportsView({
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isDownloadingExcel, setIsDownloadingExcel] = useState(false);
 
-  // Fetch company metadata (employees, sites)
+  // Fetch company metadata (employees, sites, shifts)
   const fetchCompanyMetadata = useCallback(async (targetClientId: string) => {
     try {
-      const [empRes, sitesRes] = await Promise.allSettled([
-        apiClient.get(`/central-manager/employees?clientId=${targetClientId}`),
-        apiClient.get(`/central-manager/sites?clientId=${targetClientId}`),
+      const [empRes, sitesRes, shiftsRes] = await Promise.allSettled([
+        apiClient.get(`/central-manager/employees?clientId=${targetClientId}&limit=1000`),
+        apiClient.get(`/central-manager/sites?clientId=${targetClientId}&limit=100`),
+        apiClient.get(`/shifts?clientId=${targetClientId}&limit=100`),
       ]);
 
       if (empRes.status === 'fulfilled') {
@@ -133,6 +137,13 @@ export default function ProjectAttendanceReportsView({
           (sitesRes.value as any)?.data ||
           [];
         setSites(Array.isArray(siteData) ? siteData : []);
+      }
+      if (shiftsRes.status === 'fulfilled') {
+        const shiftData =
+          (shiftsRes.value as any)?.data?.shifts ||
+          (shiftsRes.value as any)?.data ||
+          [];
+        setShifts(Array.isArray(shiftData) ? shiftData : []);
       }
     } catch {
       // ignore non-critical metadata failure
@@ -156,6 +167,8 @@ export default function ProjectAttendanceReportsView({
         ...(date ? { date } : {}),
         ...(startDate ? { startDate } : {}),
         ...(endDate ? { endDate } : {}),
+        ...(shiftId && shiftId !== 'ALL' ? { shiftId } : {}),
+        ...(selectedRole && selectedRole !== 'ALL' ? { role: selectedRole } : {}),
         ...(employeeId ? { employeeId } : {}),
         ...(siteId ? { siteId } : {}),
         ...(status !== 'ALL' ? { status } : {}),
@@ -187,7 +200,9 @@ export default function ProjectAttendanceReportsView({
     date,
     startDate,
     endDate,
+    shiftId,
     employeeId,
+    selectedRole,
     siteId,
     status,
     search,
@@ -242,21 +257,38 @@ export default function ProjectAttendanceReportsView({
     setPage(1);
   };
 
-  const handleResetFilters = () => {
-    setSelectedDatePreset('TODAY');
-    setDate(getTodayString());
-    setStartDate('');
-    setEndDate('');
-    setEmployeeId('');
-    setSiteId('');
-    setStatus('ALL');
-    setSearch('');
-    setPage(1);
-  };
+  // 1. Eligible employees based on selected shift
+  const eligibleEmployeesForShift = useMemo(() => {
+    if (!shiftId || shiftId === 'ALL') {
+      return employees;
+    }
+    return employees.filter((emp) =>
+      Array.isArray(emp.assignments) &&
+      emp.assignments.some((a: any) => a.shiftId === shiftId)
+    );
+  }, [employees, shiftId]);
 
-  // Options for employee dropdown
+  // 2. Available roles dynamically computed from eligible employees of this shift
+  const availableRoles = useMemo(() => {
+    const roleMap = new Map<string, { role: string; label: string; count: number }>();
+    for (const emp of eligibleEmployeesForShift) {
+      const r = emp.role || 'SECURITY';
+      const label = formatRole(r);
+      if (!roleMap.has(r)) {
+        roleMap.set(r, { role: r, label, count: 0 });
+      }
+      roleMap.get(r)!.count += 1;
+    }
+    return Array.from(roleMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [eligibleEmployeesForShift]);
+
+  // 3. Options for employee dropdown cascaded with eligibleEmployeesForShift and selectedRole
   const employeeOptions: SearchableOption[] = useMemo(() => {
-    return employees.map((emp) => {
+    const filteredEmps =
+      selectedRole && selectedRole !== 'ALL'
+        ? eligibleEmployeesForShift.filter((emp) => (emp.role || 'SECURITY') === selectedRole)
+        : eligibleEmployeesForShift;
+    return filteredEmps.map((emp) => {
       const name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || '—';
       const roleLabel = formatRole(emp.role);
       const code = emp.employeeNumber || emp.employeeCode || emp.staffId || undefined;
@@ -268,7 +300,64 @@ export default function ProjectAttendanceReportsView({
         searchValues: [name, roleLabel, code, emp.email],
       };
     });
-  }, [employees]);
+  }, [eligibleEmployeesForShift, selectedRole]);
+
+  const handleShiftChange = (newShiftId: string) => {
+    setShiftId(newShiftId);
+
+    // Compute next eligible employees for the newly selected shift
+    const nextEligibleEmps = (!newShiftId || newShiftId === 'ALL')
+      ? employees
+      : employees.filter((emp) =>
+          Array.isArray(emp.assignments) &&
+          emp.assignments.some((a: any) => a.shiftId === newShiftId)
+        );
+
+    // Check if the current selectedRole is still valid under new shift
+    const nextRoles = new Set(nextEligibleEmps.map((e) => e.role || 'SECURITY'));
+    let nextRole = selectedRole;
+    if (selectedRole !== 'ALL' && !nextRoles.has(selectedRole)) {
+      nextRole = 'ALL';
+      setSelectedRole('ALL');
+    }
+
+    // Check if the currently selected employee is still valid
+    if (employeeId) {
+      const isEmpValid = nextEligibleEmps.some(
+        (e) => e.id === employeeId && (nextRole === 'ALL' || (e.role || 'SECURITY') === nextRole)
+      );
+      if (!isEmpValid) {
+        setEmployeeId('');
+      }
+    }
+
+    setPage(1);
+  };
+
+  const handleRoleChange = (newRole: string) => {
+    setSelectedRole(newRole);
+    if (newRole !== 'ALL' && employeeId) {
+      const currentEmp = eligibleEmployeesForShift.find((e) => e.id === employeeId);
+      if (currentEmp && (currentEmp.role || 'SECURITY') !== newRole) {
+        setEmployeeId('');
+      }
+    }
+    setPage(1);
+  };
+
+  const handleResetFilters = () => {
+    setSelectedDatePreset('TODAY');
+    setDate(getTodayString());
+    setStartDate('');
+    setEndDate('');
+    setShiftId('ALL');
+    setSelectedRole('ALL');
+    setEmployeeId('');
+    setSiteId('');
+    setStatus('ALL');
+    setSearch('');
+    setPage(1);
+  };
 
   // Table Columns
   const columns = [
@@ -456,6 +545,8 @@ export default function ProjectAttendanceReportsView({
       ...(startDate ? { startDate } : {}),
       ...(endDate ? { endDate } : {}),
       ...(selectedDatePreset ? { datePreset: selectedDatePreset.toLowerCase() } : {}),
+      ...(shiftId && shiftId !== 'ALL' ? { shiftId } : {}),
+      ...(selectedRole && selectedRole !== 'ALL' ? { role: selectedRole } : {}),
       ...(employeeId ? { employeeId } : {}),
       ...(siteId ? { siteId } : {}),
       ...(status !== 'ALL' ? { status } : {}),
@@ -698,6 +789,28 @@ export default function ProjectAttendanceReportsView({
 
             <button
               type="button"
+              onClick={() => {
+                setPage(1);
+                fetchAttendance();
+              }}
+              disabled={isLoading}
+              className="btn btn-primary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.8rem',
+                padding: '6px 14px',
+                fontWeight: 600,
+              }}
+              title="Apply filters to attendance records"
+            >
+              <Filter size={13} />
+              <span>{isLoading ? 'Applying...' : 'Apply Filters'}</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handleResetFilters}
               className="btn btn-secondary"
               style={{ fontSize: '0.8rem', padding: '6px 12px', gap: '6px' }}
@@ -802,11 +915,69 @@ export default function ProjectAttendanceReportsView({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: '16px',
             alignItems: 'flex-end',
           }}
         >
+          {/* Shift Filter */}
+          <div>
+            <label
+              style={{
+                display: 'block',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                marginBottom: '6px',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              Shift
+            </label>
+            <select
+              value={shiftId}
+              onChange={(e) => handleShiftChange(e.target.value)}
+              className="form-input"
+              style={{ width: '100%', fontSize: '0.85rem' }}
+              aria-label="Filter by shift"
+            >
+              <option value="ALL">All Shifts {shifts.length > 0 ? `(${shifts.length})` : ''}</option>
+              {shifts.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.startTime} - {s.endTime})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Employee Category / Role Filter */}
+          <div>
+            <label
+              style={{
+                display: 'block',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                marginBottom: '6px',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              Employee Category / Role
+            </label>
+            <select
+              value={selectedRole}
+              onChange={(e) => handleRoleChange(e.target.value)}
+              className="form-input"
+              style={{ width: '100%', fontSize: '0.85rem' }}
+              aria-label="Filter by employee category or role"
+            >
+              <option value="ALL">All Roles ({eligibleEmployeesForShift.length})</option>
+              {availableRoles.map((r) => (
+                <option key={r.role} value={r.role}>
+                  {r.label} ({r.count})
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Employee Searchable Select */}
           <div>
             <label
@@ -827,7 +998,7 @@ export default function ProjectAttendanceReportsView({
                 setPage(1);
               }}
               options={employeeOptions}
-              defaultLabel="All Employees"
+              defaultLabel="All Matching Employees"
               searchPlaceholder="Search guard name, role, ID..."
               emptyMessage="No employees found"
               ariaLabel="Select employee filter"

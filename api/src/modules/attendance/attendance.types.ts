@@ -4,7 +4,10 @@ export interface AttendanceFilterQueryDto {
   search?: string;
   clientId?: string;
   siteId?: string;
+  shiftId?: string;
+  shift?: string;
   employeeId?: string;
+  role?: string;
   status?: string; // 'ALL' | 'PRESENT' | 'LATE' | 'OFF' | 'COMPLETED'
   date?: string; // YYYY-MM-DD
   startDate?: string;
