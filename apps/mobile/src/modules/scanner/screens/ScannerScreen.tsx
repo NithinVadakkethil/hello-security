@@ -393,8 +393,8 @@ export function ScannerScreen() {
             {
               text: 'OK',
               onPress: () => {
-                setScanning(true);
-                scanLockRef.current = false;
+                isProcessingScanRef.current = false;
+                setIsProcessingCode(false);
               },
             },
           ]);

@@ -15,6 +15,10 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
 
     loadQueue();
 
+    NetInfo.fetch().then((state) => {
+      setConnected(!!state.isConnected);
+    });
+
     const unsubscribe = NetInfo.addEventListener((state) => {
       const isOnline = !!state.isConnected;
       setConnected(isOnline);

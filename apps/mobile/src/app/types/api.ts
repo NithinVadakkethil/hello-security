@@ -8,6 +8,7 @@ export interface User {
   lastName?: string;
   siraCardExpiryDate?: string | null;
   isSiraExpired?: boolean;
+  employee?: any;
 }
 
 export interface ApiResponse<T> {

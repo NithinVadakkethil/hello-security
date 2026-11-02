@@ -5,6 +5,7 @@ export function useActiveAssignment() {
   return useQuery({
     queryKey: ['assignment', 'active'],
     queryFn: assignmentApi.getActiveAssignment,
+    networkMode: 'offlineFirst',
   });
 }
 
@@ -12,5 +13,6 @@ export function useActiveAssignments() {
   return useQuery({
     queryKey: ['assignments', 'active-list'],
     queryFn: assignmentApi.getActiveAssignments,
+    networkMode: 'offlineFirst',
   });
 }
