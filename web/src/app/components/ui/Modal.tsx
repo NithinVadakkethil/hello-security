@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-interface ModalProps {
+export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
@@ -11,6 +12,7 @@ interface ModalProps {
   className?: string;
   containerStyle?: React.CSSProperties;
   headerContent?: React.ReactNode;
+  usePortal?: boolean;
 }
 
 export default function Modal({
@@ -23,13 +25,33 @@ export default function Modal({
   className,
   containerStyle,
   headerContent,
+  usePortal = typeof window !== 'undefined' &&
+    typeof process !== 'undefined' &&
+    !process.env.JEST_WORKER_ID &&
+    process.env.NODE_ENV !== 'test',
 }: ModalProps) {
-  // Lock background scroll and handle Escape key with focus preservation
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock background scroll (body and .main-scrollable) and handle Escape key with focus preservation
   useEffect(() => {
     if (!isOpen) return;
 
-    const previousOverflow = document.body.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+
+    // Lock main scrollable containers if present in dashboard / central layout
+    const scrollableContainers = document.querySelectorAll<HTMLElement>(
+      '.main-scrollable, .central-main-scrollable'
+    );
+    const originalContainerOverflows: { el: HTMLElement; overflow: string }[] = [];
+    scrollableContainers.forEach((el) => {
+      originalContainerOverflows.push({ el, overflow: el.style.overflow });
+      el.style.overflow = 'hidden';
+    });
 
     const previousActiveElement = document.activeElement as HTMLElement | null;
 
@@ -43,15 +65,25 @@ export default function Modal({
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.body.style.overflow = previousOverflow || 'unset';
+      document.body.style.overflow = previousBodyOverflow || '';
+      scrollableContainers.forEach((el, index) => {
+        if (originalContainerOverflows[index]) {
+          el.style.overflow = originalContainerOverflows[index].overflow || '';
+        }
+      });
       window.removeEventListener('keydown', handleKeyDown);
       if (previousActiveElement && typeof previousActiveElement.focus === 'function') {
-        previousActiveElement.focus();
+        try {
+          previousActiveElement.focus();
+        } catch {
+          // Ignore focus errors
+        }
       }
     };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+  if (usePortal && !mounted) return null;
 
   const customStyle: React.CSSProperties = {
     ...containerStyle,
@@ -81,7 +113,7 @@ export default function Modal({
           <h3 id="modal-title-heading" className="modal-title">
             {title}
           </h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
             {headerContent}
             <button
               onClick={onClose}
@@ -102,40 +134,42 @@ export default function Modal({
           left: 0;
           right: 0;
           bottom: 0;
-          width: 100vw;
-          height: 100vh;
+          inset: 0;
+          width: 100%;
+          height: 100%;
           background: rgba(15, 23, 42, 0.68);
           backdrop-filter: blur(6px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          display: grid;
+          place-items: center;
           z-index: 9999;
-          padding: 16px;
+          padding: clamp(12px, 2.5vw, 24px);
           box-sizing: border-box;
           animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-          overflow-y: auto;
+          overflow: hidden;
         }
         .modal-container {
           width: 100%;
           max-width: 600px;
           display: flex;
           flex-direction: column;
-          max-height: calc(100vh - 32px);
-          margin: auto;
+          max-height: min(calc(100dvh - 2 * clamp(12px, 2.5vw, 24px)), calc(100vh - 24px));
+          min-height: 0;
+          min-width: 0;
           background: var(--bg-secondary);
           border: 1px solid var(--border-color);
           border-radius: 16px;
           box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
           overflow: hidden;
           position: relative;
+          box-sizing: border-box;
           animation: modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        @media (max-height: 720px) {
+        @media (max-height: 768px) {
           .modal-overlay {
             padding: 12px;
           }
           .modal-container {
-            max-height: calc(100vh - 24px);
+            max-height: calc(100dvh - 24px);
             border-radius: 12px;
           }
         }
@@ -146,16 +180,24 @@ export default function Modal({
           padding: 16px 20px;
           border-bottom: 1px solid var(--border-color);
           background: var(--bg-secondary);
-          flex-shrink: 0;
+          flex: 0 0 auto;
           position: sticky;
           top: 0;
           z-index: 10;
+          box-sizing: border-box;
+          min-width: 0;
+          gap: 12px;
         }
         .modal-title {
           font-size: 1.12rem;
           font-weight: 700;
           color: var(--text-primary);
           margin: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          min-width: 0;
+          flex: 1 1 auto;
         }
         .modal-close-btn {
           color: var(--text-secondary);
@@ -168,6 +210,7 @@ export default function Modal({
           background: transparent;
           cursor: pointer;
           transition: all var(--transition-fast, 0.15s ease);
+          flex-shrink: 0;
         }
         .modal-close-btn:hover {
           background: var(--bg-tertiary);
@@ -177,8 +220,12 @@ export default function Modal({
         .modal-content-body {
           padding: 20px;
           overflow-y: auto;
+          overflow-x: hidden;
+          overscroll-behavior: contain;
           flex: 1 1 auto;
           min-height: 0;
+          min-width: 0;
+          box-sizing: border-box;
         }
         @keyframes modalFadeIn {
           from { opacity: 0; }
@@ -191,6 +238,10 @@ export default function Modal({
       `}</style>
     </div>
   );
+
+  if (usePortal && typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
 
   return modalContent;
 }

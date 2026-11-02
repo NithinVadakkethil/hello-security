@@ -23,12 +23,14 @@ interface DetailedReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   report: any;
+  usePortal?: boolean;
 }
 
 export default function DetailedReportModal({
   isOpen,
   onClose,
   report,
+  usePortal,
 }: DetailedReportModalProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [highlightedCheckpointSeq, setHighlightedCheckpointSeq] = useState<
@@ -157,6 +159,7 @@ export default function DetailedReportModal({
       onClose={onClose}
       title={`Patrol Report: ${report.patrolCode}`}
       className="rpt-wide-modal"
+      usePortal={usePortal}
       headerContent={
         <button
           type="button"
@@ -182,6 +185,7 @@ export default function DetailedReportModal({
           flexDirection: 'column',
           gap: '20px',
           padding: '10px 0',
+          minWidth: 0,
         }}
       >
         {/* Company & Executive Header */}
@@ -280,6 +284,7 @@ export default function DetailedReportModal({
                     fontWeight: 800,
                     fontFamily: 'monospace',
                     color: 'var(--primary)',
+                    wordBreak: 'break-all',
                   }}
                 >
                   {report.patrolCode}
@@ -646,20 +651,23 @@ export default function DetailedReportModal({
                   }}
                 >
                   <div
+                    className="rpt-checkpoint-header"
                     style={{
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'flex-start',
                       flexWrap: 'wrap',
-                      gap: '8px',
+                      gap: '12px',
+                      minWidth: 0,
                     }}
                   >
-                    <div>
+                    <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           gap: '8px',
+                          flexWrap: 'wrap',
                         }}
                       >
                         <span
@@ -672,6 +680,7 @@ export default function DetailedReportModal({
                               ? 'rgba(16, 185, 129, 0.15)'
                               : 'rgba(239, 68, 68, 0.15)',
                             color: item.scanned ? '#10b981' : '#ef4444',
+                            flexShrink: 0,
                           }}
                         >
                           Seq #{item.sequence} —{' '}
@@ -682,6 +691,7 @@ export default function DetailedReportModal({
                             margin: 0,
                             fontSize: '0.95rem',
                             fontWeight: 700,
+                            wordBreak: 'break-word',
                           }}
                         >
                           {item.gate.name}
@@ -693,6 +703,7 @@ export default function DetailedReportModal({
                           color: 'var(--text-muted)',
                           fontFamily: 'monospace',
                           marginTop: '4px',
+                          wordBreak: 'break-all',
                         }}
                       >
                         CODE: {item.gate.gateCode}
@@ -700,12 +711,16 @@ export default function DetailedReportModal({
                     </div>
 
                     <div
+                      className="rpt-checkpoint-timing-container"
                       style={{
                         textAlign: 'right',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'flex-end',
                         gap: '3px',
+                        flex: '0 1 auto',
+                        minWidth: 0,
+                        maxWidth: '100%',
                       }}
                     >
                       {timing.isPending ? (
@@ -720,13 +735,15 @@ export default function DetailedReportModal({
                       ) : (
                         <>
                           <div
+                            className="rpt-timing-row"
                             style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '10px',
+                              gap: '8px',
                               fontSize: '0.82rem',
                               flexWrap: 'wrap',
                               justifyContent: 'flex-end',
+                              maxWidth: '100%',
                             }}
                           >
                             <span>
@@ -1006,33 +1023,37 @@ export default function DetailedReportModal({
 
       <style>{`
         .rpt-wide-modal {
-          width: 90vw !important;
-          max-width: 1200px !important;
-          max-height: calc(100vh - 32px) !important;
+          width: min(100%, 1120px) !important;
+          max-width: 1120px !important;
+          max-height: min(calc(100dvh - 32px), calc(100vh - 32px)) !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
         }
-        @media (max-height: 720px) {
+        @media (max-height: 768px) {
           .rpt-wide-modal {
-            max-height: calc(100vh - 24px) !important;
+            max-height: calc(100dvh - 20px) !important;
+          }
+        }
+        @media (max-width: 1280px) {
+          .rpt-wide-modal {
+            width: min(100%, 1020px) !important;
+            max-width: 1020px !important;
           }
         }
         @media (max-width: 1024px) {
           .rpt-wide-modal {
-            width: 94vw !important;
-          }
-        }
-        @media (max-width: 640px) {
-          .rpt-wide-modal {
-            width: calc(100vw - 24px) !important;
+            width: 100% !important;
           }
         }
         .rpt-meta-grid {
           display: grid;
-          grid-template-columns: repeat(2, 1fr);
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 16px;
         }
-        @media (max-width: 640px) {
+        @media (max-width: 768px) {
           .rpt-meta-grid {
             grid-template-columns: 1fr;
+            gap: 12px;
           }
         }
         .rpt-meta-card {
@@ -1040,6 +1061,9 @@ export default function DetailedReportModal({
           border-radius: 8px;
           border: 1px solid var(--border-color);
           background-color: var(--bg-color);
+          min-width: 0;
+          overflow-wrap: break-word;
+          word-break: break-word;
         }
         .rpt-meta-label {
           font-size: 0.75rem;
@@ -1098,6 +1122,20 @@ export default function DetailedReportModal({
           border-color: rgba(239, 68, 68, 0.65) !important;
           background-color: rgba(239, 68, 68, 0.06) !important;
           box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3), 0 6px 20px rgba(239, 68, 68, 0.12) !important;
+        }
+        @media (max-width: 640px) {
+          .rpt-checkpoint-header {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+          .rpt-checkpoint-timing-container {
+            align-items: flex-start !important;
+            text-align: left !important;
+            width: 100% !important;
+          }
+          .rpt-timing-row {
+            justify-content: flex-start !important;
+          }
         }
         @media (prefers-reduced-motion: reduce) {
           .rpt-summary-unscanned-card.is-clickable {
