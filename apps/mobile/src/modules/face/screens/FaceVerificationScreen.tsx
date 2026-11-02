@@ -8,6 +8,7 @@ import { FaceGuideOverlay } from '../components/FaceGuideOverlay';
 import { FaceQualityValidator, FaceDetectionData } from '../engine/face-quality';
 import { FaceLivenessValidator } from '../engine/face-liveness';
 import { FaceVerificationEngine, FaceVerificationResult } from '../engine/face-verification-engine';
+import { faceModelManager } from '../engine/face-model-manager';
 import { secureFaceCache, SecureFaceCachePayload } from '../services/secure-face-cache';
 import { faceEnrollmentApi } from '../api/face-enrollment.api';
 import { useAuthStore } from '../../../app/store/auth-store';
@@ -43,12 +44,19 @@ export function FaceVerificationScreen({ route, navigation }: any) {
   const livenessValidatorRef = useRef<FaceLivenessValidator>(new FaceLivenessValidator());
   const isVerifyingRef = useRef(false);
   const isStartingPatrolRef = useRef(false);
+  const isFrameBusyRef = useRef(false);
+  const cameraRef = useRef<Camera>(null);
 
   useEffect(() => {
     (async () => {
       const status = await Camera.requestCameraPermission();
       setHasPermission(status === 'granted');
     })();
+
+    // Pre-warm ONNX session on screen mount to eliminate cold-start latency
+    faceModelManager.initSession().catch((err) => {
+      console.warn('[FaceVerificationScreen] ONNX session pre-warm warning:', err?.message || err);
+    });
   }, []);
 
   useEffect(() => {
@@ -123,8 +131,8 @@ export function FaceVerificationScreen({ route, navigation }: any) {
   }, [user]);
 
   const { detectFaces } = useFaceDetector({
-    performanceMode: 'accurate',
-    contourMode: 'all',
+    performanceMode: 'fast',
+    contourMode: 'none',
     landmarkMode: 'all',
     classificationMode: 'all',
     minFaceSize: 0.15,
@@ -168,19 +176,44 @@ export function FaceVerificationScreen({ route, navigation }: any) {
       setStatusMessage('Verifying identity...');
 
       const empId = user?.employeeId || (user as any)?.employee?.id || 'UNKNOWN';
-      const evaluation: FaceVerificationResult = await FaceVerificationEngine.evaluateFrameAsync(
-        mappedFaces,
-        imageWidth,
-        imageHeight,
-        {
-          userId: user?.id || '',
-          employeeId: empId,
-          referenceTemplate,
-          templateVersion: cacheMeta?.modelVersion || 'v2',
-          customThreshold: FaceVerificationEngine.DEFAULT_MATCH_THRESHOLD,
-          livenessPassed: true,
-        },
-      );
+      let evaluation: FaceVerificationResult;
+      try {
+        const photo = await cameraRef.current?.takePhoto({
+          flash: 'off',
+          enableShutterSound: false,
+        });
+
+        if (photo?.path) {
+          evaluation = await FaceVerificationEngine.evaluatePhotoAsync(
+            photo.path,
+            {
+              userId: user?.id || '',
+              employeeId: empId,
+              referenceTemplate,
+              templateVersion: cacheMeta?.modelVersion || 'v2',
+              customThreshold: FaceVerificationEngine.DEFAULT_MATCH_THRESHOLD,
+              livenessPassed: true,
+            },
+          );
+        } else {
+          throw new Error('Photo capture returned empty path');
+        }
+      } catch (photoErr: any) {
+        console.warn('[FaceVerificationScreen] Photo evaluation fallback to frame evaluation:', photoErr?.message || photoErr);
+        evaluation = await FaceVerificationEngine.evaluateFrameAsync(
+          mappedFaces,
+          imageWidth,
+          imageHeight,
+          {
+            userId: user?.id || '',
+            employeeId: empId,
+            referenceTemplate,
+            templateVersion: cacheMeta?.modelVersion || 'v2',
+            customThreshold: FaceVerificationEngine.DEFAULT_MATCH_THRESHOLD,
+            livenessPassed: true,
+          },
+        );
+      }
 
       if (evaluation.status === 'FACE_VERIFIED') {
         if (mode === 'MARK_ATTENDANCE') {
@@ -348,9 +381,19 @@ export function FaceVerificationScreen({ route, navigation }: any) {
 
   const handleFrameProcessed = useRunOnJS(
     (faces: any[], width: number, height: number) => {
-      processVerification(faces, width, height);
+      if (isFrameBusyRef.current || isVerifyingRef.current || verificationState !== 'SEARCHING') {
+        return;
+      }
+      isFrameBusyRef.current = true;
+      processVerification(faces, width, height)
+        .catch((err) => {
+          console.warn('[FaceVerificationScreen] Process frame error:', err);
+        })
+        .finally(() => {
+          isFrameBusyRef.current = false;
+        });
     },
-    [processVerification],
+    [processVerification, verificationState],
   );
 
   const frameProcessor = useFrameProcessor(
@@ -373,7 +416,7 @@ export function FaceVerificationScreen({ route, navigation }: any) {
           leftEyeOpenProbability: f.leftEyeOpenProbability,
           rightEyeOpenProbability: f.rightEyeOpenProbability,
           landmarks: f.landmarks,
-          contours: f.contours,
+          contours: undefined,
         });
       }
       handleFrameProcessed(safeFaces, frame.width, frame.height);
@@ -383,6 +426,7 @@ export function FaceVerificationScreen({ route, navigation }: any) {
 
   const handleRetry = () => {
     isVerifyingRef.current = false;
+    isFrameBusyRef.current = false;
     isStartingPatrolRef.current = false;
     livenessValidatorRef.current.startChallenge('BLINK');
     setVerificationState('SEARCHING');
@@ -468,10 +512,12 @@ export function FaceVerificationScreen({ route, navigation }: any) {
       {/* Camera Preview */}
       <View style={styles.cameraContainer}>
         <Camera
+          ref={cameraRef}
           style={StyleSheet.absoluteFill}
           device={device}
           isActive={verificationState === 'SEARCHING'}
           frameProcessor={frameProcessor}
+          photo={true}
           pixelFormat="yuv"
         />
         <FaceGuideOverlay
