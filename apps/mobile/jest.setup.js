@@ -50,7 +50,13 @@ jest.mock('react-native-encrypted-storage', () => ({
 jest.mock('onnxruntime-react-native', () => ({
   InferenceSession: {
     create: jest.fn().mockResolvedValue({
-      run: jest.fn().mockResolvedValue({}),
+      inputNames: ['data'],
+      outputNames: ['fc1'],
+      run: jest.fn().mockResolvedValue({
+        fc1: {
+          data: new Float32Array(128).fill(0.1),
+        },
+      }),
     }),
   },
   Tensor: jest.fn(),

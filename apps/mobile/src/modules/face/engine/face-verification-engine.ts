@@ -26,9 +26,10 @@ export interface VerificationContext {
  */
 export class FaceVerificationEngine {
   /**
-   * Calibrated Development Threshold for SFace Cosine Similarity
+   * Production Calibrated Strict Threshold for SFace Cosine Similarity
+   * 0.85 ensures strict 1:1 identity verification and prevents false positives from family members or impostors.
    */
-  static readonly DEFAULT_MATCH_THRESHOLD = 0.50;
+  static readonly DEFAULT_MATCH_THRESHOLD = 0.85;
 
   /**
    * Active Biometric Template Version (SFace Neural Embedding)
