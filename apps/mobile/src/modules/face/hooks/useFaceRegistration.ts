@@ -222,23 +222,24 @@ export function useFaceRegistration(
         }
 
         try {
-          // Average the 3 normalized front quality captures
+          // Weighted averaging: Frontal capture is the primary verification baseline (60%),
+          // while Left and Right captures provide angular pose tolerance (20% each).
           const captures = capturedEmbeddingsRef.current;
           const dim = FaceEmbedder.EMBEDDING_DIMENSION;
           const sumVec = new Float32Array(dim);
 
-          for (const cap of captures) {
+          const weights =
+            captures.length === 3 ? [0.60, 0.20, 0.20] : captures.map(() => 1 / captures.length);
+
+          for (let c = 0; c < captures.length; c++) {
+            const cap = captures[c];
+            const w = weights[c];
             for (let i = 0; i < dim; i++) {
-              sumVec[i] += cap[i];
+              sumVec[i] += cap[i] * w;
             }
           }
 
-          const avgVec = new Float32Array(dim);
-          for (let i = 0; i < dim; i++) {
-            avgVec[i] = sumVec[i] / captures.length;
-          }
-
-          const referenceTemplate = Array.from(FaceEmbedder.normalizeL2(avgVec));
+          const referenceTemplate = Array.from(FaceEmbedder.normalizeL2(sumVec));
 
           // Submit to backend API (Phase 2 template versioning: SFace v2)
           const regResult = await faceEnrollmentApi.register(referenceTemplate, 'SFace', 'v2', dim);

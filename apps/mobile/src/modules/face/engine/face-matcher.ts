@@ -13,9 +13,9 @@ export interface MatchResult {
 export class FaceMatcher {
   /**
    * Prototype Similarity Threshold (Configurable for Phase 0 technical spike testing)
-   * 0.85 indicates 85%+ feature embedding vector alignment
+   * 0.68 indicates 68%+ feature embedding vector alignment for real-pixel SFace
    */
-  static PROTOTYPE_THRESHOLD = 0.85;
+  static PROTOTYPE_THRESHOLD = 0.68;
 
   /**
    * Calculate Cosine Similarity between two L2-normalized embedding vectors.
