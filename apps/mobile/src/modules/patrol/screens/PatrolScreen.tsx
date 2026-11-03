@@ -40,6 +40,7 @@ import {
   useCameraPermission,
 } from 'react-native-vision-camera';
 import { apiClient } from '../../../app/api/api-client';
+import { sqliteDb } from '../../../app/database/sqlite-db';
 import { DEMO_KAIZEN_FEATURES } from '../../../app/config/demo-config';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { useAuthStore } from '../../../app/store/auth-store';
@@ -989,7 +990,16 @@ export function PatrolScreen() {
   const handleCheckpointSubmit = async (
     gateId: string,
     activeSubTasks: any[] = [],
+    isDataMissing = false,
   ) => {
+    if (isDataMissing) {
+      Alert.alert(
+        'Inspection Data Missing',
+        'Checkpoint inspection data is not available offline. Please connect to the internet to download the required checklist before submitting this checkpoint.',
+      );
+      return;
+    }
+
     const tasks = activeSubTasks.filter((st: any) => st.isActive !== false);
 
     // 1. Check if all tasks are answered
@@ -1432,7 +1442,12 @@ export function PatrolScreen() {
       const res = (await apiClient.get(
         `/gates/${activeGateId}/sub-tasks?onlyActive=true&role=${userRole}`,
       )) as any;
-      return res.data || [];
+      const tasks = res.data || [];
+      if (Array.isArray(tasks) && tasks.length > 0) {
+        sqliteDb.insertSync('checkpoint_subtasks', activeGateId, tasks);
+        sqliteDb.insertSync('checkpoint_subtasks', `${activeGateId}_${userRole}`, tasks);
+      }
+      return tasks;
     },
     enabled: !!activeGateId && isOnline,
   });
@@ -1447,6 +1462,7 @@ export function PatrolScreen() {
         rg?.gateId === activeGateId ||
         rg?.gate?.id === activeGateId ||
         rg?.id === activeGateId;
+
       if (
         isTargetActive &&
         fetchedSubTasksRes &&
@@ -1466,10 +1482,68 @@ export function PatrolScreen() {
         rg.subTasks.length > 0
       ) {
         rawTasks = rg.subTasks;
+      } else if (
+        rg?.gate?.category?.subTasks &&
+        Array.isArray(rg.gate.category.subTasks) &&
+        rg.gate.category.subTasks.length > 0
+      ) {
+        rawTasks = rg.gate.category.subTasks.map((st: any) => ({
+          ...st,
+          gateId: targetGateId,
+          isCategorySubTask: true,
+        }));
+      } else if (targetGateId) {
+        const roleSpecific = sqliteDb.getSync<any[]>(
+          'checkpoint_subtasks',
+          `${targetGateId}_${userRole}`,
+        );
+        if (roleSpecific && Array.isArray(roleSpecific) && roleSpecific.length > 0) {
+          rawTasks = roleSpecific;
+        } else {
+          const generalTasks = sqliteDb.getSync<any[]>(
+            'checkpoint_subtasks',
+            targetGateId,
+          );
+          if (generalTasks && Array.isArray(generalTasks) && generalTasks.length > 0) {
+            rawTasks = generalTasks;
+          }
+        }
       }
       return rawTasks.filter((t: any) => !t.role || t.role === userRole);
     },
     [activeGateId, fetchedSubTasksRes, isGateUnlocked, userRole],
+  );
+
+  const getSubTaskStateForGate = useCallback(
+    (rg: any) => {
+      const tasks = getSubTasksForGate(rg).filter(
+        (st: any) => st.isActive !== false,
+      );
+      if (tasks.length > 0) {
+        return { state: 'TASKS_AVAILABLE' as const, tasks };
+      }
+
+      const gate = rg?.gate || rg;
+      const subTasksField = gate?.subTasks;
+      const categorySubTasksField = gate?.category?.subTasks;
+      const hasConfiguredIndicator =
+        gate?.hasSubTasksConfigured === true ||
+        (Array.isArray(subTasksField) && subTasksField.length > 0) ||
+        (Array.isArray(categorySubTasksField) && categorySubTasksField.length > 0);
+
+      const isUnhydrated =
+        !isOnline &&
+        subTasksField === undefined &&
+        categorySubTasksField === undefined &&
+        !sqliteDb.getSync('checkpoint_subtasks', gate?.id || rg?.gateId);
+
+      if (isUnhydrated || (hasConfiguredIndicator && tasks.length === 0 && !isOnline)) {
+        return { state: 'TASK_DATA_MISSING' as const, tasks: [] };
+      }
+
+      return { state: 'NO_TASKS_CONFIGURED' as const, tasks: [] };
+    },
+    [getSubTasksForGate, isOnline],
   );
 
   const isDirect =
@@ -1937,11 +2011,21 @@ export function PatrolScreen() {
 
                         {/* Checkpoint Verification Sub-Tasks Section */}
                         {(() => {
-                          const currentGateSubTasks = getSubTasksForGate(rg);
-                          const activeTasks = currentGateSubTasks.filter(
-                            (st: any) => st.isActive !== false,
-                          );
-                          if (activeTasks.length === 0) {
+                          const subTaskStatus = getSubTaskStateForGate(rg);
+                          if (subTaskStatus.state === 'TASK_DATA_MISSING') {
+                            return (
+                              <View style={styles.dataMissingContainer}>
+                                <Text style={styles.dataMissingTitle}>
+                                  ⚠️ Inspection Checklist Unavailable Offline
+                                </Text>
+                                <Text style={styles.dataMissingDescription}>
+                                  Checkpoint inspection tasks could not be verified offline. Please connect to the internet to load the checklist before completing this inspection.
+                                </Text>
+                              </View>
+                            );
+                          }
+
+                          if (subTaskStatus.state === 'NO_TASKS_CONFIGURED') {
                             return (
                               <View style={{ paddingVertical: 14 }}>
                                 <Text
@@ -1959,6 +2043,8 @@ export function PatrolScreen() {
                               </View>
                             );
                           }
+
+                          const activeTasks = subTaskStatus.tasks;
 
                           return (
                             <View style={{ marginTop: 8 }}>
@@ -2064,13 +2150,16 @@ export function PatrolScreen() {
 
                         <Button
                           title="Submit & Lock Checkpoint"
-                          onPress={() =>
+                          onPress={() => {
+                            const subTaskStatus = getSubTaskStateForGate(rg);
                             handleCheckpointSubmit(
                               rg.gate?.id || rg.gateId || rg.id,
-                              getSubTasksForGate(rg),
-                            )
-                          }
+                              subTaskStatus.tasks,
+                              subTaskStatus.state === 'TASK_DATA_MISSING',
+                            );
+                          }}
                           loading={isScanning}
+                          disabled={getSubTaskStateForGate(rg).state === 'TASK_DATA_MISSING'}
                           style={{ marginTop: 20 }}
                         />
                       </View>
@@ -2568,5 +2657,24 @@ const styles = StyleSheet.create({
     height: 54,
     borderRadius: 27,
     backgroundColor: '#ffffff',
+  },
+  dataMissingContainer: {
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    marginVertical: 10,
+  },
+  dataMissingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#b45309',
+    marginBottom: 4,
+  },
+  dataMissingDescription: {
+    fontSize: 12,
+    color: '#92400e',
+    lineHeight: 17,
   },
 });

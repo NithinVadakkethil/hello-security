@@ -20,6 +20,23 @@ import {
   CreatePatrolRouteDto,
   UpdatePatrolRouteDto,
 } from './patrol-route.types';
+import { hydrateGateSubTasks } from '../assignment/assignment.service';
+import { GATE_SUBTASKS_INCLUDE } from '../assignment/assignment.repository';
+
+function formatRoute(route: any) {
+  if (!route) return route;
+  return {
+    ...route,
+    routeGates: (route.routeGates || []).map((rg: any) => {
+      const hydratedGate = hydrateGateSubTasks(rg.gate);
+      return {
+        ...rg,
+        gate: hydratedGate,
+        subTasks: hydratedGate?.subTasks || [],
+      };
+    }),
+  };
+}
 
 export class PatrolRouteService {
   async create(clientId: string, dto: CreatePatrolRouteDto) {
@@ -154,7 +171,7 @@ export class PatrolRouteService {
         })),
       });
 
-      return tx.patrolRoute.findUnique({
+      const createdRoute = await tx.patrolRoute.findUnique({
         where: {
           id: route.id,
         },
@@ -162,7 +179,9 @@ export class PatrolRouteService {
           site: true,
           routeGates: {
             include: {
-              gate: true,
+              gate: {
+                include: GATE_SUBTASKS_INCLUDE,
+              },
             },
             orderBy: {
               sequence: 'asc',
@@ -170,11 +189,14 @@ export class PatrolRouteService {
           },
         },
       });
+
+      return formatRoute(createdRoute);
     });
   }
 
   async list(clientId: string, isActive?: boolean) {
-    return patrolRouteRepository.list(clientId, isActive);
+    const routes = await patrolRouteRepository.list(clientId, isActive);
+    return routes.map((r: any) => formatRoute(r));
   }
 
   async get(id: string) {
@@ -188,7 +210,7 @@ export class PatrolRouteService {
       );
     }
 
-    return route;
+    return formatRoute(route);
   }
 
   async update(id: string, dto: UpdatePatrolRouteDto) {
@@ -290,13 +312,15 @@ export class PatrolRouteService {
         }
       }
 
-      return tx.patrolRoute.findUnique({
+      const createdRoute = await tx.patrolRoute.findUnique({
         where: { id },
         include: {
           site: true,
           routeGates: {
             include: {
-              gate: true,
+              gate: {
+                include: GATE_SUBTASKS_INCLUDE,
+              },
             },
             orderBy: {
               sequence: "asc",
@@ -304,6 +328,8 @@ export class PatrolRouteService {
           },
         },
       });
+
+      return formatRoute(createdRoute);
     });
   }
 
