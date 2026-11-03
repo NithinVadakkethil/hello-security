@@ -199,20 +199,10 @@ export function FaceVerificationScreen({ route, navigation }: any) {
           throw new Error('Photo capture returned empty path');
         }
       } catch (photoErr: any) {
-        console.warn('[FaceVerificationScreen] Photo evaluation fallback to frame evaluation:', photoErr?.message || photoErr);
-        evaluation = await FaceVerificationEngine.evaluateFrameAsync(
-          mappedFaces,
-          imageWidth,
-          imageHeight,
-          {
-            userId: user?.id || '',
-            employeeId: empId,
-            referenceTemplate,
-            templateVersion: cacheMeta?.modelVersion || 'v2',
-            customThreshold: FaceVerificationEngine.DEFAULT_MATCH_THRESHOLD,
-            livenessPassed: true,
-          },
-        );
+        console.warn('[FaceVerificationScreen] Photo capture or evaluation error:', photoErr?.message || photoErr);
+        isVerifyingRef.current = false;
+        setStatusMessage('Hold still and look directly at camera');
+        return;
       }
 
       if (evaluation.status === 'FACE_VERIFIED') {
@@ -363,6 +353,17 @@ export function FaceVerificationScreen({ route, navigation }: any) {
           setVerificationState('MATCH');
           setStatusMessage('✓ Face Verified Successfully');
         }
+      } else if (evaluation.status === 'FACE_QUALITY_FAILED') {
+        // Face quality or alignment issue: do NOT fail verification with Score: 0.00!
+        // Keep searching smoothly and guide the user
+        isVerifyingRef.current = false;
+        setStatusMessage(evaluation.message || 'Hold still and look directly at camera');
+        return;
+      } else if (evaluation.status === 'LIVENESS_FAILED') {
+        isVerifyingRef.current = false;
+        livenessValidatorRef.current.startChallenge('BLINK');
+        setStatusMessage('Blink your eyes to verify liveness');
+        return;
       } else if (evaluation.status === 'TEMPLATE_VERSION_UNSUPPORTED') {
         setVerificationState('NO_MATCH');
         setStatusMessage('Your face registration needs to be updated. Please re-register.');
@@ -370,7 +371,7 @@ export function FaceVerificationScreen({ route, navigation }: any) {
         setVerificationState('NO_MATCH');
         setStatusMessage('No face template found. Please register your face first.');
       } else {
-        // Face Not Matched
+        // Genuine 1:1 Face Not Matched with actual similarity score
         const score = evaluation.status === 'FACE_NOT_MATCHED' ? evaluation.similarity.toFixed(2) : '0.00';
         setVerificationState('NO_MATCH');
         setStatusMessage(`Face Not Matched (Score: ${score}). Identity verification failed.`);
