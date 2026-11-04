@@ -116,12 +116,20 @@ export class EmployeeRepository {
                 { email: { contains: searchTrimmed, mode: 'insensitive' } },
                 { phone: { contains: searchTrimmed, mode: 'insensitive' } },
                 { companyName: { contains: searchTrimmed, mode: 'insensitive' } },
+                { emiratesId: { contains: searchTrimmed, mode: 'insensitive' } },
               ],
             }
           : {}),
       },
       include: {
         user: true,
+        assignments: {
+          where: { isActive: true },
+          include: {
+            site: { select: { id: true, name: true } },
+            shift: { select: { id: true, name: true, startTime: true, endTime: true } },
+          },
+        },
         faceEnrollment: {
           select: {
             id: true,

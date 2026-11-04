@@ -4,11 +4,26 @@ import puppeteer from 'puppeteer';
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
-import { isRoleMatching } from '../../common/utils/role-matching';
 import {
   formatPatrolDateTime,
-  formatPatrolTime,
+  formatPatrolDuration,
+  resolveCheckpointTiming,
 } from '../../common/utils/date-formatter.util';
+import {
+  isCheckpointEligibleForSession,
+  filterEligibleCheckpointsForSession,
+  calculateSessionCheckpointMetrics,
+} from '../../common/utils/checkpoint-eligibility.util';
+import {
+  buildCheckpointTimeline,
+  getReportOfficerInfo,
+} from '../../common/utils/checkpoint-timeline.util';
+import { formatEmiratesId } from '../../common/utils/emirates-id.util';
+import {
+  isSystemSyncRemark,
+  cleanSystemRemark,
+} from '../../common/utils/observation-metadata.util';
+import { formatRoleLabel } from './summary-report.service';
 import { reportRepository } from './report.repository';
 import { ReportQueryDto } from './report.types';
 
@@ -103,10 +118,6 @@ function getRoleLabel(role?: string | null): string {
   return ROLE_LABELS[u] || role;
 }
 
-function fmtTime(dateStr?: any): string {
-  return formatPatrolTime(dateStr);
-}
-
 function fmtDateTime(dateStr?: any): string {
   return formatPatrolDateTime(dateStr);
 }
@@ -124,153 +135,6 @@ function getVerificationStatusPillClass(status: string): string {
   if (status === 'VERIFIED') return 'green';
   if (status === 'REJECTED' || status === 'NOT_VERIFIED') return 'red';
   return 'yellow';
-}
-
-function buildCheckpointEntry(
-  sequence: number,
-  gate: any,
-  scan: any,
-  guardName: string,
-  officerRole: string,
-) {
-  const scanned = !!scan;
-  const configuredTasks: any[] = Array.isArray(gate?.subTasks)
-    ? gate.subTasks.filter((st: any) => isRoleMatching(st.role, officerRole))
-    : [];
-  const responses: any[] = Array.isArray(scan?.subTaskResponses)
-    ? scan.subTaskResponses.filter((res: any) =>
-        isRoleMatching(res.gateSubTask?.role || res.roleSnapshot || res.role, officerRole),
-      )
-    : [];
-
-  const responseMap = new Map<string, any>();
-  for (const res of responses) {
-    const key = res.gateSubTaskId || res.id;
-    if (key) responseMap.set(key, res);
-  }
-
-  const combinedTasks: any[] = [];
-
-  if (configuredTasks.length > 0) {
-    for (const st of configuredTasks) {
-      const res = responseMap.get(st.id);
-      if (res) {
-        combinedTasks.push({
-          id: st.id,
-          title: st.taskName || 'Verification Task',
-          role: st.role || 'SECURITY',
-          isRequired: st.isRequired ?? false,
-          answer: res.answer || 'UNANSWERED',
-          remarks: res.remarks || null,
-          images: deduplicateImages(Array.isArray(res.images) ? res.images : []),
-          answeredAt: res.answeredAt || res.createdAt || null,
-          submittedBy: guardName,
-        });
-      } else {
-        combinedTasks.push({
-          id: st.id,
-          title: st.taskName || 'Verification Task',
-          role: st.role || 'SECURITY',
-          isRequired: st.isRequired ?? false,
-          answer: 'UNANSWERED',
-          remarks: null,
-          images: [],
-          answeredAt: null,
-          submittedBy: guardName,
-        });
-      }
-    }
-  } else if (responses.length > 0) {
-    for (const res of responses) {
-      combinedTasks.push({
-        id: res.id || res.gateSubTaskId,
-        title: res.gateSubTask?.taskName || res.taskNameSnapshot || res.taskName || 'Verification Task',
-        role: res.gateSubTask?.role || res.roleSnapshot || res.role || 'SECURITY',
-        isRequired: res.gateSubTask?.isRequired ?? res.isRequiredSnapshot ?? res.isRequired ?? false,
-        answer: res.answer || 'UNANSWERED',
-        remarks: res.remarks || null,
-        images: deduplicateImages(Array.isArray(res.images) ? res.images : []),
-        answeredAt: res.answeredAt || res.createdAt || null,
-        submittedBy: guardName,
-      });
-    }
-  }
-
-  return {
-    sequence,
-    gate,
-    scanned,
-    scannedAt: scan?.scannedAt ?? null,
-    remarks: scan?.remarks ?? null,
-    status: scan?.status ?? null,
-    tasks: combinedTasks,
-  };
-}
-
-function buildCheckpointTimeline(
-  report: any,
-  guardName: string,
-  officerRole: string,
-): any[] {
-  const scans: any[] = report.checkpoints || [];
-
-  const isDirectAssignment =
-    report.assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
-    (!report.assignment?.patrolRoute &&
-      report.assignment?.assignmentGates &&
-      report.assignment.assignmentGates.length > 0);
-
-  const routeGates: any[] = isDirectAssignment
-    ? (report.assignment?.assignmentGates || [])
-        .map((ag: any, idx: number) => ({
-          sequence: ag.sequence ?? idx + 1,
-          gate: ag.gate,
-        }))
-        .filter((rg: any) => !!rg.gate)
-    : (report.assignment?.patrolRoute?.routeGates || [])
-        .map((rg: any) => ({
-          sequence: rg.sequence ?? 0,
-          gate: rg.gate ?? rg,
-        }))
-        .filter((rg: any) => !!rg.gate);
-
-  if (routeGates.length > 0) {
-    const sorted = [...routeGates].sort((a, b) => a.sequence - b.sequence);
-    const seen = new Set<string>();
-    return sorted
-      .filter((rg) => {
-        const gateId = rg.gate?.id;
-        if (!gateId || seen.has(gateId)) return false;
-        seen.add(gateId);
-        return true;
-      })
-      .map((rg) => {
-        const scan = scans.find((s: any) => s.gateId === rg.gate.id);
-        return buildCheckpointEntry(
-          rg.sequence,
-          rg.gate,
-          scan,
-          guardName,
-          officerRole,
-        );
-      });
-  }
-
-  const seen = new Set<string>();
-  return scans
-    .filter((scan: any) => {
-      if (!scan.id || seen.has(scan.id)) return false;
-      seen.add(scan.id);
-      return true;
-    })
-    .map((scan: any, idx: number) => {
-      const gate = scan.gate || {
-        id: scan.gateId,
-        name: scan.gate?.name || `Checkpoint ${idx + 1}`,
-        gateCode: scan.gate?.gateCode || '—',
-      };
-      return buildCheckpointEntry(idx + 1, gate, scan, guardName, officerRole);
-    });
 }
 
 export function findChromeExecutable(): string | undefined {
@@ -307,6 +171,84 @@ export class ReportService {
     return session;
   }
 
+  async getPatrolMissedCheckpoints(patrolSessionId: string, clientId?: string | string[]) {
+    const session = await reportRepository.findSingleInspectionReport(patrolSessionId, clientId);
+    if (!session) {
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Patrol report not found.',
+      );
+    }
+
+    const metrics = calculateSessionCheckpointMetrics(session);
+    const { guardName, officerRole } = getReportOfficerInfo(session);
+    const rawTimeline = buildCheckpointTimeline(session, guardName, officerRole);
+    const eligibleTimeline = filterEligibleCheckpointsForSession(rawTimeline, session);
+
+    const totalCheckpoints = metrics.totalCheckpoints;
+    const scannedCheckpoints = metrics.scannedCheckpoints;
+    const missedCheckpoints = metrics.missedCheckpoints;
+
+    const missedSet = new Set(metrics.missedGateIds);
+    const missedItems = eligibleTimeline.filter((item: any) => {
+      const gid = item.gate?.id || item.gateId;
+      return missedSet.has(gid) || (!item.scanned && metrics.missedCheckpoints > 0);
+    });
+
+    const emp = session.assignment?.employee || session.managerUser?.employee;
+    const employeeName = emp
+      ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim()
+      : guardName;
+    const employeeCode = emp?.employeeNumber || (session.managerUserId ? 'MGR' : '—');
+    const employeeRole = emp
+      ? formatRoleLabel(emp.role, (emp as any).designation)
+      : (session.managerUserId ? 'Community Manager' : 'Security Guard');
+    const rawEid = emp?.emiratesId || (session as any).emiratesId;
+    const emiratesId = formatEmiratesId(rawEid);
+
+    const siteName = session.assignment?.site?.name || 'N/A';
+    const routeName = session.assignment?.patrolRoute?.name || 'Manager Inspection';
+
+    const missedGates = missedItems.map((item: any, idx: number) => {
+      const gate = item.gate || {};
+      const tasks = (item.tasks || []).map((t: any) => ({
+        id: t.id,
+        taskName: t.title || 'Verification Task',
+        role: t.role,
+        isRequired: t.isRequired,
+        status: t.answer === 'UNANSWERED' ? 'NOT ANSWERED' : t.answer,
+      }));
+
+      return {
+        sequence: item.sequence ?? idx + 1,
+        gateId: gate.id || item.gateId,
+        name: gate.name || 'Unnamed Checkpoint',
+        gateCode: gate.gateCode || '—',
+        routeName,
+        status: 'MISSED',
+        tasks,
+      };
+    });
+
+    return {
+      patrolId: session.id,
+      patrolCode: session.patrolCode || session.id,
+      status: session.status,
+      employeeName,
+      employeeCode,
+      employeeRole,
+      emiratesId,
+      siteName,
+      routeName,
+      shiftName: session.assignment?.shift?.name || 'N/A',
+      totalCheckpoints,
+      scannedCheckpoints,
+      missedCheckpoints,
+      missedGates,
+    };
+  }
+
   async generateCsv(clientId: string | undefined, query: ReportQueryDto) {
     const result = await reportRepository.findInspectionReports(clientId, {
       ...query,
@@ -318,8 +260,9 @@ export class ReportService {
       'Report ID',
       'Patrol Code',
       'Inspection Date',
-      'Guard Name',
+      'Employee Name',
       'Employee Code',
+      'Emirates ID',
       'Site Name',
       'Route / Target',
       'Status',
@@ -339,6 +282,11 @@ export class ReportService {
       const empCode = isManager
         ? (session.managerUser as any)?.employee?.employeeNumber || 'MGR'
         : session.assignment?.employee?.employeeNumber || 'N/A';
+      const rawEid =
+        session.assignment?.employee?.emiratesId ||
+        (session.managerUser as any)?.employee?.emiratesId ||
+        (session as any).emiratesId;
+      const emiratesIdDisplay = formatEmiratesId(rawEid);
       const cpSites = Array.from(new Set((session.checkpoints || []).map((cp: any) => cp.gate?.site?.name).filter(Boolean)));
       const siteName = isManager
         ? (cpSites.length > 1 ? `${cpSites.length} Sites (${cpSites.join(', ')})` : (cpSites[0] || 'N/A'))
@@ -348,20 +296,39 @@ export class ReportService {
         (session.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
         (!session.assignment?.patrolRoute && (session.assignment?.assignmentGates?.length || 0) > 0);
 
+      const scannedGateIds = (session.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean);
+
       const expectedGateIds: string[] = isManager
-        ? Array.from(new Set((session.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean)))
+        ? Array.from(new Set(scannedGateIds))
         : isDirect
-        ? (session.assignment?.assignmentGates || []).map((ag: any) => ag.gateId).filter(Boolean)
-        : (session.assignment?.patrolRoute?.routeGates || []).map((rg: any) => rg.gateId).filter(Boolean);
+        ? (session.assignment?.assignmentGates || [])
+            .filter((ag: any) =>
+              isCheckpointEligibleForSession({
+                gate: ag.gate,
+                session,
+                isScanned: scannedGateIds.includes(ag.gateId || ag.gate?.id),
+              }),
+            )
+            .map((ag: any) => ag.gateId || ag.gate?.id)
+            .filter(Boolean)
+        : (session.assignment?.patrolRoute?.routeGates || [])
+            .filter((rg: any) =>
+              isCheckpointEligibleForSession({
+                gate: rg.gate,
+                session,
+                isScanned: scannedGateIds.includes(rg.gateId || rg.gate?.id),
+              }),
+            )
+            .map((rg: any) => rg.gateId || rg.gate?.id)
+            .filter(Boolean);
 
       const expectedGatesSet = new Set(expectedGateIds);
       const totalGates = expectedGatesSet.size;
 
-      const scannedGateIds = (session.checkpoints || []).map((cp: any) => cp.gateId).filter(Boolean);
       const scannedAssignedCount = new Set(scannedGateIds.filter((id) => expectedGatesSet.has(id))).size;
 
       const scannedCount = isManager ? (session.checkpoints?.length ? totalGates : 0) : scannedAssignedCount;
-      const compliance = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
+      const compliance = totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 0;
       const durationMins = session.totalDuration ? Math.round(session.totalDuration / 60) : 0;
       const incidentCount = session.incidents?.length || 0;
 
@@ -371,6 +338,7 @@ export class ReportService {
         new Date(session.startedAt).toLocaleString(),
         `"${guardName.replace(/"/g, '""')}"`,
         empCode,
+        emiratesIdDisplay,
         `"${siteName.replace(/"/g, '""')}"`,
         `"${routeName.replace(/"/g, '""')}"`,
         session.status,
@@ -401,17 +369,22 @@ export class ReportService {
       ? 'MANAGER'
       : (emp?.role || report.employeeRole || 'SECURITY');
 
-    const checkpointsTimeline = buildCheckpointTimeline(
+    const rawTimeline = buildCheckpointTimeline(
       report,
       guardName,
       officerRole,
     );
+    // Authoritatively filter to eligible checkpoints:
+    // - Checkpoints scanned in this session are always preserved (historical evidence)
+    // - Checkpoints active during this patrol session are included
+    // - Checkpoints deactivated prior to the session (and not scanned) are excluded
+    const checkpointsTimeline = filterEligibleCheckpointsForSession(rawTimeline, report);
     const snags = report.snags || [];
     const totalGates = checkpointsTimeline.length;
     const scannedCount = checkpointsTimeline.filter((c) => c.scanned).length;
     const pendingGatesCount = Math.max(totalGates - scannedCount, 0);
     const gateCompliancePct =
-      totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 100;
+      totalGates > 0 ? Math.round((scannedCount / totalGates) * 100) : 0;
 
     let allTasksTotal = 0,
       allTasksYes = 0,
@@ -432,13 +405,17 @@ export class ReportService {
     }
 
     const taskCompliancePct =
-      allTasksTotal > 0 ? Math.round((allTasksYes / allTasksTotal) * 100) : 100;
+      allTasksTotal > 0 ? Math.round((allTasksYes / allTasksTotal) * 100) : 0;
     const completedTasksCount = allTasksCompleted;
     const notCompletedTasksCount = Math.max(allTasksTotal - completedTasksCount, 0);
 
     const employeeId = isManagerSession
       ? (report.managerUser?.employee?.employeeNumber || 'MGR')
-      : (report.assignment?.employee?.employeeNumber || '—');
+      : (report.assignment?.employee?.employeeNumber || emp?.employeeNumber || report.employeeCode || '—');
+
+    const rawEmiratesId =
+      emp?.emiratesId || mgrEmp?.emiratesId || report.emiratesId;
+    const emiratesIdDisplay = formatEmiratesId(rawEmiratesId);
 
     const cpSites = Array.from(new Set((report.checkpoints || []).map((cp: any) => cp.gate?.site?.name).filter(Boolean)));
     const siteName = isManagerSession
@@ -448,9 +425,13 @@ export class ReportService {
     const routeName = isManagerSession
       ? 'Manager Inspection'
       : (report.assignment?.patrolRoute?.name || 'Direct Checkpoints');
-    const shiftInfo = report.assignment?.shift
-      ? `Day (${report.assignment.shift.startTime} - ${report.assignment.shift.endTime})`
+
+    const shift = report.assignment?.shift || report.shift;
+    const shiftInfo = shift
+      ? `${shift.name || 'Day'} (${shift.startTime} - ${shift.endTime})`
       : 'Day (06:00 - 5:59)';
+
+    const patrolDurationFormatted = formatPatrolDuration(report);
 
     const clientCompanyName =
       report.client?.companyName ||
@@ -663,6 +644,44 @@ export class ReportService {
       font-weight: 700;
       color: #b45309;
     }
+    .rpt-cp-timing-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .rpt-cp-timing-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 7.5pt;
+      font-weight: 600;
+      color: #334155;
+    }
+    .rpt-timing-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .rpt-timing-lbl {
+      color: #64748b;
+      font-weight: 500;
+      font-size: 7pt;
+    }
+    .rpt-timing-sep {
+      color: #cbd5e1;
+      font-size: 7pt;
+    }
+    .rpt-timing-duration {
+      font-weight: 700;
+      color: #0f172a;
+      background: #f1f5f9;
+      padding: 1px 5px;
+      border-radius: 3px;
+      border: 1px solid #e2e8f0;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
     .rpt-task-summary-bar {
       display: flex;
       justify-content: space-between;
@@ -836,7 +855,7 @@ export class ReportService {
     <table class="rpt-details-table">
       <tbody>
         <tr>
-          <td class="rpt-details-label">Security Officer</td>
+          <td class="rpt-details-label">Employee</td>
           <td class="rpt-details-val">${guardName}</td>
           <td class="rpt-details-label">Company Name</td>
           <td class="rpt-details-val">${clientCompanyName}</td>
@@ -844,24 +863,20 @@ export class ReportService {
         <tr>
           <td class="rpt-details-label">Employee ID</td>
           <td class="rpt-details-val">${employeeId}</td>
-          <td class="rpt-details-label">Monitored Site</td>
-          <td class="rpt-details-val">${siteName}</td>
+          <td class="rpt-details-label">Emirates ID</td>
+          <td class="rpt-details-val">${emiratesIdDisplay}</td>
         </tr>
         <tr>
           <td class="rpt-details-label">Role</td>
           <td class="rpt-details-val">${officerRole === 'CLEANER' ? 'House Keeper' : officerRole}</td>
-          <td class="rpt-details-label">Shift</td>
-          <td class="rpt-details-val">${shiftInfo}</td>
+          <td class="rpt-details-label">Monitored Site</td>
+          <td class="rpt-details-val">${siteName}</td>
         </tr>
         <tr>
           <td class="rpt-details-label">Route / Target</td>
           <td class="rpt-details-val">${routeName}</td>
-          <td class="rpt-details-label">Supervisor Status</td>
-          <td class="rpt-details-val">
-            <span class="rpt-pill ${verificationPillClass}">
-              ${verificationStatus}
-            </span>
-          </td>
+          <td class="rpt-details-label">Shift</td>
+          <td class="rpt-details-val">${shiftInfo}</td>
         </tr>
         <tr>
           <td class="rpt-details-label">Started</td>
@@ -876,9 +891,17 @@ export class ReportService {
         <tr>
           <td class="rpt-details-label">Completed</td>
           <td class="rpt-details-val">${fmtDateTime(report.endedAt)}</td>
-          <td class="rpt-details-label">Compliance / Score</td>
-          <td class="rpt-details-val" style="color: #1d4ed8;">
-            ${gateCompliancePct}% (${scannedCount} / ${totalGates})
+          <td class="rpt-details-label">Patrol Duration</td>
+          <td class="rpt-details-val" style="color: #0f172a;">
+            ${patrolDurationFormatted}
+          </td>
+        </tr>
+        <tr>
+          <td class="rpt-details-label">Supervisor Status</td>
+          <td class="rpt-details-val" colspan="3">
+            <span class="rpt-pill ${verificationPillClass}">
+              ${verificationStatus}
+            </span>
           </td>
         </tr>
       </tbody>
@@ -919,7 +942,8 @@ export class ReportService {
         const taskNo = tasksList.filter((t: any) => t.answer === 'NO').length;
         const taskCompleted = taskYes + taskNo;
         const taskCompliance =
-          taskTotal > 0 ? Math.round((taskYes / taskTotal) * 100) : 100;
+          taskTotal > 0 ? Math.round((taskYes / taskTotal) * 100) : 0;
+        const timing = resolveCheckpointTiming(item);
 
         return `
         <div class="rpt-cp-card">
@@ -933,11 +957,17 @@ export class ReportService {
                 ${item.gate?.name || 'Checkpoint'} (${item.gate?.gateCode || '—'})
               </span>
             </div>
-            <div>
+            <div class="rpt-cp-timing-wrap">
               ${
-                item.scanned
-                  ? `<span class="rpt-scan-time">Scan Time: ${fmtTime(item.scannedAt)}</span>`
-                  : `<span class="rpt-pending-scan">⏳ PENDING SCAN</span>`
+                timing.isPending
+                  ? `<span class="rpt-pending-scan">⏳ PENDING SCAN</span>`
+                  : `<div class="rpt-cp-timing-row">
+                      <span class="rpt-timing-item"><span class="rpt-timing-lbl">Start Time:</span> ${timing.startTimeFormatted}</span>
+                      <span class="rpt-timing-sep">•</span>
+                      <span class="rpt-timing-item"><span class="rpt-timing-lbl">End Time:</span> ${timing.endTimeFormatted}</span>
+                      <span class="rpt-timing-sep">•</span>
+                      <span class="rpt-timing-duration"><span class="rpt-timing-lbl">Duration:</span> ${timing.durationFormatted}</span>
+                    </div>`
               }
             </div>
           </div>
@@ -983,7 +1013,13 @@ export class ReportService {
 
                 ${
                   t.remarks
-                    ? `
+                    ? isSystemSyncRemark(t.remarks)
+                      ? `
+                <div class="rpt-task-remarks" style="background: #f8fafc; border-left: 3px solid #cbd5e1;">
+                  <div class="rpt-task-remarks-head" style="color: #64748b;">System Audit:</div>
+                  <div style="color: #64748b; font-style: italic;">${cleanSystemRemark(t.remarks)}</div>
+                </div>`
+                      : `
                 <div class="rpt-task-remarks">
                   <div class="rpt-task-remarks-head">Employee Remarks:</div>
                   <div>${t.remarks}</div>
@@ -1032,7 +1068,7 @@ export class ReportService {
             const snagIdDisplay = `SNAG-${snag.id.slice(-6).toUpperCase()}`;
             const reporterName = snag.employee
               ? `${snag.employee.firstName} ${snag.employee.lastName || ''}`.trim()
-              : 'Security Officer';
+              : 'Employee';
             const reporterEmpId = snag.employee?.employeeNumber || '—';
             const beforeImages = deduplicateImages(Array.isArray(snag.images) ? snag.images : []);
 

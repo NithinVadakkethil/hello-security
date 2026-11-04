@@ -21,6 +21,7 @@ import { useFaceVerification } from '../hooks/useFaceVerification';
 import { FaceGuideOverlay } from '../components/FaceGuideOverlay';
 import { VerificationStatus } from '../components/VerificationStatus';
 import { FaceDetectionData } from '../engine/face-quality';
+import { FaceMatcher } from '../engine/face-matcher';
 
 export function FaceVerificationPrototypeScreen() {
   const { colors } = useTheme();
@@ -200,7 +201,7 @@ export function FaceVerificationPrototypeScreen() {
         </View>
         <View style={styles.diagRow}>
           <Text style={[styles.diagLabel, { color: colors.textSecondary }]}>Cosine Similarity:</Text>
-          <Text style={[styles.diagValue, { color: metrics.similarityScore >= 0.85 ? '#22c55e' : colors.text }]}>
+          <Text style={[styles.diagValue, { color: metrics.similarityScore >= FaceMatcher.PROTOTYPE_THRESHOLD ? '#22c55e' : colors.text }]}>
             {(metrics.similarityScore * 100).toFixed(2)}%
           </Text>
         </View>
@@ -212,7 +213,7 @@ export function FaceVerificationPrototypeScreen() {
         </View>
         <View style={styles.diagRow}>
           <Text style={[styles.diagLabel, { color: colors.textSecondary }]}>Prototype Threshold:</Text>
-          <Text style={[styles.diagValue, { color: colors.text }]}>0.85 (Cosine)</Text>
+          <Text style={[styles.diagValue, { color: colors.text }]}>{FaceMatcher.PROTOTYPE_THRESHOLD} (Cosine)</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

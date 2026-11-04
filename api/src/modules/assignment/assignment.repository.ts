@@ -1,6 +1,21 @@
 import { prisma } from '../../database/prisma';
 import { getRolePriority } from '../../common/utils/role-order.util';
 
+export const GATE_SUBTASKS_INCLUDE = {
+  subTasks: {
+    where: { isActive: true },
+    orderBy: { displayOrder: 'asc' as const },
+  },
+  category: {
+    include: {
+      subTasks: {
+        where: { isActive: true },
+        orderBy: { displayOrder: 'asc' as const },
+      },
+    },
+  },
+};
+
 export class AssignmentRepository {
   create(data: any) {
     const { gateIds, ...rest } = data;
@@ -23,12 +38,7 @@ export class AssignmentRepository {
           assignmentGates: {
             include: {
               gate: {
-                include: {
-                  subTasks: {
-                    where: { isActive: true },
-                    orderBy: { displayOrder: 'asc' },
-                  },
-                },
+                include: GATE_SUBTASKS_INCLUDE,
               },
             },
           },
@@ -46,12 +56,7 @@ export class AssignmentRepository {
         assignmentGates: {
           include: {
             gate: {
-              include: {
-                subTasks: {
-                  where: { isActive: true },
-                  orderBy: { displayOrder: 'asc' },
-                },
-              },
+              include: GATE_SUBTASKS_INCLUDE,
             },
           },
         },
@@ -68,17 +73,28 @@ export class AssignmentRepository {
         employee: true,
         site: true,
         shift: true,
-        patrolRoute: true,
+        patrolRoute: {
+          include: {
+            routeGates: {
+              include: {
+                gate: {
+                  include: GATE_SUBTASKS_INCLUDE,
+                },
+              },
+              orderBy: {
+                sequence: 'asc',
+              },
+            },
+          },
+        },
         assignmentGates: {
           include: {
             gate: {
-              include: {
-                subTasks: {
-                  where: { isActive: true },
-                  orderBy: { displayOrder: 'asc' },
-                },
-              },
+              include: GATE_SUBTASKS_INCLUDE,
             },
+          },
+          orderBy: {
+            sequence: 'asc',
           },
         },
       },
@@ -100,12 +116,7 @@ export class AssignmentRepository {
             routeGates: {
               include: {
                 gate: {
-                  include: {
-                    subTasks: {
-                      where: { isActive: true },
-                      orderBy: { displayOrder: 'asc' },
-                    },
-                  },
+                  include: GATE_SUBTASKS_INCLUDE,
                 },
               },
               orderBy: {
@@ -117,12 +128,7 @@ export class AssignmentRepository {
         assignmentGates: {
           include: {
             gate: {
-              include: {
-                subTasks: {
-                  where: { isActive: true },
-                  orderBy: { displayOrder: 'asc' },
-                },
-              },
+              include: GATE_SUBTASKS_INCLUDE,
             },
           },
           orderBy: {
@@ -177,12 +183,7 @@ export class AssignmentRepository {
             routeGates: {
               include: {
                 gate: {
-                  include: {
-                    subTasks: {
-                      where: { isActive: true },
-                      orderBy: { displayOrder: 'asc' },
-                    },
-                  },
+                  include: GATE_SUBTASKS_INCLUDE,
                 },
               },
               orderBy: {
@@ -194,12 +195,7 @@ export class AssignmentRepository {
         assignmentGates: {
           include: {
             gate: {
-              include: {
-                subTasks: {
-                  where: { isActive: true },
-                  orderBy: { displayOrder: 'asc' },
-                },
-              },
+              include: GATE_SUBTASKS_INCLUDE,
             },
           },
           orderBy: {
@@ -236,12 +232,7 @@ export class AssignmentRepository {
             routeGates: {
               include: {
                 gate: {
-                  include: {
-                    subTasks: {
-                      where: { isActive: true },
-                      orderBy: { displayOrder: 'asc' },
-                    },
-                  },
+                  include: GATE_SUBTASKS_INCLUDE,
                 },
               },
               orderBy: {
@@ -253,12 +244,7 @@ export class AssignmentRepository {
         assignmentGates: {
           include: {
             gate: {
-              include: {
-                subTasks: {
-                  where: { isActive: true },
-                  orderBy: { displayOrder: 'asc' },
-                },
-              },
+              include: GATE_SUBTASKS_INCLUDE,
             },
           },
           orderBy: {
@@ -658,12 +644,7 @@ export class AssignmentRepository {
         assignmentGates: {
           include: {
             gate: {
-              include: {
-                subTasks: {
-                  where: { isActive: true },
-                  orderBy: { displayOrder: 'asc' },
-                },
-              },
+              include: GATE_SUBTASKS_INCLUDE,
             },
           },
           orderBy: {

@@ -29,7 +29,7 @@ export default function SearchableSelect({
   searchPlaceholder,
   emptyMessage,
   ariaLabel,
-}: SearchableSelectProps) {
+}: SearchableSelectProps): React.ReactElement {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [coords, setCoords] = useState<{ top: number; left: number; width: number }>({
@@ -45,10 +45,16 @@ export default function SearchableSelect({
   const updatePosition = useCallback(() => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
+      const popoverHeight = 280;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const placeAbove = spaceBelow < popoverHeight && rect.top > popoverHeight;
+      const width = Math.max(rect.width, 260);
+      const left = Math.max(10, Math.min(rect.left, window.innerWidth - width - 10));
+
       setCoords({
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
+        top: placeAbove ? rect.top - popoverHeight - 4 : rect.bottom + 4,
+        left,
+        width,
       });
     }
   }, []);

@@ -329,7 +329,7 @@ export default function SnagsListPage() {
       render: (s: SnagItem) => (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-            {s.employee ? `${s.employee.firstName} ${s.employee.lastName || ''}` : 'Security Officer'}
+            {s.employee ? `${s.employee.firstName} ${s.employee.lastName || ''}` : 'Employee'}
           </span>
           {s.employee?.employeeNumber && (
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>

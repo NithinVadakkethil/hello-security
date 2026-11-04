@@ -15,6 +15,7 @@ import { generateCode } from '../../common/utils/code-generator';
 
 import { saveBase64Image } from '../../common/utils/file-upload.util';
 import { isSiraRequiredForRole } from '../../common/utils/sira-expiry.util';
+import { validateEmiratesId } from '../../common/utils/emirates-id.util';
 
 import { employeeRepository } from './employee.repository';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './employee.types';
@@ -67,6 +68,38 @@ export class EmployeeService {
           ErrorCodes.VALIDATION_ERROR,
           'This email address is already registered to another employee. Please use a different email address.',
         );
+      }
+    }
+
+    // Validate and check duplicate Emirates ID if provided
+    let normalizedEmiratesId: string | null = null;
+    if (dto.emiratesId) {
+      const validation = validateEmiratesId(dto.emiratesId);
+      if (!validation.valid) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          validation.error || 'Invalid Emirates ID.',
+        );
+      }
+      normalizedEmiratesId = validation.normalized || null;
+
+      if (normalizedEmiratesId) {
+        const existingActiveWithEid = await prisma.employee.findFirst({
+          where: {
+            clientId,
+            emiratesId: normalizedEmiratesId,
+            status: EmployeeStatus.ACTIVE,
+          },
+        });
+
+        if (existingActiveWithEid) {
+          throw new AppError(
+            HttpStatus.CONFLICT,
+            ErrorCodes.VALIDATION_ERROR,
+            'An active employee with this Emirates ID already exists in this organization.',
+          );
+        }
       }
     }
 
@@ -138,6 +171,7 @@ export class EmployeeService {
 
             email: dto.email,
             phone: dto.phone,
+            emiratesId: normalizedEmiratesId,
 
             designation: dto.designation,
             companyName: dto.companyName || null,
@@ -226,6 +260,46 @@ export class EmployeeService {
     }
     if (cleanDto.siraCardBackImage) {
       cleanDto.siraCardBackImage = await saveBase64Image(cleanDto.siraCardBackImage, 'sira-back');
+    }
+
+    // Validate Emirates ID if provided in update
+    if (cleanDto.emiratesId !== undefined) {
+      if (!cleanDto.emiratesId || cleanDto.emiratesId.trim() === '') {
+        cleanDto.emiratesId = null;
+      } else {
+        const validation = validateEmiratesId(cleanDto.emiratesId);
+        if (!validation.valid) {
+          throw new AppError(
+            HttpStatus.BAD_REQUEST,
+            ErrorCodes.VALIDATION_ERROR,
+            validation.error || 'Invalid Emirates ID.',
+          );
+        }
+        cleanDto.emiratesId = validation.normalized || null;
+      }
+    }
+
+    const targetStatus = cleanDto.status !== undefined ? cleanDto.status : existing.status;
+    const targetEmiratesId =
+      cleanDto.emiratesId !== undefined ? cleanDto.emiratesId : existing.emiratesId;
+
+    if (targetStatus === EmployeeStatus.ACTIVE && targetEmiratesId) {
+      const existingActiveWithEid = await prisma.employee.findFirst({
+        where: {
+          clientId: existing.clientId,
+          emiratesId: targetEmiratesId,
+          status: EmployeeStatus.ACTIVE,
+          id: { not: id },
+        },
+      });
+
+      if (existingActiveWithEid) {
+        throw new AppError(
+          HttpStatus.CONFLICT,
+          ErrorCodes.VALIDATION_ERROR,
+          'An active employee with this Emirates ID already exists in this organization.',
+        );
+      }
     }
 
     return prisma.$transaction(async (tx) => {

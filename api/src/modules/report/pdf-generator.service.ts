@@ -1,16 +1,30 @@
 import puppeteer from 'puppeteer';
-import { ReportDataset } from './summary-report.service';
 import { logger } from '../../common/logger/logger';
 import { findChromeExecutable, resolveImageUrl } from './report.service';
+import { ReportDataset } from './summary-report.service';
 
 export class PdfGeneratorService {
   /**
    * Builds client-presentable HTML string from normalized ReportDataset
    */
-  private buildHtml(dataset: ReportDataset): string {
-    const { metadata, summary, patrols, mandatoryPatrols, incidents, siteSummary, employeeSummary } = dataset;
-    const isKaizen = metadata.isKaizen || metadata.includeIncidents === false || metadata.clientName?.toLowerCase().includes('kaizen');
-    const resolvedLogo = metadata.clientLogoUrl ? resolveImageUrl(metadata.clientLogoUrl) : null;
+  buildHtml(dataset: ReportDataset): string {
+    const {
+      metadata,
+      summary,
+      patrols,
+      mandatoryPatrols,
+      incidents,
+      siteSummary,
+      employeeSummary,
+      attendance = [],
+    } = dataset;
+    const isKaizen =
+      metadata.isKaizen ||
+      metadata.includeIncidents === false ||
+      metadata.clientName?.toLowerCase().includes('kaizen');
+    const resolvedLogo = metadata.clientLogoUrl
+      ? resolveImageUrl(metadata.clientLogoUrl)
+      : null;
 
     return `
 <!DOCTYPE html>
@@ -144,9 +158,13 @@ export class PdfGeneratorService {
       text-transform: uppercase;
     }
     .badge-completed { background-color: #d1fae5; color: #065f46; }
+    .badge-incomplete { background-color: #fef3c7; color: #92400e; }
+    .badge-present { background-color: #d1fae5; color: #065f46; }
     .badge-due { background-color: #fee2e2; color: #991b1b; }
+    .badge-late { background-color: #fef3c7; color: #92400e; }
     .badge-missed { background-color: #fef3c7; color: #92400e; }
     .badge-upcoming { background-color: #f1f5f9; color: #475569; }
+    .badge-off { background-color: #f1f5f9; color: #475569; }
     .footer {
       margin-top: 24px;
       padding-top: 10px;
@@ -173,11 +191,18 @@ export class PdfGeneratorService {
     <div class="report-meta">
       <p style="margin: 0;">Organization: <strong>${metadata.clientName}</strong></p>
       ${metadata.siteName ? `<p style="margin: 2px 0 0 0;">Site: <strong>${metadata.siteName}</strong></p>` : ''}
-      ${metadata.employeeName ? `
+      ${metadata.shiftName ? `<p style="margin: 2px 0 0 0;">Shift: <strong>${metadata.shiftName}</strong></p>` : ''}
+      ${metadata.roleLabel && !metadata.employeeName ? `<p style="margin: 2px 0 0 0;">Employee Category: <strong>${metadata.roleLabel}</strong></p>` : ''}
+      ${
+        metadata.employeeName
+          ? `
         <p style="margin: 2px 0 0 0;">Employee: <strong>${metadata.employeeName}</strong></p>
         <p style="margin: 2px 0 0 0;">Role: <strong>${metadata.employeeRole || 'Security Guard'}</strong></p>
         ${metadata.employeeNumber ? `<p style="margin: 2px 0 0 0;">Staff ID: <strong>${metadata.employeeNumber}</strong></p>` : ''}
-      ` : ''}
+        ${metadata.emiratesId ? `<p style="margin: 2px 0 0 0;">Emirates ID: <strong>${metadata.emiratesId}</strong></p>` : ''}
+      `
+          : ''
+      }
       <p style="margin: 2px 0 0 0;">Report Type: <strong>${metadata.periodType}</strong></p>
       <p style="margin: 2px 0 0 0;">Period: <strong>${metadata.periodLabel}</strong></p>
       <p style="margin: 2px 0 0 0;">Generated: <strong>${metadata.generatedAt.split('T')[0]} (${metadata.timezone})</strong></p>
@@ -212,6 +237,65 @@ export class PdfGeneratorService {
       <div class="metric-value ${(summary.checkpointsMissed ?? summary.missedCheckpoints) > 0 ? 'danger' : ''}">${summary.checkpointsMissed ?? summary.missedCheckpoints}</div>
     </div>
   </div>
+
+  <!-- Patrol & Checkpoint Duration Summary -->
+  <div class="section-title">Patrol Sessions & Duration Summary</div>
+  <div class="metrics-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 8px;">
+    <div class="metric-card">
+      <div class="metric-label">TOTAL PATROL<br>SESSIONS</div>
+      <div class="metric-value highlight">${summary.totalPatrolSessions ?? summary.assignedPatrols}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">COMPLETED PATROL<br>SESSIONS</div>
+      <div class="metric-value success">${summary.completedPatrolSessions ?? summary.completedPatrols}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">INCOMPLETE PATROL<br>SESSIONS</div>
+      <div class="metric-value ${(summary.incompletePatrolSessions ?? summary.incompletePatrols ?? 0) > 0 ? 'warning' : ''}">${summary.incompletePatrolSessions ?? summary.incompletePatrols ?? 0}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">TOTAL PATROL<br>DURATION</div>
+      <div class="metric-value highlight" style="font-size: 15px;">${summary.totalPatrolDurationFormatted || '0 sec'}</div>
+    </div>
+  </div>
+  <p style="font-size: 8.5px; color: #64748b; margin: 0 0 16px 2px; font-style: italic;">
+    * Note: Total Patrol Duration and Total Checkpoint Duration are calculated independently from authoritative session and inspection timestamps clipped to the reporting period. Checkpoint inspection occurs within patrol time and values must not be combined as physical working duration.
+  </p>
+
+  ${
+    dataset.dailyBreakdown && dataset.dailyBreakdown.length > 0
+      ? `
+  <!-- Daily Patrol & Checkpoint Duration Breakdown -->
+  <div class="section-title">Daily Duration & Activity Breakdown</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Shift</th>
+        <th>Site</th>
+        <th>Patrol Sessions</th>
+        <th>Patrol Duration</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${dataset.dailyBreakdown
+        .map(
+          (d) => `
+        <tr>
+          <td><strong>${d.dateFormatted || d.date}</strong></td>
+          <td>${d.shiftName}</td>
+          <td>${d.siteName}</td>
+          <td>${d.patrolSessionsCount}</td>
+          <td><strong>${d.patrolDurationFormatted}</strong></td>
+        </tr>
+      `,
+        )
+        .join('')}
+    </tbody>
+  </table>
+  `
+      : ''
+  }
 
   <!-- Mandatory Patrol Schedule Compliance -->
   <div class="section-title">Mandatory Patrol Schedule Compliance</div>
@@ -258,6 +342,51 @@ export class PdfGeneratorService {
   `
   }
 
+  <!-- Attendance & Shift Roster -->
+  ${
+    attendance && attendance.length > 0
+      ? `
+  <div class="section-title">Attendance & Shift Roster</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Employee Name</th>
+        <th>Emirates ID</th>
+        <th>Role</th>
+        <th>Site</th>
+        <th>Shift</th>
+        <th>Check-In</th>
+        <th>Check-Out</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${attendance
+        .map(
+          (att) => `
+        <tr>
+          <td>${att.shiftDate}</td>
+          <td><strong>${att.employeeName}</strong></td>
+          <td style="font-family: monospace; font-size: 8px;">${att.emiratesId || 'Not provided'}</td>
+          <td>${att.employeeRole || 'Security Guard'}</td>
+          <td>${att.siteName}</td>
+          <td>${att.shiftName}</td>
+          <td>${att.checkInTime || '—'}</td>
+          <td>${att.checkOutTime || '—'}</td>
+          <td>
+            <span class="badge badge-${att.status === 'PRESENT' || att.status === 'COMPLETED' ? 'present' : att.status === 'LATE' ? 'late' : 'off'}">${att.status}${att.isLate ? ' (Late)' : ''}</span>
+          </td>
+        </tr>
+      `,
+        )
+        .join('')}
+    </tbody>
+  </table>
+  `
+      : ''
+  }
+
   ${
     metadata.employeeId
       ? `
@@ -292,9 +421,22 @@ export class PdfGeneratorService {
           <td>${p.siteName} - ${p.routeName}</td>
           <td>${p.startedAt}</td>
           <td>${p.completedAt || '—'}</td>
-          <td><strong>${p.checkpointsDisplay || `${p.checkpointsCompleted} / ${p.checkpointsRequired}`}</strong></td>
+          <td><strong>${p.checkpointsDisplay || `${p.checkpointsCompleted} / ${p.checkpointsRequired} (${Math.max(0, (p.checkpointsRequired || 0) - (p.checkpointsCompleted || 0))} Missed)`}</strong></td>
           <td>
-            <span class="badge badge-${p.status.toLowerCase() === 'completed' ? 'completed' : 'upcoming'}">${p.status}</span>
+            ${(() => {
+              const displayStatus = (p as any).checkpointCompletionStatus || (
+                p.status === 'COMPLETED' && Math.max(0, (p.checkpointsRequired || 0) - (p.checkpointsCompleted || 0)) > 0
+                  ? 'INCOMPLETE'
+                  : p.status
+              );
+              const badgeClass =
+                displayStatus.toLowerCase() === 'completed'
+                  ? 'completed'
+                  : displayStatus.toLowerCase() === 'incomplete'
+                    ? 'incomplete'
+                    : 'upcoming';
+              return `<span class="badge badge-${badgeClass}">${displayStatus}</span>`;
+            })()}
           </td>
         </tr>
       `,
@@ -388,17 +530,17 @@ export class PdfGeneratorService {
   ${
     employeeSummary.length > 0
       ? `
-  <div class="section-title">Guard & Staff Performance Summary</div>
+  <div class="section-title">Employee Performance Summary</div>
   <table>
     <thead>
       <tr>
         <th>Employee Name</th>
+        <th>Emirates ID</th>
         <th>Role</th>
         <th>Site</th>
         <th>Completed Patrols</th>
-        <th>Mandatory Patrols</th>
+        <th>Patrol Duration</th>
         <th>Mandatory %</th>
-        <th>Checkpoints Scanned</th>
       </tr>
     </thead>
     <tbody>
@@ -406,13 +548,16 @@ export class PdfGeneratorService {
         .map(
           (emp) => `
         <tr>
-          <td><strong>${emp.employeeName}</strong></td>
+          <td>
+            <strong>${emp.employeeName}</strong>
+            ${emp.employeeNumber ? `<div style="font-size: 7.5px; color: #64748b; font-family: monospace;">ID: ${emp.employeeNumber}</div>` : ''}
+          </td>
+          <td style="font-family: monospace; font-size: 8px;">${emp.emiratesId || 'Not provided'}</td>
           <td>${emp.employeeRole || 'Security Guard'}</td>
           <td>${emp.siteName}</td>
           <td>${emp.completedPatrols}</td>
-          <td>${emp.mandatoryCompleted} / ${emp.mandatoryScheduled}</td>
+          <td><strong>${emp.patrolDurationFormatted || '—'}</strong></td>
           <td><strong>${emp.mandatoryCompliancePct}%</strong></td>
-          <td>${emp.checkpointsScanned}</td>
         </tr>
       `,
         )
@@ -439,12 +584,18 @@ export class PdfGeneratorService {
   async generatePdf(dataset: ReportDataset): Promise<Buffer> {
     const htmlContent = this.buildHtml(dataset);
 
-    logger.info(`[PdfGeneratorService] Launching Puppeteer for ${dataset.metadata.title}`);
+    logger.info(
+      `[PdfGeneratorService] Launching Puppeteer for ${dataset.metadata.title}`,
+    );
 
     const executablePath = findChromeExecutable();
     const browser = await puppeteer.launch({
       ...(executablePath ? { executablePath } : {}),
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+      ],
       headless: true,
     });
 

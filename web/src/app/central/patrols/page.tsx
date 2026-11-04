@@ -79,7 +79,7 @@ export default function CentralPatrolsPage() {
             <tr>
               <th>Patrol Code</th>
               <th>Organization</th>
-              <th>Officer / Inspector</th>
+              <th>Employee / Inspector</th>
               <th>Role</th>
               <th>Site Location</th>
               <th>Route / Target</th>

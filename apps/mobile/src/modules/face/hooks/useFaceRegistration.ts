@@ -21,7 +21,10 @@ export interface UseFaceRegistrationReturn {
   reset: () => void;
 }
 
-export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistrationReturn {
+export function useFaceRegistration(
+  onSuccess?: () => void,
+  cameraRef?: React.RefObject<any>,
+): UseFaceRegistrationReturn {
   const user = useAuthStore((state) => state.user);
   const [step, setStep] = useState<RegistrationStep>('FRONT');
   const [capturesCount, setCapturesCount] = useState<number>(0);
@@ -33,6 +36,7 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
   const capturedEmbeddingsRef = useRef<number[][]>([]);
   const livenessValidatorRef = useRef<FaceLivenessValidator>(new FaceLivenessValidator());
   const isSubmittingRef = useRef<boolean>(false);
+  const isCapturingPhotoRef = useRef<boolean>(false);
 
   const reset = useCallback(() => {
     setStep('FRONT');
@@ -43,12 +47,13 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
     setError(null);
     capturedEmbeddingsRef.current = [];
     isSubmittingRef.current = false;
+    isCapturingPhotoRef.current = false;
     livenessValidatorRef.current.startChallenge('BLINK');
   }, []);
 
   const processFrame = useCallback(
     async (faces: any[], imageWidth: number, imageHeight: number) => {
-      if (isSubmittingRef.current || isSuccess) {
+      if (isSubmittingRef.current || isSuccess || isCapturingPhotoRef.current || step === 'COMPLETED') {
         return;
       }
 
@@ -89,7 +94,26 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
         }
 
         // Capture 1: Front Vector
-        const vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
+        let vector: number[];
+        isCapturingPhotoRef.current = true;
+        try {
+          if (cameraRef?.current) {
+            const photo = await cameraRef.current.takePhoto({
+              flash: 'off',
+              enableShutterSound: false,
+            });
+            vector = await FaceEmbedder.generateEmbeddingFromPhoto(photo.path);
+          } else {
+            vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
+          }
+        } catch (err: any) {
+          console.warn('[FaceRegistration] Capture 1 failed, retrying:', err?.message || err);
+          setStatusMessage('Hold still and look directly at camera');
+          return;
+        } finally {
+          isCapturingPhotoRef.current = false;
+        }
+
         capturedEmbeddingsRef.current.push(vector);
         setCapturesCount(1);
         setStep('LEFT');
@@ -115,7 +139,26 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
         }
 
         // Capture 2: Clean Re-aligned Vector
-        const vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
+        let vector: number[];
+        isCapturingPhotoRef.current = true;
+        try {
+          if (cameraRef?.current) {
+            const photo = await cameraRef.current.takePhoto({
+              flash: 'off',
+              enableShutterSound: false,
+            });
+            vector = await FaceEmbedder.generateEmbeddingFromPhoto(photo.path);
+          } else {
+            vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
+          }
+        } catch (err: any) {
+          console.warn('[FaceRegistration] Capture 2 failed, retrying:', err?.message || err);
+          setStatusMessage('Hold still and look directly at camera');
+          return;
+        } finally {
+          isCapturingPhotoRef.current = false;
+        }
+
         capturedEmbeddingsRef.current.push(vector);
         setCapturesCount(2);
         setStep('RIGHT');
@@ -141,7 +184,26 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
         }
 
         // Capture 3: Clean Re-aligned Vector
-        const vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
+        let vector: number[];
+        isCapturingPhotoRef.current = true;
+        try {
+          if (cameraRef?.current) {
+            const photo = await cameraRef.current.takePhoto({
+              flash: 'off',
+              enableShutterSound: false,
+            });
+            vector = await FaceEmbedder.generateEmbeddingFromPhoto(photo.path);
+          } else {
+            vector = await FaceEmbedder.generateEmbeddingAsync(faceData);
+          }
+        } catch (err: any) {
+          console.warn('[FaceRegistration] Capture 3 failed, retrying:', err?.message || err);
+          setStatusMessage('Hold still and look directly at camera');
+          return;
+        } finally {
+          isCapturingPhotoRef.current = false;
+        }
+
         capturedEmbeddingsRef.current.push(vector);
         setCapturesCount(3);
         setStep('COMPLETED');
@@ -160,23 +222,24 @@ export function useFaceRegistration(onSuccess?: () => void): UseFaceRegistration
         }
 
         try {
-          // Average the 3 normalized front quality captures
+          // Weighted averaging: Frontal capture is the primary verification baseline (60%),
+          // while Left and Right captures provide angular pose tolerance (20% each).
           const captures = capturedEmbeddingsRef.current;
           const dim = FaceEmbedder.EMBEDDING_DIMENSION;
           const sumVec = new Float32Array(dim);
 
-          for (const cap of captures) {
+          const weights =
+            captures.length === 3 ? [0.60, 0.20, 0.20] : captures.map(() => 1 / captures.length);
+
+          for (let c = 0; c < captures.length; c++) {
+            const cap = captures[c];
+            const w = weights[c];
             for (let i = 0; i < dim; i++) {
-              sumVec[i] += cap[i];
+              sumVec[i] += cap[i] * w;
             }
           }
 
-          const avgVec = new Float32Array(dim);
-          for (let i = 0; i < dim; i++) {
-            avgVec[i] = sumVec[i] / captures.length;
-          }
-
-          const referenceTemplate = Array.from(FaceEmbedder.normalizeL2(avgVec));
+          const referenceTemplate = Array.from(FaceEmbedder.normalizeL2(sumVec));
 
           // Submit to backend API (Phase 2 template versioning: SFace v2)
           const regResult = await faceEnrollmentApi.register(referenceTemplate, 'SFace', 'v2', dim);

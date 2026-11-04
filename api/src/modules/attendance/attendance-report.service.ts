@@ -12,6 +12,8 @@ export interface AttendanceReportMetadata {
   employeeName?: string;
   employeeRole?: string;
   employeeNumber?: string;
+  roleFilter?: string;
+  shiftFilter?: string;
   dateStr: string;
   statusFilter?: string;
   generatedAt: string;
@@ -40,6 +42,14 @@ export class AttendanceReportService {
         ['Employee Role', metadata.employeeRole || 'Security Guard'],
         ['Staff ID', metadata.employeeNumber || '—']
       );
+    }
+
+    if (metadata.shiftFilter) {
+      summaryRows.push(['Shift Filter', metadata.shiftFilter]);
+    }
+
+    if (metadata.roleFilter) {
+      summaryRows.push(['Employee Category / Role', metadata.roleFilter]);
     }
 
     if (metadata.statusFilter && metadata.statusFilter !== 'ALL') {
@@ -379,6 +389,16 @@ export class AttendanceReportService {
       <span class="filter-label">Employee</span>
       <span class="filter-value">${this.escapeHtml(metadata.employeeName ? `${metadata.employeeName} (${metadata.employeeRole || 'Staff'})` : 'All Employees')}</span>
     </div>
+    ${metadata.shiftFilter ? `
+    <div class="filter-item">
+      <span class="filter-label">Shift</span>
+      <span class="filter-value">${this.escapeHtml(metadata.shiftFilter)}</span>
+    </div>` : ''}
+    ${metadata.roleFilter ? `
+    <div class="filter-item">
+      <span class="filter-label">Role / Category</span>
+      <span class="filter-value">${this.escapeHtml(metadata.roleFilter)}</span>
+    </div>` : ''}
     <div class="filter-item">
       <span class="filter-label">Status Filter</span>
       <span class="filter-value">${this.escapeHtml(metadata.statusFilter || 'All Statuses')}</span>

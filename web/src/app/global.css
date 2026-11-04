@@ -553,35 +553,67 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
 }
 
 .app-header {
-  height: 80px;
+  height: 72px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 32px;
+  padding: 0 24px;
 }
 
 .page-title {
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1.2rem;
+  font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
 .main-scrollable {
   flex: 1;
-  padding: 32px;
+  padding: 24px;
   overflow-y: auto;
+  overflow-x: hidden;
   background-color: var(--bg-primary);
+  min-width: 0;
+}
+
+/* Responsive Table Wrapper */
+.table-container {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1440px) {
+  .app-header {
+    height: 64px;
+    padding: 0 20px;
+  }
+  .page-title {
+    font-size: 1.15rem;
+  }
+  .main-scrollable {
+    padding: 18px 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0 16px;
+  }
+  .main-scrollable {
+    padding: 14px;
+  }
 }
 
 /* Theme Toggle Button Style */

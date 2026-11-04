@@ -17,6 +17,10 @@ export const scanCheckpointSchema = z.object({
 
   images: z.array(z.string()).optional(),
 
+  scannedAt: z.string().optional(),
+
+  completedAt: z.string().optional(),
+
   subTaskResponses: z
     .array(
       z.object({

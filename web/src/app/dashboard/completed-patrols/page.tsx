@@ -138,7 +138,7 @@ function CompletedPatrolsContent() {
     { key: 'patrolCode', label: 'Patrol Code', sortable: true },
     {
       key: 'guard',
-      label: 'Security Officer',
+      label: 'Employee',
       render: (row: PatrolSession) => (
         <span>
           {row.assignment?.employee?.firstName}{' '}

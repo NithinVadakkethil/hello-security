@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Edit, Key, Shield, User, Mail, Phone, Check, Copy } from 'lucide-react';
+import { ArrowLeft, Edit, Key, Shield, User, Mail, Phone, Check, Copy, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -14,6 +14,7 @@ import Modal from '../../../components/ui/Modal';
 import ConfirmationDialog from '../../../components/ui/ConfirmationDialog';
 import LoadingState from '../../../components/ui/LoadingState';
 import { formatPatrolDate, formatPatrolDateTime } from '@/lib/date-formatter';
+import { maskEmiratesId } from '@/lib/emirates-id';
 
 interface Employee {
   id: string;
@@ -22,6 +23,7 @@ interface Employee {
   lastName?: string | null;
   email?: string | null;
   phone?: string | null;
+  emiratesId?: string | null;
   designation?: string | null;
   companyName?: string | null;
   role?: string | null;
@@ -59,6 +61,7 @@ export default function EmployeeDetailPage() {
   const [copied, setCopied] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ src: string; title: string } | null>(null);
+  const [showEmiratesId, setShowEmiratesId] = useState(false);
 
   // Fetch Employee details
   const { data: employeeRes, isLoading, isError } = useQuery<ApiResponse<Employee>>({
@@ -223,7 +226,7 @@ export default function EmployeeDetailPage() {
 
               <div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>DESIGNATION</p>
-                <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{employee.designation || 'Security Officer'}</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>{employee.designation || 'Security Guard'}</p>
               </div>
 
               <div>
@@ -259,6 +262,37 @@ export default function EmployeeDetailPage() {
                   <Phone size={14} style={{ color: 'var(--text-muted)' }} />
                   <span>{employee.phone || 'None'}</span>
                 </p>
+              </div>
+
+              <div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>EMIRATES ID</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0, fontFamily: 'monospace' }}>
+                    {employee.emiratesId
+                      ? showEmiratesId
+                        ? employee.emiratesId
+                        : maskEmiratesId(employee.emiratesId)
+                      : 'Not provided'}
+                  </p>
+                  {employee.emiratesId && (
+                    <button
+                      type="button"
+                      onClick={() => setShowEmiratesId(!showEmiratesId)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '2px',
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                      title={showEmiratesId ? 'Mask Emirates ID' : 'Reveal Emirates ID'}
+                    >
+                      {showEmiratesId ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

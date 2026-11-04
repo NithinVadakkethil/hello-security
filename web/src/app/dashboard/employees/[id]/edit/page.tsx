@@ -14,6 +14,7 @@ import { apiClient } from '../../../../lib/axios';
 import { ApiResponse } from '../../../../types/api';
 import { FormInput, Select } from '../../../../components/ui/FormControls';
 import LoadingState from '../../../../components/ui/LoadingState';
+import { formatEmiratesIdInput, validateEmiratesId } from '@/lib/emirates-id';
 
 const schema = z
   .object({
@@ -21,6 +22,18 @@ const schema = z
     lastName: z.string().optional().or(z.literal('')),
     email: z.string().email('Please enter a valid email address').optional().or(z.literal('')),
     phone: z.string().optional(),
+    emiratesId: z
+      .string()
+      .optional()
+      .refine(
+        (val) => {
+          if (!val || val.trim() === '') return true;
+          return validateEmiratesId(val).valid;
+        },
+        {
+          message: 'Invalid Emirates ID. Format must be 784-XXXX-XXXXXXX-X (15 digits).',
+        },
+      ),
     designation: z.string().optional(),
     companyName: z.string().optional(),
     joiningDate: z.string().optional(),
@@ -77,6 +90,7 @@ export default function EditEmployeePage() {
     reset,
     watch,
     setValue,
+    setError,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema as any),
@@ -119,6 +133,7 @@ export default function EditEmployeePage() {
         lastName: employee.lastName || '',
         email: employee.email || '',
         phone: employee.phone || '',
+        emiratesId: employee.emiratesId || '',
         designation: employee.designation || '',
         companyName: employee.companyName || '',
         joiningDate: employee.joiningDate ? new Date(employee.joiningDate).toISOString().split('T')[0] : '',
@@ -146,6 +161,9 @@ export default function EditEmployeePage() {
       }
       if (!payload.phone || !payload.phone.trim()) {
         payload.phone = null;
+      }
+      if (!payload.emiratesId || !payload.emiratesId.trim()) {
+        payload.emiratesId = null;
       }
       if (!payload.designation || !payload.designation.trim()) {
         payload.designation = null;
@@ -190,7 +208,14 @@ export default function EditEmployeePage() {
       router.push(`/dashboard/employees/${id}`);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Failed to update employee.');
+      const message: string = err.response?.data?.message || '';
+      if (message.toLowerCase().includes('emirates id')) {
+        setError('emiratesId', {
+          type: 'manual',
+          message,
+        });
+      }
+      toast.error(message || 'Failed to update employee.');
     },
   });
 
@@ -260,29 +285,46 @@ export default function EditEmployeePage() {
               {...register('phone')}
             />
 
+            <div>
+              <FormInput
+                label="Emirates ID (UAE National ID)"
+                placeholder="784-XXXX-XXXXXXX-X"
+                error={errors.emiratesId?.message}
+                {...register('emiratesId', {
+                  onChange: (e) => {
+                    const formatted = formatEmiratesIdInput(e.target.value);
+                    setValue('emiratesId', formatted);
+                  },
+                })}
+              />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                Standard 15-digit format: 784-XXXX-XXXXXXX-X
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <FormInput
               label="Designation / Position"
               placeholder="e.g. Night Patrol Lead"
               error={errors.designation?.message}
               {...register('designation')}
             />
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <FormInput
               label="Company Name (Optional)"
               placeholder="e.g. ABC Security Services LLC"
               error={(errors as any).companyName?.message}
               {...register('companyName')}
             />
-
-            <FormInput
-              label="Joining Date"
-              type="date"
-              error={errors.joiningDate?.message}
-              {...register('joiningDate')}
-            />
           </div>
+
+          <FormInput
+            label="Joining Date"
+            type="date"
+            error={errors.joiningDate?.message}
+            {...register('joiningDate')}
+          />
 
           <Select
             label="Operational Role / App Role *"

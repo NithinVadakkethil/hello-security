@@ -388,7 +388,15 @@ export class PatrolCheckpointService {
     // Standardize dto.gateId to actual Gate.id so FK relations persist smoothly
     dto.gateId = targetGateId;
 
-    if (gateRecord && gateRecord.isActive === false) {
+    const effectiveScanTime = dto.scannedAt ? new Date(dto.scannedAt) : new Date();
+    const isHistoricalOfflineScan =
+      dto.scannedAt &&
+      gateRecord &&
+      gateRecord.isActive === false &&
+      (effectiveScanTime.getTime() <= new Date(gateRecord.updatedAt).getTime() ||
+        (patrol?.startedAt && new Date(patrol.startedAt).getTime() <= new Date(gateRecord.updatedAt).getTime()));
+
+    if (gateRecord && gateRecord.isActive === false && !isHistoricalOfflineScan) {
       throw new AppError(
         HttpStatus.BAD_REQUEST,
         ErrorCodes.VALIDATION_ERROR,
@@ -440,11 +448,43 @@ export class PatrolCheckpointService {
       });
     }
 
-    const subTaskMap = new Map(
-      (dto.subTaskResponses || []).map((r) => [r.gateSubTaskId, r]),
-    );
+    const submittedTaskIds = (dto.subTaskResponses || [])
+      .map((r) => r.gateSubTaskId)
+      .filter(Boolean);
+
+    let submittedSubTasksInfo: any[] = [];
+    if (submittedTaskIds.length > 0) {
+      const [gateTasks, catTasks] = await Promise.all([
+        prisma.gateSubTask.findMany({
+          where: { id: { in: submittedTaskIds } },
+          select: { id: true, taskName: true },
+        }),
+        (prisma as any).categorySubTask.findMany({
+          where: { id: { in: submittedTaskIds } },
+          select: { id: true, taskName: true },
+        }),
+      ]);
+      submittedSubTasksInfo = [...gateTasks, ...catTasks];
+    }
+
+    const subTaskNameById = new Map<string, string>();
+    submittedSubTasksInfo.forEach((t) => {
+      if (t.taskName) subTaskNameById.set(t.id, t.taskName.toLowerCase().trim());
+    });
+
+    const isTaskAnswered = (st: any) => {
+      const stName = (st.taskName || '').toLowerCase().trim();
+      return (dto.subTaskResponses || []).some((r) => {
+        if (r.gateSubTaskId === st.id) return true;
+        const submittedName =
+          subTaskNameById.get(r.gateSubTaskId) ||
+          (r as any).taskName?.toLowerCase().trim();
+        return stName && submittedName && stName === submittedName;
+      });
+    };
+
     const missingRequiredTasks = activeSubTasks.filter(
-      (st) => st.isRequired && !subTaskMap.has(st.id),
+      (st) => st.isRequired && !isTaskAnswered(st),
     );
 
     if (missingRequiredTasks.length > 0) {
@@ -515,6 +555,21 @@ export class PatrolCheckpointService {
             }
           }
 
+          let completedAt: Date | undefined = undefined;
+          if (dto.completedAt) {
+            const parsedComp = new Date(dto.completedAt);
+            if (!isNaN(parsedComp.getTime())) {
+              const maxFuture = Date.now() + 5 * 60 * 1000;
+              completedAt = parsedComp.getTime() > maxFuture ? new Date() : parsedComp;
+            }
+          } else {
+            completedAt = new Date();
+          }
+
+          if (completedAt && scannedAt.getTime() > completedAt.getTime()) {
+            scannedAt = completedAt;
+          }
+
           const checkpointRemarks = dto.remarks?.trim() || null;
 
           let cp;
@@ -528,6 +583,7 @@ export class PatrolCheckpointService {
                 status: dto.status,
                 images: allImages,
                 scannedAt,
+                completedAt,
               },
             });
           } else {
@@ -541,6 +597,7 @@ export class PatrolCheckpointService {
                 status: dto.status,
                 images: allImages,
                 scannedAt,
+                completedAt,
               },
             });
           }
@@ -550,7 +607,7 @@ export class PatrolCheckpointService {
             processedSubTaskResponses.length > 0
           ) {
             for (const resp of processedSubTaskResponses) {
-              let answeredAt = scannedAt;
+              let answeredAt = completedAt || scannedAt;
               if (resp.answeredAt) {
                 const parsedAns = new Date(resp.answeredAt);
                 if (!isNaN(parsedAns.getTime())) {

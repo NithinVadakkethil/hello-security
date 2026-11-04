@@ -1,5 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
+import { UserRole } from '@prisma/client';
 import { currentUser } from '../../common/auth/current-user';
+import { assertCentralManagerClientAccess } from '../../common/auth/central-manager-auth';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 import { createShiftSchema, updateShiftSchema } from './shift.schema';
 import { shiftService } from './shift.service';
@@ -26,7 +28,22 @@ export class ShiftController {
         req.query.isActive === undefined
           ? undefined
           : req.query.isActive === 'true';
-      const result = await shiftService.list(user.tenantId!, isActive);
+
+      let clientId = user.tenantId;
+      const queryClientId = req.query.clientId as string | undefined;
+
+      if (user.role === UserRole.MANAGER || user.role === UserRole.SUPER_ADMIN) {
+        if (queryClientId) {
+          await assertCentralManagerClientAccess(user, queryClientId);
+          clientId = queryClientId;
+        } else if (!clientId && user.role === UserRole.MANAGER) {
+          const assigned = await assertCentralManagerClientAccess(user);
+          clientId = assigned[0];
+        }
+      }
+
+      const siteId = req.query.siteId as string | undefined;
+      const result = await shiftService.list(clientId || undefined, isActive, siteId);
       return res.json({
         success: true,
         data: result,

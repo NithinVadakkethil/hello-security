@@ -1,6 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
+import { UserRole } from '@prisma/client';
 
 import { currentUser } from '../../common/auth/current-user';
+import { assertCentralManagerClientAccess } from '../../common/auth/central-manager-auth';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 
 import { createSiteSchema, updateSiteSchema } from './site.schema';
@@ -34,7 +36,20 @@ export class SiteController {
           ? undefined
           : req.query.isActive === 'true';
 
-      const sites = await siteService.list(user.tenantId!, isActive);
+      let clientId = user.tenantId;
+      const queryClientId = req.query.clientId as string | undefined;
+
+      if (user.role === UserRole.MANAGER || user.role === UserRole.SUPER_ADMIN) {
+        if (queryClientId) {
+          await assertCentralManagerClientAccess(user, queryClientId);
+          clientId = queryClientId;
+        } else if (!clientId && user.role === UserRole.MANAGER) {
+          const assigned = await assertCentralManagerClientAccess(user);
+          clientId = assigned[0];
+        }
+      }
+
+      const sites = await siteService.list(clientId!, isActive);
 
       return res.json({
         success: true,
@@ -115,6 +130,7 @@ export class SiteController {
 
   async validateImportCheckpoints(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const siteId = req.params.id as string;
       const file = req.file;
       if (!file) {
@@ -124,7 +140,11 @@ export class SiteController {
         });
       }
 
-      const result = await siteImportService.validateImport(siteId, file.buffer);
+      const result = await siteImportService.validateImport(
+        siteId,
+        file.buffer,
+        user.tenantId || undefined,
+      );
 
       return res.status(HttpStatus.OK).json({
         success: true,

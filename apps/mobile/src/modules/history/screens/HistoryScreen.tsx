@@ -564,7 +564,7 @@ export function HistoryScreen() {
                   <Text style={[styles.groupHeader, { color: colors.textSecondary }]}>REPORTED BY</Text>
                   <View style={[styles.detailSection, { backgroundColor: colors.background, borderColor: colors.border }]}>
                     <View style={styles.fieldBlock}>
-                      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Officer</Text>
+                      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Employee</Text>
                       <Text style={[styles.fieldValue, { color: colors.text }]}>{parsedIncident.officerName}</Text>
                     </View>
 
