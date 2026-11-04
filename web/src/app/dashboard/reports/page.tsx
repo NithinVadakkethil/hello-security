@@ -223,9 +223,18 @@ function ReportsPageContent() {
     window.print();
   };
 
-  const handleSelectRow = (row: InspectionRow) => {
+  const handleSelectRow = async (row: InspectionRow) => {
     setSelectedReport(row);
     setIsModalOpen(true);
+    try {
+      const res: any = await apiClient.get(`/reports/inspections/${row.id}`);
+      const fullSession = res?.data || res;
+      if (fullSession) {
+        setSelectedReport(fullSession);
+      }
+    } catch (err) {
+      console.warn('[ReportsPage] Failed to fetch full session details:', err);
+    }
   };
 
   return (

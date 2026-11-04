@@ -3,6 +3,10 @@
 import { resolveImageUrl } from '../../../../lib/image';
 import { formatPatrolDateTime } from '@/lib/date-formatter';
 import { formatEmiratesId } from '@/lib/emirates-id';
+import {
+  isSystemSyncRemark,
+  cleanSystemRemark,
+} from '@/lib/checkpoint-timeline';
 
 interface PatrolSessionPrintTemplateProps {
   session: any;
@@ -953,7 +957,19 @@ export default function PatrolSessionPrintTemplate({
                           </td>
                           <td style={{ padding: '5px 6px', color: '#334155' }}>
                             {res.remarks ? (
-                              <span>"{res.remarks}"</span>
+                              isSystemSyncRemark(res.remarks) ? (
+                                <span
+                                  style={{
+                                    color: '#64748b',
+                                    fontStyle: 'italic',
+                                    fontSize: '11px',
+                                  }}
+                                >
+                                  [System] {cleanSystemRemark(res.remarks)}
+                                </span>
+                              ) : (
+                                <span>"{res.remarks}"</span>
+                              )
                             ) : (
                               <span
                                 style={{

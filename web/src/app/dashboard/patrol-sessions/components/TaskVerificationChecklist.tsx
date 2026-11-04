@@ -14,6 +14,10 @@ import { useState } from 'react';
 import { resolveImageUrl } from '../../../../lib/image';
 import { isRoleMatching } from '../../../utils/role-matching';
 import { formatPatrolDateTime } from '@/lib/date-formatter';
+import {
+  isSystemSyncRemark,
+  cleanSystemRemark,
+} from '@/lib/checkpoint-timeline';
 
 export interface SubTaskResult {
   id: string;
@@ -29,6 +33,7 @@ export interface SubTaskResult {
 
 interface TaskVerificationChecklistProps {
   scanned: boolean;
+  tasks?: any[];
   configuredSubTasks?: any[];
   subTaskResponses?: any[];
   checkpointImages?: string[];
@@ -81,6 +86,7 @@ const ROLE_BADGES: Record<
 
 export default function TaskVerificationChecklist({
   scanned,
+  tasks,
   configuredSubTasks = [],
   subTaskResponses = [],
   checkpointImages = [],
@@ -91,88 +97,136 @@ export default function TaskVerificationChecklist({
   const [isExpanded, setIsExpanded] = useState(true);
   const [roleFilter] = useState<'EMPLOYEE' | 'ALL' | string>('EMPLOYEE');
 
-  // Map of recorded responses for fast lookup
-  const responseMap = new Map<string, any>();
-  if (Array.isArray(subTaskResponses)) {
-    subTaskResponses.forEach((res) => {
-      const key = res.gateSubTaskId || res.id;
-      responseMap.set(key, res);
-    });
-  }
-
   // Combine configured subtasks with recorded responses
   const taskMap = new Map<string, SubTaskResult>();
 
-  // 1. Populate from configured sub-tasks
-  if (Array.isArray(configuredSubTasks)) {
-    configuredSubTasks.forEach((st: any) => {
-      if (st.isActive !== false) {
-        const stRole = st.role || 'SECURITY';
-
-        let shouldInclude = false;
-        if (roleFilter === 'ALL') {
-          shouldInclude = true;
-        } else if (roleFilter === 'EMPLOYEE') {
-          shouldInclude = isRoleMatching(stRole, employeeRole);
-        } else {
-          shouldInclude = isRoleMatching(stRole, roleFilter);
-        }
-
-        if (shouldInclude) {
-          taskMap.set(st.id, {
-            id: st.id,
-            title: st.taskName,
-            description: st.description,
-            isRequired: st.isRequired,
-            role: stRole,
-            answer: null,
-            remarks: null,
-            completedAt: null,
-          });
-        }
-      }
-    });
-  }
-
-  // 2. Overlay recorded responses
-  if (Array.isArray(subTaskResponses)) {
-    subTaskResponses.forEach((res: any) => {
-      const subTaskId = res.gateSubTaskId || res.id;
-      const title =
-        res.gateSubTask?.taskName || res.title || 'Verification Task';
-      const description = res.gateSubTask?.description || res.description;
-      const stRole = res.gateSubTask?.role || 'SECURITY';
-
-      const taskImgs =
-        Array.isArray(res.images) && res.images.length > 0 ? res.images : [];
-
-      const existing = taskMap.get(subTaskId);
-      if (existing) {
-        existing.answer = res.answer;
-        existing.remarks = res.remarks;
-        existing.images = taskImgs;
-        existing.role = stRole || existing.role;
-        existing.completedAt = res.answeredAt || res.createdAt;
+  // If pre-combined tasks are provided (from buildCheckpointTimeline), use them directly
+  if (Array.isArray(tasks) && tasks.length > 0) {
+    tasks.forEach((t: any) => {
+      const tRole = t.role || 'SECURITY';
+      let shouldInclude = false;
+      if (roleFilter === 'ALL') {
+        shouldInclude = true;
+      } else if (roleFilter === 'EMPLOYEE') {
+        shouldInclude = isRoleMatching(tRole, employeeRole);
       } else {
-        const targetRole =
-          roleFilter === 'EMPLOYEE' ? employeeRole : roleFilter;
-        const shouldInclude =
-          roleFilter === 'ALL' || isRoleMatching(stRole, targetRole);
+        shouldInclude = isRoleMatching(tRole, roleFilter);
+      }
 
-        if (shouldInclude) {
-          taskMap.set(subTaskId, {
-            id: subTaskId,
-            title,
-            description,
-            role: stRole,
-            answer: res.answer,
-            remarks: res.remarks,
-            images: taskImgs,
-            completedAt: res.answeredAt || res.createdAt,
-          });
-        }
+      if (shouldInclude) {
+        taskMap.set(t.id || t.title, {
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          isRequired: t.isRequired,
+          role: tRole,
+          answer: t.answer === 'UNANSWERED' ? null : t.answer,
+          remarks: t.remarks,
+          images: t.images || [],
+          completedAt: t.answeredAt,
+        });
       }
     });
+  } else {
+    // Fallback: merge configuredSubTasks and subTaskResponses
+    const responseMap = new Map<string, any>();
+    if (Array.isArray(subTaskResponses)) {
+      subTaskResponses.forEach((res) => {
+        if (res.gateSubTaskId) responseMap.set(res.gateSubTaskId, res);
+        if (res.id) responseMap.set(res.id, res);
+        if (res.taskNameSnapshot) {
+          responseMap.set(res.taskNameSnapshot.trim().toLowerCase(), res);
+        }
+        if (res.gateSubTask?.taskName) {
+          responseMap.set(res.gateSubTask.taskName.trim().toLowerCase(), res);
+        }
+      });
+    }
+
+    const matchedResponseIds = new Set<string>();
+
+    // 1. Populate from configured sub-tasks
+    if (Array.isArray(configuredSubTasks)) {
+      configuredSubTasks.forEach((st: any) => {
+        if (st.isActive !== false) {
+          const stRole = st.role || 'SECURITY';
+
+          let shouldInclude = false;
+          if (roleFilter === 'ALL') {
+            shouldInclude = true;
+          } else if (roleFilter === 'EMPLOYEE') {
+            shouldInclude = isRoleMatching(stRole, employeeRole);
+          } else {
+            shouldInclude = isRoleMatching(stRole, roleFilter);
+          }
+
+          if (shouldInclude) {
+            const normName = st.taskName ? st.taskName.trim().toLowerCase() : '';
+            const matchedRes = responseMap.get(st.id) || (normName ? responseMap.get(normName) : undefined);
+            if (matchedRes) {
+              if (matchedRes.id) matchedResponseIds.add(matchedRes.id);
+              if (matchedRes.gateSubTaskId) matchedResponseIds.add(matchedRes.gateSubTaskId);
+            }
+
+            taskMap.set(st.id, {
+              id: st.id,
+              title: matchedRes?.taskNameSnapshot || st.taskName,
+              description: st.description,
+              isRequired: st.isRequired,
+              role: matchedRes?.roleSnapshot || stRole,
+              answer: matchedRes?.answer || null,
+              remarks: matchedRes?.remarks || null,
+              images: Array.isArray(matchedRes?.images) ? matchedRes.images : [],
+              completedAt: matchedRes?.answeredAt || matchedRes?.createdAt || null,
+            });
+          }
+        }
+      });
+    }
+
+    // 2. Overlay recorded responses
+    if (Array.isArray(subTaskResponses)) {
+      subTaskResponses.forEach((res: any) => {
+        const subTaskId = res.gateSubTaskId || res.id;
+        const title =
+          res.taskNameSnapshot || res.gateSubTask?.taskName || res.title || 'Verification Task';
+        const description = res.gateSubTask?.description || res.description;
+        const stRole = res.roleSnapshot || res.gateSubTask?.role || 'SECURITY';
+
+        const taskImgs =
+          Array.isArray(res.images) && res.images.length > 0 ? res.images : [];
+
+        const normName = title.trim().toLowerCase();
+        const isMatched = (res.id && matchedResponseIds.has(res.id)) || (res.gateSubTaskId && matchedResponseIds.has(res.gateSubTaskId));
+
+        const existing = taskMap.get(subTaskId) || (normName ? taskMap.get(normName) : undefined);
+        if (existing) {
+          existing.answer = res.answer;
+          existing.remarks = res.remarks;
+          existing.images = taskImgs;
+          existing.role = stRole || existing.role;
+          existing.completedAt = res.answeredAt || res.createdAt;
+        } else if (!isMatched) {
+          const targetRole =
+            roleFilter === 'EMPLOYEE' ? employeeRole : roleFilter;
+          const shouldInclude =
+            roleFilter === 'ALL' || isRoleMatching(stRole, targetRole);
+
+          if (shouldInclude) {
+            taskMap.set(subTaskId, {
+              id: subTaskId,
+              title,
+              description,
+              role: stRole,
+              answer: res.answer,
+              remarks: res.remarks,
+              images: taskImgs,
+              completedAt: res.answeredAt || res.createdAt,
+            });
+          }
+        }
+      });
+    }
   }
 
   const tasksList = Array.from(taskMap.values());
@@ -605,7 +659,13 @@ export default function TaskVerificationChecklist({
                               padding: '8px 12px',
                               borderRadius: '6px',
                               backgroundColor: 'var(--bg-secondary)',
-                              borderLeft: `3px solid ${isNo ? '#ef4444' : 'var(--primary)'}`,
+                              borderLeft: `3px solid ${
+                                isSystemSyncRemark(task.remarks)
+                                  ? '#94a3b8'
+                                  : isNo
+                                  ? '#ef4444'
+                                  : 'var(--primary)'
+                              }`,
                               fontSize: '0.8rem',
                               color: 'var(--text-secondary)',
                               display: 'flex',
@@ -630,9 +690,22 @@ export default function TaskVerificationChecklist({
                                   marginBottom: '2px',
                                 }}
                               >
-                                Employee Remarks:
+                                {isSystemSyncRemark(task.remarks)
+                                  ? 'System Audit:'
+                                  : 'Employee Remarks:'}
                               </strong>
-                              <span>{task.remarks}</span>
+                              <span
+                                style={{
+                                  fontStyle: isSystemSyncRemark(task.remarks)
+                                    ? 'italic'
+                                    : 'normal',
+                                  color: isSystemSyncRemark(task.remarks)
+                                    ? 'var(--text-muted)'
+                                    : 'inherit',
+                                }}
+                              >
+                                {cleanSystemRemark(task.remarks)}
+                              </span>
                             </div>
                           </div>
                         )}

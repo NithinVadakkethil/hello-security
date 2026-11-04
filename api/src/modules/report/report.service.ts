@@ -19,6 +19,10 @@ import {
   getReportOfficerInfo,
 } from '../../common/utils/checkpoint-timeline.util';
 import { formatEmiratesId } from '../../common/utils/emirates-id.util';
+import {
+  isSystemSyncRemark,
+  cleanSystemRemark,
+} from '../../common/utils/observation-metadata.util';
 import { formatRoleLabel } from './summary-report.service';
 import { reportRepository } from './report.repository';
 import { ReportQueryDto } from './report.types';
@@ -1009,7 +1013,13 @@ export class ReportService {
 
                 ${
                   t.remarks
-                    ? `
+                    ? isSystemSyncRemark(t.remarks)
+                      ? `
+                <div class="rpt-task-remarks" style="background: #f8fafc; border-left: 3px solid #cbd5e1;">
+                  <div class="rpt-task-remarks-head" style="color: #64748b;">System Audit:</div>
+                  <div style="color: #64748b; font-style: italic;">${cleanSystemRemark(t.remarks)}</div>
+                </div>`
+                      : `
                 <div class="rpt-task-remarks">
                   <div class="rpt-task-remarks-head">Employee Remarks:</div>
                   <div>${t.remarks}</div>

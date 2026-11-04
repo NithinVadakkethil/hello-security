@@ -847,6 +847,7 @@ export default function DetailedReportModal({
 
                   <TaskVerificationChecklist
                     scanned={item.scanned}
+                    tasks={item.tasks}
                     configuredSubTasks={item.gate?.subTasks || []}
                     subTaskResponses={item.subTaskResponses || []}
                     checkpointImages={item.images || []}

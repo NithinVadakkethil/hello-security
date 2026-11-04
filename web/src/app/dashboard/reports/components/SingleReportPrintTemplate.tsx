@@ -9,7 +9,12 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { resolveImageUrl } from '../../../../lib/image';
 import { filterEligibleCheckpointsForSession } from '../../../../lib/checkpoint-eligibility';
-import { buildCheckpointTimeline, getReportOfficerInfo } from '@/lib/checkpoint-timeline';
+import {
+  buildCheckpointTimeline,
+  getReportOfficerInfo,
+  isSystemSyncRemark,
+  cleanSystemRemark,
+} from '@/lib/checkpoint-timeline';
 import { formatEmiratesId } from '@/lib/emirates-id';
 
 interface SingleReportPrintTemplateProps {
@@ -811,11 +816,31 @@ export default function SingleReportPrintTemplate({
                   </div>
 
                   {t.remarks && (
-                    <div className="rpt-task-remarks">
-                      <div className="rpt-task-remarks-head">
-                        Employee Remarks:
+                    <div
+                      className="rpt-task-remarks"
+                      style={
+                        isSystemSyncRemark(t.remarks)
+                          ? { background: '#f8fafc', borderLeft: '3px solid #cbd5e1' }
+                          : undefined
+                      }
+                    >
+                      <div
+                        className="rpt-task-remarks-head"
+                        style={isSystemSyncRemark(t.remarks) ? { color: '#64748b' } : undefined}
+                      >
+                        {isSystemSyncRemark(t.remarks)
+                          ? 'System Audit:'
+                          : 'Employee Remarks:'}
                       </div>
-                      <div>{t.remarks}</div>
+                      <div
+                        style={
+                          isSystemSyncRemark(t.remarks)
+                            ? { color: '#64748b', fontStyle: 'italic' }
+                            : undefined
+                        }
+                      >
+                        {cleanSystemRemark(t.remarks)}
+                      </div>
                     </div>
                   )}
 

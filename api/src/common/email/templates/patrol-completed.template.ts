@@ -1,3 +1,5 @@
+import { isSystemSyncRemark } from '../../utils/observation-metadata.util';
+
 export interface CheckpointItem {
   name: string;
   sequence: number;
@@ -79,9 +81,23 @@ export function buildPatrolCompletedEmailHtml(data: PatrolCompletedEmailData): s
     })
     .join('');
 
+  const filteredObservations: Array<{ title: string; description?: string; severity?: string }> = [];
+  const seenObsKeys = new Set<string>();
+
+  (data.observations || []).forEach((obs) => {
+    if (isSystemSyncRemark(obs.description) || isSystemSyncRemark(obs.title)) {
+      return;
+    }
+    const key = `${obs.title.toLowerCase().trim()}|${(obs.description || '').toLowerCase().trim()}`;
+    if (!seenObsKeys.has(key)) {
+      seenObsKeys.add(key);
+      filteredObservations.push(obs);
+    }
+  });
+
   const observationsListHtml =
-    data.observations.length > 0
-      ? data.observations
+    filteredObservations.length > 0
+      ? filteredObservations
           .map(
             (obs) =>
               `<div style="padding: 10px 12px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 6px; margin-bottom: 8px;">
@@ -286,15 +302,24 @@ export function buildConsolidatedRouteCycleEmailHtml(data: ConsolidatedRouteCycl
     })
     .join('');
 
-  // Collect all observations across routes
+  // Collect all observations across routes, filtering system metadata and deduplicating
   const allObservations: Array<{ routeName: string; title: string; description?: string }> = [];
+  const seenObservationKeys = new Set<string>();
+
   data.routes.forEach((r) => {
-    r.observations.forEach((obs) => {
-      allObservations.push({
-        routeName: r.routeName,
-        title: obs.title,
-        description: obs.description,
-      });
+    (r.observations || []).forEach((obs) => {
+      if (isSystemSyncRemark(obs.description) || isSystemSyncRemark(obs.title)) {
+        return;
+      }
+      const dedupKey = `${r.routeName.toLowerCase().trim()}|${obs.title.toLowerCase().trim()}|${(obs.description || '').toLowerCase().trim()}`;
+      if (!seenObservationKeys.has(dedupKey)) {
+        seenObservationKeys.add(dedupKey);
+        allObservations.push({
+          routeName: r.routeName,
+          title: obs.title,
+          description: obs.description,
+        });
+      }
     });
   });
 

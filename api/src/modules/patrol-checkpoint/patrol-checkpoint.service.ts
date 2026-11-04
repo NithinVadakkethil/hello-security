@@ -448,11 +448,43 @@ export class PatrolCheckpointService {
       });
     }
 
-    const subTaskMap = new Map(
-      (dto.subTaskResponses || []).map((r) => [r.gateSubTaskId, r]),
-    );
+    const submittedTaskIds = (dto.subTaskResponses || [])
+      .map((r) => r.gateSubTaskId)
+      .filter(Boolean);
+
+    let submittedSubTasksInfo: any[] = [];
+    if (submittedTaskIds.length > 0) {
+      const [gateTasks, catTasks] = await Promise.all([
+        prisma.gateSubTask.findMany({
+          where: { id: { in: submittedTaskIds } },
+          select: { id: true, taskName: true },
+        }),
+        (prisma as any).categorySubTask.findMany({
+          where: { id: { in: submittedTaskIds } },
+          select: { id: true, taskName: true },
+        }),
+      ]);
+      submittedSubTasksInfo = [...gateTasks, ...catTasks];
+    }
+
+    const subTaskNameById = new Map<string, string>();
+    submittedSubTasksInfo.forEach((t) => {
+      if (t.taskName) subTaskNameById.set(t.id, t.taskName.toLowerCase().trim());
+    });
+
+    const isTaskAnswered = (st: any) => {
+      const stName = (st.taskName || '').toLowerCase().trim();
+      return (dto.subTaskResponses || []).some((r) => {
+        if (r.gateSubTaskId === st.id) return true;
+        const submittedName =
+          subTaskNameById.get(r.gateSubTaskId) ||
+          (r as any).taskName?.toLowerCase().trim();
+        return stName && submittedName && stName === submittedName;
+      });
+    };
+
     const missingRequiredTasks = activeSubTasks.filter(
-      (st) => st.isRequired && !subTaskMap.has(st.id),
+      (st) => st.isRequired && !isTaskAnswered(st),
     );
 
     if (missingRequiredTasks.length > 0) {

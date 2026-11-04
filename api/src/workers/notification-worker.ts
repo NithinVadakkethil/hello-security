@@ -9,6 +9,7 @@ import {
   buildConsolidatedRouteCycleEmailHtml,
   RouteSummaryItem,
 } from '../common/email/templates/patrol-completed.template';
+import { extractPatrolObservations } from '../common/utils/observation-metadata.util';
 import { logger } from '../common/logger/logger';
 import { redisConfig } from '../config/redis.config';
 import { COMPLETED_PATROL_QUEUE_NAME } from '../common/queue/notification-queue.service';
@@ -166,7 +167,11 @@ export async function processCompletedPatrolNotification(
         checkpoints: {
           include: {
             gate: true,
-            subTaskResponses: true,
+            subTaskResponses: {
+              include: {
+                gateSubTask: true,
+              },
+            },
           },
           orderBy: { scannedAt: 'asc' },
         },
@@ -301,17 +306,11 @@ export async function processCompletedPatrolNotification(
     const totalGates = expectedGatesList.length;
     const compliancePercentage = totalGates > 0 ? Math.round((scannedExpectedCount / totalGates) * 100) : 0;
 
-    const observations: Array<{ title: string; description?: string }> = [];
-    (sess.checkpoints || []).forEach((cp: any) => {
-      cp.subTaskResponses?.forEach((str: any) => {
-        if (str.remarks || str.images?.length) {
-          observations.push({
-            title: `Checkpoint: ${cp.gate?.name || 'Gate'} — Subtask Remark`,
-            description: str.remarks || undefined,
-          });
-        }
-      });
-    });
+    const observations: Array<{ title: string; description?: string }> =
+      extractPatrolObservations(sess).map((obs) => ({
+        title: obs.title,
+        description: obs.description,
+      }));
 
     totalCheckpointsScanned += scannedExpectedCount;
     totalCheckpointsCount += totalGates;

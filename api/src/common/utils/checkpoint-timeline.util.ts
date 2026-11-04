@@ -80,21 +80,31 @@ export function buildCheckpointEntry(
 
   const responseMap = new Map<string, any>();
   for (const res of responses) {
-    const key = res.gateSubTaskId || res.id;
-    if (key) responseMap.set(key, res);
+    if (res.gateSubTaskId) responseMap.set(res.gateSubTaskId, res);
+    if (res.id) responseMap.set(res.id, res);
+    if (res.taskNameSnapshot) {
+      responseMap.set(res.taskNameSnapshot.trim().toLowerCase(), res);
+    }
+    if (res.gateSubTask?.taskName) {
+      responseMap.set(res.gateSubTask.taskName.trim().toLowerCase(), res);
+    }
   }
 
   const combinedTasks: CheckpointTimelineTask[] = [];
+  const matchedResponseIds = new Set<string>();
 
   if (configuredTasks.length > 0) {
     for (const st of configuredTasks) {
-      const res = responseMap.get(st.id);
+      const normalizedTaskName = st.taskName ? st.taskName.trim().toLowerCase() : '';
+      const res = responseMap.get(st.id) || (normalizedTaskName ? responseMap.get(normalizedTaskName) : undefined);
       if (res) {
+        if (res.id) matchedResponseIds.add(res.id);
+        if (res.gateSubTaskId) matchedResponseIds.add(res.gateSubTaskId);
         combinedTasks.push({
           id: st.id,
-          title: st.taskName || res.taskNameSnapshot || 'Verification Task',
-          role: st.role || 'SECURITY',
-          isRequired: st.isRequired ?? false,
+          title: res.taskNameSnapshot || st.taskName || res.gateSubTask?.taskName || 'Verification Task',
+          role: res.roleSnapshot || st.role || 'SECURITY',
+          isRequired: st.isRequired ?? res.isRequiredSnapshot ?? false,
           answer: res.answer || 'UNANSWERED',
           remarks: res.remarks || null,
           images: Array.isArray(res.images) ? res.images : [],
@@ -115,13 +125,31 @@ export function buildCheckpointEntry(
         });
       }
     }
+
+    // Append any unmapped submitted responses that weren't in configuredTasks
+    for (const res of responses) {
+      const isAlreadyMatched = (res.id && matchedResponseIds.has(res.id)) || (res.gateSubTaskId && matchedResponseIds.has(res.gateSubTaskId));
+      if (!isAlreadyMatched) {
+        combinedTasks.push({
+          id: res.id || res.gateSubTaskId,
+          title: res.taskNameSnapshot || res.gateSubTask?.taskName || res.taskName || 'Verification Task',
+          role: res.roleSnapshot || res.gateSubTask?.role || res.role || 'SECURITY',
+          isRequired: res.isRequiredSnapshot ?? res.gateSubTask?.isRequired ?? false,
+          answer: res.answer || 'UNANSWERED',
+          remarks: res.remarks || null,
+          images: Array.isArray(res.images) ? res.images : [],
+          answeredAt: res.answeredAt || res.createdAt || null,
+          submittedBy: guardName,
+        });
+      }
+    }
   } else if (responses.length > 0) {
     for (const res of responses) {
       combinedTasks.push({
         id: res.id || res.gateSubTaskId,
-        title: res.gateSubTask?.taskName || res.taskNameSnapshot || res.taskName || 'Verification Task',
-        role: res.gateSubTask?.role || res.roleSnapshot || res.role || 'SECURITY',
-        isRequired: res.gateSubTask?.isRequired ?? res.isRequiredSnapshot ?? res.isRequired ?? false,
+        title: res.taskNameSnapshot || res.gateSubTask?.taskName || res.taskName || 'Verification Task',
+        role: res.roleSnapshot || res.gateSubTask?.role || res.role || 'SECURITY',
+        isRequired: res.isRequiredSnapshot ?? res.gateSubTask?.isRequired ?? false,
         answer: res.answer || 'UNANSWERED',
         remarks: res.remarks || null,
         images: Array.isArray(res.images) ? res.images : [],
