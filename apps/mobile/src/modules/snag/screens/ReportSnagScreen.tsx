@@ -102,9 +102,14 @@ export function ReportSnagScreen() {
 
     try {
       if (cameraRef.current) {
-        const photo = await cameraRef.current.takePhoto({
-          enableShutterSound: false,
-        });
+        let photo: any;
+        try {
+          photo = await cameraRef.current.takeSnapshot({ quality: 85 });
+        } catch (snapErr) {
+          photo = await cameraRef.current.takePhoto({
+            enableShutterSound: false,
+          });
+        }
 
         if (photo?.path) {
           const response = await fetch(`file://${photo.path}`);
@@ -167,7 +172,20 @@ export function ReportSnagScreen() {
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (err: any) {
-      Alert.alert('Submission Error', err.message || 'Failed to submit snag report.');
+      const is413 =
+        err?.response?.status === 413 ||
+        err?.status === 413 ||
+        err?.message?.includes('413') ||
+        (err?.code === 'ERR_BAD_RESPONSE' && err?.response?.status === 413);
+
+      if (is413) {
+        Alert.alert(
+          'Upload Size Exceeded (413)',
+          'The attached photos are too large for the server. Please retake the photos or reduce the number of photos and try again.',
+        );
+      } else {
+        Alert.alert('Submission Error', err.message || 'Failed to submit snag report.');
+      }
     }
   };
 

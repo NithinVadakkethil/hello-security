@@ -3,6 +3,7 @@ import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 import { CurrentUser } from '../../common/auth/current-user';
 import { getSupervisorScope } from '../../common/auth/supervisor-scope';
+import { processImagesList } from '../../common/utils/file-upload.util';
 import { incidentRepository } from './incident.repository';
 
 export class IncidentService {
@@ -12,6 +13,9 @@ export class IncidentService {
     description: string;
     images?: string[];
   }) {
+    if (data.images && data.images.length > 0) {
+      data.images = await processImagesList(data.images, 'incident');
+    }
     return incidentRepository.create({
       clientId,
       employeeId,

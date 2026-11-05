@@ -12,6 +12,7 @@ import {
   Lock,
   ShieldAlert,
   Unlock,
+  X,
 } from 'lucide-react-native';
 import React, {
   useCallback,
@@ -24,6 +25,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Image,
   Modal,
   Platform,
   RefreshControl,
@@ -75,7 +77,7 @@ interface VerificationTaskItemProps {
   };
   onAnswerChange: (taskId: string, answer: 'YES' | 'NO') => void;
   onRemarksChange: (taskId: string, remarks: string) => void;
-  onRemoveImage: (taskId: string) => void;
+  onRemoveImage: (taskId: string, imageIndex?: number) => void;
   onOpenCamera: (taskId: string) => void;
   colors: any;
 }
@@ -294,7 +296,7 @@ const VerificationTaskItem = React.memo(
           </TouchableOpacity>
         </View>
 
-        {/* IF NO IS SELECTED: SHOW OPTIONAL DESCRIPTION FIELD BELOW SUBTASK */}
+        {/* IF NO IS SELECTED: SHOW REQUIRED DESCRIPTION AND LIVE CAMERA EVIDENCE */}
         {isNo && (
           <View
             style={{
@@ -304,21 +306,43 @@ const VerificationTaskItem = React.memo(
               borderTopColor: colors.border,
             }}
           >
-            <Text
+            {/* Reason / Remarks Field */}
+            <View
               style={{
-                fontSize: 12,
-                fontWeight: '700',
-                color: colors.text,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 marginBottom: 6,
               }}
             >
-              Description (Optional)
-            </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: '700',
+                  color: isNo ? '#ef4444' : colors.text,
+                }}
+              >
+                Reason / Description *
+              </Text>
+              {!currentResp.remarks?.trim() && (
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: '#ef4444',
+                    fontWeight: '600',
+                  }}
+                >
+                  Required
+                </Text>
+              )}
+            </View>
             <TextInput
               style={{
                 fontSize: 13,
                 color: colors.text,
-                borderColor: colors.border,
+                borderColor: !currentResp.remarks?.trim()
+                  ? '#ef444480'
+                  : colors.border,
                 borderWidth: 1.5,
                 borderRadius: 8,
                 paddingHorizontal: 12,
@@ -326,13 +350,198 @@ const VerificationTaskItem = React.memo(
                 backgroundColor: colors.background,
                 minHeight: 54,
               }}
-              placeholder="Enter description..."
+              placeholder="Describe the reason or issue for this failed task..."
               placeholderTextColor={colors.textSecondary}
               value={currentResp.remarks}
               multiline
               maxLength={1000}
               onChangeText={txt => onRemarksChange(task.id, txt)}
             />
+
+            {/* Live Camera Evidence Section */}
+            <View style={{ marginTop: 14 }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 6,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '700',
+                    color:
+                      (currentResp.images?.length || 0) < 1
+                        ? '#ef4444'
+                        : colors.text,
+                  }}
+                >
+                  Live Camera Evidence *
+                </Text>
+                <View
+                  style={{
+                    backgroundColor:
+                      (currentResp.images?.length || 0) > 0
+                        ? '#10b98120'
+                        : '#ef444420',
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 4,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: '700',
+                      color:
+                        (currentResp.images?.length || 0) > 0
+                          ? '#10b981'
+                          : '#ef4444',
+                    }}
+                  >
+                    {(currentResp.images?.length || 0) > 0
+                      ? `${currentResp.images?.length}/5 Attached`
+                      : 'Evidence Required'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Display Captured Image Thumbnails Grid */}
+              {currentResp.images && currentResp.images.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginBottom: 10, marginTop: 4 }}
+                >
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10,
+                      paddingVertical: 4,
+                    }}
+                  >
+                    {currentResp.images.map((imgUri: string, imgIdx: number) => (
+                      <View key={imgIdx} style={{ position: 'relative' }}>
+                        <Image
+                          source={{ uri: imgUri }}
+                          style={{
+                            width: 76,
+                            height: 76,
+                            borderRadius: 8,
+                            borderWidth: 1.5,
+                            borderColor: colors.border,
+                          }}
+                        />
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          style={{
+                            position: 'absolute',
+                            top: -6,
+                            right: -6,
+                            backgroundColor: '#ef4444',
+                            borderRadius: 11,
+                            width: 22,
+                            height: 22,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderWidth: 1.5,
+                            borderColor: '#ffffff',
+                          }}
+                          onPress={() => onRemoveImage(task.id, imgIdx)}
+                        >
+                          <X size={12} color="#ffffff" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+              )}
+
+              {/* Capture Button or Maximum Limit Notice */}
+              {(currentResp.images || []).length < 5 ? (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    backgroundColor:
+                      (currentResp.images || []).length === 0
+                        ? '#ef444410'
+                        : colors.primary + '10',
+                    borderColor:
+                      (currentResp.images || []).length === 0
+                        ? '#ef4444'
+                        : colors.primary,
+                    borderWidth: 1.5,
+                    borderStyle: 'dashed',
+                    borderRadius: 10,
+                    paddingVertical: 12,
+                    marginTop: 4,
+                  }}
+                  onPress={() => onOpenCamera(task.id)}
+                >
+                  <CameraIcon
+                    size={18}
+                    color={
+                      (currentResp.images || []).length === 0
+                        ? '#ef4444'
+                        : colors.primary
+                    }
+                  />
+                  <Text
+                    style={{
+                      color:
+                        (currentResp.images || []).length === 0
+                          ? '#ef4444'
+                          : colors.primary,
+                      fontSize: 13,
+                      fontWeight: '700',
+                    }}
+                  >
+                    {(currentResp.images || []).length > 0
+                      ? '+ Capture Another Live Photo'
+                      : 'Capture Live Evidence Photo *'}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View
+                  style={{
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    paddingVertical: 10,
+                    alignItems: 'center',
+                    marginTop: 4,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: '600',
+                      color: colors.textSecondary,
+                    }}
+                  >
+                    Maximum 5 evidence photos attached.
+                  </Text>
+                </View>
+              )}
+
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: colors.textSecondary,
+                  marginTop: 6,
+                }}
+              >
+                📸 Only live camera capture is accepted. Gallery selection is disabled.
+              </Text>
+            </View>
           </View>
         )}
       </View>
@@ -621,9 +830,14 @@ export function PatrolScreen() {
 
     try {
       if (cameraRef.current) {
-        const photo = await cameraRef.current.takePhoto({
-          enableShutterSound: false,
-        });
+        let photo: any;
+        try {
+          photo = await cameraRef.current.takeSnapshot({ quality: 85 });
+        } catch (snapErr) {
+          photo = await cameraRef.current.takePhoto({
+            enableShutterSound: false,
+          });
+        }
 
         if (photo?.path) {
           const response = await fetch(`file://${photo.path}`);
@@ -1052,7 +1266,7 @@ export function PatrolScreen() {
                       ? val.remarks?.trim() || undefined
                       : undefined,
                   images:
-                    val.images && val.images.length > 0
+                    val.answer === 'NO' && val.images && val.images.length > 0
                       ? val.images
                       : undefined,
                 };

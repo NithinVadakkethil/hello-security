@@ -4,12 +4,16 @@ import { HttpStatus } from '../../common/errors/HttpStatus';
 import { OPERATIONAL_ROLES } from '../../common/auth/constants';
 import { CurrentUser } from '../../common/auth/current-user';
 import { getSupervisorScope } from '../../common/auth/supervisor-scope';
+import { processImagesList } from '../../common/utils/file-upload.util';
 import { auditLogRepository } from '../audit-log/audit-log.repository';
 import { snagRepository } from './snag.repository';
 import { AddSnagCommentDto, AssignSnagDto, CompleteSnagJobDto, CreateSnagDto, SnagFilterDto, UpdateSnagStatusDto } from './snag.types';
 
 export class SnagService {
   async create(clientId: string, employeeId: string, userId: string, dto: CreateSnagDto) {
+    if (dto.images && dto.images.length > 0) {
+      dto.images = await processImagesList(dto.images, 'snag');
+    }
     const snag = await snagRepository.create(clientId, employeeId, dto);
 
     await auditLogRepository.create({
@@ -130,6 +134,17 @@ export class SnagService {
 
     if (snag.status === 'RESOLVED' || snag.status === 'CLOSED') {
       return snag;
+    }
+
+    if (dto.images && dto.images.length > 0) {
+      dto.images = await processImagesList(dto.images, 'snag-resolution');
+    }
+    if (dto.subTaskResponses && dto.subTaskResponses.length > 0) {
+      for (const st of dto.subTaskResponses) {
+        if (st.images && st.images.length > 0) {
+          st.images = await processImagesList(st.images, 'snag-subtask');
+        }
+      }
     }
 
     const updated = await snagRepository.completeJob(id, userId, dto);
