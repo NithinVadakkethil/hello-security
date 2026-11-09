@@ -107,12 +107,16 @@ export class PatrolSessionController {
 
   async complete(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
       const body = completePatrolSchema.parse(req.body);
 
       const result = await patrolSessionService.complete(
         req.params.id as string,
         body.remarks,
         body.endedAt || body.completedAt,
+        employeeId,
+        user.tenantId || undefined,
       );
 
       return res.json({

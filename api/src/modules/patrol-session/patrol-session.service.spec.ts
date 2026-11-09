@@ -120,5 +120,100 @@ describe('PatrolSession Lifecycle & Cancellation Logic', () => {
       expect(cancelSpy).toHaveBeenCalledWith('session-zero-complete');
       expect(result).toEqual({ id: 'session-zero-complete', status: PatrolStatus.CANCELLED });
     });
+
+    it('should fallback to employee active running patrol session when offline ID is not found in database', async () => {
+      const mockRunningSession = {
+        id: 'cmw8psnua6a82hpxu8zid97p9',
+        patrolCode: 'PATROL-SESSION-000791',
+        status: PatrolStatus.IN_PROGRESS,
+        startedAt: new Date(Date.now() - 60000),
+        clientId: 'cli_marina_101',
+      };
+
+      jest.spyOn(patrolSessionRepository, 'findById').mockResolvedValue(null);
+      jest.spyOn(prisma.patrolSession, 'findMany').mockResolvedValue([mockRunningSession] as any);
+      jest.spyOn(prisma.patrolCheckpoint, 'count').mockResolvedValue(18);
+      jest.spyOn(patrolSessionRepository, 'update').mockResolvedValue({
+        ...mockRunningSession,
+        status: PatrolStatus.COMPLETED,
+        totalDuration: 60,
+      } as any);
+
+      const result = await patrolSessionService.complete(
+        'offline-session-1794026574949-735',
+        'Completed Patrol Sweep.',
+        undefined,
+        'cmuwpqz5g01xkhp87mi8wnydh',
+        'cli_marina_101',
+      );
+
+      expect(patrolSessionRepository.findById).toHaveBeenCalledWith('offline-session-1794026574949-735');
+      expect(prisma.patrolSession.findMany).toHaveBeenCalled();
+      expect(result.status).toBe(PatrolStatus.COMPLETED);
+      expect(result.id).toBe('cmw8psnua6a82hpxu8zid97p9');
+    });
+
+    it('should reject with 409 conflict if multiple active sessions match ambiguously', async () => {
+      const session1 = { id: 'session-1', status: PatrolStatus.IN_PROGRESS, clientId: 'cli_1' };
+      const session2 = { id: 'session-2', status: PatrolStatus.IN_PROGRESS, clientId: 'cli_1' };
+
+      jest.spyOn(patrolSessionRepository, 'findById').mockResolvedValue(null);
+      jest.spyOn(prisma.patrolSession, 'findMany').mockResolvedValue([session1, session2] as any);
+
+      await expect(
+        patrolSessionService.complete(
+          'offline-session-ambiguous',
+          'Completed',
+          undefined,
+          'emp-1',
+          'cli_1',
+        ),
+      ).rejects.toThrow('Multiple active patrol sessions found for employee');
+    });
+
+    it('should reject with 403 forbidden if resolved session belongs to a different client tenant', async () => {
+      const mockSessionOtherClient = {
+        id: 'session-other-client',
+        status: PatrolStatus.IN_PROGRESS,
+        clientId: 'cli_other_client',
+      };
+
+      jest.spyOn(patrolSessionRepository, 'findById').mockResolvedValue(mockSessionOtherClient as any);
+
+      await expect(
+        patrolSessionService.complete(
+          'session-other-client',
+          'Completed',
+          undefined,
+          'emp-1',
+          'cli_marina_101',
+        ),
+      ).rejects.toThrow('Unauthorized access to patrol session.');
+    });
+
+    it('should return already completed session idempotently on retries', async () => {
+      const completedSession = {
+        id: 'session-already-completed',
+        patrolCode: 'PATROL-SESSION-000790',
+        status: PatrolStatus.COMPLETED,
+        endedAt: new Date(),
+        clientId: 'cli_marina_101',
+      };
+
+      jest.spyOn(patrolSessionRepository, 'findById').mockResolvedValue(null);
+      jest.spyOn(prisma.patrolSession, 'findMany').mockResolvedValue([]);
+      jest.spyOn(prisma.patrolSession, 'findFirst').mockResolvedValue(completedSession as any);
+
+      const result = await patrolSessionService.complete(
+        'offline-session-retry',
+        'Completed',
+        undefined,
+        'cmuwpqz5g01xkhp87mi8wnydh',
+        'cli_marina_101',
+      );
+
+      expect(result.status).toBe(PatrolStatus.COMPLETED);
+      expect(result.id).toBe('session-already-completed');
+    });
   });
 });

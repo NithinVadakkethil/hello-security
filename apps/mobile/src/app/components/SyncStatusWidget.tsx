@@ -87,6 +87,11 @@ export function SyncStatusWidget() {
               Last Sync: {new Date(lastSyncTime).toLocaleTimeString()}
             </Text>
           )}
+          {queue.some((m) => m.lastError && m.status === 'pending') && (
+            <Text style={{ fontSize: 11, color: colors.warning, marginTop: 4 }}>
+              Status: {queue.find((m) => m.lastError && m.status === 'pending')?.lastError}
+            </Text>
+          )}
         </View>
       )}
 
