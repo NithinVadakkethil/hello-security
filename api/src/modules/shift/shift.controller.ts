@@ -55,7 +55,8 @@ export class ShiftController {
 
   async get(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await shiftService.get(req.params.id as string);
+      const user = currentUser(req);
+      const result = await shiftService.get(req.params.id as string, user);
       return res.json({
         success: true,
         data: result,
@@ -67,8 +68,9 @@ export class ShiftController {
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const body = updateShiftSchema.parse(req.body);
-      const result = await shiftService.update(req.params.id as string, body);
+      const result = await shiftService.update(req.params.id as string, body, user);
       return res.json({
         success: true,
         data: result,
@@ -80,7 +82,8 @@ export class ShiftController {
 
   async activate(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await shiftService.activate(req.params.id as string);
+      const user = currentUser(req);
+      const result = await shiftService.activate(req.params.id as string, user);
       return res.json({
         success: true,
         data: result,
@@ -92,7 +95,8 @@ export class ShiftController {
 
   async deactivate(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await shiftService.deactivate(req.params.id as string);
+      const user = currentUser(req);
+      const result = await shiftService.deactivate(req.params.id as string, user);
       return res.json({
         success: true,
         data: result,

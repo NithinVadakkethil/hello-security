@@ -22,6 +22,8 @@ import {
 } from './patrol-route.types';
 import { hydrateGateSubTasks } from '../assignment/assignment.service';
 import { GATE_SUBTASKS_INCLUDE } from '../assignment/assignment.repository';
+import { CurrentUser } from '../../common/auth/current-user';
+import { assertTenantAccess } from '../../common/auth/tenant-access';
 
 function formatRoute(route: any) {
   if (!route) return route;
@@ -199,7 +201,7 @@ export class PatrolRouteService {
     return routes.map((r: any) => formatRoute(r));
   }
 
-  async get(id: string) {
+  async get(id: string, user?: CurrentUser) {
     const route = await patrolRouteRepository.findById(id);
 
     if (!route) {
@@ -210,11 +212,17 @@ export class PatrolRouteService {
       );
     }
 
+    await assertTenantAccess(
+      user,
+      route.clientId,
+      'Access denied. Patrol route does not belong to your organization.',
+    );
+
     return formatRoute(route);
   }
 
-  async update(id: string, dto: UpdatePatrolRouteDto) {
-    const route = await this.get(id);
+  async update(id: string, dto: UpdatePatrolRouteDto, user?: CurrentUser) {
+    const route = await this.get(id, user);
 
     if (dto.name && dto.name !== route.name) {
       const existing = await patrolRouteRepository.findByName(
@@ -333,8 +341,8 @@ export class PatrolRouteService {
     });
   }
 
-  async activate(id: string) {
-    await this.get(id);
+  async activate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await patrolRouteRepository.activate(id);
 
@@ -343,8 +351,8 @@ export class PatrolRouteService {
     };
   }
 
-  async deactivate(id: string) {
-    await this.get(id);
+  async deactivate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await patrolRouteRepository.deactivate(id);
 

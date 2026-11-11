@@ -157,6 +157,14 @@ export class AuthService {
       );
     }
 
+    if (!user.isActive) {
+      throw new AppError(
+        HttpStatus.FORBIDDEN,
+        ErrorCodes.FORBIDDEN,
+        'Your account is disabled.',
+      );
+    }
+
     const tokens = await authRepository.findRefreshTokensByUser(user.id);
 
     let matched = false;
@@ -341,6 +349,14 @@ export class AuthService {
         HttpStatus.UNAUTHORIZED,
         ErrorCodes.INVALID_CREDENTIALS,
         'Invalid email or password.',
+      );
+    }
+
+    if (!user.isActive) {
+      throw new AppError(
+        HttpStatus.FORBIDDEN,
+        ErrorCodes.FORBIDDEN,
+        'Your account is disabled.',
       );
     }
 

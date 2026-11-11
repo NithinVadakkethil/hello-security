@@ -62,7 +62,8 @@ export class SiteController {
 
   async get(req: Request, res: Response, next: NextFunction) {
     try {
-      const site = await siteService.get(req.params.id as string);
+      const user = currentUser(req);
+      const site = await siteService.get(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -75,9 +76,10 @@ export class SiteController {
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const body = updateSiteSchema.parse(req.body);
 
-      const site = await siteService.update(req.params.id as string, body);
+      const site = await siteService.update(req.params.id as string, body, user);
 
       return res.json({
         success: true,
@@ -90,7 +92,8 @@ export class SiteController {
 
   async activate(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await siteService.activate(req.params.id as string);
+      const user = currentUser(req);
+      const result = await siteService.activate(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -103,7 +106,8 @@ export class SiteController {
 
   async deactivate(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await siteService.deactivate(req.params.id as string);
+      const user = currentUser(req);
+      const result = await siteService.deactivate(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -116,7 +120,11 @@ export class SiteController {
 
   async downloadImportTemplate(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const siteId = (req.params.id || req.query.siteId) as string | undefined;
+      if (siteId) {
+        await siteService.get(siteId, user);
+      }
       const { buffer } = await siteImportService.generateTemplateBuffer(siteId);
 
       const filename = siteId ? `checkpoint_import_site_${siteId}.xlsx` : 'checkpoint_import_template.xlsx';

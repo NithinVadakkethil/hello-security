@@ -11,6 +11,8 @@ import { generateCode } from '../../common/utils/code-generator';
 import { shiftRepository } from './shift.repository';
 
 import { CreateShiftDto, UpdateShiftDto } from './shift.types';
+import { CurrentUser } from '../../common/auth/current-user';
+import { assertTenantAccess } from '../../common/auth/tenant-access';
 
 import { prisma } from '../../database/prisma';
 
@@ -74,7 +76,7 @@ export class ShiftService {
     return shiftRepository.list(clientId, isActive, siteId);
   }
 
-  async get(id: string) {
+  async get(id: string, user?: CurrentUser) {
     const shift = await shiftRepository.findById(id);
 
     if (!shift) {
@@ -85,11 +87,17 @@ export class ShiftService {
       );
     }
 
+    await assertTenantAccess(
+      user,
+      shift.clientId,
+      'Access denied. Shift does not belong to your organization.',
+    );
+
     return shift;
   }
 
-  async update(id: string, dto: UpdateShiftDto) {
-    const shift = await this.get(id);
+  async update(id: string, dto: UpdateShiftDto, user?: CurrentUser) {
+    const shift = await this.get(id, user);
 
     if (dto.name && dto.name !== shift.name) {
       const existing = await shiftRepository.findByName(
@@ -117,8 +125,8 @@ export class ShiftService {
     return shiftRepository.update(id, dto);
   }
 
-  async activate(id: string) {
-    await this.get(id);
+  async activate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await shiftRepository.activate(id);
 
@@ -127,8 +135,8 @@ export class ShiftService {
     };
   }
 
-  async deactivate(id: string) {
-    await this.get(id);
+  async deactivate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await shiftRepository.deactivate(id);
 

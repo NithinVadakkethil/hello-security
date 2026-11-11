@@ -13,6 +13,7 @@ import { mandatoryPatrolService } from '../mandatory-patrol/mandatory-patrol.ser
 import { notificationService } from '../notification/notification.service';
 import { CurrentUser } from '../../common/auth/current-user';
 import { getSupervisorScope } from '../../common/auth/supervisor-scope';
+import { assertTenantAccess } from '../../common/auth/tenant-access';
 import { ListPatrolSessionsQuery } from './patrol-session.types';
 
 export class PatrolSessionService {
@@ -163,7 +164,7 @@ export class PatrolSessionService {
     return patrolSessionRepository.list(clientId, query);
   }
 
-  async pause(id: string) {
+  async pause(id: string, user?: CurrentUser) {
     const patrol = await patrolSessionRepository.findById(id);
 
     if (!patrol) {
@@ -173,6 +174,12 @@ export class PatrolSessionService {
         'Patrol not found.',
       );
     }
+
+    await assertTenantAccess(
+      user,
+      patrol.clientId,
+      'Access denied. Patrol session does not belong to your organization.',
+    );
 
     if (patrol.status !== PatrolStatus.IN_PROGRESS) {
       throw new AppError(
@@ -188,7 +195,7 @@ export class PatrolSessionService {
     });
   }
 
-  async resume(id: string) {
+  async resume(id: string, user?: CurrentUser) {
     const patrol = await patrolSessionRepository.findById(id);
 
     if (!patrol) {
@@ -198,6 +205,12 @@ export class PatrolSessionService {
         'Patrol not found.',
       );
     }
+
+    await assertTenantAccess(
+      user,
+      patrol.clientId,
+      'Access denied. Patrol session does not belong to your organization.',
+    );
 
     if (patrol.status !== PatrolStatus.PAUSED) {
       throw new AppError(
@@ -392,13 +405,29 @@ export class PatrolSessionService {
     return completedPatrol;
   }
 
-  async cancel(id: string) {
+  async cancel(id: string, user?: CurrentUser) {
+    if (user) {
+      const patrol = await patrolSessionRepository.findById(id);
+      if (patrol) {
+        await assertTenantAccess(
+          user,
+          patrol.clientId,
+          'Access denied. Patrol session does not belong to your organization.',
+        );
+      }
+    }
     return patrolSessionRepository.cancel(id);
   }
 
   async findById(id: string, user?: CurrentUser) {
     const session = await patrolSessionRepository.findFullById(id);
     if (!session) return null;
+
+    await assertTenantAccess(
+      user,
+      session.clientId,
+      'Access denied. Patrol session does not belong to your organization.',
+    );
 
     if (user && user.role === 'SUPERVISOR') {
       const scope = getSupervisorScope(user);
@@ -433,6 +462,12 @@ export class PatrolSessionService {
         'Patrol session not found.',
       );
     }
+
+    await assertTenantAccess(
+      user,
+      patrol.clientId,
+      'Access denied. Patrol session does not belong to your organization.',
+    );
 
     if (user && user.role === 'SUPERVISOR') {
       const scope = getSupervisorScope(user);

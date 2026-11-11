@@ -81,7 +81,8 @@ export class PatrolSessionController {
 
   async pause(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await patrolSessionService.pause(req.params.id as string);
+      const user = currentUser(req);
+      const result = await patrolSessionService.pause(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -94,7 +95,8 @@ export class PatrolSessionController {
 
   async resume(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await patrolSessionService.resume(req.params.id as string);
+      const user = currentUser(req);
+      const result = await patrolSessionService.resume(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -203,7 +205,8 @@ export class PatrolSessionController {
 
   async cancel(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await patrolSessionService.cancel(req.params.id as string);
+      const user = currentUser(req);
+      const result = await patrolSessionService.cancel(req.params.id as string, user);
 
       return res.json({
         success: true,

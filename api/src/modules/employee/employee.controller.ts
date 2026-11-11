@@ -47,7 +47,8 @@ export class EmployeeController {
 
   async get(req: Request, res: Response, next: NextFunction) {
     try {
-      const employee = await employeeService.get(req.params.id as string);
+      const user = currentUser(req);
+      const employee = await employeeService.get(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -60,11 +61,13 @@ export class EmployeeController {
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const body = updateEmployeeSchema.parse(req.body);
 
       const employee = await employeeService.update(
         req.params.id as string,
         body,
+        user,
       );
 
       return res.json({
@@ -78,9 +81,10 @@ export class EmployeeController {
 
   async deactivate(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const id = String(req.params.id);
 
-      const result = await employeeService.deactivate(id);
+      const result = await employeeService.deactivate(id, user);
 
       return res.json({
         success: true,
@@ -93,9 +97,10 @@ export class EmployeeController {
 
   async activate(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const id = String(req.params.id);
 
-      const result = await employeeService.activate(id);
+      const result = await employeeService.activate(id, user);
 
       return res.json({
         success: true,
@@ -108,7 +113,8 @@ export class EmployeeController {
 
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
-      await employeeService.delete(req.params.id as string);
+      const user = currentUser(req);
+      await employeeService.delete(req.params.id as string, user);
 
       return res.json({
         success: true,

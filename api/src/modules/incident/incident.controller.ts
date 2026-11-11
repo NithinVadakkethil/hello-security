@@ -121,10 +121,11 @@ export class IncidentController {
 
   async updateStatus(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const { id } = req.params;
       const { status } = req.body;
 
-      const result = await incidentService.updateStatus(id as string, status as string);
+      const result = await incidentService.updateStatus(id as string, status as string, user);
 
       return res.json({
         success: true,

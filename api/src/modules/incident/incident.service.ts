@@ -3,6 +3,7 @@ import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 import { CurrentUser } from '../../common/auth/current-user';
 import { getSupervisorScope } from '../../common/auth/supervisor-scope';
+import { assertTenantAccess } from '../../common/auth/tenant-access';
 import { incidentRepository } from './incident.repository';
 
 export class IncidentService {
@@ -28,6 +29,12 @@ export class IncidentService {
     const incident = await incidentRepository.findById(id);
     if (!incident) return null;
 
+    await assertTenantAccess(
+      user,
+      incident.clientId,
+      'Access denied. Observation report does not belong to your organization.',
+    );
+
     if (user && user.role === 'SUPERVISOR') {
       const scope = getSupervisorScope(user);
       if (scope && incident.employee?.role !== scope.supervisedRole) {
@@ -42,7 +49,7 @@ export class IncidentService {
     return incident;
   }
 
-  async updateStatus(id: string, status: string) {
+  async updateStatus(id: string, status: string, user?: CurrentUser) {
     const validStatuses = ['OPEN', 'REVIEWED', 'RESOLVED', 'CLOSED'];
     if (!validStatuses.includes(status.toUpperCase())) {
       throw new AppError(
@@ -60,6 +67,12 @@ export class IncidentService {
         'Observation report not found.',
       );
     }
+
+    await assertTenantAccess(
+      user,
+      incident.clientId,
+      'Access denied. Observation report does not belong to your organization.',
+    );
 
     return incidentRepository.updateStatus(id, status.toUpperCase());
   }

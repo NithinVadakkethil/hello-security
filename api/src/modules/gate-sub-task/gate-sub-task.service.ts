@@ -2,13 +2,33 @@ import { UserRole } from '@prisma/client';
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
+import { CurrentUser } from '../../common/auth/current-user';
+import { assertTenantAccess, getAuthorizedClientIds } from '../../common/auth/tenant-access';
 import { gateSubTaskRepository } from './gate-sub-task.repository';
 import { CreateGateSubTaskDto, UpdateGateSubTaskDto } from './gate-sub-task.types';
 import { auditLogService } from '../audit-log/audit-log.service';
 import { prisma } from '../../database/prisma';
 
-export async function resolveGateRecord(gateIdInput: string) {
+export async function resolveGateRecord(
+  gateIdInput: string,
+  scopedClientIds?: string[] | null,
+) {
   if (!gateIdInput) return null;
+
+  if (scopedClientIds && scopedClientIds.length > 0) {
+    const scopedMatch = await prisma.gate.findFirst({
+      where: {
+        OR: [
+          { id: gateIdInput },
+          { qrCode: gateIdInput },
+          { gateCode: gateIdInput, site: { clientId: { in: scopedClientIds } } },
+        ],
+      },
+      include: { site: true },
+    });
+    if (scopedMatch) return scopedMatch;
+  }
+
   return prisma.gate.findFirst({
     where: {
       OR: [
@@ -90,11 +110,31 @@ export async function ensureGateSubTasksFromMaster(
 }
 
 export class GateSubTaskService {
-  async create(gateIdInput: string, dto: CreateGateSubTaskDto, userId?: string, clientId?: string) {
-    const gate = await resolveGateRecord(gateIdInput);
+  private async resolveAuthorizedGate(gateIdInput: string, user?: CurrentUser) {
+    const scopedClientIds = user ? await getAuthorizedClientIds(user) : undefined;
+    const gate = await resolveGateRecord(gateIdInput, scopedClientIds);
     if (!gate) {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
     }
+
+    await assertTenantAccess(
+      user,
+      gate.site?.clientId,
+      'Access denied. Gate does not belong to your organization.',
+    );
+
+    return gate;
+  }
+
+  async create(
+    gateIdInput: string,
+    dto: CreateGateSubTaskDto,
+    userId?: string,
+    clientId?: string,
+    user?: CurrentUser,
+  ) {
+    const gate = await this.resolveAuthorizedGate(gateIdInput, user);
+    const auditClientId = clientId || gate.site?.clientId;
 
     const role = dto.role || 'SECURITY';
     const existing = await gateSubTaskRepository.findByGateAndNameAndRole(gate.id, dto.taskName.trim(), role);
@@ -108,10 +148,10 @@ export class GateSubTaskService {
 
     const subTask = await gateSubTaskRepository.create(gate.id, dto);
 
-    if (userId && clientId) {
+    if (userId && auditClientId) {
       await auditLogService.create({
         userId,
-        clientId,
+        clientId: auditClientId,
         action: 'CREATE',
         entity: 'GateSubTask',
         entityId: subTask.id,
@@ -121,11 +161,8 @@ export class GateSubTaskService {
     return subTask;
   }
 
-  async list(gateIdInput: string, onlyActive = true, role?: UserRole) {
-    const gate = await resolveGateRecord(gateIdInput);
-    if (!gate) {
-      throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
-    }
+  async list(gateIdInput: string, onlyActive = true, role?: UserRole, user?: CurrentUser) {
+    const gate = await this.resolveAuthorizedGate(gateIdInput, user);
 
     if (gate.categoryId) {
       const categorySubTasks = await prisma.categorySubTask.findMany({
@@ -161,16 +198,30 @@ export class GateSubTaskService {
     return gateSubTaskRepository.listByGate(gate.id, onlyActive, role);
   }
 
-  async get(id: string) {
+  async get(id: string, user?: CurrentUser) {
     const subTask = await gateSubTaskRepository.findById(id);
     if (!subTask) {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate sub-task not found.');
     }
+
+    await assertTenantAccess(
+      user,
+      (subTask as any).gate?.site?.clientId,
+      'Access denied. Gate sub-task does not belong to your organization.',
+    );
+
     return subTask;
   }
 
-  async update(id: string, dto: UpdateGateSubTaskDto, userId?: string, clientId?: string) {
-    const subTask = await this.get(id);
+  async update(
+    id: string,
+    dto: UpdateGateSubTaskDto,
+    userId?: string,
+    clientId?: string,
+    user?: CurrentUser,
+  ) {
+    const subTask = await this.get(id, user);
+    const auditClientId = clientId || (subTask as any).gate?.site?.clientId;
     const targetRole = dto.role || subTask.role;
 
     if (dto.taskName && (dto.taskName.trim().toLowerCase() !== subTask.taskName.toLowerCase() || targetRole !== subTask.role)) {
@@ -186,10 +237,10 @@ export class GateSubTaskService {
 
     const updated = await gateSubTaskRepository.update(id, dto);
 
-    if (userId && clientId) {
+    if (userId && auditClientId) {
       await auditLogService.create({
         userId,
-        clientId,
+        clientId: auditClientId,
         action: 'UPDATE',
         entity: 'GateSubTask',
         entityId: updated.id,
@@ -199,15 +250,16 @@ export class GateSubTaskService {
     return updated;
   }
 
-  async delete(id: string, userId?: string, clientId?: string) {
-    await this.get(id);
+  async delete(id: string, userId?: string, clientId?: string, user?: CurrentUser) {
+    const subTask = await this.get(id, user);
+    const auditClientId = clientId || (subTask as any).gate?.site?.clientId;
 
     await gateSubTaskRepository.update(id, { isActive: false });
 
-    if (userId && clientId) {
+    if (userId && auditClientId) {
       await auditLogService.create({
         userId,
-        clientId,
+        clientId: auditClientId,
         action: 'DELETE',
         entity: 'GateSubTask',
         entityId: id,
@@ -217,18 +269,36 @@ export class GateSubTaskService {
     return { success: true, id };
   }
 
-  async reorder(gateIdInput: string, dto: { subTasks: Array<{ id: string; displayOrder: number }> }, userId?: string, clientId?: string) {
-    const gate = await resolveGateRecord(gateIdInput);
-    if (!gate) {
-      throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Gate not found.');
+  async reorder(
+    gateIdInput: string,
+    dto: { subTasks: Array<{ id: string; displayOrder: number }> },
+    userId?: string,
+    clientId?: string,
+    user?: CurrentUser,
+  ) {
+    const gate = await this.resolveAuthorizedGate(gateIdInput, user);
+    const auditClientId = clientId || gate.site?.clientId;
+
+    if (dto.subTasks.length > 0) {
+      const ids = dto.subTasks.map((st) => st.id);
+      const validCount = await prisma.gateSubTask.count({
+        where: { id: { in: ids }, gateId: gate.id },
+      });
+      if (validCount !== new Set(ids).size) {
+        throw new AppError(
+          HttpStatus.FORBIDDEN,
+          ErrorCodes.FORBIDDEN,
+          'Access denied. One or more sub-tasks do not belong to this gate.',
+        );
+      }
     }
 
     const updated = await gateSubTaskRepository.reorder(dto.subTasks);
 
-    if (userId && clientId && dto.subTasks.length > 0) {
+    if (userId && auditClientId && dto.subTasks.length > 0) {
       await auditLogService.create({
         userId,
-        clientId,
+        clientId: auditClientId,
         action: 'UPDATE',
         entity: 'GateSubTask',
         entityId: dto.subTasks[0].id,

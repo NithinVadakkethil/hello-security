@@ -35,13 +35,40 @@ export async function authenticate(
 
     const payload = verifyAccessToken(token);
 
+    const dbUser = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: {
+        isActive: true,
+        clientId: true,
+        employeeId: true,
+        role: true,
+        supervisedRole: true,
+      },
+    });
+
+    if (!dbUser) {
+      throw new AppError(
+        HttpStatus.UNAUTHORIZED,
+        ErrorCodes.UNAUTHORIZED,
+        'User account not found.',
+      );
+    }
+
+    if (!dbUser.isActive) {
+      throw new AppError(
+        HttpStatus.FORBIDDEN,
+        ErrorCodes.FORBIDDEN,
+        'Your account is disabled.',
+      );
+    }
+
     req.user = {
       id: payload.sub,
-      tenantId: payload.tenantId,
-      employeeId: payload.employeeId,
+      tenantId: dbUser.clientId,
+      employeeId: dbUser.employeeId ?? payload.employeeId,
       email: payload.email,
-      role: payload.role,
-      supervisedRole: payload.supervisedRole || null,
+      role: dbUser.role,
+      supervisedRole: dbUser.supervisedRole ?? null,
     };
 
     if (req.user && isSiraRequiredForRole(req.user.role) && req.user.employeeId) {
