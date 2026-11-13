@@ -12,6 +12,9 @@ import {
   AttendanceListResponseDto,
   AttendanceRecordDto,
 } from './attendance.types';
+import {
+  resolveShiftAttendanceContext,
+} from './attendance-shift.util';
 
 const ROLE_LABELS: Record<string, string> = {
   SECURITY: 'Security Guard',
@@ -487,10 +490,19 @@ export class AttendanceService {
       prisma.attendance.findMany({
         where: {
           clientId: { in: authorizedClientIds },
-          attendanceDate: {
-            gte: from,
-            lte: to,
-          },
+          OR: [
+            {
+              attendanceDate: {
+                gte: from,
+                lte: to,
+              },
+            },
+            // Include active in-progress overnight shifts that started within 28h before 'from'
+            {
+              checkInAt: { gte: new Date(from.getTime() - 28 * 60 * 60 * 1000) },
+              checkOutAt: null,
+            },
+          ],
           ...(employeeId ? { employeeId } : {}),
           ...(query.siteId ? { siteId: query.siteId } : {}),
           ...(roleFilter ? { employee: { role: roleFilter as any } } : {}),
@@ -555,7 +567,11 @@ export class AttendanceService {
       for (const att of attendanceRecords) {
         const attDateStr = att.attendanceDate.toISOString().split('T')[0];
         attendanceMap.set(`${att.employeeId}_${attDateStr}`, att);
-        attendanceMap.set(att.employeeId, att);
+        // Map employeeId directly; prioritize active in-progress attendance records
+        const existingEmpMap = attendanceMap.get(att.employeeId);
+        if (!existingEmpMap || (!att.checkOutAt && existingEmpMap.checkOutAt)) {
+          attendanceMap.set(att.employeeId, att);
+        }
       }
 
       const employeeMap = new Map<string, { employee: any; assignments: any[] }>();
@@ -683,12 +699,14 @@ export class AttendanceService {
 
   /**
    * Retrieves single attendance record details by assignment ID, Attendance ID, or Employee ID.
+   * Shift-aware: Checks active in-progress attendance first (across midnight) so employee stays Checked In.
    */
   async getAttendanceById(
     user: { id: string; role: string; tenantId?: string | null },
     recordId: string,
   ): Promise<AttendanceRecordDto> {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const serverTimestamp = new Date();
+    const todayStr = serverTimestamp.toISOString().split('T')[0];
     const [bYear, bMonth, bDay] = todayStr.split('-').map(Number);
     const todayDate = new Date(Date.UTC(bYear, bMonth - 1, bDay, 0, 0, 0, 0));
 
@@ -696,6 +714,9 @@ export class AttendanceService {
     const directAttendance = await prisma.attendance.findUnique({
       where: { id: recordId },
       include: {
+        site: true,
+        shift: true,
+        assignment: true,
         employee: {
           include: {
             assignments: {
@@ -725,7 +746,14 @@ export class AttendanceService {
     let assignment: any = await prisma.guardAssignment.findUnique({
       where: { id: recordId },
       include: {
-        employee: true,
+        employee: {
+          include: {
+            assignments: {
+              where: { isActive: true },
+              include: { site: true, shift: true },
+            },
+          },
+        },
         site: true,
         shift: true,
       },
@@ -761,24 +789,61 @@ export class AttendanceService {
       throw new AppError(HttpStatus.FORBIDDEN, ErrorCodes.FORBIDDEN, 'Unauthorized attendance record access.');
     }
 
-    // Query existing attendance for this employee on today's business date
-    const attRecord = await prisma.attendance.findUnique({
+    const assignments = (employee as any).assignments || (assignment ? [assignment] : []);
+
+    // Priority 1: Check for ACTIVE in-progress attendance within the last 28 hours
+    // This ensures night-shift employees retain their CHECKED IN state across midnight
+    const activeWindowStart = new Date(serverTimestamp.getTime() - 28 * 60 * 60 * 1000);
+    const activeAttendance = await prisma.attendance.findFirst({
       where: {
-        employeeId_attendanceDate: {
-          employeeId: employee.id,
-          attendanceDate: todayDate,
-        },
+        employeeId: employee.id,
+        checkInAt: { gte: activeWindowStart },
+        checkOutAt: null,
       },
+      orderBy: { checkInAt: 'desc' },
+      include: { site: true, shift: true, assignment: true },
     });
 
-    const assignments = (employee as any).assignments || (assignment ? [assignment] : []);
-    return this.mapEmployeeToAttendanceRecord(employee, assignments, todayStr, 'Asia/Dubai', attRecord);
+    if (activeAttendance) {
+      const activeDateStr = activeAttendance.attendanceDate.toISOString().split('T')[0];
+      return this.mapEmployeeToAttendanceRecord(
+        employee,
+        assignments,
+        activeDateStr,
+        'Asia/Dubai',
+        activeAttendance,
+      );
+    }
+
+    // Priority 2: Resolve shift attendance context for current time
+    const shiftContext = resolveShiftAttendanceContext(
+      assignments,
+      serverTimestamp,
+      'Asia/Dubai',
+      assignment?.id,
+    );
+
+    const targetDate = shiftContext.shiftDate || todayDate;
+    const targetDateStr = shiftContext.shiftDateStr || todayStr;
+    const targetShiftId = shiftContext.shift?.id || null;
+
+    // Query existing attendance for this employee on the resolved shift business date
+    const attRecord = await prisma.attendance.findFirst({
+      where: {
+        employeeId: employee.id,
+        attendanceDate: targetDate,
+        ...(targetShiftId ? { shiftId: targetShiftId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { site: true, shift: true, assignment: true },
+    });
+
+    return this.mapEmployeeToAttendanceRecord(employee, assignments, targetDateStr, 'Asia/Dubai', attRecord);
   }
 
   /**
    * Authoritative face-verified check-in endpoint handler.
-   * Enforces: ONE check-in per employee per business date.
-   *
+   * Shift-aware: Correctly attributes overnight shifts to their shift start date.
    * Server timestamp is authoritative (new Date()).
    */
   async recordCheckIn(
@@ -792,9 +857,6 @@ export class AttendanceService {
     },
   ): Promise<AttendanceRecordDto> {
     const serverTimestamp = new Date();
-    const businessDateStr = params.businessDate || serverTimestamp.toISOString().split('T')[0];
-    const [bYear, bMonth, bDay] = businessDateStr.split('-').map(Number);
-    const businessDate = new Date(Date.UTC(bYear, bMonth - 1, bDay, 0, 0, 0, 0));
 
     // Find active employee
     const employee = await prisma.employee.findUnique({
@@ -816,14 +878,65 @@ export class AttendanceService {
       throw new AppError(HttpStatus.FORBIDDEN, ErrorCodes.FORBIDDEN, 'Unauthorized employee check-in requested.');
     }
 
-    // Check existing attendance record in database
-    const existing = await prisma.attendance.findUnique({
+    // Resolve shift attendance context
+    const shiftContext = resolveShiftAttendanceContext(
+      employee.assignments,
+      serverTimestamp,
+      'Asia/Dubai',
+      params.assignmentId,
+      params.shiftId,
+    );
+
+    let effectiveBusinessDateStr = shiftContext.shiftDateStr;
+    let effectiveBusinessDate = shiftContext.shiftDate;
+
+    if (!shiftContext.occurrence && params.businessDate) {
+      effectiveBusinessDateStr = params.businessDate;
+      const [bYear, bMonth, bDay] = effectiveBusinessDateStr.split('-').map(Number);
+      effectiveBusinessDate = new Date(Date.UTC(bYear, bMonth - 1, bDay, 0, 0, 0, 0));
+    }
+
+    const primaryAssignment =
+      shiftContext.assignment ||
+      employee.assignments.find((a) => a.id === params.assignmentId) ||
+      employee.assignments.find((a) => a.site && a.shift) ||
+      employee.assignments[0] ||
+      null;
+
+    const targetShiftId = shiftContext.shift?.id || primaryAssignment?.shiftId || params.shiftId || null;
+
+    // 1. Check for ANY active in-progress attendance for this employee (within 28 hours)
+    const activeWindowStart = new Date(serverTimestamp.getTime() - 28 * 60 * 60 * 1000);
+    const activeRecord = await prisma.attendance.findFirst({
       where: {
-        employeeId_attendanceDate: {
-          employeeId: employee.id,
-          attendanceDate: businessDate,
-        },
+        employeeId: employee.id,
+        checkInAt: { gte: activeWindowStart },
+        checkOutAt: null,
       },
+      orderBy: { checkInAt: 'desc' },
+      include: { site: true, shift: true, assignment: true },
+    });
+
+    if (activeRecord) {
+      const activeShiftId = activeRecord.shiftId;
+      const sameShift = !targetShiftId || !activeShiftId || activeShiftId === targetShiftId;
+      if (sameShift) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          'ATTENDANCE_ALREADY_CHECKED_IN',
+          'Employee is already checked in for this shift. Check out before checking in again.',
+        );
+      }
+    }
+
+    // 2. Check existing record for this business date and shift
+    const existing = await prisma.attendance.findFirst({
+      where: {
+        employeeId: employee.id,
+        attendanceDate: effectiveBusinessDate,
+        ...(targetShiftId ? { shiftId: targetShiftId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
     });
 
     if (existing) {
@@ -831,72 +944,62 @@ export class AttendanceService {
         throw new AppError(
           HttpStatus.BAD_REQUEST,
           'ATTENDANCE_ALREADY_COMPLETED',
-          'Attendance for this business date is already completed. Next check-in is allowed on the next business date.',
+          'Attendance for this shift is already completed. Next check-in is allowed on the next scheduled shift.',
         );
       }
       if (existing.checkInAt) {
         throw new AppError(
           HttpStatus.BAD_REQUEST,
           'ATTENDANCE_ALREADY_CHECKED_IN',
-          'Employee is already checked in for this business date.',
+          'Employee is already checked in for this shift.',
         );
       }
     }
 
-    const primaryAssignment =
-      employee.assignments.find((a) => a.id === params.assignmentId) ||
-      employee.assignments.find((a) => a.site && a.shift) ||
-      employee.assignments[0] ||
-      null;
-
-    // Calculate late status against shift start time + 15 min grace period
-    let isLate = false;
-    if (primaryAssignment?.shift?.startTime) {
-      const [shHours, shMins] = primaryAssignment.shift.startTime.split(':').map(Number);
-      if (!isNaN(shHours) && !isNaN(shMins)) {
-        const shiftStartOnDate = new Date(serverTimestamp);
-        shiftStartOnDate.setHours(shHours, shMins + 15, 0, 0); // 15 mins grace period
-        if (serverTimestamp > shiftStartOnDate) {
-          isLate = true;
-        }
-      }
-    }
-
+    const isLate = Boolean(
+      shiftContext.occurrence &&
+      serverTimestamp.getTime() > shiftContext.occurrence.scheduledStart.getTime() + 15 * 60 * 1000
+    );
     const status = isLate ? 'LATE' : 'PRESENT';
 
-    const attendanceRecord = await prisma.attendance.upsert({
-      where: {
-        employeeId_attendanceDate: {
-          employeeId: employee.id,
-          attendanceDate: businessDate,
+    let attendanceRecord;
+    if (existing) {
+      attendanceRecord = await prisma.attendance.update({
+        where: { id: existing.id },
+        data: {
+          checkInAt: serverTimestamp,
+          status,
+          isLate,
+          siteId: primaryAssignment?.siteId || params.siteId || null,
+          shiftId: targetShiftId,
+          assignmentId: primaryAssignment?.id || params.assignmentId || null,
+          verificationMethod: 'FACE_VERIFICATION',
+          verificationStatus: 'VERIFIED',
         },
-      },
-      update: {
-        checkInAt: serverTimestamp,
-        status,
-        isLate,
-        siteId: primaryAssignment?.siteId || params.siteId || null,
-        shiftId: primaryAssignment?.shiftId || params.shiftId || null,
-        assignmentId: primaryAssignment?.id || params.assignmentId || null,
-      },
-      create: {
-        clientId: employee.clientId,
-        employeeId: employee.id,
-        attendanceDate: businessDate,
-        checkInAt: serverTimestamp,
-        status,
-        isLate,
-        siteId: primaryAssignment?.siteId || params.siteId || null,
-        shiftId: primaryAssignment?.shiftId || params.shiftId || null,
-        assignmentId: primaryAssignment?.id || params.assignmentId || null,
-        verificationMethod: 'FACE_VERIFICATION',
-        verificationStatus: 'VERIFIED',
-      },
-    });
+        include: { site: true, shift: true, assignment: true },
+      });
+    } else {
+      attendanceRecord = await prisma.attendance.create({
+        data: {
+          clientId: employee.clientId,
+          employeeId: employee.id,
+          attendanceDate: effectiveBusinessDate,
+          checkInAt: serverTimestamp,
+          status,
+          isLate,
+          siteId: primaryAssignment?.siteId || params.siteId || null,
+          shiftId: targetShiftId,
+          assignmentId: primaryAssignment?.id || params.assignmentId || null,
+          verificationMethod: 'FACE_VERIFICATION',
+          verificationStatus: 'VERIFIED',
+        },
+        include: { site: true, shift: true, assignment: true },
+      });
+    }
 
     const employeeName = `${employee.firstName} ${employee.lastName || ''}`.trim();
     const siteName = primaryAssignment?.site?.name || 'Assigned Site';
-    const shiftName = primaryAssignment?.shift?.name || 'Assigned Shift';
+    const shiftName = shiftContext.shift?.name || primaryAssignment?.shift?.name || 'Assigned Shift';
 
     try {
       await notificationService.createNotification({
@@ -924,13 +1027,12 @@ export class AttendanceService {
       console.error(`Failed to create check-in notification: ${err.message}`);
     }
 
-    return this.mapEmployeeToAttendanceRecord(employee, employee.assignments, businessDateStr, 'Asia/Dubai', attendanceRecord);
+    return this.mapEmployeeToAttendanceRecord(employee, employee.assignments, effectiveBusinessDateStr, 'Asia/Dubai', attendanceRecord);
   }
 
   /**
    * Authoritative face-verified checkout endpoint handler.
-   * Enforces: ONE checkout per employee per business date.
-   *
+   * Shift-aware: Seamlessly completes active in-progress night shifts across midnight.
    * Server timestamp is authoritative (new Date()).
    */
   async recordCheckOut(
@@ -942,9 +1044,6 @@ export class AttendanceService {
     },
   ): Promise<AttendanceRecordDto> {
     const serverTimestamp = new Date();
-    const businessDateStr = params.businessDate || serverTimestamp.toISOString().split('T')[0];
-    const [bYear, bMonth, bDay] = businessDateStr.split('-').map(Number);
-    const businessDate = new Date(Date.UTC(bYear, bMonth - 1, bDay, 0, 0, 0, 0));
 
     const employee = await prisma.employee.findUnique({
       where: { id: params.employeeId },
@@ -965,59 +1064,83 @@ export class AttendanceService {
       throw new AppError(HttpStatus.FORBIDDEN, ErrorCodes.FORBIDDEN, 'Unauthorized employee checkout requested.');
     }
 
-    const existing = await prisma.attendance.findUnique({
+    // Priority 1: Look for active in-progress attendance (checkInAt != null && checkOutAt == null) within 28 hours
+    const activeWindowStart = new Date(serverTimestamp.getTime() - 28 * 60 * 60 * 1000);
+    let targetRecord = await prisma.attendance.findFirst({
       where: {
-        employeeId_attendanceDate: {
-          employeeId: employee.id,
-          attendanceDate: businessDate,
-        },
+        employeeId: employee.id,
+        checkInAt: { gte: activeWindowStart },
+        checkOutAt: null,
       },
+      orderBy: { checkInAt: 'desc' },
+      include: { site: true, shift: true, assignment: true },
     });
 
-    if (existing?.checkOutAt) {
+    // Priority 2: If no active in-progress record found, resolve by shift occurrence or businessDate
+    if (!targetRecord) {
+      const shiftContext = resolveShiftAttendanceContext(
+        employee.assignments,
+        serverTimestamp,
+        'Asia/Dubai',
+        params.assignmentId,
+      );
+
+      let searchDate = shiftContext.shiftDate;
+      if (!searchDate && params.businessDate) {
+        const [bYear, bMonth, bDay] = params.businessDate.split('-').map(Number);
+        searchDate = new Date(Date.UTC(bYear, bMonth - 1, bDay, 0, 0, 0, 0));
+      }
+
+      if (searchDate) {
+        targetRecord = await prisma.attendance.findFirst({
+          where: {
+            employeeId: employee.id,
+            attendanceDate: searchDate,
+          },
+          orderBy: { createdAt: 'desc' },
+          include: { site: true, shift: true, assignment: true },
+        });
+      }
+    }
+
+    if (!targetRecord) {
       throw new AppError(
         HttpStatus.BAD_REQUEST,
-        'ATTENDANCE_ALREADY_COMPLETED',
-        'Attendance for this business date has already been checked out.',
+        'ATTENDANCE_NOT_FOUND',
+        'No active check-in found to check out. Please mark check-in first.',
       );
     }
 
-    const primaryAssignment = employee.assignments[0] || null;
-
-    let attendanceRecord;
-    if (existing) {
-      attendanceRecord = await prisma.attendance.update({
-        where: { id: existing.id },
-        data: {
-          checkOutAt: serverTimestamp,
-          status: 'COMPLETED',
-        },
-      });
-    } else {
-      attendanceRecord = await prisma.attendance.create({
-        data: {
-          clientId: employee.clientId,
-          employeeId: employee.id,
-          attendanceDate: businessDate,
-          checkInAt: serverTimestamp,
-          checkOutAt: serverTimestamp,
-          status: 'COMPLETED',
-          isLate: false,
-          siteId: primaryAssignment?.siteId,
-          shiftId: primaryAssignment?.shiftId,
-          assignmentId: primaryAssignment?.id,
-          verificationMethod: 'FACE_VERIFICATION',
-          verificationStatus: 'VERIFIED',
-        },
-      });
+    if (targetRecord.checkOutAt) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        'ATTENDANCE_ALREADY_COMPLETED',
+        'Attendance for this shift has already been checked out.',
+      );
     }
 
+    // Complete attendance record
+    const attendanceRecord = await prisma.attendance.update({
+      where: { id: targetRecord.id },
+      data: {
+        checkOutAt: serverTimestamp,
+        status: 'COMPLETED',
+      },
+      include: { site: true, shift: true, assignment: true },
+    });
+
+    const primaryAssignment =
+      attendanceRecord.assignment ||
+      employee.assignments.find((a) => a.id === (params.assignmentId || attendanceRecord.assignmentId)) ||
+      employee.assignments[0] ||
+      null;
+
     const employeeName = `${employee.firstName} ${employee.lastName || ''}`.trim();
-    const siteName = primaryAssignment?.site?.name || 'Assigned Site';
-    const shiftName = primaryAssignment?.shift?.name || 'Assigned Shift';
+    const siteName = attendanceRecord.site?.name || (primaryAssignment as any)?.site?.name || 'Assigned Site';
+    const shiftName = attendanceRecord.shift?.name || (primaryAssignment as any)?.shift?.name || 'Assigned Shift';
 
     const checkIn = attendanceRecord.checkInAt ? new Date(attendanceRecord.checkInAt) : null;
-    const checkOut = attendanceRecord.checkOutAt ? new Date(attendanceRecord.checkOutAt) : new Date();
+    const checkOut = serverTimestamp;
     const workingDurationMins = checkIn
       ? Math.max(0, Math.floor((checkOut.getTime() - checkIn.getTime()) / 60000))
       : 0;
@@ -1030,7 +1153,7 @@ export class AttendanceService {
         clientId: employee.clientId,
         type: 'EMPLOYEE_CHECKED_OUT',
         title: 'Employee checked out',
-        message: `${employeeName} checked out from ${siteName}.`,
+        message: `${employeeName} checked out from ${siteName}. (${workingDurationStr})`,
         entityType: 'Attendance',
         entityId: attendanceRecord.id,
         metadata: {
@@ -1053,7 +1176,8 @@ export class AttendanceService {
       console.error(`Failed to create check-out notification: ${err.message}`);
     }
 
-    return this.mapEmployeeToAttendanceRecord(employee, employee.assignments, businessDateStr, 'Asia/Dubai', attendanceRecord);
+    const effectiveDateStr = attendanceRecord.attendanceDate.toISOString().split('T')[0];
+    return this.mapEmployeeToAttendanceRecord(employee, employee.assignments, effectiveDateStr, 'Asia/Dubai', attendanceRecord);
   }
 
   /**

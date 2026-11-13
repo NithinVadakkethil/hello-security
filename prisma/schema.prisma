@@ -1041,9 +1041,10 @@ model Attendance {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([employeeId, attendanceDate])
+  @@unique([employeeId, shiftId, attendanceDate])
   @@index([clientId, attendanceDate])
   @@index([employeeId, attendanceDate])
+  @@index([employeeId, checkInAt, checkOutAt])
   @@index([siteId])
   @@index([shiftId])
 }
