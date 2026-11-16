@@ -22,7 +22,8 @@ export class MandatoryPatrolService {
       return [];
     }
 
-    const { shift, employeeId, clientId } = assignment;
+    const { shift, employeeId, clientId, site } = assignment;
+    const timeZone = (site as any)?.timeZone || DEFAULT_TIMEZONE;
     const dateOnly = new Date(Date.UTC(shiftDate.getUTCFullYear(), shiftDate.getUTCMonth(), shiftDate.getUTCDate()));
 
     const instances: any[] = [];
@@ -36,57 +37,60 @@ export class MandatoryPatrolService {
         shift.mandatoryPatrol1Time,
         shift.mandatoryPatrol1WindowBefore || 15,
         shift.mandatoryPatrol1WindowAfter || 15,
+        timeZone,
       );
 
-      const existing1 = await prisma.mandatoryPatrolInstance.findUnique({
-        where: {
-          assignmentId_shiftDate_sequence: {
+      if (window1) {
+        const existing1 = await prisma.mandatoryPatrolInstance.findUnique({
+          where: {
+            assignmentId_shiftDate_sequence: {
+              assignmentId,
+              shiftDate: dateOnly,
+              sequence: 1,
+            },
+          },
+        });
+
+        const now = new Date();
+        const nextStatus1 =
+          existing1?.status === 'COMPLETED'
+            ? 'COMPLETED'
+            : now < window1.windowStart
+            ? 'UPCOMING'
+            : now <= window1.windowEnd
+            ? 'DUE'
+            : 'MISSED';
+
+        const inst1 = await prisma.mandatoryPatrolInstance.upsert({
+          where: {
+            assignmentId_shiftDate_sequence: {
+              assignmentId,
+              shiftDate: dateOnly,
+              sequence: 1,
+            },
+          },
+          create: {
+            clientId,
             assignmentId,
+            employeeId,
+            shiftId: shift.id,
             shiftDate: dateOnly,
             sequence: 1,
+            scheduledAt: window1.scheduledAt,
+            windowStart: window1.windowStart,
+            windowEnd: window1.windowEnd,
+            status: nextStatus1,
           },
-        },
-      });
-
-      const now = new Date();
-      const nextStatus1 =
-        existing1?.status === 'COMPLETED'
-          ? 'COMPLETED'
-          : now < window1.windowStart
-          ? 'UPCOMING'
-          : now <= window1.windowEnd
-          ? 'DUE'
-          : 'MISSED';
-
-      const inst1 = await prisma.mandatoryPatrolInstance.upsert({
-        where: {
-          assignmentId_shiftDate_sequence: {
-            assignmentId,
-            shiftDate: dateOnly,
-            sequence: 1,
+          update: {
+            scheduledAt: window1.scheduledAt,
+            windowStart: window1.windowStart,
+            windowEnd: window1.windowEnd,
+            status: nextStatus1,
           },
-        },
-        create: {
-          clientId,
-          assignmentId,
-          employeeId,
-          shiftId: shift.id,
-          shiftDate: dateOnly,
-          sequence: 1,
-          scheduledAt: window1.scheduledAt,
-          windowStart: window1.windowStart,
-          windowEnd: window1.windowEnd,
-          status: nextStatus1,
-        },
-        update: {
-          scheduledAt: window1.scheduledAt,
-          windowStart: window1.windowStart,
-          windowEnd: window1.windowEnd,
-          status: nextStatus1,
-        },
-      });
+        });
 
-      instances.push(inst1);
+        instances.push(inst1);
+      }
     }
 
     // Mandatory Patrol 2
@@ -98,57 +102,60 @@ export class MandatoryPatrolService {
         shift.mandatoryPatrol2Time,
         shift.mandatoryPatrol2WindowBefore || 15,
         shift.mandatoryPatrol2WindowAfter || 15,
+        timeZone,
       );
 
-      const existing2 = await prisma.mandatoryPatrolInstance.findUnique({
-        where: {
-          assignmentId_shiftDate_sequence: {
+      if (window2) {
+        const existing2 = await prisma.mandatoryPatrolInstance.findUnique({
+          where: {
+            assignmentId_shiftDate_sequence: {
+              assignmentId,
+              shiftDate: dateOnly,
+              sequence: 2,
+            },
+          },
+        });
+
+        const now = new Date();
+        const nextStatus2 =
+          existing2?.status === 'COMPLETED'
+            ? 'COMPLETED'
+            : now < window2.windowStart
+            ? 'UPCOMING'
+            : now <= window2.windowEnd
+            ? 'DUE'
+            : 'MISSED';
+
+        const inst2 = await prisma.mandatoryPatrolInstance.upsert({
+          where: {
+            assignmentId_shiftDate_sequence: {
+              assignmentId,
+              shiftDate: dateOnly,
+              sequence: 2,
+            },
+          },
+          create: {
+            clientId,
             assignmentId,
+            employeeId,
+            shiftId: shift.id,
             shiftDate: dateOnly,
             sequence: 2,
+            scheduledAt: window2.scheduledAt,
+            windowStart: window2.windowStart,
+            windowEnd: window2.windowEnd,
+            status: nextStatus2,
           },
-        },
-      });
-
-      const now = new Date();
-      const nextStatus2 =
-        existing2?.status === 'COMPLETED'
-          ? 'COMPLETED'
-          : now < window2.windowStart
-          ? 'UPCOMING'
-          : now <= window2.windowEnd
-          ? 'DUE'
-          : 'MISSED';
-
-      const inst2 = await prisma.mandatoryPatrolInstance.upsert({
-        where: {
-          assignmentId_shiftDate_sequence: {
-            assignmentId,
-            shiftDate: dateOnly,
-            sequence: 2,
+          update: {
+            scheduledAt: window2.scheduledAt,
+            windowStart: window2.windowStart,
+            windowEnd: window2.windowEnd,
+            status: nextStatus2,
           },
-        },
-        create: {
-          clientId,
-          assignmentId,
-          employeeId,
-          shiftId: shift.id,
-          shiftDate: dateOnly,
-          sequence: 2,
-          scheduledAt: window2.scheduledAt,
-          windowStart: window2.windowStart,
-          windowEnd: window2.windowEnd,
-          status: nextStatus2,
-        },
-        update: {
-          scheduledAt: window2.scheduledAt,
-          windowStart: window2.windowStart,
-          windowEnd: window2.windowEnd,
-          status: nextStatus2,
-        },
-      });
+        });
 
-      instances.push(inst2);
+        instances.push(inst2);
+      }
     }
 
     return instances;
@@ -164,15 +171,17 @@ export class MandatoryPatrolService {
     // 1. Sync instances for all active assignments today (accounting for overnight shift date)
     const activeAssignments = await prisma.guardAssignment.findMany({
       where: { isActive: true },
-      include: { shift: true },
+      include: { shift: true, site: true },
     });
 
     for (const assignment of activeAssignments) {
       try {
+        const timeZone = (assignment.site as any)?.timeZone || DEFAULT_TIMEZONE;
         const effectiveShiftDate = getEffectiveShiftDate(
           assignment.shift?.startTime,
           assignment.shift?.endTime,
           now,
+          timeZone,
         );
         await this.syncMandatoryPatrolInstancesForAssignment(assignment.id, effectiveShiftDate);
       } catch (err: any) {
@@ -201,7 +210,8 @@ export class MandatoryPatrolService {
       const siteName = inst.assignment?.site?.name || 'Assigned Site';
       const shiftName = inst.assignment?.shift?.name || 'Shift';
 
-      const formatTime = (d: Date) => formatPatrolTime(d, DEFAULT_TIMEZONE, false);
+      const siteTimeZone = (inst.assignment?.site as any)?.timeZone || DEFAULT_TIMEZONE;
+      const formatTime = (d: Date) => formatPatrolTime(d, siteTimeZone, false);
 
       // Check transition to UPCOMING (if shift was updated or scheduled in the future)
       if (now < inst.windowStart && inst.status !== 'UPCOMING') {
@@ -361,10 +371,12 @@ export class MandatoryPatrolService {
     }
 
     const now = new Date();
+    const timeZone = (assignment.site as any)?.timeZone || DEFAULT_TIMEZONE;
     const effectiveShiftDate = getEffectiveShiftDate(
       assignment.shift?.startTime,
       assignment.shift?.endTime,
       now,
+      timeZone,
     );
 
     // Sync to ensure instances exist for effective shift date
@@ -422,14 +434,16 @@ export class MandatoryPatrolService {
   async getAssignmentMandatoryPatrols(assignmentId: string) {
     const assignment = await prisma.guardAssignment.findUnique({
       where: { id: assignmentId },
-      include: { shift: true },
+      include: { shift: true, site: true },
     });
 
     if (assignment) {
+      const timeZone = (assignment.site as any)?.timeZone || DEFAULT_TIMEZONE;
       const effectiveShiftDate = getEffectiveShiftDate(
         assignment.shift?.startTime,
         assignment.shift?.endTime,
         new Date(),
+        timeZone,
       );
       await this.syncMandatoryPatrolInstancesForAssignment(assignmentId, effectiveShiftDate);
     }
