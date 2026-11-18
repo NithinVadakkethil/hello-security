@@ -52,6 +52,7 @@ export const patrolApi = {
     subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string; images?: string[]; answeredAt?: string }>,
     patrolSessionId?: string,
     scannedAt?: string,
+    completedAt?: string,
   ): Promise<any> => {
     const res = (await apiClient.post('/patrol-checkpoints/scan', {
       gateId,
@@ -62,6 +63,7 @@ export const patrolApi = {
       latitude,
       longitude,
       scannedAt,
+      completedAt,
       subTaskResponses,
     })) as any;
     return res.data;

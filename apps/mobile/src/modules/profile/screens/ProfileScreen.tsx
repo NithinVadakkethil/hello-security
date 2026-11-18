@@ -55,7 +55,8 @@ export function ProfileScreen() {
     try {
       const data = await faceEnrollmentApi.getStatus();
       setFaceStatus(data);
-      if (data.status === 'NOT_REGISTERED' || data.status === 'RE_ENROLL_REQUIRED') {
+      if (data.status !== 'REGISTERED') {
+        // Authoritative server says unregistered: invalidate any stale local cache
         await secureFaceCache.clearSecureCache();
       }
     } catch (err) {

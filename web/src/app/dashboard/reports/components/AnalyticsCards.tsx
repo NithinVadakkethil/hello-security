@@ -82,7 +82,7 @@ export default function AnalyticsCards({ data, isLoading }: AnalyticsCardsProps)
       sub: 'Per completed patrol',
     },
     {
-      title: 'Total Officers',
+      title: 'Total Employees',
       value: data?.totalGuards ?? 0,
       icon: Shield,
       color: '#6366f1',

@@ -11,11 +11,11 @@ import { gateService } from './gate.service';
 export class GateController {
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      currentUser(req); // Authentication + authorization already handled
+      const user = currentUser(req); // Authentication + authorization already handled
 
       const body = createGateSchema.parse(req.body);
 
-      const result = await gateService.create(body);
+      const result = await gateService.create(body, user);
 
       return res.status(HttpStatus.CREATED).json({
         success: true,
@@ -79,7 +79,7 @@ export class GateController {
       const isSuperAdmin = user.role === 'SUPER_ADMIN';
       const clientId = isSuperAdmin || !user.tenantId ? undefined : user.tenantId;
 
-      const result = await gateService.getFloors(siteId, clientId);
+      const result = await gateService.getFloors(siteId, clientId, user);
 
       return res.status(HttpStatus.OK).json({
         success: true,
@@ -92,9 +92,10 @@ export class GateController {
 
   async getNextSequence(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const siteId = req.query.siteId as string;
 
-      const result = await gateService.getNextSequence(siteId);
+      const result = await gateService.getNextSequence(siteId, user);
 
       return res.status(HttpStatus.OK).json({
         success: true,
@@ -123,7 +124,7 @@ export class GateController {
       const isSuperAdmin = user.role === 'SUPER_ADMIN';
       const clientId = isSuperAdmin || !user.tenantId ? undefined : user.tenantId;
 
-      const result = await gateService.getBulkRange(siteId, fromSeq, toSeq, clientId);
+      const result = await gateService.getBulkRange(siteId, fromSeq, toSeq, clientId, user);
 
       return res.status(HttpStatus.OK).json({
         success: true,
@@ -136,7 +137,8 @@ export class GateController {
 
   async get(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await gateService.get(req.params.id as string);
+      const user = currentUser(req);
+      const result = await gateService.get(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -149,9 +151,10 @@ export class GateController {
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const body = updateGateSchema.parse(req.body);
 
-      const result = await gateService.update(req.params.id as string, body);
+      const result = await gateService.update(req.params.id as string, body, user);
 
       return res.json({
         success: true,
@@ -164,7 +167,8 @@ export class GateController {
 
   async activate(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await gateService.activate(req.params.id as string);
+      const user = currentUser(req);
+      const result = await gateService.activate(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -177,7 +181,8 @@ export class GateController {
 
   async deactivate(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await gateService.deactivate(req.params.id as string);
+      const user = currentUser(req);
+      const result = await gateService.deactivate(req.params.id as string, user);
 
       return res.json({
         success: true,

@@ -2,6 +2,9 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { AnalyticsResult, ReportQueryDto } from './report.types';
 import { isRoleMatching } from '../../common/utils/role-matching';
+import { isCheckpointEligibleForSession } from '../../common/utils/checkpoint-eligibility.util';
+import { GATE_SUBTASKS_INCLUDE } from '../assignment/assignment.repository';
+import { hydrateGateSubTasks } from '../assignment/assignment.service';
 
 export class ReportRepository {
   private buildWhereClause(clientId: string | string[] | undefined, query: ReportQueryDto): Prisma.PatrolSessionWhereInput {
@@ -170,6 +173,9 @@ export class ReportRepository {
           id: true,
           totalDuration: true,
           status: true,
+          startedAt: true,
+          endedAt: true,
+          createdAt: true,
           checkpoints: { select: { id: true, gateId: true } },
           assignment: {
             select: {
@@ -178,10 +184,34 @@ export class ReportRepository {
               assignmentType: true,
               patrolRoute: {
                 select: {
-                  routeGates: { select: { gateId: true } },
+                  routeGates: {
+                    select: {
+                      gateId: true,
+                      gate: {
+                        select: {
+                          id: true,
+                          isActive: true,
+                          updatedAt: true,
+                          createdAt: true,
+                        },
+                      },
+                    },
+                  },
                 },
               },
-              assignmentGates: { select: { gateId: true } },
+              assignmentGates: {
+                select: {
+                  gateId: true,
+                  gate: {
+                    select: {
+                      id: true,
+                      isActive: true,
+                      updatedAt: true,
+                      createdAt: true,
+                    },
+                  },
+                },
+              },
             },
           },
           incidents: { select: { id: true } },
@@ -234,15 +264,35 @@ export class ReportRepository {
         (s.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
         (!s.assignment?.patrolRoute && (s.assignment?.assignmentGates?.length || 0) > 0);
 
-      const expectedGateIds: string[] = isDirect
-        ? (s.assignment?.assignmentGates || []).map((ag) => ag.gateId).filter(Boolean)
-        : (s.assignment?.patrolRoute?.routeGates || []).map((rg) => rg.gateId).filter(Boolean);
+      const assignedItems = isDirect
+        ? (s.assignment?.assignmentGates || [])
+        : (s.assignment?.patrolRoute?.routeGates || []);
 
-      const expectedGatesSet = new Set(expectedGateIds);
+      const scannedGateIds = new Set((s.checkpoints || []).map((cp) => cp.gateId).filter(Boolean));
+
+      const eligibleGateIds = assignedItems
+        .filter((item: any) => {
+          const gateId = item.gateId || item.gate?.id;
+          if (!gateId) return false;
+          const wasScanned = scannedGateIds.has(gateId);
+          return isCheckpointEligibleForSession({
+            gate: item.gate || { id: gateId, isActive: true },
+            session: {
+              status: s.status,
+              startedAt: s.startedAt,
+              endedAt: s.endedAt,
+              createdAt: s.createdAt,
+            },
+            isScanned: wasScanned,
+            wasScanned,
+          });
+        })
+        .map((item: any) => item.gateId || item.gate?.id);
+
+      const expectedGatesSet = new Set(eligibleGateIds);
       const expectedCount = expectedGatesSet.size;
 
-      const scannedGateIds = (s.checkpoints || []).map((cp) => cp.gateId).filter(Boolean);
-      const completedCount = new Set(scannedGateIds.filter((id) => expectedGatesSet.has(id))).size;
+      const completedCount = new Set(Array.from(scannedGateIds).filter((id) => expectedGatesSet.has(id))).size;
 
       if (expectedCount > 0) {
         totalExpectedSum += expectedCount;
@@ -252,7 +302,7 @@ export class ReportRepository {
 
     const complianceRate = totalExpectedSum > 0
       ? Math.round((totalCompletedSum / totalExpectedSum) * 100)
-      : 100;
+      : 0;
 
     return {
       totalInspections,
@@ -296,10 +346,7 @@ export class ReportRepository {
                     include: {
                       gate: {
                         include: {
-                          subTasks: {
-                            where: { isActive: true },
-                            orderBy: { displayOrder: 'asc' },
-                          },
+                          ...GATE_SUBTASKS_INCLUDE,
                         },
                       },
                     },
@@ -313,10 +360,7 @@ export class ReportRepository {
                 include: {
                   gate: {
                     include: {
-                      subTasks: {
-                        where: { isActive: true },
-                        orderBy: { displayOrder: 'asc' },
-                      },
+                      ...GATE_SUBTASKS_INCLUDE,
                     },
                   },
                 },
@@ -338,6 +382,7 @@ export class ReportRepository {
                   lastName: true,
                   employeeNumber: true,
                   role: true,
+                  emiratesId: true,
                 },
               },
             },
@@ -353,10 +398,7 @@ export class ReportRepository {
                       clientId: true,
                     },
                   },
-                  subTasks: {
-                    where: { isActive: true },
-                    orderBy: { displayOrder: 'asc' },
-                  },
+                  ...GATE_SUBTASKS_INCLUDE,
                 },
               },
               subTaskResponses: {
@@ -464,18 +506,22 @@ export class ReportRepository {
         return subTasks.filter((st) => isRoleMatching(st.role, officerRole));
       };
 
-      const filteredCheckpoints = (session.checkpoints || []).map((cp) => ({
-        ...cp,
-        gate: cp.gate
-          ? {
-              ...cp.gate,
-              subTasks: filterSubTasks(cp.gate.subTasks),
-            }
-          : cp.gate,
-        subTaskResponses: (cp.subTaskResponses || []).filter((res) =>
-          isRoleMatching(res.gateSubTask?.role || (res as any).role, officerRole),
-        ),
-      }));
+      const filteredCheckpoints = (session.checkpoints || []).map((cp) => {
+        const hydratedGate = cp.gate ? hydrateGateSubTasks(cp.gate) : null;
+        return {
+          ...cp,
+          gate: hydratedGate
+            ? {
+                ...hydratedGate,
+                subTasks: filterSubTasks(hydratedGate.subTasks),
+              }
+            : null,
+          subTaskResponses: (cp.subTaskResponses || []).filter((res) => {
+            const role = res.roleSnapshot || res.gateSubTask?.role || (res as any).role;
+            return role ? isRoleMatching(role, officerRole) : true;
+          }),
+        };
+      });
 
       const filteredAssignment = session.assignment
         ? {
@@ -483,26 +529,32 @@ export class ReportRepository {
             patrolRoute: session.assignment.patrolRoute
               ? {
                   ...session.assignment.patrolRoute,
-                  routeGates: (session.assignment.patrolRoute.routeGates || []).map((rg) => ({
-                    ...rg,
-                    gate: rg.gate
-                      ? {
-                          ...rg.gate,
-                          subTasks: filterSubTasks(rg.gate.subTasks),
-                        }
-                      : rg.gate,
-                  })),
+                  routeGates: (session.assignment.patrolRoute.routeGates || []).map((rg) => {
+                    const hydratedGate = rg.gate ? hydrateGateSubTasks(rg.gate) : null;
+                    return {
+                      ...rg,
+                      gate: hydratedGate
+                        ? {
+                            ...hydratedGate,
+                            subTasks: filterSubTasks(hydratedGate.subTasks),
+                          }
+                        : null,
+                    };
+                  }),
                 }
               : session.assignment.patrolRoute,
-            assignmentGates: (session.assignment.assignmentGates || []).map((ag) => ({
-              ...ag,
-              gate: ag.gate
-                ? {
-                    ...ag.gate,
-                    subTasks: filterSubTasks(ag.gate.subTasks),
-                  }
-                : ag.gate,
-            })),
+            assignmentGates: (session.assignment.assignmentGates || []).map((ag) => {
+              const hydratedGate = ag.gate ? hydrateGateSubTasks(ag.gate) : null;
+              return {
+                ...ag,
+                gate: hydratedGate
+                  ? {
+                      ...hydratedGate,
+                      subTasks: filterSubTasks(hydratedGate.subTasks),
+                    }
+                  : null,
+              };
+            }),
           }
         : session.assignment;
 
@@ -550,10 +602,7 @@ export class ReportRepository {
                   include: {
                     gate: {
                       include: {
-                        subTasks: {
-                          where: { isActive: true },
-                          orderBy: { displayOrder: 'asc' },
-                        },
+                        ...GATE_SUBTASKS_INCLUDE,
                       },
                     },
                   },
@@ -567,10 +616,7 @@ export class ReportRepository {
               include: {
                 gate: {
                   include: {
-                    subTasks: {
-                      where: { isActive: true },
-                      orderBy: { displayOrder: 'asc' },
-                    },
+                    ...GATE_SUBTASKS_INCLUDE,
                   },
                 },
               },
@@ -592,6 +638,7 @@ export class ReportRepository {
                   lastName: true,
                   employeeNumber: true,
                   role: true,
+                  emiratesId: true,
                 },
               },
             },
@@ -607,10 +654,7 @@ export class ReportRepository {
                       clientId: true,
                     },
                   },
-                  subTasks: {
-                    where: { isActive: true },
-                    orderBy: { displayOrder: 'asc' },
-                  },
+                  ...GATE_SUBTASKS_INCLUDE,
                 },
               },
               subTaskResponses: {
@@ -720,18 +764,22 @@ export class ReportRepository {
       return subTasks.filter((st) => isRoleMatching(st.role, officerRole));
     };
 
-    const filteredCheckpoints = (session.checkpoints || []).map((cp) => ({
-      ...cp,
-      gate: cp.gate
-        ? {
-            ...cp.gate,
-            subTasks: filterSubTasks(cp.gate.subTasks),
-          }
-        : cp.gate,
-      subTaskResponses: (cp.subTaskResponses || []).filter((res) =>
-        isRoleMatching(res.gateSubTask?.role || (res as any).role, officerRole),
-      ),
-    }));
+    const filteredCheckpoints = (session.checkpoints || []).map((cp) => {
+      const hydratedGate = cp.gate ? hydrateGateSubTasks(cp.gate) : null;
+      return {
+        ...cp,
+        gate: hydratedGate
+          ? {
+              ...hydratedGate,
+              subTasks: filterSubTasks(hydratedGate.subTasks),
+            }
+          : null,
+        subTaskResponses: (cp.subTaskResponses || []).filter((res) => {
+          const role = res.roleSnapshot || res.gateSubTask?.role || (res as any).role;
+          return role ? isRoleMatching(role, officerRole) : true;
+        }),
+      };
+    });
 
     const filteredAssignment = session.assignment
       ? {
@@ -739,26 +787,32 @@ export class ReportRepository {
           patrolRoute: session.assignment.patrolRoute
             ? {
                 ...session.assignment.patrolRoute,
-                routeGates: (session.assignment.patrolRoute.routeGates || []).map((rg) => ({
-                  ...rg,
-                  gate: rg.gate
-                    ? {
-                        ...rg.gate,
-                        subTasks: filterSubTasks(rg.gate.subTasks),
-                      }
-                    : rg.gate,
-                })),
+                routeGates: (session.assignment.patrolRoute.routeGates || []).map((rg) => {
+                  const hydratedGate = rg.gate ? hydrateGateSubTasks(rg.gate) : null;
+                  return {
+                    ...rg,
+                    gate: hydratedGate
+                      ? {
+                          ...hydratedGate,
+                          subTasks: filterSubTasks(hydratedGate.subTasks),
+                        }
+                      : null,
+                  };
+                }),
               }
             : session.assignment.patrolRoute,
-          assignmentGates: (session.assignment.assignmentGates || []).map((ag) => ({
-            ...ag,
-            gate: ag.gate
-              ? {
-                  ...ag.gate,
-                  subTasks: filterSubTasks(ag.gate.subTasks),
-                }
-              : ag.gate,
-          })),
+          assignmentGates: (session.assignment.assignmentGates || []).map((ag) => {
+            const hydratedGate = ag.gate ? hydrateGateSubTasks(ag.gate) : null;
+            return {
+              ...ag,
+              gate: hydratedGate
+                ? {
+                    ...hydratedGate,
+                    subTasks: filterSubTasks(hydratedGate.subTasks),
+                  }
+                : null,
+            };
+          }),
         }
       : session.assignment;
 

@@ -1,15 +1,21 @@
 import { Request, Response } from 'express';
+import { currentUser } from '../../common/auth/current-user';
 import { createGateSubTaskSchema, updateGateSubTaskSchema, reorderGateSubTasksSchema } from './gate-sub-task.schema';
 import { gateSubTaskService } from './gate-sub-task.service';
 
 export class GateSubTaskController {
   async create(req: Request, res: Response) {
+    const user = currentUser(req);
     const gateId = req.params.gateId as string;
     const body = createGateSubTaskSchema.parse(req.body);
-    const userId = (req as any).user?.id;
-    const clientId = (req as any).user?.clientId;
 
-    const subTask = await gateSubTaskService.create(gateId, body, userId, clientId);
+    const subTask = await gateSubTaskService.create(
+      gateId,
+      body,
+      user.id,
+      user.tenantId || undefined,
+      user,
+    );
 
     res.status(201).json({
       success: true,
@@ -19,11 +25,12 @@ export class GateSubTaskController {
   }
 
   async list(req: Request, res: Response) {
+    const user = currentUser(req);
     const gateId = req.params.gateId as string;
     const onlyActive = req.query.onlyActive !== 'false';
     const role = req.query.role as any;
 
-    const subTasks = await gateSubTaskService.list(gateId, onlyActive, role);
+    const subTasks = await gateSubTaskService.list(gateId, onlyActive, role, user);
 
     res.json({
       success: true,
@@ -32,8 +39,9 @@ export class GateSubTaskController {
   }
 
   async get(req: Request, res: Response) {
+    const user = currentUser(req);
     const id = req.params.id as string;
-    const subTask = await gateSubTaskService.get(id);
+    const subTask = await gateSubTaskService.get(id, user);
 
     res.json({
       success: true,
@@ -42,12 +50,17 @@ export class GateSubTaskController {
   }
 
   async update(req: Request, res: Response) {
+    const user = currentUser(req);
     const id = req.params.id as string;
     const body = updateGateSubTaskSchema.parse(req.body);
-    const userId = (req as any).user?.id;
-    const clientId = (req as any).user?.clientId;
 
-    const subTask = await gateSubTaskService.update(id, body, userId, clientId);
+    const subTask = await gateSubTaskService.update(
+      id,
+      body,
+      user.id,
+      user.tenantId || undefined,
+      user,
+    );
 
     res.json({
       success: true,
@@ -57,11 +70,10 @@ export class GateSubTaskController {
   }
 
   async delete(req: Request, res: Response) {
+    const user = currentUser(req);
     const id = req.params.id as string;
-    const userId = (req as any).user?.id;
-    const clientId = (req as any).user?.clientId;
 
-    await gateSubTaskService.delete(id, userId, clientId);
+    await gateSubTaskService.delete(id, user.id, user.tenantId || undefined, user);
 
     res.json({
       success: true,
@@ -70,12 +82,17 @@ export class GateSubTaskController {
   }
 
   async reorder(req: Request, res: Response) {
+    const user = currentUser(req);
     const gateId = req.params.gateId as string;
     const body = reorderGateSubTasksSchema.parse(req.body);
-    const userId = (req as any).user?.id;
-    const clientId = (req as any).user?.clientId;
 
-    const subTasks = await gateSubTaskService.reorder(gateId, body, userId, clientId);
+    const subTasks = await gateSubTaskService.reorder(
+      gateId,
+      body,
+      user.id,
+      user.tenantId || undefined,
+      user,
+    );
 
     res.json({
       success: true,

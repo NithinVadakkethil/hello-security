@@ -1,0 +1,231 @@
+/**
+ * Checkpoint Eligibility Utility (Frontend)
+ *
+ * Provides centralized, authoritative rules for determining whether a checkpoint
+ * is eligible for a given patrol session across reports, compliance calculations,
+ * and PDF generation.
+ */
+
+export interface CheckpointEligibilityParams {
+  gate?: {
+    id?: string;
+    isActive?: boolean | null;
+    updatedAt?: Date | string | null;
+  } | null;
+  session?: {
+    startedAt?: Date | string | null;
+    endedAt?: Date | string | null;
+    status?: string | null;
+  } | null;
+  isScanned?: boolean;
+  wasScanned?: boolean;
+}
+
+/**
+ * Determines whether a checkpoint is part of the eligible checkpoint set for a patrol session.
+ *
+ * Rules:
+ * 1. Historical Scan Preservation: Any checkpoint actually scanned during a patrol session
+ *    is ALWAYS eligible and included. Historical scans and evidence must NEVER be removed
+ *    or hidden merely because a checkpoint was deactivated later.
+ * 2. Active Status: If the checkpoint is currently active (isActive !== false), it is eligible.
+ * 3. Active/In-Progress Patrols: If the checkpoint is currently deactivated and was NOT scanned,
+ *    it is strictly excluded from the eligible set for active/in-progress patrol sessions.
+ *    It must never appear as Unscanned, Pending, Missed, or Incomplete.
+ * 4. Completed Historical Patrols: If the session completed BEFORE the checkpoint's deactivation
+ *    timestamp (gate.updatedAt), the checkpoint was active when the patrol took place and is
+ *    preserved in the historical report. If the patrol started after deactivation, the checkpoint
+ *    was already inactive and is excluded.
+ */
+export function isCheckpointEligibleForSession(params: CheckpointEligibilityParams): boolean {
+  const { gate, session, isScanned, wasScanned } = params;
+  const isActuallyScanned = Boolean(isScanned || wasScanned);
+
+  // Rule 1: Scanned checkpoints are always eligible (never erase historical evidence)
+  if (isActuallyScanned) {
+    return true;
+  }
+
+  // Rule 2: Currently active checkpoints are eligible
+  if (gate?.isActive !== false) {
+    return true;
+  }
+
+  // The checkpoint is currently deactivated and was NOT scanned in this session.
+  // Rule 3: For ongoing/active patrols, deactivated checkpoints are excluded
+  const isSessionClosed = session?.status === 'COMPLETED' || session?.status === 'CANCELLED';
+  if (!isSessionClosed) {
+    return false;
+  }
+
+  // Rule 4: For completed historical patrols, check deactivation timing
+  const sessionEndTime = session?.endedAt
+    ? new Date(session.endedAt).getTime()
+    : session?.startedAt
+    ? new Date(session.startedAt).getTime()
+    : 0;
+  const gateUpdateTime = gate?.updatedAt ? new Date(gate.updatedAt).getTime() : 0;
+
+  if (sessionEndTime > 0 && gateUpdateTime > 0) {
+    // If gate was updated/deactivated AFTER this historical patrol ended, it was active during the patrol
+    if (gateUpdateTime > sessionEndTime) {
+      return true;
+    }
+    // If gate was deactivated BEFORE this session started, it was already inactive
+    return false;
+  }
+
+  // Safe default: do not count inactive gates as unscanned
+  return false;
+}
+
+/**
+ * Filters a timeline or gate list to only checkpoints eligible for the given session.
+ */
+export function filterEligibleCheckpointsForSession<T extends { gate?: any; scanned?: boolean }>(
+  items: T[],
+  session: any,
+): T[] {
+  return items.filter((item) =>
+    isCheckpointEligibleForSession({
+      gate: item.gate,
+      session,
+      isScanned: !!item.scanned,
+    }),
+  );
+}
+
+/**
+ * Calculates checkpoint compliance rate based on eligible checkpoints and scanned count.
+ * Returns 0% when there are 0 eligible checkpoints (0/0 = 0%).
+ */
+export function calculateCheckpointCompliance(totalEligible: number, scannedCount: number): number {
+  if (totalEligible <= 0 || scannedCount <= 0) return 0;
+  return Math.min(100, Math.round((Math.min(scannedCount, totalEligible) / totalEligible) * 100));
+}
+
+export interface SessionCheckpointMetrics {
+  totalCheckpoints: number;
+  scannedCheckpoints: number;
+  missedCheckpoints: number;
+  compliancePct: number;
+  checkpointCompletionStatus: string;
+  eligibleGateIds: string[];
+  missedGateIds: string[];
+  eligibleItems: any[];
+  missedItems: any[];
+}
+
+/**
+ * Authoritative checkpoint metrics calculation for a patrol session.
+ */
+export function calculateSessionCheckpointMetrics(session: any): SessionCheckpointMetrics {
+  if (!session) {
+    return {
+      totalCheckpoints: 0,
+      scannedCheckpoints: 0,
+      missedCheckpoints: 0,
+      compliancePct: 0,
+      checkpointCompletionStatus: 'NO_CHECKPOINTS',
+      eligibleGateIds: [],
+      missedGateIds: [],
+      eligibleItems: [],
+      missedItems: [],
+    };
+  }
+
+  const isDirect =
+    session.assignment?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+    (!session.assignment?.patrolRoute && (session.assignment?.assignmentGates?.length || 0) > 0);
+
+  const assignedItems: any[] = isDirect
+    ? (session.assignment?.assignmentGates || [])
+    : (session.assignment?.patrolRoute?.routeGates || []);
+
+  const rawCheckpoints: any[] = session.checkpoints || [];
+  const validScans = rawCheckpoints.filter(
+    (cp: any) => cp && cp.status !== 'REJECTED' && cp.status !== 'INVALID',
+  );
+  const scannedGateIds = new Set<string>(
+    validScans.map((cp: any) => cp.gateId || cp.gate?.id).filter(Boolean),
+  );
+
+  const sessionForEligibility = {
+    status: session.status || 'COMPLETED',
+    startedAt: session.startedAt,
+    endedAt: session.endedAt,
+    createdAt: session.startedAt || session.createdAt,
+  };
+
+  const eligibleItems = assignedItems.filter((item: any) => {
+    const gateId = item.gateId || item.gate?.id;
+    if (!gateId) return false;
+    const wasScanned = scannedGateIds.has(gateId);
+    return isCheckpointEligibleForSession({
+      gate: item.gate || { id: gateId, isActive: true },
+      session: sessionForEligibility,
+      isScanned: wasScanned,
+      wasScanned,
+    });
+  });
+
+  const eligibleGateIds = Array.from(
+    new Set(eligibleItems.map((item: any) => item.gateId || item.gate?.id).filter(Boolean)),
+  );
+
+  const hasAssignedGates = assignedItems.length > 0;
+  let totalCheckpoints = 0;
+  let scannedCheckpoints = 0;
+  let missedItems: any[] = [];
+  let missedGateIds: string[] = [];
+
+  if (hasAssignedGates) {
+    totalCheckpoints = eligibleGateIds.length;
+    scannedCheckpoints = eligibleGateIds.filter((gid) => scannedGateIds.has(gid)).length;
+    missedItems = eligibleItems.filter((item: any) => {
+      const gid = item.gateId || item.gate?.id;
+      return !scannedGateIds.has(gid);
+    });
+    missedGateIds = Array.from(
+      new Set(missedItems.map((item: any) => item.gateId || item.gate?.id).filter(Boolean)),
+    );
+  } else {
+    totalCheckpoints = scannedGateIds.size;
+    scannedCheckpoints = scannedGateIds.size;
+    missedItems = [];
+    missedGateIds = [];
+  }
+
+  const missedCheckpoints = Math.max(0, totalCheckpoints - scannedCheckpoints);
+  const compliancePct =
+    totalCheckpoints > 0
+      ? Math.min(100, Math.max(0, Math.round((scannedCheckpoints / totalCheckpoints) * 100)))
+      : 0;
+
+  const isFinalized = session.status === 'COMPLETED' || Boolean(session.endedAt);
+  let checkpointCompletionStatus: string;
+
+  if (session.status === 'CANCELLED' || session.status === 'FAILED') {
+    checkpointCompletionStatus = session.status;
+  } else if (!isFinalized) {
+    checkpointCompletionStatus = 'IN_PROGRESS';
+  } else if (totalCheckpoints === 0) {
+    checkpointCompletionStatus = 'NO_CHECKPOINTS';
+  } else if (missedCheckpoints === 0 && scannedCheckpoints >= totalCheckpoints) {
+    checkpointCompletionStatus = 'COMPLETED';
+  } else {
+    checkpointCompletionStatus = 'INCOMPLETE';
+  }
+
+  return {
+    totalCheckpoints,
+    scannedCheckpoints,
+    missedCheckpoints,
+    compliancePct,
+    checkpointCompletionStatus,
+    eligibleGateIds,
+    missedGateIds,
+    eligibleItems,
+    missedItems,
+  };
+}

@@ -35,14 +35,67 @@ interface Shift {
   createdAt: string;
 }
 
+function normalizeTimeInputClient(timeStr?: string | null): string | null {
+  if (timeStr === undefined || timeStr === null) return null;
+  const trimmed = timeStr.trim();
+  if (trimmed === '') return null;
+
+  // Bare hour (0-23)
+  const bareMatch = trimmed.match(/^(\d{1,2})$/);
+  if (bareMatch) {
+    const h = parseInt(bareMatch[1], 10);
+    if (h >= 0 && h <= 23) return `${String(h).padStart(2, '0')}:00`;
+    return null;
+  }
+
+  // 12-hour AM/PM
+  const ampmMatch = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)$/i);
+  if (ampmMatch) {
+    let h = parseInt(ampmMatch[1], 10);
+    const m = ampmMatch[2] !== undefined ? parseInt(ampmMatch[2], 10) : 0;
+    const period = ampmMatch[3].toUpperCase();
+    if (h < 1 || h > 12 || m < 0 || m > 59) return null;
+    if (period === 'AM') h = h === 12 ? 0 : h;
+    else h = h === 12 ? 12 : h + 12;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  // Standard 24-hour HH:mm
+  const standardMatch = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (standardMatch) {
+    const h = parseInt(standardMatch[1], 10);
+    const m = parseInt(standardMatch[2], 10);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+    return null;
+  }
+
+  return null;
+}
+
+const timeValidation = z
+  .string()
+  .optional()
+  .or(z.literal(''))
+  .refine(
+    (val) => {
+      if (!val || val.trim() === '') return true;
+      return normalizeTimeInputClient(val) !== null;
+    },
+    {
+      message: 'Must be a valid time (e.g. 11:00, 18:00, or 11)',
+    },
+  );
+
 const shiftSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Must be in HH:MM format'),
   endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Must be in HH:MM format'),
-  mandatoryPatrol1Time: z.string().optional().or(z.literal('')),
+  mandatoryPatrol1Time: timeValidation,
   mandatoryPatrol1WindowBefore: z.coerce.number().optional().default(15),
   mandatoryPatrol1WindowAfter: z.coerce.number().optional().default(15),
-  mandatoryPatrol2Time: z.string().optional().or(z.literal('')),
+  mandatoryPatrol2Time: timeValidation,
   mandatoryPatrol2WindowBefore: z.coerce.number().optional().default(15),
   mandatoryPatrol2WindowAfter: z.coerce.number().optional().default(15),
   description: z.string().optional(),
@@ -170,10 +223,15 @@ export default function ShiftsPage() {
   };
 
   const onSubmit = (values: ShiftValues) => {
+    const normalizedValues: ShiftValues = {
+      ...values,
+      mandatoryPatrol1Time: values.mandatoryPatrol1Time ? normalizeTimeInputClient(values.mandatoryPatrol1Time) || '' : '',
+      mandatoryPatrol2Time: values.mandatoryPatrol2Time ? normalizeTimeInputClient(values.mandatoryPatrol2Time) || '' : '',
+    };
     if (editingShift) {
-      updateShiftMutation.mutate({ id: editingShift.id, values });
+      updateShiftMutation.mutate({ id: editingShift.id, values: normalizedValues });
     } else {
-      createShiftMutation.mutate(values);
+      createShiftMutation.mutate(normalizedValues);
     }
   };
 

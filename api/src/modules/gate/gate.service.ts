@@ -13,9 +13,11 @@ import { gateRepository } from './gate.repository';
 import { prisma } from '../../database/prisma';
 
 import { CreateGateDto, UpdateGateDto } from './gate.types';
+import { CurrentUser } from '../../common/auth/current-user';
+import { assertTenantAccess } from '../../common/auth/tenant-access';
 
 export class GateService {
-  async create(dto: CreateGateDto) {
+  async create(dto: CreateGateDto, user?: CurrentUser) {
     const site = await siteRepository.findById(dto.siteId);
 
     if (!site) {
@@ -25,6 +27,12 @@ export class GateService {
         'Site not found.',
       );
     }
+
+    await assertTenantAccess(
+      user,
+      site.clientId,
+      'Access denied. Site does not belong to your organization.',
+    );
 
     // Validate Checkpoint Creation Limit
     const client = await prisma.client.findUnique({
@@ -127,7 +135,7 @@ export class GateService {
     return gateRepository.list(siteId, isActive, clientId, page, limit, search, floor);
   }
 
-  async getFloors(siteId: string, userTenantId?: string) {
+  async getFloors(siteId: string, userTenantId?: string, user?: CurrentUser) {
     const site = await siteRepository.findById(siteId);
 
     if (!site) {
@@ -138,7 +146,9 @@ export class GateService {
       );
     }
 
-    if (userTenantId && site.clientId !== userTenantId) {
+    if (user) {
+      await assertTenantAccess(user, site.clientId, 'Access to site floors denied.');
+    } else if (userTenantId && site.clientId !== userTenantId) {
       throw new AppError(
         HttpStatus.FORBIDDEN,
         ErrorCodes.FORBIDDEN,
@@ -146,15 +156,31 @@ export class GateService {
       );
     }
 
-    return gateRepository.getFloors(siteId, userTenantId);
+    return gateRepository.getFloors(siteId, user ? undefined : userTenantId);
   }
 
-  async getNextSequence(siteId: string) {
+  async getNextSequence(siteId: string, user?: CurrentUser) {
+    if (user) {
+      const site = await siteRepository.findById(siteId);
+      if (!site) {
+        throw new AppError(
+          HttpStatus.NOT_FOUND,
+          ErrorCodes.NOT_FOUND,
+          'Site not found.',
+        );
+      }
+      await assertTenantAccess(
+        user,
+        site.clientId,
+        'Access denied. Site does not belong to your organization.',
+      );
+    }
+
     const nextSequence = await gateRepository.getNextSequence(siteId);
     return { nextSequence };
   }
 
-  async get(id: string) {
+  async get(id: string, user?: CurrentUser) {
     const gate = await gateRepository.findById(id);
 
     if (!gate) {
@@ -165,11 +191,22 @@ export class GateService {
       );
     }
 
+    if (user) {
+      const siteClientId =
+        (gate as any).site?.clientId ||
+        (await siteRepository.findById(gate.siteId))?.clientId;
+      await assertTenantAccess(
+        user,
+        siteClientId,
+        'Access denied. Checkpoint does not belong to your organization.',
+      );
+    }
+
     return gate;
   }
 
-  async update(id: string, dto: UpdateGateDto) {
-    const gate = await this.get(id);
+  async update(id: string, dto: UpdateGateDto, user?: CurrentUser) {
+    const gate = await this.get(id, user);
 
     if (dto.name && dto.name !== gate.name) {
       const existing = await gateRepository.findByName(gate.siteId, dto.name);
@@ -201,8 +238,8 @@ export class GateService {
     return gateRepository.update(id, dto);
   }
 
-  async activate(id: string) {
-    await this.get(id);
+  async activate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await gateRepository.activate(id);
 
@@ -211,8 +248,8 @@ export class GateService {
     };
   }
 
-  async deactivate(id: string) {
-    await this.get(id);
+  async deactivate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await gateRepository.deactivate(id);
 
@@ -221,8 +258,8 @@ export class GateService {
     };
   }
 
-  async delete(id: string) {
-    const gate = await this.get(id);
+  async delete(id: string, user?: CurrentUser) {
+    const gate = await this.get(id, user);
 
     const activeSubTasksCount = await prisma.gateSubTask.count({
       where: {
@@ -257,7 +294,13 @@ export class GateService {
     });
   }
 
-  async getBulkRange(siteId: string, fromSeq?: number, toSeq?: number, userTenantId?: string) {
+  async getBulkRange(
+    siteId: string,
+    fromSeq?: number,
+    toSeq?: number,
+    userTenantId?: string,
+    user?: CurrentUser,
+  ) {
     const site = await siteRepository.findById(siteId);
 
     if (!site) {
@@ -268,7 +311,9 @@ export class GateService {
       );
     }
 
-    if (userTenantId && site.clientId !== userTenantId) {
+    if (user) {
+      await assertTenantAccess(user, site.clientId, 'Access to site checkpoints denied.');
+    } else if (userTenantId && site.clientId !== userTenantId) {
       throw new AppError(
         HttpStatus.FORBIDDEN,
         ErrorCodes.FORBIDDEN,
@@ -276,7 +321,7 @@ export class GateService {
       );
     }
 
-    const result = await gateRepository.listBySequenceRange(siteId, fromSeq, toSeq, userTenantId);
+    const result = await gateRepository.listBySequenceRange(siteId, fromSeq, toSeq, user ? undefined : userTenantId);
 
     return {
       site: {

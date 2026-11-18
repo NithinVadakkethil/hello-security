@@ -1,6 +1,7 @@
 import { storage } from '../../../app/utils/mmkv-storage';
 import { apiClient } from '../../../app/api/api-client';
 import { AttendanceRecord, AttendanceStatus, MarkAttendanceParams, MarkCheckOutParams } from '../types';
+import { resolveEffectiveAttendanceDate } from '../utils/attendance-shift.util';
 
 const STORAGE_PREFIX = 'hello_orbit_attendance_v1_';
 const HISTORY_INDEX_KEY = 'hello_orbit_attendance_history_v1_';
@@ -24,25 +25,61 @@ export function buildAttendanceStorageKey(
 export const attendanceService = {
   getTodayBusinessDate,
   
+  /**
+   * Shift-aware attendance lookup:
+   * Prioritizes active in-progress attendance within 28h so that night-shift employees
+   * remain Checked In across midnight and app restarts.
+   */
   getAttendance: (
     employeeId: string,
     assignmentId?: string,
-    businessDate: string = getTodayBusinessDate()
+    businessDate?: string
   ): AttendanceRecord | null => {
     if (!employeeId) return null;
     const resolvedAssignmentId = assignmentId || 'direct';
-    const key = buildAttendanceStorageKey(employeeId, resolvedAssignmentId, businessDate);
+
+    // If a specific businessDate was provided, query that directly
+    if (businessDate) {
+      const key = buildAttendanceStorageKey(employeeId, resolvedAssignmentId, businessDate);
+      try {
+        let json = storage.getString(key);
+        if (!json && resolvedAssignmentId !== 'direct') {
+          json = storage.getString(buildAttendanceStorageKey(employeeId, 'direct', businessDate));
+        }
+        if (json) return JSON.parse(json) as AttendanceRecord;
+      } catch (err) {
+        console.warn('[AttendanceService] Failed to read attendance:', err);
+      }
+      return null;
+    }
+
+    // Priority 1: Check for active in-progress attendance in history within the last 28 hours
+    const history = attendanceService.getAttendanceHistory(employeeId);
+    const nowMs = Date.now();
+    const activeRecord = history.find((r) => {
+      if (r.checkOutAt || r.status === 'COMPLETED') return false;
+      const checkInMs = new Date(r.checkInAt).getTime();
+      return !isNaN(checkInMs) && nowMs - checkInMs <= 28 * 60 * 60 * 1000;
+    });
+
+    if (activeRecord) {
+      return activeRecord;
+    }
+
+    // Priority 2: Query today's business date
+    const todayDate = getTodayBusinessDate();
+    const key = buildAttendanceStorageKey(employeeId, resolvedAssignmentId, todayDate);
     try {
       let json = storage.getString(key);
       if (!json && resolvedAssignmentId !== 'direct') {
-        json = storage.getString(buildAttendanceStorageKey(employeeId, 'direct', businessDate));
+        json = storage.getString(buildAttendanceStorageKey(employeeId, 'direct', todayDate));
       }
-      if (!json) return null;
-      return JSON.parse(json) as AttendanceRecord;
+      if (json) return JSON.parse(json) as AttendanceRecord;
     } catch (err) {
       console.warn('[AttendanceService] Failed to read attendance:', err);
-      return null;
     }
+
+    return null;
   },
 
   markAttendance: async (params: MarkAttendanceParams): Promise<AttendanceRecord> => {
@@ -57,9 +94,12 @@ export const attendanceService = {
       shiftStartTime,
       shiftEndTime,
       designation,
-      businessDate = getTodayBusinessDate(),
+      businessDate: passedBusinessDate,
       isConnected = true,
     } = params;
+
+    // Shift-aware business date: night shifts starting after midnight map to yesterday's scheduled shift date
+    const businessDate = passedBusinessDate || resolveEffectiveAttendanceDate(shiftStartTime, shiftEndTime);
 
     const key = buildAttendanceStorageKey(employeeId, assignmentId, businessDate);
     const existing = attendanceService.getAttendance(employeeId, assignmentId, businessDate);
@@ -165,16 +205,32 @@ export const attendanceService = {
     const {
       employeeId,
       assignmentId,
-      businessDate = getTodayBusinessDate(),
+      businessDate: passedBusinessDate,
       isConnected = true,
     } = params;
 
     if (!employeeId) return null;
     const resolvedAssignmentId = assignmentId || 'direct';
 
-    let existing = attendanceService.getAttendance(employeeId, resolvedAssignmentId, businessDate);
-    if (!existing && resolvedAssignmentId !== 'direct') {
-      existing = attendanceService.getAttendance(employeeId, 'direct', businessDate);
+    // Shift-aware check-out: find active in-progress record across midnight
+    let existing: AttendanceRecord | null = null;
+    if (passedBusinessDate) {
+      existing = attendanceService.getAttendance(employeeId, resolvedAssignmentId, passedBusinessDate) ||
+                 attendanceService.getAttendance(employeeId, 'direct', passedBusinessDate);
+    } else {
+      const history = attendanceService.getAttendanceHistory(employeeId);
+      const nowMs = Date.now();
+      existing = history.find((r) => {
+        if (r.checkOutAt || r.status === 'COMPLETED') return false;
+        const checkInMs = new Date(r.checkInAt).getTime();
+        return !isNaN(checkInMs) && nowMs - checkInMs <= 28 * 60 * 60 * 1000;
+      }) || null;
+    }
+
+    if (!existing) {
+      const todayDate = getTodayBusinessDate();
+      existing = attendanceService.getAttendance(employeeId, resolvedAssignmentId, todayDate) ||
+                 attendanceService.getAttendance(employeeId, 'direct', todayDate);
     }
 
     if (!existing) {
@@ -185,6 +241,8 @@ export const attendanceService = {
       return existing;
     }
 
+    const targetBusinessDate = existing.businessDate || passedBusinessDate || getTodayBusinessDate();
+
     let serverCheckOutAt: string | null = null;
     let serverStatus: AttendanceStatus = isConnected ? 'COMPLETED' : 'PENDING_SYNC';
 
@@ -193,7 +251,7 @@ export const attendanceService = {
         const response: any = await apiClient.post('/attendance/check-out', {
           employeeId,
           assignmentId: existing.assignmentId || resolvedAssignmentId,
-          businessDate,
+          businessDate: targetBusinessDate,
         });
         const attData = response?.data || response;
         if (attData?.checkOutTimeRaw) {
@@ -214,10 +272,10 @@ export const attendanceService = {
       updatedAt: now,
     };
 
-    const key = buildAttendanceStorageKey(employeeId, existing.assignmentId || resolvedAssignmentId, businessDate);
+    const key = buildAttendanceStorageKey(employeeId, existing.assignmentId || resolvedAssignmentId, targetBusinessDate);
     storage.set(key, JSON.stringify(updatedRecord));
     if (existing.assignmentId !== 'direct') {
-      storage.set(buildAttendanceStorageKey(employeeId, 'direct', businessDate), JSON.stringify(updatedRecord));
+      storage.set(buildAttendanceStorageKey(employeeId, 'direct', targetBusinessDate), JSON.stringify(updatedRecord));
     }
     attendanceService.appendHistory(employeeId, updatedRecord);
 
@@ -227,24 +285,33 @@ export const attendanceService = {
   fetchServerAttendance: async (
     employeeId: string,
     assignmentId?: string,
-    businessDate: string = getTodayBusinessDate()
+    businessDate?: string
   ): Promise<AttendanceRecord | null> => {
     if (!employeeId) return null;
     const resolvedAssignmentId = assignmentId || 'direct';
+
+    // If businessDate is not passed, check if there is an active in-progress record to sync
+    const history = attendanceService.getAttendanceHistory(employeeId);
+    const activeLocal = history.find((r) => !r.checkOutAt && r.status !== 'COMPLETED');
+    const targetDate = businessDate || activeLocal?.businessDate || getTodayBusinessDate();
+
     try {
       const response: any = await apiClient.get('/attendance', {
         params: {
           employeeId,
-          date: businessDate,
+          date: targetDate,
         },
       });
       const records = response?.data?.records || response?.records || response?.data || [];
       const match = records.find(
-        (r: any) => r.employeeId === employeeId && (r.date === businessDate || r.shiftDate === businessDate)
+        (r: any) =>
+          r.employeeId === employeeId &&
+          (r.date === targetDate || r.shiftDate === targetDate || (r.status !== 'OFF' && !r.checkOutTimeRaw))
       );
       if (match && match.status !== 'OFF' && match.checkInTimeRaw) {
+        const effectiveDate = match.shiftDate || match.date || targetDate;
         const effectiveAsgId = match.assignmentId || resolvedAssignmentId;
-        const key = buildAttendanceStorageKey(employeeId, effectiveAsgId, businessDate);
+        const key = buildAttendanceStorageKey(employeeId, effectiveAsgId, effectiveDate);
         const serverRecord: AttendanceRecord = {
           id: match.id,
           employeeId,
@@ -257,20 +324,20 @@ export const attendanceService = {
           shiftStartTime: match.shiftStartTime || '',
           shiftEndTime: match.shiftEndTime || '',
           designation: match.employeeRole || '',
-          businessDate,
+          businessDate: effectiveDate,
           checkInAt: match.checkInTimeRaw,
           checkOutAt: match.checkOutTimeRaw || undefined,
           status: match.status,
           verificationMethod: match.verificationMethod || 'FACE_VERIFICATION',
           verificationResult: 'VERIFIED',
           isOfflineCaptured: false,
-          idempotencyKey: `att_${employeeId}_${effectiveAsgId}_${businessDate}`,
+          idempotencyKey: `att_${employeeId}_${effectiveAsgId}_${effectiveDate}`,
           createdAt: match.createdAt || match.checkInTimeRaw,
           updatedAt: match.updatedAt || match.checkInTimeRaw,
         };
         storage.set(key, JSON.stringify(serverRecord));
         if (effectiveAsgId !== 'direct') {
-          storage.set(buildAttendanceStorageKey(employeeId, 'direct', businessDate), JSON.stringify(serverRecord));
+          storage.set(buildAttendanceStorageKey(employeeId, 'direct', effectiveDate), JSON.stringify(serverRecord));
         }
         attendanceService.appendHistory(employeeId, serverRecord);
         return serverRecord;
@@ -321,4 +388,3 @@ export const attendanceService = {
     // Standard clear mechanism if required upon logout
   },
 };
-

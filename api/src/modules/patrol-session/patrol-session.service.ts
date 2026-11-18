@@ -13,6 +13,7 @@ import { mandatoryPatrolService } from '../mandatory-patrol/mandatory-patrol.ser
 import { notificationService } from '../notification/notification.service';
 import { CurrentUser } from '../../common/auth/current-user';
 import { getSupervisorScope } from '../../common/auth/supervisor-scope';
+import { assertTenantAccess } from '../../common/auth/tenant-access';
 import { ListPatrolSessionsQuery } from './patrol-session.types';
 import { verifyAndConsumePatrolFaceToken } from '../../common/auth/patrol-face-token';
 
@@ -82,6 +83,26 @@ export class PatrolSessionService {
       );
     }
 
+    const isDirect =
+      (assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
+      (!assignment?.patrolRoute && (assignment?.assignmentGates?.length || 0) > 0);
+
+    const totalConfigured = isDirect
+      ? (assignment?.assignmentGates?.length || 0)
+      : ((assignment?.patrolRoute as any)?.routeGates?.length || 0);
+
+    const activeGates = isDirect
+      ? (assignment?.assignmentGates || []).filter((ag: any) => !ag.gate || ag.gate.isActive !== false)
+      : ((assignment?.patrolRoute as any)?.routeGates || []).filter((rg: any) => !rg.gate || rg.gate.isActive !== false);
+
+    if (totalConfigured > 0 && activeGates.length === 0) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        'Cannot start patrol session: all assigned checkpoints are deactivated.',
+      );
+    }
+
     // Parse provided event timestamp or fallback to server time
     let startedAt = new Date();
     if (customStartedAt) {
@@ -121,7 +142,7 @@ export class PatrolSessionService {
           const endedAt = new Date();
           const totalDuration = Math.max(
             0,
-            Math.floor((endedAt.getTime() - running.startedAt.getTime()) / 60000),
+            Math.round((endedAt.getTime() - running.startedAt.getTime()) / 1000),
           );
           await patrolSessionRepository.update(running.id, {
             status: PatrolStatus.COMPLETED,
@@ -172,7 +193,7 @@ export class PatrolSessionService {
     return patrolSessionRepository.list(clientId, query);
   }
 
-  async pause(id: string) {
+  async pause(id: string, user?: CurrentUser) {
     const patrol = await patrolSessionRepository.findById(id);
 
     if (!patrol) {
@@ -182,6 +203,12 @@ export class PatrolSessionService {
         'Patrol not found.',
       );
     }
+
+    await assertTenantAccess(
+      user,
+      patrol.clientId,
+      'Access denied. Patrol session does not belong to your organization.',
+    );
 
     if (patrol.status !== PatrolStatus.IN_PROGRESS) {
       throw new AppError(
@@ -197,7 +224,7 @@ export class PatrolSessionService {
     });
   }
 
-  async resume(id: string) {
+  async resume(id: string, user?: CurrentUser) {
     const patrol = await patrolSessionRepository.findById(id);
 
     if (!patrol) {
@@ -207,6 +234,12 @@ export class PatrolSessionService {
         'Patrol not found.',
       );
     }
+
+    await assertTenantAccess(
+      user,
+      patrol.clientId,
+      'Access denied. Patrol session does not belong to your organization.',
+    );
 
     if (patrol.status !== PatrolStatus.PAUSED) {
       throw new AppError(
@@ -221,14 +254,89 @@ export class PatrolSessionService {
     });
   }
 
-  async complete(id: string, remarks?: string, customEndedAt?: string | Date) {
-    const patrol = await patrolSessionRepository.findById(id);
+  async complete(
+    id: string,
+    remarks?: string,
+    customEndedAt?: string | Date,
+    employeeId?: string,
+    tenantId?: string,
+  ) {
+    let patrol = await patrolSessionRepository.findById(id);
+
+    // Resilient fallback for offline synchronization (Backward compatibility with distributed APKs):
+    // If id is not found by ID (e.g. distributed APK sent an offline-session-* temp ID or unmapped CUID),
+    // and employeeId is provided, resolve the employee's active running session unambiguously.
+    if (!patrol && employeeId) {
+      const activeSessions = await prisma.patrolSession.findMany({
+        where: {
+          status: { in: [PatrolStatus.IN_PROGRESS, PatrolStatus.PAUSED] },
+          assignment: { employeeId },
+          ...(tenantId ? { clientId: tenantId } : {}),
+        },
+        include: {
+          assignment: {
+            include: {
+              employee: true,
+              site: true,
+              shift: true,
+              patrolRoute: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (activeSessions.length > 1) {
+        // Ambiguity Guard: multiple active sessions found; reject to prevent completing the wrong patrol
+        throw new AppError(
+          HttpStatus.CONFLICT,
+          ErrorCodes.VALIDATION_ERROR,
+          'Multiple active patrol sessions found for employee. Cannot resolve offline session unambiguously.',
+        );
+      } else if (activeSessions.length === 1) {
+        const running = activeSessions[0];
+        const fullPatrol = await patrolSessionRepository.findById(running.id);
+        const resolvedSession = fullPatrol || running;
+        patrol = resolvedSession as any;
+        id = resolvedSession.id;
+        logger.info(
+          `[PatrolSessionService] Patrol session resolved: unambiguous active running patrol session ${resolvedSession.id} (${resolvedSession.patrolCode}) for employee ${employeeId}.`,
+        );
+      } else {
+        // Idempotency: Check if the employee already completed a session recently matching this client
+        const recentlyCompleted = await prisma.patrolSession.findFirst({
+          where: {
+            status: PatrolStatus.COMPLETED,
+            assignment: { employeeId },
+            ...(tenantId ? { clientId: tenantId } : {}),
+          },
+          orderBy: { endedAt: 'desc' },
+        });
+
+        if (recentlyCompleted) {
+          logger.info(
+            `[PatrolSessionService] Offline complete requested for ${id}, but employee ${employeeId} already completed session ${recentlyCompleted.id} (${recentlyCompleted.patrolCode}). Returning completed record idempotently.`,
+          );
+          const fullRecent = await patrolSessionRepository.findById(recentlyCompleted.id);
+          return fullRecent || (recentlyCompleted as any);
+        }
+      }
+    }
 
     if (!patrol) {
       throw new AppError(
         HttpStatus.NOT_FOUND,
         ErrorCodes.NOT_FOUND,
         'Patrol not found.',
+      );
+    }
+
+    // Strict Tenant and Client Isolation
+    if (tenantId && patrol.clientId !== tenantId) {
+      throw new AppError(
+        HttpStatus.FORBIDDEN,
+        ErrorCodes.FORBIDDEN,
+        'Unauthorized access to patrol session.',
       );
     }
 
@@ -247,7 +355,7 @@ export class PatrolSessionService {
       where: { patrolSessionId: id },
     });
 
-    if (checkpointCount === 0) {
+    if (checkpointCount === 0 && !customEndedAt) {
       return patrolSessionRepository.cancel(id);
     }
 
@@ -262,7 +370,7 @@ export class PatrolSessionService {
 
     const totalDuration = Math.max(
       0,
-      Math.floor((endedAt.getTime() - patrol.startedAt.getTime()) / 60000),
+      Math.round((endedAt.getTime() - patrol.startedAt.getTime()) / 1000),
     );
 
     const completedPatrol = await patrolSessionRepository.update(id, {
@@ -326,13 +434,29 @@ export class PatrolSessionService {
     return completedPatrol;
   }
 
-  async cancel(id: string) {
+  async cancel(id: string, user?: CurrentUser) {
+    if (user) {
+      const patrol = await patrolSessionRepository.findById(id);
+      if (patrol) {
+        await assertTenantAccess(
+          user,
+          patrol.clientId,
+          'Access denied. Patrol session does not belong to your organization.',
+        );
+      }
+    }
     return patrolSessionRepository.cancel(id);
   }
 
   async findById(id: string, user?: CurrentUser) {
     const session = await patrolSessionRepository.findFullById(id);
     if (!session) return null;
+
+    await assertTenantAccess(
+      user,
+      session.clientId,
+      'Access denied. Patrol session does not belong to your organization.',
+    );
 
     if (user && user.role === 'SUPERVISOR') {
       const scope = getSupervisorScope(user);
@@ -367,6 +491,12 @@ export class PatrolSessionService {
         'Patrol session not found.',
       );
     }
+
+    await assertTenantAccess(
+      user,
+      patrol.clientId,
+      'Access denied. Patrol session does not belong to your organization.',
+    );
 
     if (user && user.role === 'SUPERVISOR') {
       const scope = getSupervisorScope(user);

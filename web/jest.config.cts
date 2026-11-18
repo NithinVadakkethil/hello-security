@@ -25,5 +25,9 @@ module.exports = async () => {
       value[1] = { ...value[1], resolvedBaseUrl: undefined };
     }
   }
+  resolved.moduleNameMapper = {
+    ...resolved.moduleNameMapper,
+    '^@/(.*)$': '<rootDir>/src/$1',
+  };
   return resolved;
 };

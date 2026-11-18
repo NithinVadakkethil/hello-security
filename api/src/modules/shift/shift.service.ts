@@ -11,11 +11,30 @@ import { generateCode } from '../../common/utils/code-generator';
 import { shiftRepository } from './shift.repository';
 
 import { CreateShiftDto, UpdateShiftDto } from './shift.types';
+import { CurrentUser } from '../../common/auth/current-user';
+import { assertTenantAccess } from '../../common/auth/tenant-access';
 
 import { prisma } from '../../database/prisma';
+import { normalizeTimeInput, getEffectiveShiftDate } from '../mandatory-patrol/mandatory-patrol.util';
+import { mandatoryPatrolService } from '../mandatory-patrol/mandatory-patrol.service';
+import { DEFAULT_TIMEZONE } from '../../common/utils/date-formatter.util';
+import { logger } from '../../common/logger/logger';
 
 export class ShiftService {
   async create(clientId: string, dto: CreateShiftDto) {
+    if (dto.startTime) {
+      dto.startTime = normalizeTimeInput(dto.startTime) || dto.startTime;
+    }
+    if (dto.endTime) {
+      dto.endTime = normalizeTimeInput(dto.endTime) || dto.endTime;
+    }
+    if (dto.mandatoryPatrol1Time !== undefined) {
+      dto.mandatoryPatrol1Time = normalizeTimeInput(dto.mandatoryPatrol1Time);
+    }
+    if (dto.mandatoryPatrol2Time !== undefined) {
+      dto.mandatoryPatrol2Time = normalizeTimeInput(dto.mandatoryPatrol2Time);
+    }
+
     const existing = await shiftRepository.findByName(clientId, dto.name);
 
     if (existing) {
@@ -70,11 +89,11 @@ export class ShiftService {
     });
   }
 
-  async list(clientId: string, isActive?: boolean) {
-    return shiftRepository.list(clientId, isActive);
+  async list(clientId?: string, isActive?: boolean, siteId?: string) {
+    return shiftRepository.list(clientId, isActive, siteId);
   }
 
-  async get(id: string) {
+  async get(id: string, user?: CurrentUser) {
     const shift = await shiftRepository.findById(id);
 
     if (!shift) {
@@ -85,11 +104,17 @@ export class ShiftService {
       );
     }
 
+    await assertTenantAccess(
+      user,
+      shift.clientId,
+      'Access denied. Shift does not belong to your organization.',
+    );
+
     return shift;
   }
 
-  async update(id: string, dto: UpdateShiftDto) {
-    const shift = await this.get(id);
+  async update(id: string, dto: UpdateShiftDto, user?: CurrentUser) {
+    const shift = await this.get(id, user);
 
     if (dto.name && dto.name !== shift.name) {
       const existing = await shiftRepository.findByName(
@@ -106,6 +131,19 @@ export class ShiftService {
       }
     }
 
+    if (dto.startTime) {
+      dto.startTime = normalizeTimeInput(dto.startTime) || dto.startTime;
+    }
+    if (dto.endTime) {
+      dto.endTime = normalizeTimeInput(dto.endTime) || dto.endTime;
+    }
+    if (dto.mandatoryPatrol1Time !== undefined) {
+      dto.mandatoryPatrol1Time = normalizeTimeInput(dto.mandatoryPatrol1Time);
+    }
+    if (dto.mandatoryPatrol2Time !== undefined) {
+      dto.mandatoryPatrol2Time = normalizeTimeInput(dto.mandatoryPatrol2Time);
+    }
+
     if (dto.startTime && dto.endTime && dto.startTime === dto.endTime) {
       throw new AppError(
         HttpStatus.BAD_REQUEST,
@@ -114,11 +152,34 @@ export class ShiftService {
       );
     }
 
-    return shiftRepository.update(id, dto);
+    const updated = await shiftRepository.update(id, dto);
+
+    // Sync mandatory patrol instances for active assignments of this shift
+    try {
+      const activeAssignments = await prisma.guardAssignment.findMany({
+        where: { shiftId: id, isActive: true },
+        include: { shift: true, site: true },
+      });
+      const now = new Date();
+      for (const assignment of activeAssignments) {
+        const timeZone = (assignment.site as any)?.timeZone || DEFAULT_TIMEZONE;
+        const effectiveDate = getEffectiveShiftDate(
+          assignment.shift?.startTime,
+          assignment.shift?.endTime,
+          now,
+          timeZone,
+        );
+        await mandatoryPatrolService.syncMandatoryPatrolInstancesForAssignment(assignment.id, effectiveDate);
+      }
+    } catch (err: any) {
+      logger.warn(`Failed to auto-resync mandatory patrols after shift update: ${err.message}`);
+    }
+
+    return updated;
   }
 
-  async activate(id: string) {
-    await this.get(id);
+  async activate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await shiftRepository.activate(id);
 
@@ -127,8 +188,8 @@ export class ShiftService {
     };
   }
 
-  async deactivate(id: string) {
-    await this.get(id);
+  async deactivate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await shiftRepository.deactivate(id);
 

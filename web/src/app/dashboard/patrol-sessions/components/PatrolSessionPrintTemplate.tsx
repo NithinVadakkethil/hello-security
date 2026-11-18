@@ -2,6 +2,11 @@
 
 import { resolveImageUrl } from '../../../../lib/image';
 import { formatPatrolDateTime } from '@/lib/date-formatter';
+import { formatEmiratesId } from '@/lib/emirates-id';
+import {
+  isSystemSyncRemark,
+  cleanSystemRemark,
+} from '@/lib/checkpoint-timeline';
 
 interface PatrolSessionPrintTemplateProps {
   session: any;
@@ -96,7 +101,7 @@ export default function PatrolSessionPrintTemplate({
   const completionPct =
     totalCheckpoints > 0
       ? Math.round((completedCheckpoints / totalCheckpoints) * 100)
-      : 100;
+      : 0;
 
   // Flatten all sub-task responses across all scanned checkpoints
   const allSubTaskResponses: any[] = [];
@@ -372,6 +377,14 @@ export default function PatrolSessionPrintTemplate({
                 </td>
                 <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>
                   {employee.employeeNumber || 'EMP-001'}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ color: '#64748b', padding: '2px 0' }}>
+                  Emirates ID:
+                </td>
+                <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                  {formatEmiratesId(employee.emiratesId)}
                 </td>
               </tr>
               <tr>
@@ -944,7 +957,19 @@ export default function PatrolSessionPrintTemplate({
                           </td>
                           <td style={{ padding: '5px 6px', color: '#334155' }}>
                             {res.remarks ? (
-                              <span>"{res.remarks}"</span>
+                              isSystemSyncRemark(res.remarks) ? (
+                                <span
+                                  style={{
+                                    color: '#64748b',
+                                    fontStyle: 'italic',
+                                    fontSize: '11px',
+                                  }}
+                                >
+                                  [System] {cleanSystemRemark(res.remarks)}
+                                </span>
+                              ) : (
+                                <span>"{res.remarks}"</span>
+                              )
                             ) : (
                               <span
                                 style={{
@@ -1098,7 +1123,7 @@ export default function PatrolSessionPrintTemplate({
             const snagIdDisplay = `SNAG-${snag.id.slice(-6).toUpperCase()}`;
             const reporterName = snag.employee
               ? `${snag.employee.firstName} ${snag.employee.lastName || ''}`.trim()
-              : 'Security Officer';
+              : 'Employee';
             const reporterEmpId = snag.employee?.employeeNumber || '—';
             const beforeImages = Array.isArray(snag.images) ? snag.images : [];
 

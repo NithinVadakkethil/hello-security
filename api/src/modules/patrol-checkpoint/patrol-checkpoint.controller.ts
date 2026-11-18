@@ -112,8 +112,10 @@ export class PatrolCheckpointController {
 
   async history(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const result = await patrolCheckpointService.history(
         req.params.sessionId as string,
+        user,
       );
 
       return res.json({
@@ -127,10 +129,11 @@ export class PatrolCheckpointController {
 
   async updateRemarks(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const id = req.params.id as string;
       const { remarks } = req.body;
 
-      const result = await patrolCheckpointService.updateRemarks(id, remarks || '');
+      const result = await patrolCheckpointService.updateRemarks(id, remarks || '', user);
 
       return res.json({
         success: true,

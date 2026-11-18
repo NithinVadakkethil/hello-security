@@ -64,10 +64,26 @@ export class ShiftRepository {
     });
   }
 
-  list(clientId: string, isActive?: boolean) {
+  async list(clientId?: string, isActive?: boolean, siteId?: string) {
+    if (siteId && clientId) {
+      const siteShifts = await prisma.shift.findMany({
+        where: {
+          clientId,
+          ...(isActive !== undefined && { isActive }),
+          assignments: { some: { siteId, isActive: true } },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+      if (siteShifts.length > 0) {
+        return siteShifts;
+      }
+    }
+
     return prisma.shift.findMany({
       where: {
-        clientId,
+        ...(clientId ? { clientId } : {}),
         ...(isActive !== undefined && { isActive }),
       },
       orderBy: {

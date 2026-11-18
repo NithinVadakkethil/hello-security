@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { authenticate } from '../../common/auth/auth.middleware';
 import { authorize } from '../../common/auth/authorize';
 import { centralManagerController } from './central-manager.controller';
+import { shiftController } from '../shift/shift.controller';
 
 const router: Router = Router();
 
@@ -72,6 +73,18 @@ router.get(
 );
 
 router.get(
+  '/reports/employee-patrols',
+  authorize(...CENTRAL_MANAGER_ROLES),
+  centralManagerController.getEmployeePatrols.bind(centralManagerController),
+);
+
+router.get(
+  '/reports/:id/missed-checkpoints',
+  authorize(...CENTRAL_MANAGER_ROLES),
+  centralManagerController.getMissedCheckpoints.bind(centralManagerController),
+);
+
+router.get(
   '/reports/:id',
   authorize(...CENTRAL_MANAGER_ROLES),
   centralManagerController.getSingleReport.bind(centralManagerController),
@@ -81,6 +94,12 @@ router.get(
   '/reports/:id/pdf',
   authorize(...CENTRAL_MANAGER_ROLES),
   centralManagerController.getReportPdf.bind(centralManagerController),
+);
+
+router.get(
+  '/shifts',
+  authorize(...CENTRAL_MANAGER_ROLES),
+  shiftController.list.bind(shiftController),
 );
 
 export default router;

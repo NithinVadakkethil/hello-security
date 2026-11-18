@@ -33,7 +33,7 @@ export function AssignmentDetailsScreen({ route }: any) {
         <Text style={[styles.value, { color: colors.text }]}>{employee?.employeeNumber}</Text>
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>Designation</Text>
-        <Text style={[styles.value, { color: colors.text }]}>{employee?.designation || 'Security Officer'}</Text>
+        <Text style={[styles.value, { color: colors.text }]}>{employee?.designation || 'Security Guard'}</Text>
       </Card>
 
       <Text style={[styles.sectionTitle, { color: colors.text }]}>Assignment Schedule</Text>

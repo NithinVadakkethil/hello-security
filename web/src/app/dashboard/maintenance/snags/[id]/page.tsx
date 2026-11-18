@@ -653,7 +653,7 @@ export default function SnagDetailPage() {
           >
             <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <User size={18} style={{ color: 'var(--primary)' }} />
-              <span>Reported By Security Officer</span>
+              <span>Reported By Employee</span>
             </h3>
 
             <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>

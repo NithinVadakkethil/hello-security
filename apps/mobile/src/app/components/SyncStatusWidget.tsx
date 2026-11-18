@@ -53,9 +53,16 @@ export function SyncStatusWidget() {
       <View style={styles.header}>
         <View style={styles.statusRow}>
           <View style={[styles.dot, { backgroundColor: isConnected ? colors.success : colors.warning }]} />
-          <Text style={[styles.statusText, { color: colors.text }]}>
-            {isConnected ? 'Sync Engine: Online' : 'Sync Engine: Offline'}
-          </Text>
+          <View>
+            <Text style={[styles.statusText, { color: colors.text }]}>
+              {isConnected ? 'Sync Engine: Online' : 'Offline Mode'}
+            </Text>
+            {!isConnected && (
+              <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
+                Changes will sync when connection is restored
+              </Text>
+            )}
+          </View>
         </View>
 
         {queue.length > 0 && !isSyncing && (
@@ -78,6 +85,11 @@ export function SyncStatusWidget() {
           {lastSyncTime && (
             <Text style={[styles.timeText, { color: colors.textSecondary }]}>
               Last Sync: {new Date(lastSyncTime).toLocaleTimeString()}
+            </Text>
+          )}
+          {queue.some((m) => m.lastError && m.status === 'pending') && (
+            <Text style={{ fontSize: 11, color: colors.warning, marginTop: 4 }}>
+              Status: {queue.find((m) => m.lastError && m.status === 'pending')?.lastError}
             </Text>
           )}
         </View>

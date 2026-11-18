@@ -286,15 +286,15 @@ export default function IncidentDetailPage() {
 
         </div>
 
-        {/* Right Side: Reporting Officer Details & Timestamp */}
+        {/* Right Side: Reporting Employee Details & Timestamp */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
           <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
-            {/* Officer Details */}
+            {/* Employee Details */}
             <div>
               <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Reporting Officer
+                Reporting Employee
               </h4>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{ width: '40px', height: '40px', borderRadius: '20px', backgroundColor: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontWeight: 700 }}>
@@ -305,7 +305,7 @@ export default function IncidentDetailPage() {
                     {incident.employee.firstName} {incident.employee.lastName}
                   </h5>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                    {incident.employee.designation || 'Security Officer'}
+                    {incident.employee.designation || 'Security Guard'}
                   </p>
                 </div>
               </div>

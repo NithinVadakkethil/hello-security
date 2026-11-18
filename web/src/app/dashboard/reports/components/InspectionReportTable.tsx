@@ -21,6 +21,7 @@ export interface InspectionRow {
       employeeNumber: string;
       photo?: string | null;
       role?: string | null;
+      emiratesId?: string | null;
     };
     site: {
       name: string;
@@ -159,7 +160,7 @@ export default function InspectionReportTable({
                   {getSortIcon('startedAt')}
                 </div>
               </th>
-              <th style={{ padding: '12px 16px' }}>Security Officer</th>
+              <th style={{ padding: '12px 16px' }}>Employee</th>
               <th style={{ padding: '12px 16px' }}>Role</th>
               <th style={{ padding: '12px 16px' }}>Monitored Site</th>
               <th style={{ padding: '12px 16px' }}>Route / Target</th>
@@ -234,7 +235,7 @@ export default function InspectionReportTable({
                 const compliancePct =
                   totalGates > 0
                     ? Math.round((completedCount / totalGates) * 100)
-                    : 100;
+                    : 0;
                 // const durationMins = row.totalDuration
                 //   ? Math.round(row.totalDuration / 60)
                 //   : 0;
@@ -351,7 +352,7 @@ export default function InspectionReportTable({
                         }}
                       >
                         <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>
-                          {totalGates > 0 ? `${completedCount} / ${totalGates} (${compliancePct}%)` : '0 / 0 (N/A)'}
+                          {totalGates > 0 ? `${completedCount} / ${totalGates} (${compliancePct}%)` : '0 / 0 (0%)'}
                         </span>
                         <div
                           style={{

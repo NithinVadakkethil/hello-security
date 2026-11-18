@@ -192,7 +192,18 @@ export default function PatrolRoutesPage() {
     {
       key: 'checkpointsCount',
       label: 'Checkpoints',
-      render: (row: PatrolRoute) => <span>{row.routeGates?.length || 0} gates</span>,
+      render: (row: PatrolRoute) => {
+        const total = row.routeGates?.length || 0;
+        const active = (row.routeGates || []).filter((rg: any) => rg.gate?.isActive !== false).length;
+        if (total === 0) return <span>0 gates</span>;
+        if (active === total) return <span>{total} gates</span>;
+        return (
+          <span title={`${active} active of ${total} total checkpoints`}>
+            <span style={{ fontWeight: 600, color: active === 0 ? 'var(--danger)' : 'var(--text-primary)' }}>{active}</span>
+            <span style={{ color: 'var(--text-muted)' }}>/{total} active</span>
+          </span>
+        );
+      },
     },
     { key: 'description', label: 'Description' },
     {

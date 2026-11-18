@@ -1,3 +1,5 @@
+import { isSystemSyncRemark } from '../../utils/observation-metadata.util';
+
 export interface CheckpointItem {
   name: string;
   sequence: number;
@@ -79,9 +81,23 @@ export function buildPatrolCompletedEmailHtml(data: PatrolCompletedEmailData): s
     })
     .join('');
 
+  const filteredObservations: Array<{ title: string; description?: string; severity?: string }> = [];
+  const seenObsKeys = new Set<string>();
+
+  (data.observations || []).forEach((obs) => {
+    if (isSystemSyncRemark(obs.description) || isSystemSyncRemark(obs.title)) {
+      return;
+    }
+    const key = `${obs.title.toLowerCase().trim()}|${(obs.description || '').toLowerCase().trim()}`;
+    if (!seenObsKeys.has(key)) {
+      seenObsKeys.add(key);
+      filteredObservations.push(obs);
+    }
+  });
+
   const observationsListHtml =
-    data.observations.length > 0
-      ? data.observations
+    filteredObservations.length > 0
+      ? filteredObservations
           .map(
             (obs) =>
               `<div style="padding: 10px 12px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 6px; margin-bottom: 8px;">
@@ -120,7 +136,7 @@ export function buildPatrolCompletedEmailHtml(data: PatrolCompletedEmailData): s
           <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; font-weight: 700; border-bottom: 1px solid #e2e8f0;">${data.patrolCode}</td>
         </tr>
         <tr>
-          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Security Officer</td>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Employee</td>
           <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; font-weight: 600; border-bottom: 1px solid #e2e8f0;">${data.officerName} (${data.employeeId})</td>
         </tr>
         <tr>
@@ -286,15 +302,24 @@ export function buildConsolidatedRouteCycleEmailHtml(data: ConsolidatedRouteCycl
     })
     .join('');
 
-  // Collect all observations across routes
+  // Collect all observations across routes, filtering system metadata and deduplicating
   const allObservations: Array<{ routeName: string; title: string; description?: string }> = [];
+  const seenObservationKeys = new Set<string>();
+
   data.routes.forEach((r) => {
-    r.observations.forEach((obs) => {
-      allObservations.push({
-        routeName: r.routeName,
-        title: obs.title,
-        description: obs.description,
-      });
+    (r.observations || []).forEach((obs) => {
+      if (isSystemSyncRemark(obs.description) || isSystemSyncRemark(obs.title)) {
+        return;
+      }
+      const dedupKey = `${r.routeName.toLowerCase().trim()}|${obs.title.toLowerCase().trim()}|${(obs.description || '').toLowerCase().trim()}`;
+      if (!seenObservationKeys.has(dedupKey)) {
+        seenObservationKeys.add(dedupKey);
+        allObservations.push({
+          routeName: r.routeName,
+          title: obs.title,
+          description: obs.description,
+        });
+      }
     });
   });
 
@@ -335,7 +360,7 @@ export function buildConsolidatedRouteCycleEmailHtml(data: ConsolidatedRouteCycl
       <h3 style="font-size: 14px; color: #475569; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px;">Assignment Cycle Summary</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; background: #f8fafc; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
         <tr>
-          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Security Officer</td>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0;">Employee</td>
           <td style="padding: 10px 14px; font-size: 14px; color: #0f172a; font-weight: 700; border-bottom: 1px solid #e2e8f0;">${data.officerName} (${data.employeeId})</td>
         </tr>
         <tr>

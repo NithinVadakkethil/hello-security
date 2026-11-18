@@ -307,11 +307,11 @@ export default function IncidentsPage() {
     },
     {
       key: 'officer',
-      label: 'Officer',
+      label: 'Employee',
       render: (inc: Incident) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-            {inc.employee ? `${inc.employee.firstName} ${inc.employee.lastName || ''}` : 'Security Officer'}
+            {inc.employee ? `${inc.employee.firstName} ${inc.employee.lastName || ''}` : 'Employee'}
           </span>
           {inc.employee?.employeeNumber && (
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
@@ -423,7 +423,7 @@ export default function IncidentsPage() {
               margin: '4px 0 0 0',
             }}
           >
-            Browse and review safety, security, and checkpoint observations logged by officers.
+            Browse and review safety, security, and checkpoint observations logged by employees.
           </p>
         </div>
       </div>
@@ -459,7 +459,7 @@ export default function IncidentsPage() {
             type="text"
             value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search by observation, description, site, checkpoint or officer..."
+            placeholder="Search by observation, description, site, checkpoint or employee..."
             aria-label="Search observation reports"
             style={{
               width: '100%',

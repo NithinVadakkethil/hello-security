@@ -16,6 +16,7 @@ interface Gate {
   gateCode: string;
   name: string;
   sequence: number;
+  isActive?: boolean;
 }
 
 interface SelectedCheckpoint {
@@ -47,8 +48,8 @@ export default function NewPatrolRoutePage() {
 
   // Query Gates for selected site
   const { data: gatesRes, isLoading: isGatesLoading } = useQuery<ApiResponse<Gate[]>>({
-    queryKey: ['gates', selectedSiteId, 'active'],
-    queryFn: () => apiClient.get('/gates', { params: { siteId: selectedSiteId, isActive: true } }),
+    queryKey: ['gates', selectedSiteId],
+    queryFn: () => apiClient.get('/gates', { params: { siteId: selectedSiteId } }),
     enabled: !!selectedSiteId,
   });
 
@@ -72,6 +73,11 @@ export default function NewPatrolRoutePage() {
   }, [selectedSiteId]);
 
   const handleAddGate = (gate: Gate) => {
+    if (gate.isActive === false) {
+      toast.error(`"${gate.name}" is deactivated and cannot be added to a route.`);
+      return;
+    }
+
     // Check if gate is already added
     if (checkpoints.some((c) => c.gateId === gate.id)) {
       toast.error('Gate checkpoint is already in the sequence.');
@@ -273,6 +279,7 @@ export default function NewPatrolRoutePage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto', paddingRight: '2px' }}>
                     {filteredGates.map((gate) => {
                       const added = checkpoints.some((c) => c.gateId === gate.id);
+                      const isDeactivated = gate.isActive === false;
                       return (
                         <div
                           key={gate.id}
@@ -281,16 +288,47 @@ export default function NewPatrolRoutePage() {
                             alignItems: 'center',
                             justifyContent: 'space-between',
                             padding: '10px 14px',
-                            background: 'var(--bg-tertiary)',
+                            background: isDeactivated ? 'rgba(100, 116, 139, 0.05)' : 'var(--bg-tertiary)',
                             borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--border-color)',
-                            opacity: added ? 0.6 : 1,
+                            border: isDeactivated ? '1px dashed rgba(148, 163, 184, 0.3)' : '1px solid var(--border-color)',
+                            opacity: added || isDeactivated ? 0.65 : 1,
                           }}
                         >
                           <div>
-                            <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: 0 }}>
-                              <HighlightText text={gate.name} query={searchQuery} />
-                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                              <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: 0, color: isDeactivated ? '#94a3b8' : 'inherit' }}>
+                                <HighlightText text={gate.name} query={searchQuery} />
+                              </p>
+                              {isDeactivated ? (
+                                <span
+                                  style={{
+                                    fontSize: '0.65rem',
+                                    padding: '2px 6px',
+                                    borderRadius: '9999px',
+                                    backgroundColor: 'rgba(100, 116, 139, 0.16)',
+                                    color: '#94a3b8',
+                                    border: '1px solid rgba(148, 163, 184, 0.3)',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  DEACTIVATED
+                                </span>
+                              ) : (
+                                <span
+                                  style={{
+                                    fontSize: '0.65rem',
+                                    padding: '2px 6px',
+                                    borderRadius: '9999px',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                    color: '#10b981',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  ACTIVE
+                                </span>
+                              )}
+                            </div>
                             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                               <HighlightText text={gate.gateCode} query={searchQuery} />
                             </span>
@@ -298,11 +336,16 @@ export default function NewPatrolRoutePage() {
                           <button
                             type="button"
                             onClick={() => handleAddGate(gate)}
-                            disabled={added}
+                            disabled={added || isDeactivated}
                             className="btn btn-secondary"
-                            style={{ padding: '4px 8px', fontSize: '0.75rem', height: '28px' }}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '0.75rem',
+                              height: '28px',
+                              cursor: isDeactivated ? 'not-allowed' : 'pointer',
+                            }}
                           >
-                            {added ? 'Added' : 'Add'}
+                            {added ? 'Added' : isDeactivated ? 'Inactive' : 'Add'}
                           </button>
                         </div>
                       );

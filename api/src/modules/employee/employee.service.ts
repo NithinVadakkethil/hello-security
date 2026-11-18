@@ -15,11 +15,13 @@ import { generateCode } from '../../common/utils/code-generator';
 
 import { saveBase64Image } from '../../common/utils/file-upload.util';
 import { isSiraRequiredForRole } from '../../common/utils/sira-expiry.util';
+import { validateEmiratesId } from '../../common/utils/emirates-id.util';
 
 import { employeeRepository } from './employee.repository';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './employee.types';
 import { CurrentUser } from '../../common/auth/current-user';
 import { getSupervisorScope } from '../../common/auth/supervisor-scope';
+import { assertTenantAccess } from '../../common/auth/tenant-access';
 
 export class EmployeeService {
   async create(clientId: string, dto: CreateEmployeeDto) {
@@ -67,6 +69,38 @@ export class EmployeeService {
           ErrorCodes.VALIDATION_ERROR,
           'This email address is already registered to another employee. Please use a different email address.',
         );
+      }
+    }
+
+    // Validate and check duplicate Emirates ID if provided
+    let normalizedEmiratesId: string | null = null;
+    if (dto.emiratesId) {
+      const validation = validateEmiratesId(dto.emiratesId);
+      if (!validation.valid) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          validation.error || 'Invalid Emirates ID.',
+        );
+      }
+      normalizedEmiratesId = validation.normalized || null;
+
+      if (normalizedEmiratesId) {
+        const existingActiveWithEid = await prisma.employee.findFirst({
+          where: {
+            clientId,
+            emiratesId: normalizedEmiratesId,
+            status: EmployeeStatus.ACTIVE,
+          },
+        });
+
+        if (existingActiveWithEid) {
+          throw new AppError(
+            HttpStatus.CONFLICT,
+            ErrorCodes.VALIDATION_ERROR,
+            'An active employee with this Emirates ID already exists in this organization.',
+          );
+        }
       }
     }
 
@@ -138,6 +172,7 @@ export class EmployeeService {
 
             email: dto.email,
             phone: dto.phone,
+            emiratesId: normalizedEmiratesId,
 
             designation: dto.designation,
             companyName: dto.companyName || null,
@@ -182,7 +217,7 @@ export class EmployeeService {
     return employeeRepository.list(clientId, status, scope, search);
   }
 
-  async get(id: string) {
+  async get(id: string, user?: CurrentUser) {
     const employee = await employeeRepository.findById(id);
 
     if (!employee) {
@@ -193,11 +228,17 @@ export class EmployeeService {
       );
     }
 
+    await assertTenantAccess(
+      user,
+      employee.clientId,
+      'Access denied. Employee does not belong to your organization.',
+    );
+
     return employee;
   }
 
-  async update(id: string, dto: UpdateEmployeeDto) {
-    const existing = await this.get(id);
+  async update(id: string, dto: UpdateEmployeeDto, user?: CurrentUser) {
+    const existing = await this.get(id, user);
 
     // Strip email from dto to ensure email remains immutable after creation
     const { email, ...cleanDto } = dto as any;
@@ -228,6 +269,46 @@ export class EmployeeService {
       cleanDto.siraCardBackImage = await saveBase64Image(cleanDto.siraCardBackImage, 'sira-back');
     }
 
+    // Validate Emirates ID if provided in update
+    if (cleanDto.emiratesId !== undefined) {
+      if (!cleanDto.emiratesId || cleanDto.emiratesId.trim() === '') {
+        cleanDto.emiratesId = null;
+      } else {
+        const validation = validateEmiratesId(cleanDto.emiratesId);
+        if (!validation.valid) {
+          throw new AppError(
+            HttpStatus.BAD_REQUEST,
+            ErrorCodes.VALIDATION_ERROR,
+            validation.error || 'Invalid Emirates ID.',
+          );
+        }
+        cleanDto.emiratesId = validation.normalized || null;
+      }
+    }
+
+    const targetStatus = cleanDto.status !== undefined ? cleanDto.status : existing.status;
+    const targetEmiratesId =
+      cleanDto.emiratesId !== undefined ? cleanDto.emiratesId : existing.emiratesId;
+
+    if (targetStatus === EmployeeStatus.ACTIVE && targetEmiratesId) {
+      const existingActiveWithEid = await prisma.employee.findFirst({
+        where: {
+          clientId: existing.clientId,
+          emiratesId: targetEmiratesId,
+          status: EmployeeStatus.ACTIVE,
+          id: { not: id },
+        },
+      });
+
+      if (existingActiveWithEid) {
+        throw new AppError(
+          HttpStatus.CONFLICT,
+          ErrorCodes.VALIDATION_ERROR,
+          'An active employee with this Emirates ID already exists in this organization.',
+        );
+      }
+    }
+
     return prisma.$transaction(async (tx) => {
       const updatedEmp = await tx.employee.update({
         where: { id },
@@ -249,8 +330,8 @@ export class EmployeeService {
     });
   }
 
-  async activate(id: string) {
-    await this.get(id);
+  async activate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await prisma.$transaction(async (tx) => {
       await tx.employee.update({
@@ -275,8 +356,8 @@ export class EmployeeService {
     };
   }
 
-  async deactivate(id: string) {
-    await this.get(id);
+  async deactivate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await prisma.$transaction(async (tx) => {
       await tx.employee.update({
@@ -301,8 +382,8 @@ export class EmployeeService {
     };
   }
 
-  async delete(id: string) {
-    await this.get(id);
+  async delete(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     return employeeRepository.delete(id);
   }

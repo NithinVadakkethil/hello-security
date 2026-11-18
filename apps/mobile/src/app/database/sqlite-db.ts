@@ -45,6 +45,36 @@ export const sqliteDb = {
     }
   },
 
+  // Synchronously gets a single record from cache
+  getSync: <T>(table: string, id: string): T | null => {
+    try {
+      const key = `db:${table}:${id}`;
+      const value = storage.getString(key);
+      if (!value) return null;
+      const record = JSON.parse(value) as OfflineTableRecord;
+      return JSON.parse(record.data) as T;
+    } catch {
+      return null;
+    }
+  },
+
+  // Synchronously inserts or replaces a record in local cache
+  insertSync: (table: string, id: string, data: any): boolean => {
+    try {
+      const key = `db:${table}:${id}`;
+      storage.set(key, JSON.stringify({
+        id,
+        table,
+        data: JSON.stringify(data),
+        createdAt: Date.now(),
+      }));
+      return true;
+    } catch (err) {
+      console.error('[SQLite DB] insertSync error:', err);
+      return false;
+    }
+  },
+
   // Lists all records in a table
   list: async <T>(table: string): Promise<T[]> => {
     try {
