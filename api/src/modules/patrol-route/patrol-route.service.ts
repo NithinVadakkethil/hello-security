@@ -20,6 +20,25 @@ import {
   CreatePatrolRouteDto,
   UpdatePatrolRouteDto,
 } from './patrol-route.types';
+import { hydrateGateSubTasks } from '../assignment/assignment.service';
+import { GATE_SUBTASKS_INCLUDE } from '../assignment/assignment.repository';
+import { CurrentUser } from '../../common/auth/current-user';
+import { assertTenantAccess } from '../../common/auth/tenant-access';
+
+function formatRoute(route: any) {
+  if (!route) return route;
+  return {
+    ...route,
+    routeGates: (route.routeGates || []).map((rg: any) => {
+      const hydratedGate = hydrateGateSubTasks(rg.gate);
+      return {
+        ...rg,
+        gate: hydratedGate,
+        subTasks: hydratedGate?.subTasks || [],
+      };
+    }),
+  };
+}
 
 export class PatrolRouteService {
   async create(clientId: string, dto: CreatePatrolRouteDto) {
@@ -154,7 +173,7 @@ export class PatrolRouteService {
         })),
       });
 
-      return tx.patrolRoute.findUnique({
+      const createdRoute = await tx.patrolRoute.findUnique({
         where: {
           id: route.id,
         },
@@ -162,7 +181,9 @@ export class PatrolRouteService {
           site: true,
           routeGates: {
             include: {
-              gate: true,
+              gate: {
+                include: GATE_SUBTASKS_INCLUDE,
+              },
             },
             orderBy: {
               sequence: 'asc',
@@ -170,14 +191,17 @@ export class PatrolRouteService {
           },
         },
       });
+
+      return formatRoute(createdRoute);
     });
   }
 
   async list(clientId: string, isActive?: boolean) {
-    return patrolRouteRepository.list(clientId, isActive);
+    const routes = await patrolRouteRepository.list(clientId, isActive);
+    return routes.map((r: any) => formatRoute(r));
   }
 
-  async get(id: string) {
+  async get(id: string, user?: CurrentUser) {
     const route = await patrolRouteRepository.findById(id);
 
     if (!route) {
@@ -188,11 +212,17 @@ export class PatrolRouteService {
       );
     }
 
-    return route;
+    await assertTenantAccess(
+      user,
+      route.clientId,
+      'Access denied. Patrol route does not belong to your organization.',
+    );
+
+    return formatRoute(route);
   }
 
-  async update(id: string, dto: UpdatePatrolRouteDto) {
-    const route = await this.get(id);
+  async update(id: string, dto: UpdatePatrolRouteDto, user?: CurrentUser) {
+    const route = await this.get(id, user);
 
     if (dto.name && dto.name !== route.name) {
       const existing = await patrolRouteRepository.findByName(
@@ -235,6 +265,7 @@ export class PatrolRouteService {
         );
       }
 
+      const existingRouteGateIds = new Set((route.routeGates || []).map((rg: any) => rg.gateId));
       for (const cp of dto.checkpoints) {
         const gate = await gateRepository.findById(cp.gateId);
         if (!gate) {
@@ -251,11 +282,11 @@ export class PatrolRouteService {
             `Gate "${gate.name}" belongs to another site.`,
           );
         }
-        if (!gate.isActive) {
+        if (!gate.isActive && !existingRouteGateIds.has(cp.gateId)) {
           throw new AppError(
             HttpStatus.BAD_REQUEST,
             ErrorCodes.VALIDATION_ERROR,
-            `Gate "${gate.name}" is inactive.`,
+            `Gate "${gate.name}" is inactive and cannot be newly added to a patrol route.`,
           );
         }
       }
@@ -289,13 +320,15 @@ export class PatrolRouteService {
         }
       }
 
-      return tx.patrolRoute.findUnique({
+      const createdRoute = await tx.patrolRoute.findUnique({
         where: { id },
         include: {
           site: true,
           routeGates: {
             include: {
-              gate: true,
+              gate: {
+                include: GATE_SUBTASKS_INCLUDE,
+              },
             },
             orderBy: {
               sequence: "asc",
@@ -303,11 +336,13 @@ export class PatrolRouteService {
           },
         },
       });
+
+      return formatRoute(createdRoute);
     });
   }
 
-  async activate(id: string) {
-    await this.get(id);
+  async activate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await patrolRouteRepository.activate(id);
 
@@ -316,8 +351,8 @@ export class PatrolRouteService {
     };
   }
 
-  async deactivate(id: string) {
-    await this.get(id);
+  async deactivate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await patrolRouteRepository.deactivate(id);
 

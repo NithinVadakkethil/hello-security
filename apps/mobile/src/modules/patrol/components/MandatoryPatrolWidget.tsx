@@ -6,6 +6,7 @@ import { useTheme } from '../../../app/hooks/useTheme';
 import { apiClient } from '../../../app/api/api-client';
 import { Card } from '../../dashboard/components/WidgetCard';
 import { formatPatrolTime } from '../../../app/utils/date-formatter';
+import { storage } from '../../../app/utils/mmkv-storage';
 
 export interface MandatoryPatrolItem {
   id: string;
@@ -33,8 +34,16 @@ export interface MandatoryScheduleData {
 
 export function MandatoryPatrolWidget() {
   const { colors } = useTheme();
-  const [data, setData] = useState<MandatoryScheduleData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<MandatoryScheduleData | null>(() => {
+    try {
+      const cached = storage.getString('cached_mandatory_patrol_schedule');
+      if (cached) return JSON.parse(cached);
+    } catch {
+      // Ignore storage read error
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(!data);
 
   const fetchSchedule = useCallback(async () => {
     try {
@@ -42,6 +51,11 @@ export function MandatoryPatrolWidget() {
       const res = await apiClient.get('/mandatory-patrols/me');
       if (res.data) {
         setData(res.data);
+        try {
+          storage.set('cached_mandatory_patrol_schedule', JSON.stringify(res.data));
+        } catch {
+          // Ignore storage write error
+        }
       }
     } catch (err) {
       console.warn('[MandatoryPatrolWidget] Failed to fetch mandatory schedule:', err);

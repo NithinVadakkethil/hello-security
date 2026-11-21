@@ -10,33 +10,68 @@ import { patrolSessionRepository } from '../patrol-session/patrol-session.reposi
 import { prisma } from '../../database/prisma';
 import { patrolCheckpointRepository } from './patrol-checkpoint.repository';
 import { ScanCheckpointDto } from './patrol-checkpoint.types';
+import { CurrentUser } from '../../common/auth/current-user';
+import { assertTenantAccess } from '../../common/auth/tenant-access';
 import { ensureGateSubTasksFromMaster } from '../gate-sub-task/gate-sub-task.service';
 
 export class PatrolCheckpointService {
-  async authorizeManagerScan(employeeId: string, gateIdInput: string, clientContextId?: string) {
-    if (!employeeId) {
-      throw new AppError(
-        HttpStatus.UNAUTHORIZED,
-        ErrorCodes.UNAUTHORIZED,
-        'Employee account not found.',
-      );
+  /**
+   * Resolves the checkpoint gate, membership, tenant boundary, and active patrol
+   * session for centralized Manager / Super Admin checkpoint scans.
+   */
+  private async resolveManagerScanContext(
+    userOrEmp: any,
+    gateIdInput: string,
+    clientContextId?: string,
+  ) {
+    const isSuperAdmin = userOrEmp.role === UserRole.SUPER_ADMIN;
+
+    let gateRecord: any = null;
+    if (clientContextId) {
+      gateRecord = await prisma.gate.findFirst({
+        where: {
+          OR: [
+            { id: gateIdInput },
+            { qrCode: gateIdInput },
+            { gateCode: gateIdInput, site: { clientId: clientContextId } },
+          ],
+        },
+        include: { site: true },
+      });
+    } else {
+      gateRecord = await prisma.gate.findFirst({
+        where: {
+          OR: [{ id: gateIdInput }, { qrCode: gateIdInput }],
+        },
+        include: { site: true },
+      });
+
+      if (!gateRecord && !isSuperAdmin) {
+        const memberships = await prisma.managerClientMembership.findMany({
+          where: { managerUserId: userOrEmp.id, isActive: true },
+          select: { clientId: true },
+        });
+        const memberClientIds = memberships.map((m) => m.clientId);
+        if (userOrEmp.clientId) memberClientIds.push(userOrEmp.clientId);
+
+        if (memberClientIds.length > 0) {
+          gateRecord = await prisma.gate.findFirst({
+            where: {
+              gateCode: gateIdInput,
+              site: { clientId: { in: memberClientIds } },
+            },
+            include: { site: true },
+          });
+        }
+      }
     }
 
-    const userOrEmp = await prisma.user.findFirst({
-      where: { OR: [{ id: employeeId }, { employeeId: employeeId }] },
-      include: { employee: true },
-    });
-
-    if (!userOrEmp) {
-      throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'User account not found.');
+    if (!gateRecord) {
+      gateRecord = await prisma.gate.findFirst({
+        where: { gateCode: gateIdInput },
+        include: { site: true },
+      });
     }
-
-    let gateRecord = await prisma.gate.findFirst({
-      where: {
-        OR: [{ id: gateIdInput }, { gateCode: gateIdInput }, { qrCode: gateIdInput }],
-      },
-      include: { site: true },
-    });
 
     if (!gateRecord) {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Checkpoint gate not found.');
@@ -60,7 +95,7 @@ export class PatrolCheckpointService {
       },
     });
 
-    if (!hasMembership && userOrEmp.role !== UserRole.SUPER_ADMIN) {
+    if (!hasMembership && !isSuperAdmin) {
       throw new AppError(
         HttpStatus.FORBIDDEN,
         ErrorCodes.FORBIDDEN,
@@ -68,11 +103,7 @@ export class PatrolCheckpointService {
       );
     }
 
-    if (
-      clientContextId &&
-      clientContextId !== checkpointClientId &&
-      userOrEmp.role !== UserRole.SUPER_ADMIN
-    ) {
+    if (clientContextId && clientContextId !== checkpointClientId && !isSuperAdmin) {
       throw new AppError(
         HttpStatus.FORBIDDEN,
         ErrorCodes.FORBIDDEN,
@@ -88,7 +119,7 @@ export class PatrolCheckpointService {
     });
 
     if (patrol) {
-      if (patrol.clientId !== checkpointClientId && userOrEmp.role !== UserRole.SUPER_ADMIN) {
+      if (patrol.clientId !== checkpointClientId && !isSuperAdmin) {
         throw new AppError(
           HttpStatus.FORBIDDEN,
           ErrorCodes.FORBIDDEN,
@@ -107,6 +138,33 @@ export class PatrolCheckpointService {
         },
       });
     }
+
+    return { gateRecord, patrol };
+  }
+
+  async authorizeManagerScan(employeeId: string, gateIdInput: string, clientContextId?: string) {
+    if (!employeeId) {
+      throw new AppError(
+        HttpStatus.UNAUTHORIZED,
+        ErrorCodes.UNAUTHORIZED,
+        'Employee account not found.',
+      );
+    }
+
+    const userOrEmp = await prisma.user.findFirst({
+      where: { OR: [{ id: employeeId }, { employeeId: employeeId }] },
+      include: { employee: true },
+    });
+
+    if (!userOrEmp) {
+      throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'User account not found.');
+    }
+
+    const { gateRecord, patrol } = await this.resolveManagerScanContext(
+      userOrEmp,
+      gateIdInput,
+      clientContextId,
+    );
 
     const fullSession = await patrolSessionRepository.findFullById(patrol.id);
 
@@ -141,84 +199,12 @@ export class PatrolCheckpointService {
     let patrol: any = null;
 
     if (isManagerUser && userOrEmp) {
-      let gateRecord = await prisma.gate.findFirst({
-        where: {
-          OR: [{ id: dto.gateId }, { gateCode: dto.gateId }, { qrCode: dto.gateId }],
-        },
-        include: { site: true },
-      });
-      if (!gateRecord) {
-        throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Checkpoint gate not found.');
-      }
-
-      if (gateRecord.isActive === false) {
-        throw new AppError(
-          HttpStatus.BAD_REQUEST,
-          ErrorCodes.VALIDATION_ERROR,
-          'This checkpoint is inactive and cannot be inspected.',
-        );
-      }
-
-      const checkpointClientId = gateRecord.site.clientId;
-
-      // 1. Verify if Manager has an active membership for this checkpoint's client
-      const hasMembership = await prisma.managerClientMembership.findFirst({
-        where: {
-          managerUserId: userOrEmp.id,
-          clientId: checkpointClientId,
-          isActive: true,
-        },
-      });
-
-      if (!hasMembership && userOrEmp.role !== UserRole.SUPER_ADMIN) {
-        throw new AppError(
-          HttpStatus.FORBIDDEN,
-          ErrorCodes.FORBIDDEN,
-          'Access denied. This checkpoint is not part of an organization assigned to your Manager account.',
-        );
-      }
-
-      // 2. Verify if selected client context matches this checkpoint's client
-      if (
-        clientContextId &&
-        clientContextId !== checkpointClientId &&
-        userOrEmp.role !== UserRole.SUPER_ADMIN
-      ) {
-        throw new AppError(
-          HttpStatus.FORBIDDEN,
-          ErrorCodes.FORBIDDEN,
-          'This checkpoint belongs to another organization. Finish the current patrol or switch organization before scanning.',
-        );
-      }
-
-      const activeManagerSession = await prisma.patrolSession.findFirst({
-        where: {
-          managerUserId: userOrEmp.id,
-          status: 'IN_PROGRESS',
-        },
-      });
-
-      if (activeManagerSession) {
-        if (activeManagerSession.clientId !== checkpointClientId && userOrEmp.role !== UserRole.SUPER_ADMIN) {
-          throw new AppError(
-            HttpStatus.FORBIDDEN,
-            ErrorCodes.FORBIDDEN,
-            'This checkpoint belongs to another organization. Finish the current patrol or switch organization before scanning.',
-          );
-        }
-        patrol = activeManagerSession;
-      } else {
-        const patrolCode = await patrolSessionRepository.getNextPatrolCode(checkpointClientId);
-        patrol = await prisma.patrolSession.create({
-          data: {
-            clientId: checkpointClientId,
-            managerUserId: userOrEmp.id,
-            status: 'IN_PROGRESS',
-            startedAt: new Date(),
-            patrolCode,
-          },
-        });
-      }
+      const managerCtx = await this.resolveManagerScanContext(
+        userOrEmp,
+        dto.gateId,
+        clientContextId,
+      );
+      patrol = managerCtx.patrol;
     } else {
       // -----------------------------------------
       // Find active patrol session for standard employee
@@ -307,31 +293,66 @@ export class PatrolCheckpointService {
     }
 
     const assignment = patrol.assignment as any;
+    const expectedClientId: string | undefined =
+      patrol?.clientId || assignment?.clientId || userOrEmp?.clientId || undefined;
+    const expectedSiteId: string | undefined = assignment?.siteId || undefined;
 
     // -----------------------------------------
-    // Verify & Resolve Gate ID
+    // Verify & Resolve Gate ID (Tenant-Scoped)
     // -----------------------------------------
 
     let targetGateId = dto.gateId;
 
-    // 1. Resolve if dto.gateId is a Gate ID, code, or qrCode directly
-    let gateRecord = await prisma.gate.findFirst({
-      where: {
-        OR: [
-          { id: targetGateId },
-          { gateCode: targetGateId },
-          { qrCode: targetGateId },
-        ],
-      },
+    // 1. Resolve if dto.gateId is a Gate ID, qrCode, or tenant-scoped gateCode directly
+    let gateRecord: any = await prisma.gate.findFirst({
+      where: expectedClientId
+        ? {
+            OR: [
+              { id: targetGateId },
+              { qrCode: targetGateId },
+              {
+                gateCode: targetGateId,
+                ...(expectedSiteId
+                  ? { siteId: expectedSiteId }
+                  : { site: { clientId: expectedClientId } }),
+              },
+            ],
+          }
+        : {
+            OR: [
+              { id: targetGateId },
+              { gateCode: targetGateId },
+              { qrCode: targetGateId },
+            ],
+          },
+      include: { site: true },
     });
 
-    // 2. If not found directly, resolve via GuardAssignmentGate
+    if (
+      gateRecord &&
+      expectedClientId &&
+      gateRecord.site?.clientId &&
+      gateRecord.site.clientId !== expectedClientId
+    ) {
+      throw new AppError(
+        HttpStatus.FORBIDDEN,
+        ErrorCodes.FORBIDDEN,
+        'This checkpoint belongs to another organization and cannot be scanned during this patrol.',
+      );
+    }
+
+    // 2. If not found directly, resolve via GuardAssignmentGate (scoped to assignment/tenant)
     if (!gateRecord) {
       const agMatch = await prisma.guardAssignmentGate.findFirst({
         where: {
+          ...(patrol.assignmentId
+            ? { assignmentId: patrol.assignmentId }
+            : expectedClientId
+              ? { assignment: { clientId: expectedClientId } }
+              : {}),
           OR: [{ id: dto.gateId }, { gateId: dto.gateId }],
         },
-        include: { gate: true },
+        include: { gate: { include: { site: true } } },
       });
       if (agMatch) {
         gateRecord = agMatch.gate;
@@ -339,13 +360,18 @@ export class PatrolCheckpointService {
       }
     }
 
-    // 3. If not found, resolve via PatrolRouteGate
+    // 3. If not found, resolve via PatrolRouteGate (scoped to route/tenant)
     if (!gateRecord) {
       const rgMatch = await prisma.patrolRouteGate.findFirst({
         where: {
+          ...(assignment?.patrolRouteId
+            ? { patrolRouteId: assignment.patrolRouteId }
+            : expectedClientId
+              ? { patrolRoute: { clientId: expectedClientId } }
+              : {}),
           OR: [{ id: dto.gateId }, { gateId: dto.gateId }],
         },
-        include: { gate: true },
+        include: { gate: { include: { site: true } } },
       });
       if (rgMatch) {
         gateRecord = rgMatch.gate;
@@ -353,42 +379,84 @@ export class PatrolCheckpointService {
       }
     }
 
+    // 4. Reject if input matches another tenant's gateCode before offline assignment fallback
+    if (!gateRecord && expectedClientId) {
+      const foreignGateByCode = await prisma.gate.findFirst({
+        where: { gateCode: dto.gateId },
+        include: { site: true },
+      });
+      if (
+        foreignGateByCode?.site?.clientId &&
+        foreignGateByCode.site.clientId !== expectedClientId
+      ) {
+        throw new AppError(
+          HttpStatus.FORBIDDEN,
+          ErrorCodes.FORBIDDEN,
+          'This checkpoint belongs to another organization and cannot be scanned during this patrol.',
+        );
+      }
+    }
+
     if (gateRecord) {
+      if (
+        expectedClientId &&
+        gateRecord.site?.clientId &&
+        gateRecord.site.clientId !== expectedClientId
+      ) {
+        throw new AppError(
+          HttpStatus.FORBIDDEN,
+          ErrorCodes.FORBIDDEN,
+          'This checkpoint belongs to another organization and cannot be scanned during this patrol.',
+        );
+      }
       targetGateId = gateRecord.id;
     } else {
-      const fallbackGate = await prisma.gate.findFirst({
-        where: { id: dto.gateId },
-      });
-      if (fallbackGate) {
-        gateRecord = fallbackGate;
-        targetGateId = fallbackGate.id;
-      } else {
-        const assignedGateId =
-          assignment?.assignmentGates?.[0]?.gateId ||
-          assignment?.patrolRoute?.routeGates?.[0]?.gateId;
-        if (assignedGateId) {
-          const agGate = await prisma.gate.findUnique({
-            where: { id: assignedGateId },
-          });
-          if (agGate) {
-            gateRecord = agGate;
-            targetGateId = agGate.id;
+      const assignedGateId =
+        assignment?.assignmentGates?.[0]?.gateId ||
+        assignment?.patrolRoute?.routeGates?.[0]?.gateId;
+      if (assignedGateId) {
+        const agGate = await prisma.gate.findUnique({
+          where: { id: assignedGateId },
+          include: { site: true },
+        });
+        if (agGate) {
+          if (
+            expectedClientId &&
+            (agGate as any).site?.clientId &&
+            (agGate as any).site.clientId !== expectedClientId
+          ) {
+            throw new AppError(
+              HttpStatus.FORBIDDEN,
+              ErrorCodes.FORBIDDEN,
+              'This checkpoint belongs to another organization and cannot be scanned during this patrol.',
+            );
           }
+          gateRecord = agGate;
+          targetGateId = agGate.id;
         }
       }
     }
 
     if (!gateRecord) {
-      const firstGate = await prisma.gate.findFirst();
-      if (firstGate) {
-        targetGateId = firstGate.id;
-      }
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        ErrorCodes.NOT_FOUND,
+        'Checkpoint gate not found.',
+      );
     }
 
     // Standardize dto.gateId to actual Gate.id so FK relations persist smoothly
     dto.gateId = targetGateId;
 
-    if (gateRecord && gateRecord.isActive === false) {
+    const effectiveScanTime = dto.scannedAt ? new Date(dto.scannedAt) : new Date();
+    const isHistoricalOfflineScan =
+      dto.scannedAt &&
+      gateRecord &&
+      gateRecord.isActive === false &&
+      (effectiveScanTime.getTime() <= new Date(gateRecord.updatedAt).getTime() ||
+        (patrol?.startedAt && new Date(patrol.startedAt).getTime() <= new Date(gateRecord.updatedAt).getTime()));
+
+    if (gateRecord && gateRecord.isActive === false && !isHistoricalOfflineScan) {
       throw new AppError(
         HttpStatus.BAD_REQUEST,
         ErrorCodes.VALIDATION_ERROR,
@@ -440,11 +508,43 @@ export class PatrolCheckpointService {
       });
     }
 
-    const subTaskMap = new Map(
-      (dto.subTaskResponses || []).map((r) => [r.gateSubTaskId, r]),
-    );
+    const submittedTaskIds = (dto.subTaskResponses || [])
+      .map((r) => r.gateSubTaskId)
+      .filter(Boolean);
+
+    let submittedSubTasksInfo: any[] = [];
+    if (submittedTaskIds.length > 0) {
+      const [gateTasks, catTasks] = await Promise.all([
+        prisma.gateSubTask.findMany({
+          where: { id: { in: submittedTaskIds } },
+          select: { id: true, taskName: true },
+        }),
+        (prisma as any).categorySubTask.findMany({
+          where: { id: { in: submittedTaskIds } },
+          select: { id: true, taskName: true },
+        }),
+      ]);
+      submittedSubTasksInfo = [...gateTasks, ...catTasks];
+    }
+
+    const subTaskNameById = new Map<string, string>();
+    submittedSubTasksInfo.forEach((t) => {
+      if (t.taskName) subTaskNameById.set(t.id, t.taskName.toLowerCase().trim());
+    });
+
+    const isTaskAnswered = (st: any) => {
+      const stName = (st.taskName || '').toLowerCase().trim();
+      return (dto.subTaskResponses || []).some((r) => {
+        if (r.gateSubTaskId === st.id) return true;
+        const submittedName =
+          subTaskNameById.get(r.gateSubTaskId) ||
+          (r as any).taskName?.toLowerCase().trim();
+        return stName && submittedName && stName === submittedName;
+      });
+    };
+
     const missingRequiredTasks = activeSubTasks.filter(
-      (st) => st.isRequired && !subTaskMap.has(st.id),
+      (st) => st.isRequired && !isTaskAnswered(st),
     );
 
     if (missingRequiredTasks.length > 0) {
@@ -515,6 +615,21 @@ export class PatrolCheckpointService {
             }
           }
 
+          let completedAt: Date | undefined = undefined;
+          if (dto.completedAt) {
+            const parsedComp = new Date(dto.completedAt);
+            if (!isNaN(parsedComp.getTime())) {
+              const maxFuture = Date.now() + 5 * 60 * 1000;
+              completedAt = parsedComp.getTime() > maxFuture ? new Date() : parsedComp;
+            }
+          } else {
+            completedAt = new Date();
+          }
+
+          if (completedAt && scannedAt.getTime() > completedAt.getTime()) {
+            scannedAt = completedAt;
+          }
+
           const checkpointRemarks = dto.remarks?.trim() || null;
 
           let cp;
@@ -528,6 +643,7 @@ export class PatrolCheckpointService {
                 status: dto.status,
                 images: allImages,
                 scannedAt,
+                completedAt,
               },
             });
           } else {
@@ -541,6 +657,7 @@ export class PatrolCheckpointService {
                 status: dto.status,
                 images: allImages,
                 scannedAt,
+                completedAt,
               },
             });
           }
@@ -550,7 +667,7 @@ export class PatrolCheckpointService {
             processedSubTaskResponses.length > 0
           ) {
             for (const resp of processedSubTaskResponses) {
-              let answeredAt = scannedAt;
+              let answeredAt = completedAt || scannedAt;
               if (resp.answeredAt) {
                 const parsedAns = new Date(resp.answeredAt);
                 if (!isNaN(parsedAns.getTime())) {
@@ -735,11 +852,30 @@ export class PatrolCheckpointService {
     };
   }
 
-  async history(sessionId: string) {
+  async history(sessionId: string, user?: CurrentUser) {
+    if (user) {
+      const session = await prisma.patrolSession.findUnique({
+        where: { id: sessionId },
+        select: { id: true, clientId: true },
+      });
+      if (!session) {
+        throw new AppError(
+          HttpStatus.NOT_FOUND,
+          ErrorCodes.NOT_FOUND,
+          'Patrol session not found.',
+        );
+      }
+      await assertTenantAccess(
+        user,
+        session.clientId,
+        'Access denied. Patrol session does not belong to your organization.',
+      );
+    }
+
     return patrolCheckpointRepository.listBySession(sessionId);
   }
 
-  async updateRemarks(checkpointId: string, remarks: string) {
+  async updateRemarks(checkpointId: string, remarks: string, user?: CurrentUser) {
     const checkpoint = await patrolCheckpointRepository.findById(checkpointId);
 
     if (!checkpoint) {
@@ -749,6 +885,12 @@ export class PatrolCheckpointService {
         'Patrol checkpoint not found.',
       );
     }
+
+    await assertTenantAccess(
+      user,
+      (checkpoint as any).patrolSession?.clientId,
+      'Access denied. Patrol checkpoint does not belong to your organization.',
+    );
 
     return patrolCheckpointRepository.update(checkpointId, { remarks });
   }

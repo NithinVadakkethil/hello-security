@@ -15,7 +15,9 @@ export function AssignedGatesScreen({ route }: any) {
     );
   }
 
-  const routeGates = patrolRoute.routeGates || [];
+  const routeGates = (patrolRoute.routeGates || []).filter(
+    (rg: any) => !rg.gate || rg.gate.isActive !== false,
+  );
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>

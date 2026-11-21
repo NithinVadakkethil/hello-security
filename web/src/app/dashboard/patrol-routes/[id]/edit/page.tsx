@@ -53,6 +53,7 @@ interface ConfiguredCheckpoint {
   gateName: string;
   gateCode: string;
   expectedDuration: number;
+  isActive?: boolean;
 }
 
 export default function EditPatrolRoutePage() {
@@ -93,8 +94,8 @@ export default function EditPatrolRoutePage() {
 
   // Fetch all available gates for this site
   const { data: gatesRes, isLoading: isGatesLoading } = useQuery<ApiResponse<Gate[]>>({
-    queryKey: ['gates', route?.siteId, 'active'],
-    queryFn: () => apiClient.get('/gates', { params: { siteId: route?.siteId, isActive: true } }),
+    queryKey: ['gates', route?.siteId],
+    queryFn: () => apiClient.get('/gates', { params: { siteId: route?.siteId } }),
     enabled: !!route?.siteId,
   });
 
@@ -195,6 +196,7 @@ export default function EditPatrolRoutePage() {
         gateName: selectedGateToAdd.name,
         gateCode: selectedGateToAdd.gateCode,
         expectedDuration: 5,
+        isActive: selectedGateToAdd.isActive ?? true,
       },
     ]);
     setIsAddModalOpen(false);
@@ -211,7 +213,7 @@ export default function EditPatrolRoutePage() {
 
   // Available gates filter (must belong to site and not already added to route)
   const availableGates = useMemo(
-    () => siteGates.filter((g) => g.isActive && !checkpoints.some((cp) => cp.gateId === g.id)),
+    () => siteGates.filter((g) => !checkpoints.some((cp) => cp.gateId === g.id)),
     [siteGates, checkpoints]
   );
 
@@ -376,20 +378,37 @@ export default function EditPatrolRoutePage() {
 
                       {/* Checkpoint Details */}
                       <div style={{ flex: 1 }}>
-                        <p style={{ fontWeight: 600, fontSize: '0.88rem', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>{cp.gateName}</span>
-                          {(cp as any).isActive === false && (
+                        <p style={{ fontWeight: 600, fontSize: '0.88rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: cp.isActive === false ? '#94a3b8' : 'inherit' }}>{cp.gateName}</span>
+                          {cp.isActive === false ? (
                             <span
                               style={{
                                 fontSize: '0.68rem',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                                color: '#ef4444',
+                                padding: '2px 8px',
+                                borderRadius: '9999px',
+                                backgroundColor: 'rgba(100, 116, 139, 0.16)',
+                                color: '#94a3b8',
+                                border: '1px solid rgba(148, 163, 184, 0.3)',
                                 fontWeight: 700,
+                                letterSpacing: '0.05em',
                               }}
                             >
-                              Inactive
+                              DEACTIVATED
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                padding: '2px 8px',
+                                borderRadius: '9999px',
+                                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                color: '#10b981',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                fontWeight: 700,
+                                letterSpacing: '0.05em',
+                              }}
+                            >
+                              ACTIVE
                             </span>
                           )}
                         </p>
@@ -539,10 +558,17 @@ export default function EditPatrolRoutePage() {
             ) : (
               filteredAvailableGates.map((gate) => {
                 const isSelected = selectedGateToAdd?.id === gate.id;
+                const isDeactivated = gate.isActive === false;
                 return (
                   <div
                     key={gate.id}
-                    onClick={() => setSelectedGateToAdd(gate)}
+                    onClick={() => {
+                      if (isDeactivated) {
+                        toast.error(`"${gate.name}" is deactivated and cannot be added to a route.`);
+                        return;
+                      }
+                      setSelectedGateToAdd(gate);
+                    }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -551,15 +577,53 @@ export default function EditPatrolRoutePage() {
                       borderRadius: '6px',
                       border: isSelected
                         ? '1px solid var(--primary)'
+                        : isDeactivated
+                        ? '1px dashed rgba(148, 163, 184, 0.3)'
                         : '1px solid var(--border-color)',
-                      background: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg-tertiary)',
-                      cursor: 'pointer',
+                      background: isSelected
+                        ? 'rgba(59, 130, 246, 0.1)'
+                        : isDeactivated
+                        ? 'rgba(100, 116, 139, 0.05)'
+                        : 'var(--bg-tertiary)',
+                      opacity: isDeactivated ? 0.6 : 1,
+                      cursor: isDeactivated ? 'not-allowed' : 'pointer',
                     }}
                   >
                     <div>
-                      <p style={{ margin: 0, fontWeight: 600, fontSize: '0.88rem' }}>
-                        <HighlightText text={gate.name} query={searchQuery} />
-                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: '0.88rem', color: isDeactivated ? '#94a3b8' : 'inherit' }}>
+                          <HighlightText text={gate.name} query={searchQuery} />
+                        </p>
+                        {isDeactivated ? (
+                          <span
+                            style={{
+                              fontSize: '0.65rem',
+                              padding: '2px 6px',
+                              borderRadius: '9999px',
+                              backgroundColor: 'rgba(100, 116, 139, 0.16)',
+                              color: '#94a3b8',
+                              border: '1px solid rgba(148, 163, 184, 0.3)',
+                              fontWeight: 700,
+                            }}
+                          >
+                            DEACTIVATED
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '0.65rem',
+                              padding: '2px 6px',
+                              borderRadius: '9999px',
+                              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                              color: '#10b981',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              fontWeight: 700,
+                            }}
+                          >
+                            ACTIVE
+                          </span>
+                        )}
+                      </div>
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                         <HighlightText text={gate.gateCode} query={searchQuery} />
                       </span>

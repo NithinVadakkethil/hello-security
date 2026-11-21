@@ -150,20 +150,24 @@ export function ScannerScreen() {
           ass.assignmentGates.length > 0);
 
       const gates = isDirectAssignment
-        ? (ass.assignmentGates || []).map((ag: any, idx: number) => ({
-            id: ag.id,
-            gateId: ag.gateId || ag.gate?.id || ag.id,
-            gate: ag.gate,
-            sequence: ag.sequence || idx + 1,
-            assignmentId: ass.id,
-          }))
-        : (ass.patrolRoute?.routeGates || []).map((rg: any, idx: number) => ({
-            id: rg.id,
-            gateId: rg.gateId || rg.gate?.id || rg.id,
-            gate: rg.gate,
-            sequence: rg.sequence || idx + 1,
-            assignmentId: ass.id,
-          }));
+        ? (ass.assignmentGates || [])
+            .filter((ag: any) => !ag.gate || ag.gate.isActive !== false)
+            .map((ag: any, idx: number) => ({
+              id: ag.id,
+              gateId: ag.gateId || ag.gate?.id || ag.id,
+              gate: ag.gate,
+              sequence: ag.sequence || idx + 1,
+              assignmentId: ass.id,
+            }))
+        : (ass.patrolRoute?.routeGates || [])
+            .filter((rg: any) => !rg.gate || rg.gate.isActive !== false)
+            .map((rg: any, idx: number) => ({
+              id: rg.id,
+              gateId: rg.gateId || rg.gate?.id || rg.id,
+              gate: rg.gate,
+              sequence: rg.sequence || idx + 1,
+              assignmentId: ass.id,
+            }));
       list.push(...gates);
     });
     return list;
@@ -372,13 +376,39 @@ export function ScannerScreen() {
               }))
             : ass.patrolRoute?.routeGates || [];
 
+        const deactivatedMatch = rGates.find(
+          (rg: any) =>
+            rg.gate?.isActive === false &&
+            (cleanCode === rg.gate?.gateCode ||
+              cleanCode === rg.gateId ||
+              cleanCode === rg.gate?.id ||
+              cleanCode === rg.gate?.qrCode ||
+              cleanCode === rg.gate?.nfcTag),
+        );
+
+        if (deactivatedMatch) {
+          const errorMsg = `Checkpoint "${deactivatedMatch.gate?.name || 'Gate'}" is deactivated and cannot be scanned.`;
+          setErrorMessage(errorMsg);
+          Alert.alert('Inactive Checkpoint', errorMsg, [
+            {
+              text: 'OK',
+              onPress: () => {
+                isProcessingScanRef.current = false;
+                setIsProcessingCode(false);
+              },
+            },
+          ]);
+          return;
+        }
+
         const found = rGates.find(
           (rg: any) =>
-            cleanCode === rg.gate?.gateCode ||
-            cleanCode === rg.gateId ||
-            cleanCode === rg.gate?.id ||
-            cleanCode === rg.gate?.qrCode ||
-            cleanCode === rg.gate?.nfcTag,
+            rg.gate?.isActive !== false &&
+            (cleanCode === rg.gate?.gateCode ||
+              cleanCode === rg.gateId ||
+              cleanCode === rg.gate?.id ||
+              cleanCode === rg.gate?.qrCode ||
+              cleanCode === rg.gate?.nfcTag),
         );
 
         if (found) {

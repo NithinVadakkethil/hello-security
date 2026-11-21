@@ -47,13 +47,14 @@ export class CentralManagerController {
   async getEmployees(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const { dateFrom, dateTo, clientId, siteId, role, status, search, page, limit } = req.query as any;
+      const { dateFrom, dateTo, clientId, siteId, shiftId, role, status, search, page, limit } = req.query as any;
 
       const result = await centralManagerService.getEmployees(user, {
         dateFrom,
         dateTo,
         clientId,
         siteId,
+        shiftId,
         role,
         status,
         search,
@@ -168,7 +169,8 @@ export class CentralManagerController {
   async getOrganizations(req: Request, res: Response, next: NextFunction) {
     try {
       const user = currentUser(req);
-      const data = await centralManagerService.getOrganizations(user);
+      const lite = req.query.lite === 'true' || req.query.lite === '1';
+      const data = await centralManagerService.getOrganizations(user, { lite });
       return res.status(HttpStatus.OK).json({
         success: true,
         data,
@@ -241,11 +243,30 @@ export class CentralManagerController {
 
   async getSingleReport(req: Request, res: Response, next: NextFunction) {
     try {
+      const id = req.params.id as string;
+      if (id === 'employee-patrols') {
+        return this.getEmployeePatrols(req, res, next);
+      }
+      const user = currentUser(req);
+      const clientId = req.query.clientId as string;
+
+      const data = await centralManagerService.getSingleReport(user, id, clientId);
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getMissedCheckpoints(req: Request, res: Response, next: NextFunction) {
+    try {
       const user = currentUser(req);
       const id = req.params.id as string;
       const clientId = req.query.clientId as string;
 
-      const data = await centralManagerService.getSingleReport(user, id, clientId);
+      const data = await centralManagerService.getPatrolMissedCheckpoints(user, id, clientId);
       return res.status(HttpStatus.OK).json({
         success: true,
         data,
@@ -265,6 +286,74 @@ export class CentralManagerController {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
       return res.status(HttpStatus.OK).send(result.pdfBuffer);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getEmployeePatrols(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = currentUser(req);
+      const {
+        clientId,
+        employeeId,
+        periodType,
+        date,
+        startDate,
+        endDate,
+        fromDate,
+        toDate,
+        week,
+        month,
+        shiftId,
+        siteId,
+        role,
+        completionStatus,
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+      } = req.query as any;
+
+      const cleanFilterVal = (val?: string) => {
+        if (!val || typeof val !== 'string') return undefined;
+        const trimmed = val.trim();
+        if (
+          trimmed === '' ||
+          trimmed.toLowerCase() === 'all' ||
+          trimmed.toLowerCase() === 'null' ||
+          trimmed.toLowerCase() === 'undefined'
+        ) {
+          return undefined;
+        }
+        return trimmed;
+      };
+
+      const result = await centralManagerService.getEmployeePatrols(user, {
+        clientId,
+        employeeId: cleanFilterVal(employeeId),
+        periodType: periodType || 'DAILY',
+        date,
+        startDate,
+        endDate,
+        fromDate,
+        toDate,
+        week,
+        month,
+        shiftId: cleanFilterVal(shiftId),
+        siteId: cleanFilterVal(siteId),
+        role: cleanFilterVal(role),
+        completionStatus: cleanFilterVal(completionStatus) as any,
+        page: page ? parseInt(page, 10) : 1,
+        limit: limit ? parseInt(limit, 10) : 20,
+        sortBy,
+        sortOrder,
+      });
+
+      return res.status(HttpStatus.OK).json({
+        success: true,
+        data: result,
+      });
     } catch (error) {
       return next(error);
     }

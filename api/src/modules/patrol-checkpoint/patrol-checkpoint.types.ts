@@ -22,5 +22,7 @@ export interface ScanCheckpointDto {
 
   scannedAt?: string;
 
+  completedAt?: string;
+
   subTaskResponses?: SubTaskResponseDto[];
 }

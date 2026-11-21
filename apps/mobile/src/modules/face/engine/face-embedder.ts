@@ -18,6 +18,13 @@ export class FaceEmbedder {
   }
 
   /**
+   * Asynchronously generates a real neural 128-D embedding from an actual camera photo.
+   */
+  static async generateEmbeddingFromPhoto(photoPath: string): Promise<number[]> {
+    return faceModelManager.extractEmbeddingFromPhoto(photoPath);
+  }
+
+  /**
    * Synchronous embedding extraction fallback.
    */
   static generateEmbedding(face: FaceDetectionData): number[] {

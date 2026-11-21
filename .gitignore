@@ -46,6 +46,7 @@ Thumbs.db
 .github/instructions/nx.instructions.md
 prisma/data/backups/
 *.dump
+scratch/
 
 .claude/worktrees
 .claude/settings.local.json

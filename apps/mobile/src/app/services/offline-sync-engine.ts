@@ -136,12 +136,28 @@ export class OfflineSyncEngine {
             }
           }
 
+          if (!itemOfflineId) {
+            const match = item.url.match(/(offline-session-\d+-\d+)/);
+            if (match) {
+              itemOfflineId = match[1];
+            }
+          }
+
           const isStartMutation = item.url.endsWith('/patrol-sessions/start');
           const isCompleteMutation = item.url.includes('/complete');
           const isScanMutation = item.url.includes('/patrol-checkpoints/scan');
 
           // Resolve server session ID if mapped
           let mappedServerSessionId = itemOfflineId ? sessionMappings[itemOfflineId] : undefined;
+
+          // If not mapped, check if activeSession in Zustand store has a real server ID
+          if (!mappedServerSessionId && itemOfflineId) {
+            const activeSession = usePatrolStore.getState().activeSession;
+            if (activeSession && activeSession.id && !activeSession.id.startsWith('offline-session-')) {
+              mappedServerSessionId = activeSession.id;
+              sessionMappings[itemOfflineId] = mappedServerSessionId;
+            }
+          }
 
           // -------------------------------------------------------------
           // CROSS-SESSION DEPENDENCY GUARD (Per-Employee Sequential Execution)
@@ -241,17 +257,43 @@ export class OfflineSyncEngine {
           await new Promise<void>((resolve) => setTimeout(resolve, backoffDelay));
         }
 
+        const isStartMutation = item.url.endsWith('/patrol-sessions/start');
+
         try {
           let url = item.url;
           let data = item.data ? JSON.parse(JSON.stringify(item.data)) : {};
 
-          const itemOfflineId =
+          let itemOfflineId =
             item.offlineSessionId ||
             item.data?.offlineSessionId ||
             item.data?.patrolSessionId;
 
-          const isStartMutation = item.url.endsWith('/patrol-sessions/start');
-          const mappedServerSessionId = itemOfflineId ? sessionMappings[itemOfflineId] : undefined;
+          if (!itemOfflineId && item.url.includes('/patrol-sessions/')) {
+            const urlParts = item.url.split('?')[0].split('/');
+            const sessionIndex = urlParts.indexOf('patrol-sessions');
+            if (sessionIndex !== -1 && urlParts[sessionIndex + 1] && urlParts[sessionIndex + 1] !== 'start') {
+              itemOfflineId = urlParts[sessionIndex + 1];
+            }
+          }
+
+          if (!itemOfflineId) {
+            const match = url.match(/(offline-session-\d+-\d+)/);
+            if (match) {
+              itemOfflineId = match[1];
+            }
+          }
+
+          let mappedServerSessionId = itemOfflineId ? sessionMappings[itemOfflineId] : undefined;
+
+          // If mapping was not resolved from sessionMappings, check activeSession in Zustand store
+          if (!mappedServerSessionId && itemOfflineId) {
+            const activeSession = usePatrolStore.getState().activeSession;
+            if (activeSession && activeSession.id && !activeSession.id.startsWith('offline-session-')) {
+              mappedServerSessionId = activeSession.id;
+              sessionMappings[itemOfflineId] = mappedServerSessionId;
+              await setSessionMapping(itemOfflineId, mappedServerSessionId);
+            }
+          }
 
           // Replace local offline ID with server ID if mapping exists
           if (mappedServerSessionId && itemOfflineId) {
@@ -266,6 +308,18 @@ export class OfflineSyncEngine {
             }
           }
 
+          // Universal fallback: replace any known session mappings in URL or payload
+          for (const [localId, realId] of Object.entries(sessionMappings)) {
+            if (localId && realId && url.includes(localId)) {
+              url = url.replace(localId, realId);
+            }
+            if (localId && realId && data && typeof data === 'object') {
+              data = JSON.parse(
+                JSON.stringify(data).replace(new RegExp(localId, 'g'), realId)
+              );
+            }
+          }
+
           const response = (await apiClient.request({
             url,
             method: item.method,
@@ -273,8 +327,8 @@ export class OfflineSyncEngine {
           })) as any;
 
           // If patrol start succeeded, persist per-session mapping permanently
-          if (isStartMutation && response?.data?.id) {
-            const createdServerId = response.data.id;
+          if (isStartMutation && (response?.data?.id || response?.id)) {
+            const createdServerId = response?.data?.id || response?.id;
             if (itemOfflineId) {
               await setSessionMapping(itemOfflineId, createdServerId);
               sessionMappings[itemOfflineId] = createdServerId;
@@ -309,26 +363,77 @@ export class OfflineSyncEngine {
             (statusCode === 400 && (errMsg.includes('already have a patrol in progress') || errCode === 'ACTIVE_PATROL_EXISTS'))
           ) {
             const conflictActiveId = err.response?.data?.error?.details?.activePatrolSessionId || err.response?.data?.details?.activePatrolSessionId;
-            const itemOfflineId = item.offlineSessionId || item.data?.offlineSessionId || item.data?.patrolSessionId;
+            let itemOfflineId = item.offlineSessionId || item.data?.offlineSessionId || item.data?.patrolSessionId;
+            if (!itemOfflineId && item.url.includes('/patrol-sessions/')) {
+              const uParts = item.url.split('?')[0].split('/');
+              const sIdx = uParts.indexOf('patrol-sessions');
+              if (sIdx !== -1 && uParts[sIdx + 1] && uParts[sIdx + 1] !== 'start') {
+                itemOfflineId = uParts[sIdx + 1];
+              }
+            }
 
-            // Check if this employee has an earlier offline session in queue that hasn't finished COMPLETE
+            // Check if this employee has a STRICTLY EARLIER offline session in queue that hasn't finished COMPLETE
             const currentQueue = useOfflineStore.getState().queue;
+            const itemOwnerEmpId = item.ownerEmployeeId || item.employeeId;
             const hasUnfinishedEarlierSession = currentQueue.some((other) => {
               if (other.id === item.id) return false;
-              const otherOfflineId = other.offlineSessionId || other.data?.offlineSessionId || other.data?.patrolSessionId;
-              return otherOfflineId && otherOfflineId !== itemOfflineId;
+              let otherOfflineId = other.offlineSessionId || other.data?.offlineSessionId || other.data?.patrolSessionId;
+              if (!otherOfflineId && other.url.includes('/patrol-sessions/')) {
+                const uParts = other.url.split('?')[0].split('/');
+                const sIdx = uParts.indexOf('patrol-sessions');
+                if (sIdx !== -1 && uParts[sIdx + 1] && uParts[sIdx + 1] !== 'start') {
+                  otherOfflineId = uParts[sIdx + 1];
+                }
+              }
+
+              if (!otherOfflineId || otherOfflineId === itemOfflineId) return false;
+
+              // Check if other belongs to the same employee
+              const otherEmpId = other.ownerEmployeeId || other.employeeId;
+              const matchesEmp = !otherEmpId || !itemOwnerEmpId || otherEmpId === itemOwnerEmpId;
+              if (!matchesEmp) return false;
+
+              // Strictly earlier in queue order or created earlier
+              return (
+                other.createdAt < item.createdAt ||
+                (other.createdAt === item.createdAt && (other.sequence || 0) < (item.sequence || 0))
+              );
             });
 
             if (hasUnfinishedEarlierSession) {
               console.warn(`[OfflineSyncEngine] 400/409 Session Conflict: Previous offline patrol still syncing. Re-queuing item ${item.id} as pending.`);
               await updateMutationStatus(item.id, 'pending', `Waiting for previous patrol completion: ${errMsg}`, false);
               break; // Stop loop to let earlier patrol complete first
-            } else if (conflictActiveId && itemOfflineId) {
+            } else if (conflictActiveId && itemOfflineId && isStartMutation) {
               // Recover server session ID created on a previous START attempt
               await setSessionMapping(itemOfflineId, conflictActiveId);
               sessionMappings[itemOfflineId] = conflictActiveId;
               console.log(`[OfflineSyncEngine] Recovered active session ID ${conflictActiveId} for ${itemOfflineId}. Dequeuing duplicate START.`);
               await dequeue(item.id);
+            } else if (conflictActiveId && isStartMutation) {
+              // The server has a running session from a previous patrol, but this is a NEW patrol.
+              // Auto-resolve existing patrol on server by retrying with resolveExistingPatrol = true
+              try {
+                console.log(`[OfflineSyncEngine] Retrying start with resolveExistingPatrol=true to resolve server session ${conflictActiveId}`);
+                let startData = item.data ? JSON.parse(JSON.stringify(item.data)) : {};
+                startData.resolveExistingPatrol = true;
+                const resolveResponse = (await apiClient.request({
+                  url: item.url,
+                  method: item.method,
+                  data: startData,
+                })) as any;
+
+                const createdServerId = resolveResponse?.data?.id || resolveResponse?.id;
+                if (createdServerId && itemOfflineId) {
+                  await setSessionMapping(itemOfflineId, createdServerId);
+                  sessionMappings[itemOfflineId] = createdServerId;
+                }
+                await dequeue(item.id);
+              } catch (resErr: any) {
+                console.warn(`[OfflineSyncEngine] Failed auto-resolving existing patrol:`, resErr.message);
+                await updateMutationStatus(item.id, 'failed', `Conflict resolution error: ${resErr.message}`, true);
+                break;
+              }
             } else {
               console.warn(`[OfflineSyncEngine] 400/409 Conflict for item ${item.id}. Re-queuing as pending.`);
               await updateMutationStatus(item.id, 'pending', `Session conflict: ${errMsg}`, false);
@@ -343,7 +448,7 @@ export class OfflineSyncEngine {
             break; // Stop replaying sequence
           } else if (statusCode >= 400 && statusCode < 500 && statusCode !== 408) {
             // Fatal Client Error: 400 Bad Request, 422 Validation
-            await updateMutationStatus(item.id, 'failed', `Fatal Client Error (${statusCode}): ${errMsg}`, false);
+            await updateMutationStatus(item.id, 'failed', `Fatal Client Error (${statusCode}): ${errMsg}`, true);
             break; // Stop replaying sequence
           } else {
             // Transient Network/Server Error (5xx, timeouts)

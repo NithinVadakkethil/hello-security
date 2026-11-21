@@ -1,11 +1,18 @@
+import { UserRole } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { assertCentralManagerClientAccess } from '../../common/auth/central-manager-auth';
 import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
-import { formatPatrolDateTime } from '../../common/utils/date-formatter.util';
+import { formatPatrolDateTime, formatPatrolDate, formatPatrolTime, calculatePatrolDurationSeconds, resolveCheckpointTiming, calculateOverlapDurationSeconds, formatDurationHuman, getDateStringInTimezone, getReportingPeriodBoundaries, ReportingPeriodResult } from '../../common/utils/date-formatter.util';
+import {
+  isCheckpointEligibleForSession,
+  calculateSessionCheckpointMetrics,
+  calculateEmployeeAssignedCheckpoints,
+} from '../../common/utils/checkpoint-eligibility.util';
+import { formatEmiratesId } from '../../common/utils/emirates-id.util';
 
-export type ReportPeriodType = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+export type ReportPeriodType = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
 
 export interface SummaryReportParams {
   periodType: ReportPeriodType;
@@ -14,9 +21,14 @@ export interface SummaryReportParams {
   month?: string; // YYYY-MM
   startDate?: string;
   endDate?: string;
+  fromDate?: string;
+  toDate?: string;
   clientId?: string;
   siteId?: string;
   employeeId?: string;
+  role?: string;
+  roleId?: string;
+  shiftId?: string;
   user: {
     id: string;
     role: string;
@@ -62,10 +74,13 @@ export interface ReportDataset {
     clientName: string;
     clientLogoUrl?: string | null;
     siteName?: string;
+    shiftName?: string;
+    roleLabel?: string;
     employeeId?: string;
     employeeName?: string;
     employeeRole?: string;
     employeeNumber?: string;
+    emiratesId?: string | null;
     generatedAt: string;
     timezone: string;
     includeIncidents?: boolean;
@@ -75,6 +90,10 @@ export interface ReportDataset {
     totalEmployees: number;
     activeEmployees: number;
     totalShifts: number;
+    totalPatrolSessions?: number;
+    completedPatrolSessions?: number;
+    incompletePatrolSessions?: number;
+    unclassifiablePatrolSessions?: number;
     assignedPatrols: number;
     completedPatrols: number;
     incompletePatrols: number;
@@ -91,13 +110,43 @@ export interface ReportDataset {
     missedCheckpoints: number;
     checkpointCompletionPct: number;
     incidentsCount: number;
+    // Duration Analytics
+    totalPatrolDurationSeconds: number;
+    totalPatrolDurationFormatted: string;
+    totalCheckpointDurationSeconds: number;
+    totalCheckpointDurationFormatted: string;
+    completedPatrolsCount: number;
+    completedCheckpointsCount: number;
+    avgPatrolDurationSeconds: number;
+    avgPatrolDurationFormatted: string;
+    avgCheckpointDurationSeconds: number;
+    avgCheckpointDurationFormatted: string;
+    unavailableDurationsCount: number;
+    unavailablePatrolDurationsCount: number;
+    unavailableCheckpointDurationsCount: number;
+    untrackedDurationPatrolsCount?: number;
+    untrackedDurationCheckpointsCount?: number;
+    totalAssignedCheckpoints?: number;
   };
+  dailyBreakdown: Array<{
+    date: string;
+    dateFormatted: string;
+    shiftName: string;
+    siteName: string;
+    patrolSessionsCount: number;
+    patrolDurationSeconds: number;
+    patrolDurationFormatted: string;
+    checkpointsCount: number;
+    checkpointDurationSeconds: number;
+    checkpointDurationFormatted: string;
+  }>;
   attendance: Array<{
     id: string;
     shiftDate: string;
     employeeName: string;
     employeeRole: string;
     employeeNumber: string;
+    emiratesId?: string | null;
     siteName: string;
     shiftName: string;
     checkInTime: string;
@@ -112,6 +161,7 @@ export interface ReportDataset {
     guardName: string;
     employeeRole: string;
     employeeCode: string;
+    emiratesId?: string | null;
     siteName: string;
     routeName: string;
     shiftName: string;
@@ -121,6 +171,12 @@ export interface ReportDataset {
     completedAtRaw: string | null;
     endedAt: string | null;
     durationMins: number;
+    durationSeconds: number;
+    durationFormatted: string;
+    fullDurationSeconds: number;
+    fullDurationFormatted: string;
+    checkpointDurationSeconds: number;
+    checkpointDurationFormatted: string;
     status: string;
     checkpointsCompleted: number;
     checkpointsRequired: number;
@@ -132,6 +188,8 @@ export interface ReportDataset {
     sequence: number;
     guardName: string;
     employeeRole: string;
+    employeeNumber?: string | null;
+    emiratesId?: string | null;
     siteName: string;
     shiftName: string;
     scheduledAt: string;
@@ -175,81 +233,129 @@ export interface ReportDataset {
   employeeSummary: Array<{
     employeeId: string;
     employeeName: string;
+    employeeNumber?: string | null;
+    emiratesId?: string | null;
     employeeRole: string;
     siteName: string;
     completedPatrols: number;
+    patrolDurationSeconds: number;
+    patrolDurationFormatted: string;
     mandatoryScheduled: number;
     mandatoryCompleted: number;
     mandatoryCompliancePct: number;
     checkpointsScanned: number;
+    completedCheckpoints: number;
+    checkpointDurationSeconds: number;
+    checkpointDurationFormatted: string;
     incidentsCount: number;
+  }>;
+}
+
+export interface EmployeePatrolsQueryParams extends SummaryReportParams {
+  employeeId?: string;
+  completionStatus?: 'ALL' | 'COMPLETED' | 'INCOMPLETE';
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface EmployeeCompletedPatrolsResult {
+  employee?: {
+    id: string;
+    employeeNumber: string;
+    firstName: string;
+    lastName: string | null;
+    fullName: string;
+    role: string;
+    roleLabel: string;
+    designation: string | null;
+    emiratesId?: string | null;
+  } | null;
+  project: {
+    id: string;
+    companyName: string;
+    clientCode: string;
+    clientLogoUrl?: string | null;
+  };
+  period: {
+    periodType: ReportPeriodType;
+    periodLabel: string;
+    startDate: string;
+    endDate: string;
+    timezone: string;
+  };
+  filters: {
+    shiftId: string | null;
+    siteId: string | null;
+    role: string | null;
+    employeeId?: string | null;
+    completionStatus?: 'ALL' | 'COMPLETED' | 'INCOMPLETE';
+  };
+  summary: {
+    totalPatrolSessions?: number;
+    completedPatrolSessions?: number;
+    incompletePatrolSessions?: number;
+    unclassifiablePatrolSessions?: number;
+    totalCompletedPatrols: number;
+    totalPatrolDurationSeconds: number;
+    totalPatrolDurationFormatted: string;
+    totalCheckpoints: number;
+    totalCheckpointsScanned: number;
+    totalCheckpointsMissed: number;
+    totalCheckpointsRequired: number;
+    averageCompliancePct: number;
+    totalAssignedCheckpoints?: number;
+  };
+  pagination: {
+    page: number;
+    limit: number;
+    totalPages: number;
+    totalCount: number;
+    totalRecords?: number;
+    currentPage?: number;
+    pageSize?: number;
+  };
+  patrols: Array<{
+    id: string;
+    patrolCode: string;
+    status: string;
+    checkpointCompletionStatus?: string;
+    startedAt: string;
+    endedAt: string | null;
+    dateFormatted: string;
+    startTimeFormatted: string;
+    endTimeFormatted: string;
+    siteName: string;
+    routeName: string;
+    shiftName: string;
+    durationSeconds: number;
+    durationFormatted: string;
+    scannedCheckpoints: number;
+    totalCheckpoints: number;
+    missedCheckpoints: number;
+    compliancePct: number;
+    remarks: string | null;
+    employeeId?: string | null;
+    employeeName?: string;
+    employeeCode?: string;
+    employeeRole?: string;
+    emiratesId?: string | null;
   }>;
 }
 
 export class SummaryReportService {
   /**
-   * Computes authoritative date range for DAILY, WEEKLY, or MONTHLY period types.
+   * Computes authoritative date range for DAILY, WEEKLY, MONTHLY, or CUSTOM period types
+   * using the centralized, timezone-aware reporting period resolver.
    */
-  private computeDateRange(params: SummaryReportParams): { from: Date; to: Date; periodLabel: string } {
-    const { periodType, date, month, startDate, endDate } = params;
-
-    let from: Date;
-    let to: Date;
-    let periodLabel = '';
-
-    if (startDate && endDate) {
-      from = new Date(startDate);
-      to = new Date(endDate);
-      if (endDate.length <= 10) {
-        to.setHours(23, 59, 59, 999);
-      }
-      periodLabel = `${from.toISOString().split('T')[0]} to ${to.toISOString().split('T')[0]}`;
-      return { from, to, periodLabel };
+  private computeDateRange(params: SummaryReportParams): ReportingPeriodResult {
+    const timezone = 'Asia/Dubai';
+    try {
+      return getReportingPeriodBoundaries(params.periodType, params, timezone);
+    } catch (err: any) {
+      throw new AppError(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR, err.message);
     }
-
-    const parseDateParts = (dateStr?: string) => {
-      if (dateStr && dateStr.includes('-')) {
-        const parts = dateStr.split('-').map(Number);
-        return { year: parts[0], monthIdx: parts[1] - 1, day: parts[2] || 1 };
-      }
-      const now = new Date();
-      return { year: now.getFullYear(), monthIdx: now.getMonth(), day: now.getDate() };
-    };
-
-    if (periodType === 'DAILY') {
-      const { year, monthIdx, day } = parseDateParts(date);
-      from = new Date(year, monthIdx, day, 0, 0, 0, 0);
-      to = new Date(year, monthIdx, day, 23, 59, 59, 999);
-      periodLabel = from.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
-    } else if (periodType === 'WEEKLY') {
-      const { year, monthIdx, day } = parseDateParts(date);
-      const refDate = new Date(year, monthIdx, day, 12, 0, 0, 0);
-      const dayOfWeek = refDate.getDay(); // 0 is Sunday
-      const diffToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
-      from = new Date(year, monthIdx, day + diffToMonday, 0, 0, 0, 0);
-      to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6, 23, 59, 59, 999);
-      periodLabel = `Week of ${from.toLocaleDateString('en-US', { month: 'short', day: '2-digit' })} - ${to.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })}`;
-    } else {
-      // MONTHLY
-      let year = new Date().getFullYear();
-      let monthIdx = new Date().getMonth();
-
-      if (month && month.includes('-')) {
-        const parts = month.split('-');
-        year = parseInt(parts[0], 10);
-        monthIdx = parseInt(parts[1], 10) - 1;
-      } else if (date && date.includes('-')) {
-        const parts = date.split('-');
-        year = parseInt(parts[0], 10);
-        monthIdx = parseInt(parts[1], 10) - 1;
-      }
-
-      from = new Date(year, monthIdx, 1, 0, 0, 0, 0);
-      to = new Date(year, monthIdx + 1, 0, 23, 59, 59, 999);
-      periodLabel = from.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    }
-
-    return { from, to, periodLabel };
   }
 
   /**
@@ -278,8 +384,9 @@ export class SummaryReportService {
    */
   async generateReportDataset(params: SummaryReportParams): Promise<ReportDataset> {
     const clientIds = await this.resolveAuthorizedClientIds(params);
-    const { from, to, periodLabel } = this.computeDateRange(params);
+    const { from, to, periodLabel, startDateStr, endDateStr } = this.computeDateRange(params);
     const { siteId, periodType } = params;
+
     const rawEmployeeId = params.employeeId;
     const employeeId =
       rawEmployeeId &&
@@ -290,19 +397,72 @@ export class SummaryReportService {
       rawEmployeeId.toLowerCase() !== 'undefined'
         ? rawEmployeeId.trim()
         : undefined;
+
+    const rawRole = params.role || params.roleId;
+    const cleanRoleStr =
+      rawRole &&
+      typeof rawRole === 'string' &&
+      rawRole.trim() !== '' &&
+      rawRole.toUpperCase() !== 'ALL' &&
+      rawRole.toLowerCase() !== 'all' &&
+      rawRole.toLowerCase() !== 'null' &&
+      rawRole.toLowerCase() !== 'undefined'
+        ? rawRole.trim().toUpperCase()
+        : undefined;
+
+    let targetRoleEnum: UserRole | undefined = undefined;
+    if (cleanRoleStr) {
+      if (cleanRoleStr === 'SECURITY_GUARD' || cleanRoleStr === 'GUARD' || cleanRoleStr === 'SECURITY') {
+        targetRoleEnum = UserRole.SECURITY;
+      } else if (Object.values(UserRole).includes(cleanRoleStr as any)) {
+        targetRoleEnum = cleanRoleStr as UserRole;
+      }
+    }
+    const roleLabel = targetRoleEnum ? formatRoleLabel(targetRoleEnum) : cleanRoleStr || 'All Roles';
+
+    const rawShiftId = params.shiftId;
+    const shiftId =
+      rawShiftId &&
+      typeof rawShiftId === 'string' &&
+      rawShiftId.trim() !== '' &&
+      rawShiftId.toUpperCase() !== 'ALL' &&
+      rawShiftId.toLowerCase() !== 'all' &&
+      rawShiftId.toLowerCase() !== 'null' &&
+      rawShiftId.toLowerCase() !== 'undefined'
+        ? rawShiftId.trim()
+        : undefined;
+
     const timezone = 'Asia/Dubai';
 
-    // Fetch Client info
+    // Verify Shift authorization if provided
+    let shiftName: string | undefined;
+    if (shiftId) {
+      const shift = await prisma.shift.findUnique({
+        where: { id: shiftId },
+        select: { id: true, name: true, clientId: true },
+      });
+      if (!shift || !clientIds.includes(shift.clientId)) {
+        throw new AppError(HttpStatus.FORBIDDEN, ErrorCodes.FORBIDDEN, 'Unauthorized shift filter requested.');
+      }
+      shiftName = shift.name;
+    }
+
+    // Verify Site authorization if provided
     let siteName: string | undefined;
     let siteClient: any = null;
     if (siteId) {
       const site = await prisma.site.findUnique({
         where: { id: siteId },
         select: {
+          id: true,
+          clientId: true,
           name: true,
           client: { select: { companyName: true, clientCode: true, clientLogoUrl: true } },
         },
       });
+      if (!site || !clientIds.includes(site.clientId)) {
+        throw new AppError(HttpStatus.FORBIDDEN, ErrorCodes.FORBIDDEN, 'Unauthorized site filter requested.');
+      }
       siteName = site?.name;
       siteClient = site?.client;
     }
@@ -331,6 +491,13 @@ export class SummaryReportService {
       if (!scopedEmployee || !clientIds.includes(scopedEmployee.clientId)) {
         throw new AppError(HttpStatus.FORBIDDEN, ErrorCodes.FORBIDDEN, 'Unauthorized employee report access requested.');
       }
+      if (targetRoleEnum && scopedEmployee.role !== targetRoleEnum) {
+        throw new AppError(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.VALIDATION_ERROR,
+          `Selected employee does not belong to role ${formatRoleLabel(targetRoleEnum)}.`,
+        );
+      }
       employeeName = `${scopedEmployee.firstName} ${scopedEmployee.lastName || ''}`.trim();
       employeeRole = formatRoleLabel(scopedEmployee.role, scopedEmployee.designation);
       employeeNumber = scopedEmployee.employeeNumber || '—';
@@ -339,40 +506,107 @@ export class SummaryReportService {
     // Build base query filters
     const baseWhereClient = { clientId: { in: clientIds } };
     const siteFilter = siteId ? { siteId } : {};
+    const shiftFilter = shiftId ? { shiftId } : {};
     const employeeFilter = employeeId ? { employeeId } : {};
+    const employeeModelFilter = employeeId ? { id: employeeId } : {};
+    const roleEmployeeFilter = targetRoleEnum ? { role: targetRoleEnum } : {};
 
     // 1. Employees query
     const [totalEmployees, activeEmployees] = employeeId
       ? [1, scopedEmployee.status === 'ACTIVE' ? 1 : 0]
       : await Promise.all([
           prisma.employee.count({
-            where: { ...baseWhereClient },
+            where: {
+              ...baseWhereClient,
+              ...roleEmployeeFilter,
+              ...(siteId ? { assignments: { some: { siteId, isActive: true } } } : {}),
+              ...(shiftId ? { assignments: { some: { shiftId, isActive: true } } } : {}),
+            },
           }),
           prisma.employee.count({
-            where: { ...baseWhereClient, status: 'ACTIVE' },
+            where: {
+              ...baseWhereClient,
+              ...roleEmployeeFilter,
+              status: 'ACTIVE',
+              ...(siteId ? { assignments: { some: { siteId, isActive: true } } } : {}),
+              ...(shiftId ? { assignments: { some: { shiftId, isActive: true } } } : {}),
+            },
           }),
         ]);
 
     // 2. Shifts & Assignments count
-    const totalShifts = await prisma.shift.count({
-      where: { ...baseWhereClient, isActive: true },
-    });
+    const totalShifts = shiftId
+      ? 1
+      : await prisma.shift.count({
+          where: {
+            ...baseWhereClient,
+            isActive: true,
+            ...(siteId ? { assignments: { some: { siteId, isActive: true } } } : {}),
+          },
+        });
 
-    // 3. Patrol Sessions query with full relations
+    // 3. Patrol Sessions query with full relations and boundary overlap support
+    const dateWindowFilter = {
+      OR: [
+        { startedAt: { gte: from, lt: to } },
+        { endedAt: { gt: from, lte: to } },
+        {
+          AND: [
+            { startedAt: { lte: from } },
+            { endedAt: { gte: to } },
+          ],
+        },
+        {
+          AND: [
+            { startedAt: { lt: to, gte: new Date(from.getTime() - 24 * 60 * 60 * 1000) } },
+            { endedAt: null },
+          ],
+        },
+      ],
+    };
+
+    const andFilters: any[] = [dateWindowFilter];
+    let topLevelOr: any = undefined;
+
+    if (employeeId && targetRoleEnum) {
+      topLevelOr = [
+        { assignment: { employeeId } },
+        { managerUser: { employee: { id: employeeId } } },
+      ];
+      andFilters.push({
+        OR: [
+          { assignment: { employee: { role: targetRoleEnum } } },
+          { managerUser: { employee: { role: targetRoleEnum } } },
+        ],
+      });
+    } else if (employeeId) {
+      topLevelOr = [
+        { assignment: { employeeId } },
+        { managerUser: { employee: { id: employeeId } } },
+      ];
+    } else if (targetRoleEnum) {
+      topLevelOr = [
+        { assignment: { employee: { role: targetRoleEnum } } },
+        { managerUser: { employee: { role: targetRoleEnum } } },
+      ];
+    }
+
+    const patrolWhere: any = {
+      ...baseWhereClient,
+      ...(siteId || shiftId
+        ? {
+            assignment: {
+              ...(siteId ? { siteId } : {}),
+              ...(shiftId ? { shiftId } : {}),
+            },
+          }
+        : {}),
+      AND: andFilters,
+      ...(topLevelOr ? { OR: topLevelOr } : {}),
+    };
+
     const patrolSessions = await prisma.patrolSession.findMany({
-      where: {
-        ...baseWhereClient,
-        startedAt: { gte: from, lte: to },
-        ...(siteId ? { assignment: { siteId } } : {}),
-        ...(employeeId
-          ? {
-              OR: [
-                { assignment: { employeeId } },
-                { managerUser: { employee: { id: employeeId } } },
-              ],
-            }
-          : {}),
-      },
+      where: patrolWhere,
       include: {
         assignment: {
           include: {
@@ -381,10 +615,18 @@ export class SummaryReportService {
             shift: true,
             patrolRoute: {
               include: {
-                routeGates: true,
+                routeGates: {
+                  include: {
+                    gate: true,
+                  },
+                },
               },
             },
-            assignmentGates: true,
+            assignmentGates: {
+              include: {
+                gate: true,
+              },
+            },
           },
         },
         managerUser: {
@@ -399,19 +641,60 @@ export class SummaryReportService {
       orderBy: { startedAt: 'desc' },
     });
 
-    const completedPatrolsCount = patrolSessions.filter((p) => p.status === 'COMPLETED').length;
-    const incompletePatrolsCount = patrolSessions.filter((p) => p.status !== 'COMPLETED').length;
+    const completedPatrolsCount = patrolSessions.filter((p) => {
+      if (p.status !== 'COMPLETED') return false;
+      if (p.endedAt) {
+        return p.endedAt > from && p.startedAt < to;
+      }
+      return p.startedAt >= from && p.startedAt < to;
+    }).length;
+    const incompletePatrolsCount = patrolSessions.filter((p) => {
+      if (p.status === 'COMPLETED') return false;
+      return p.startedAt >= from && p.startedAt < to;
+    }).length;
+
+    let completedPatrolSessions = 0;
+    let incompletePatrolSessions = 0;
+    let unclassifiablePatrolSessions = 0;
+
+    const finalizedSessionsInPeriod = patrolSessions.filter((p) => {
+      const isFin = p.status === 'COMPLETED' || Boolean(p.endedAt);
+      if (!isFin) return false;
+      if (p.endedAt) {
+        return p.endedAt > from && p.startedAt < to;
+      }
+      return p.startedAt >= from && p.startedAt < to;
+    });
+
+    for (const p of finalizedSessionsInPeriod) {
+      const m = calculateSessionCheckpointMetrics(p);
+      if (m.checkpointCompletionStatus === 'COMPLETED') {
+        completedPatrolSessions++;
+      } else if (m.checkpointCompletionStatus === 'INCOMPLETE') {
+        incompletePatrolSessions++;
+      } else if (m.checkpointCompletionStatus === 'NO_CHECKPOINTS') {
+        unclassifiablePatrolSessions++;
+      }
+    }
+
+    const totalPatrolSessionsCount = finalizedSessionsInPeriod.length;
 
     // 4. Mandatory Patrol Instances query
+    const dateOnlyFrom = new Date(`${startDateStr}T00:00:00.000Z`);
+    const dateOnlyTo = new Date(`${endDateStr}T23:59:59.999Z`);
+
     const mandatoryInstances = await prisma.mandatoryPatrolInstance.findMany({
       where: {
         ...baseWhereClient,
-        shiftDate: { gte: from, lte: to },
+        shiftDate: { gte: dateOnlyFrom, lte: dateOnlyTo },
         ...(siteId ? { assignment: { siteId } } : {}),
+        ...(shiftId ? { shiftId } : {}),
+        ...(targetRoleEnum ? { employee: { role: targetRoleEnum } } : {}),
         ...employeeFilter,
       },
       include: {
         employee: true,
+        shift: true,
         assignment: {
           include: {
             site: true,
@@ -426,28 +709,54 @@ export class SummaryReportService {
     const mandatoryCompleted = mandatoryInstances.filter((m) => m.status === 'COMPLETED').length;
     const mandatoryMissed = mandatoryInstances.filter((m) => m.status === 'MISSED').length;
     const mandatoryCompliancePct =
-      mandatoryScheduled > 0 ? Math.round((mandatoryCompleted / mandatoryScheduled) * 100) : 100;
+      mandatoryScheduled > 0 ? Math.round((mandatoryCompleted / mandatoryScheduled) * 100) : 0;
 
     // 5. Checkpoints & Incidents
-    const totalScannedCheckpoints = patrolSessions.reduce((acc, p) => acc + p.checkpoints.length, 0);
-
-    let totalRequiredCheckpoints = 0;
-    patrolSessions.forEach((p) => {
+    const getSessionRequiredCheckpointsCount = (p: any): number => {
+      if (p.managerUserId) {
+        return p.checkpoints?.length || 0;
+      }
       const isDirect =
         (p.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
         (!p.assignment?.patrolRoute && (p.assignment?.assignmentGates?.length || 0) > 0);
 
-      const reqGates = p.managerUserId
-        ? p.checkpoints.length
-        : isDirect
-        ? p.assignment?.assignmentGates?.length || 0
-        : p.assignment?.patrolRoute?.routeGates?.length || 0;
+      const assignedItems: any[] = isDirect
+        ? (p.assignment?.assignmentGates || [])
+        : (p.assignment?.patrolRoute?.routeGates || []);
 
-      totalRequiredCheckpoints += reqGates > 0 ? reqGates : p.checkpoints.length;
+      if (assignedItems.length === 0) {
+        return p.checkpoints.length;
+      }
+
+      const scannedGateIds = new Set(
+        (p.checkpoints || []).map((cp: any) => cp.gateId || cp.gate?.id).filter(Boolean),
+      );
+
+      const eligibleItems = assignedItems.filter((item: any) => {
+        const gate = item.gate || { id: item.gateId, isActive: true };
+        const gateId = gate.id || item.gateId;
+        const wasScanned = scannedGateIds.has(gateId);
+        return isCheckpointEligibleForSession({
+          gate,
+          session: {
+            status: p.status,
+            startedAt: p.startedAt,
+            endedAt: p.endedAt,
+            createdAt: p.createdAt,
+          },
+          isScanned: wasScanned,
+          wasScanned,
+        });
+      });
+
+      return eligibleItems.length > 0 ? eligibleItems.length : p.checkpoints.length;
+    };
+
+    let totalRequiredCheckpoints = 0;
+    patrolSessions.forEach((p) => {
+      const reqGates = getSessionRequiredCheckpointsCount(p);
+      totalRequiredCheckpoints += reqGates;
     });
-
-    const checkpointCompletionPct =
-      totalRequiredCheckpoints > 0 ? Math.round((totalScannedCheckpoints / totalRequiredCheckpoints) * 100) : 100;
 
     const incidentSiteFilter = siteId
       ? { OR: [{ patrolSession: { assignment: { siteId } } }, { gate: { siteId } }] }
@@ -457,8 +766,10 @@ export class SummaryReportService {
       ? await prisma.incident.findMany({
           where: {
             ...baseWhereClient,
-            createdAt: { gte: from, lte: to },
+            createdAt: { gte: from, lt: to },
             ...incidentSiteFilter,
+            ...(shiftId ? { patrolSession: { assignment: { shiftId } } } : {}),
+            ...(targetRoleEnum ? { employee: { role: targetRoleEnum } } : {}),
             ...employeeFilter,
           },
           include: {
@@ -468,6 +779,7 @@ export class SummaryReportService {
                 assignment: {
                   include: {
                     site: true,
+                    shift: true,
                   },
                 },
               },
@@ -482,30 +794,55 @@ export class SummaryReportService {
         })
       : [];
 
-    // 6. Map Patrol Rows
+    // 6. Map Patrol Rows & Compute Exact Overlap Durations
+    let totalPatrolDurationSeconds = 0;
+    let totalCheckpointDurationSeconds = 0;
+    let unavailablePatrolDurationsCount = 0;
+    let unavailableCheckpointDurationsCount = 0;
+    let completedCheckpointsCount = 0;
+
+    const dailyMap = new Map<string, {
+      date: string;
+      dateFormatted: string;
+      shiftName: string;
+      siteName: string;
+      patrolSessionsCount: number;
+      patrolDurationSeconds: number;
+      checkpointsCount: number;
+      checkpointDurationSeconds: number;
+    }>();
+
     const patrolRows = patrolSessions.map((p) => {
       const emp = p.assignment?.employee || p.managerUser?.employee;
       const guardName = emp
         ? `${emp.firstName} ${emp.lastName || ''}`.trim()
-        : p.managerUser?.email || 'Officer';
+        : p.managerUser?.email || 'Employee';
       const employeeRole = formatRoleLabel(emp?.role, emp?.designation);
       const employeeCode = emp?.employeeNumber || '—';
 
-      const isDirect =
-        (p.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
-        (!p.assignment?.patrolRoute && (p.assignment?.assignmentGates?.length || 0) > 0);
-
-      const expectedGatesCount = p.managerUserId
-        ? p.checkpoints.length
-        : isDirect
-        ? p.assignment?.assignmentGates?.length || 0
-        : p.assignment?.patrolRoute?.routeGates?.length || 0;
-
-      const checkpointsRequired = expectedGatesCount > 0 ? expectedGatesCount : p.checkpoints.length;
-      const checkpointsCompleted = p.checkpoints.length;
+      const checkpointsRequired = getSessionRequiredCheckpointsCount(p);
+      const checkpointsCompleted = (p.checkpoints || []).length;
 
       const startedAtFormatted = formatPatrolDateTime(p.startedAt, timezone, false);
       const completedAtFormatted = p.endedAt ? formatPatrolDateTime(p.endedAt, timezone, false) : null;
+
+      // Session Duration clipped to reporting window [from, to]
+      const clippedSec = calculateOverlapDurationSeconds(p.startedAt, p.endedAt, from, to);
+      const fullSec = calculatePatrolDurationSeconds(p.startedAt, p.endedAt, p.totalDuration) || 0;
+
+      // Checkpoint Durations for this session clipped to [from, to]
+      let sessionCpDurationSec = 0;
+      (p.checkpoints || []).forEach((cp: any) => {
+        const timing = resolveCheckpointTiming(cp, timezone);
+        if (timing.isCompleted && timing.rawDurationSeconds !== null && cp.scannedAt) {
+          const cpStart = new Date(cp.scannedAt);
+          const cpEnd = cp.completedAt ? new Date(cp.completedAt) : cpStart;
+          const cpOverlap = calculateOverlapDurationSeconds(cpStart, cpEnd, from, to);
+          if (cpOverlap !== null) {
+            sessionCpDurationSec += cpOverlap;
+          }
+        }
+      });
 
       return {
         id: p.id,
@@ -514,6 +851,7 @@ export class SummaryReportService {
         guardName,
         employeeRole,
         employeeCode,
+        emiratesId: formatEmiratesId(emp?.emiratesId),
         siteName: p.assignment?.site?.name || 'Monitored Site',
         routeName: p.assignment?.patrolRoute?.name || 'Patrol Route',
         shiftName: p.assignment?.shift?.name || 'Shift',
@@ -522,7 +860,13 @@ export class SummaryReportService {
         completedAt: completedAtFormatted,
         completedAtRaw: p.endedAt ? p.endedAt.toISOString() : null,
         endedAt: completedAtFormatted,
-        durationMins: p.totalDuration ? Math.round(p.totalDuration / 60) : 0,
+        durationMins: clippedSec !== null ? Math.round(clippedSec / 60) : (p.totalDuration ? Math.round(p.totalDuration / 60) : 0),
+        durationSeconds: clippedSec ?? 0,
+        durationFormatted: formatDurationHuman(clippedSec ?? 0),
+        fullDurationSeconds: fullSec,
+        fullDurationFormatted: formatDurationHuman(fullSec),
+        checkpointDurationSeconds: sessionCpDurationSec,
+        checkpointDurationFormatted: formatDurationHuman(sessionCpDurationSec),
         status: p.status,
         checkpointsCompleted,
         checkpointsRequired,
@@ -530,6 +874,92 @@ export class SummaryReportService {
         checkpointsDisplay: `${checkpointsCompleted} / ${checkpointsRequired}`,
       };
     });
+
+    // Compute cumulative aggregates across eligible completed patrols
+    patrolSessions.forEach((p) => {
+      // Patrol session duration
+      let patrolOverlap: number | null = null;
+      if (p.status === 'COMPLETED' && p.startedAt && p.endedAt) {
+        patrolOverlap = calculateOverlapDurationSeconds(p.startedAt, p.endedAt, from, to);
+        if (patrolOverlap !== null && patrolOverlap > 0) {
+          totalPatrolDurationSeconds += patrolOverlap;
+        } else if (patrolOverlap === 0) {
+          // Zero overlap with reporting window
+        } else {
+          unavailablePatrolDurationsCount += 1;
+        }
+      } else if (p.status === 'COMPLETED' || !p.endedAt) {
+        unavailablePatrolDurationsCount += 1;
+      }
+
+      // Checkpoint durations within session
+      let sessionCpDuration = 0;
+      let sessionCompletedCps = 0;
+      (p.checkpoints || []).forEach((cp: any) => {
+        const timing = resolveCheckpointTiming(cp, timezone);
+        if (timing.isCompleted && timing.rawDurationSeconds !== null && cp.scannedAt) {
+          const cpStart = new Date(cp.scannedAt);
+          const cpEnd = cp.completedAt ? new Date(cp.completedAt) : cpStart;
+          const cpOverlap = calculateOverlapDurationSeconds(cpStart, cpEnd, from, to);
+          if (cpOverlap !== null && cpOverlap > 0) {
+            totalCheckpointDurationSeconds += cpOverlap;
+            sessionCpDuration += cpOverlap;
+            completedCheckpointsCount += 1;
+            sessionCompletedCps += 1;
+          } else if (cpOverlap === 0 && cpStart >= from && cpStart < to) {
+            sessionCpDuration += 0;
+            completedCheckpointsCount += 1;
+            sessionCompletedCps += 1;
+          } else if (cpStart >= from && cpStart < to) {
+            unavailableCheckpointDurationsCount += 1;
+          }
+        } else if (timing.isCompleted && cp.scannedAt && new Date(cp.scannedAt) >= from && new Date(cp.scannedAt) < to) {
+          completedCheckpointsCount += 1;
+          sessionCompletedCps += 1;
+          unavailableCheckpointDurationsCount += 1;
+        } else if (cp.scannedAt && new Date(cp.scannedAt) >= from && new Date(cp.scannedAt) < to) {
+          unavailableCheckpointDurationsCount += 1;
+        }
+      });
+
+      // Daily breakdown tracking
+      const effectiveDate = p.startedAt < from ? from : p.startedAt;
+      const dateKey = getDateStringInTimezone(effectiveDate, timezone) || effectiveDate.toISOString().split('T')[0];
+
+      if (dateKey >= startDateStr && dateKey <= endDateStr) {
+        const shiftNameStr = p.assignment?.shift?.name || 'Shift';
+        const siteNameStr = p.assignment?.site?.name || 'Site';
+        const dailyKey = `${dateKey}_${shiftNameStr}_${siteNameStr}`;
+
+        if (!dailyMap.has(dailyKey)) {
+          dailyMap.set(dailyKey, {
+            date: dateKey,
+            dateFormatted: formatPatrolDate(effectiveDate, timezone),
+            shiftName: shiftNameStr,
+            siteName: siteNameStr,
+            patrolSessionsCount: 0,
+            patrolDurationSeconds: 0,
+            checkpointsCount: 0,
+            checkpointDurationSeconds: 0,
+          });
+        }
+        const dayItem = dailyMap.get(dailyKey)!;
+        dayItem.patrolSessionsCount += 1;
+        if (patrolOverlap !== null) {
+          dayItem.patrolDurationSeconds += patrolOverlap;
+        }
+        dayItem.checkpointsCount += sessionCompletedCps;
+        dayItem.checkpointDurationSeconds += sessionCpDuration;
+      }
+    });
+
+    const dailyBreakdown = Array.from(dailyMap.values())
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map((d) => ({
+        ...d,
+        patrolDurationFormatted: formatDurationHuman(d.patrolDurationSeconds),
+        checkpointDurationFormatted: formatDurationHuman(d.checkpointDurationSeconds),
+      }));
 
     // 7. Map Mandatory Patrol Rows
     const mandatoryRows = mandatoryInstances.map((m) => {
@@ -540,8 +970,10 @@ export class SummaryReportService {
         sequence: m.sequence,
         guardName,
         employeeRole,
+        employeeNumber: m.employee?.employeeNumber || null,
+        emiratesId: formatEmiratesId(m.employee?.emiratesId),
         siteName: m.assignment?.site?.name || 'Assigned Site',
-        shiftName: m.assignment?.shift?.name || 'Shift',
+        shiftName: m.assignment?.shift?.name || m.shift?.name || 'Shift',
         scheduledAt: formatPatrolDateTime(m.scheduledAt, timezone, false),
         windowStart: formatPatrolDateTime(m.windowStart, timezone, false),
         windowEnd: formatPatrolDateTime(m.windowEnd, timezone, false),
@@ -556,7 +988,7 @@ export class SummaryReportService {
       const emp = p.assignment?.employee || p.managerUser?.employee;
       const guardName = emp
         ? `${emp.firstName} ${emp.lastName || ''}`.trim()
-        : p.managerUser?.email || 'Officer';
+        : p.managerUser?.email || 'Employee';
 
       p.checkpoints.forEach((cp) => {
         checkpointRows.push({
@@ -597,7 +1029,7 @@ export class SummaryReportService {
           completedPatrols: 0,
           mandatoryScheduled: 0,
           mandatoryCompleted: 0,
-          mandatoryCompliancePct: 100,
+          mandatoryCompliancePct: 0,
           completedCheckpoints: 0,
           requiredCheckpoints: 0,
           incidentsCount: 0,
@@ -620,7 +1052,7 @@ export class SummaryReportService {
             completedPatrols: 0,
             mandatoryScheduled: 0,
             mandatoryCompleted: 0,
-            mandatoryCompliancePct: 100,
+            mandatoryCompliancePct: 0,
             completedCheckpoints: 0,
             requiredCheckpoints: 0,
             incidentsCount: 0,
@@ -629,44 +1061,96 @@ export class SummaryReportService {
         const item = siteMap.get(sId);
         if (p.status === 'COMPLETED') item.completedPatrols += 1;
 
-        const isDirect =
-          (p.assignment as any)?.assignmentType === 'DIRECT_CHECKPOINTS' ||
-          (!p.assignment?.patrolRoute && (p.assignment?.assignmentGates?.length || 0) > 0);
-        const reqGates = p.managerUserId
-          ? p.checkpoints.length
-          : isDirect
-          ? p.assignment?.assignmentGates?.length || 0
-          : p.assignment?.patrolRoute?.routeGates?.length || 0;
-
+        const reqGates = getSessionRequiredCheckpointsCount(p);
         item.completedCheckpoints += p.checkpoints.length;
-        item.requiredCheckpoints += reqGates > 0 ? reqGates : p.checkpoints.length;
+        item.requiredCheckpoints += reqGates;
       }
     });
 
     const siteSummary = Array.from(siteMap.values()).map((s) => ({
       ...s,
       mandatoryCompliancePct:
-        s.mandatoryScheduled > 0 ? Math.round((s.mandatoryCompleted / s.mandatoryScheduled) * 100) : 100,
+        s.mandatoryScheduled > 0 ? Math.round((s.mandatoryCompleted / s.mandatoryScheduled) * 100) : 0,
     }));
 
-    // 11. Employee Summary Aggregation
+    // 11. Employee Summary Aggregation (Handle all eligible employees, including those with 0 activity)
     const empMap = new Map<string, any>();
+
+    // Pre-populate with all eligible employees matching the filters
+    // Fix: Use employeeModelFilter (id) instead of employeeFilter (employeeId)
+    const eligibleEmployees = await prisma.employee.findMany({
+      where: {
+        ...baseWhereClient,
+        status: 'ACTIVE',
+        ...roleEmployeeFilter,
+        ...(siteId ? { assignments: { some: { siteId, isActive: true } } } : {}),
+        ...(shiftId ? { assignments: { some: { shiftId, isActive: true } } } : {}),
+        ...employeeModelFilter,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        employeeNumber: true,
+        emiratesId: true,
+        role: true,
+        designation: true,
+        assignments: {
+          where: {
+            isActive: true,
+            ...(siteId ? { siteId } : {}),
+            ...(shiftId ? { shiftId } : {}),
+          },
+          include: { site: true, shift: true },
+          take: 1,
+        },
+      },
+    });
+
+    eligibleEmployees.forEach((emp) => {
+      const eName = `${emp.firstName} ${emp.lastName || ''}`.trim();
+      const eRole = formatRoleLabel(emp.role, emp.designation);
+      const sName = emp.assignments[0]?.site?.name || siteName || 'Assigned Site';
+      empMap.set(emp.id, {
+        employeeId: emp.id,
+        employeeName: eName,
+        employeeNumber: emp.employeeNumber || null,
+        emiratesId: formatEmiratesId(emp.emiratesId),
+        employeeRole: eRole,
+        siteName: sName,
+        completedPatrols: 0,
+        patrolDurationSeconds: 0,
+        mandatoryScheduled: 0,
+        mandatoryCompleted: 0,
+        mandatoryCompliancePct: 0,
+        checkpointsScanned: 0,
+        completedCheckpoints: 0,
+        checkpointDurationSeconds: 0,
+        incidentsCount: 0,
+      });
+    });
+
     mandatoryInstances.forEach((m) => {
       const eId = m.employeeId;
       const eName = `${m.employee.firstName} ${m.employee.lastName || ''}`.trim();
       const eRole = formatRoleLabel(m.employee.role, m.employee.designation);
-      const sName = m.assignment.site?.name || 'Site';
+      const sName = m.assignment?.site?.name || 'Site';
       if (!empMap.has(eId)) {
         empMap.set(eId, {
           employeeId: eId,
           employeeName: eName,
+          employeeNumber: m.employee.employeeNumber || null,
+          emiratesId: formatEmiratesId(m.employee.emiratesId),
           employeeRole: eRole,
           siteName: sName,
           completedPatrols: 0,
+          patrolDurationSeconds: 0,
           mandatoryScheduled: 0,
           mandatoryCompleted: 0,
-          mandatoryCompliancePct: 100,
+          mandatoryCompliancePct: 0,
           checkpointsScanned: 0,
+          completedCheckpoints: 0,
+          checkpointDurationSeconds: 0,
           incidentsCount: 0,
         });
       }
@@ -686,19 +1170,42 @@ export class SummaryReportService {
           empMap.set(eId, {
             employeeId: eId,
             employeeName: eName,
+            employeeNumber: emp.employeeNumber || null,
+            emiratesId: formatEmiratesId(emp.emiratesId),
             employeeRole: eRole,
             siteName: sName,
             completedPatrols: 0,
+            patrolDurationSeconds: 0,
             mandatoryScheduled: 0,
             mandatoryCompleted: 0,
-            mandatoryCompliancePct: 100,
+            mandatoryCompliancePct: 0,
             checkpointsScanned: 0,
+            completedCheckpoints: 0,
+            checkpointDurationSeconds: 0,
             incidentsCount: 0,
           });
         }
         const item = empMap.get(eId);
-        if (p.status === 'COMPLETED') item.completedPatrols += 1;
-        item.checkpointsScanned += p.checkpoints.length;
+        if (p.status === 'COMPLETED') {
+          item.completedPatrols += 1;
+          const sOverlap = calculateOverlapDurationSeconds(p.startedAt, p.endedAt, from, to);
+          if (sOverlap !== null) {
+            item.patrolDurationSeconds += sOverlap;
+          }
+        }
+        item.checkpointsScanned += (p.checkpoints || []).length;
+        (p.checkpoints || []).forEach((cp: any) => {
+          const timing = resolveCheckpointTiming(cp, timezone);
+          if (timing.isCompleted && timing.rawDurationSeconds !== null && cp.scannedAt) {
+            const cpStart = new Date(cp.scannedAt);
+            const cpEnd = cp.completedAt ? new Date(cp.completedAt) : cpStart;
+            const cpOverlap = calculateOverlapDurationSeconds(cpStart, cpEnd, from, to);
+            if (cpOverlap !== null) {
+              item.completedCheckpoints += 1;
+              item.checkpointDurationSeconds += cpOverlap;
+            }
+          }
+        });
       }
     });
 
@@ -706,30 +1213,38 @@ export class SummaryReportService {
       empMap.set(employeeId, {
         employeeId: scopedEmployee.id,
         employeeName: `${scopedEmployee.firstName} ${scopedEmployee.lastName || ''}`.trim(),
+        employeeNumber: scopedEmployee.employeeNumber || null,
+        emiratesId: formatEmiratesId(scopedEmployee.emiratesId),
         employeeRole: formatRoleLabel(scopedEmployee.role, scopedEmployee.designation),
         siteName: siteName || 'Assigned Site',
         completedPatrols: 0,
+        patrolDurationSeconds: 0,
         mandatoryScheduled: 0,
         mandatoryCompleted: 0,
-        mandatoryCompliancePct: 100,
+        mandatoryCompliancePct: 0,
         checkpointsScanned: 0,
+        completedCheckpoints: 0,
+        checkpointDurationSeconds: 0,
         incidentsCount: 0,
       });
     }
 
     const employeeSummary = Array.from(empMap.values()).map((e) => ({
       ...e,
+      patrolDurationFormatted: formatDurationHuman(e.patrolDurationSeconds),
+      checkpointDurationFormatted: formatDurationHuman(e.checkpointDurationSeconds),
       mandatoryCompliancePct:
-        e.mandatoryScheduled > 0 ? Math.round((e.mandatoryCompleted / e.mandatoryScheduled) * 100) : 100,
+        e.mandatoryScheduled > 0 ? Math.round((e.mandatoryCompleted / e.mandatoryScheduled) * 100) : 0,
     }));
 
-    // 12. Attendance Rows from GuardAssignments
-    const assignments = await prisma.guardAssignment.findMany({
+    // 12. Attendance: Query authoritative Attendance check-in records first, fallback to GuardAssignments
+    const attendanceRecords = await prisma.attendance.findMany({
       where: {
         ...baseWhereClient,
-        effectiveFrom: { lte: to },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gte: from } }],
+        attendanceDate: { gte: dateOnlyFrom, lte: dateOnlyTo },
         ...siteFilter,
+        ...shiftFilter,
+        ...(targetRoleEnum ? { employee: { role: targetRoleEnum } } : {}),
         ...employeeFilter,
       },
       include: {
@@ -737,32 +1252,128 @@ export class SummaryReportService {
         site: true,
         shift: true,
       },
-      orderBy: { effectiveFrom: 'desc' },
+      orderBy: { attendanceDate: 'desc' },
     });
 
-    const attendanceRows = assignments.map((a) => ({
-      id: a.id,
-      shiftDate: a.effectiveFrom.toISOString().split('T')[0],
-      employeeName: `${a.employee.firstName} ${a.employee.lastName || ''}`.trim(),
-      employeeRole: formatRoleLabel(a.employee.role, a.employee.designation),
-      employeeNumber: a.employee.employeeNumber || '—',
-      siteName: a.site.name,
-      shiftName: a.shift.name,
-      checkInTime: formatPatrolDateTime(a.effectiveFrom, timezone, false),
-      checkOutTime: a.effectiveTo ? formatPatrolDateTime(a.effectiveTo, timezone, false) : null,
-      status: a.isActive ? 'PRESENT' : 'OFF',
-      isLate: false,
-    }));
+    let attendanceRows: Array<any> = [];
+
+    if (attendanceRecords.length > 0) {
+      attendanceRows = attendanceRecords.map((a) => {
+        // Genuine face-verified attendance criteria:
+        // Must be verified and have valid checkInAt/checkOutAt timestamps.
+        const isCheckInVerified = Boolean(
+          a.checkInAt &&
+          (a.verificationStatus === 'VERIFIED' || a.verificationMethod === 'FACE_VERIFICATION') &&
+          a.verificationStatus !== 'PENDING' &&
+          a.verificationStatus !== 'FAILED'
+        );
+
+        const isCheckOutVerified = Boolean(
+          a.checkOutAt &&
+          (a.verificationStatus === 'VERIFIED' || a.verificationMethod === 'FACE_VERIFICATION') &&
+          a.verificationStatus !== 'PENDING' &&
+          a.verificationStatus !== 'FAILED'
+        );
+
+        return {
+          id: a.id,
+          shiftDate: a.attendanceDate.toISOString().split('T')[0],
+          employeeName: `${a.employee.firstName} ${a.employee.lastName || ''}`.trim(),
+          employeeRole: formatRoleLabel(a.employee.role, a.employee.designation),
+          employeeNumber: a.employee.employeeNumber || '—',
+          emiratesId: formatEmiratesId(a.employee.emiratesId),
+          siteName: a.site?.name || 'Monitored Site',
+          shiftName: a.shift?.name || 'Shift',
+          checkInTime: isCheckInVerified ? formatPatrolDateTime(a.checkInAt, timezone, false) : null,
+          checkOutTime: isCheckOutVerified ? formatPatrolDateTime(a.checkOutAt, timezone, false) : null,
+          status: a.status || (a.isLate ? 'LATE' : 'PRESENT'),
+          isLate: a.isLate,
+        };
+      });
+    } else {
+      const assignments = await prisma.guardAssignment.findMany({
+        where: {
+          ...baseWhereClient,
+          effectiveFrom: { lte: to },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gte: from } }],
+          ...siteFilter,
+          ...shiftFilter,
+          ...(targetRoleEnum ? { employee: { role: targetRoleEnum } } : {}),
+          ...employeeFilter,
+        },
+        include: {
+          employee: true,
+          site: true,
+          shift: true,
+        },
+        orderBy: { effectiveFrom: 'desc' },
+      });
+
+      attendanceRows = assignments.map((a) => ({
+        id: a.id,
+        shiftDate: a.effectiveFrom.toISOString().split('T')[0],
+        employeeName: `${a.employee.firstName} ${a.employee.lastName || ''}`.trim(),
+        employeeRole: formatRoleLabel(a.employee.role, a.employee.designation),
+        employeeNumber: a.employee.employeeNumber || '—',
+        emiratesId: formatEmiratesId(a.employee.emiratesId),
+        siteName: a.site.name,
+        shiftName: a.shift.name,
+        checkInTime: null,
+        checkOutTime: null,
+        status: a.isActive ? 'PRESENT' : 'OFF',
+        isLate: false,
+      }));
+    }
 
     const totalCheckpoints = totalRequiredCheckpoints;
-    const checkpointsScanned = totalScannedCheckpoints;
-    const checkpointsMissed = Math.max(0, totalRequiredCheckpoints - totalScannedCheckpoints);
+
+    let reportTitle = `Hello Orbit ${periodType.toUpperCase()} Security & Operations Report`;
+    if (employeeName) {
+      reportTitle = `Hello Orbit ${periodType.toUpperCase()} Employee Operations Report - ${employeeName}`;
+    } else if (cleanRoleStr) {
+      reportTitle = `Hello Orbit ${periodType.toUpperCase()} ${roleLabel} Operations Report`;
+    }
+
+    let totalAssignedCheckpoints: number | undefined = undefined;
+    if (scopedEmployee) {
+      const activeAssignments = await prisma.guardAssignment.findMany({
+        where: {
+          employeeId: scopedEmployee.id,
+          clientId: { in: clientIds },
+          isActive: true,
+          effectiveFrom: { lte: new Date() },
+          OR: [
+            { effectiveTo: null },
+            { effectiveTo: { gte: new Date() } },
+          ],
+        },
+        include: {
+          patrolRoute: {
+            include: {
+              routeGates: {
+                include: {
+                  gate: {
+                    select: { id: true, isActive: true },
+                  },
+                },
+              },
+            },
+          },
+          assignmentGates: {
+            include: {
+              gate: {
+                select: { id: true, isActive: true },
+              },
+            },
+          },
+        },
+      });
+      totalAssignedCheckpoints = calculateEmployeeAssignedCheckpoints(activeAssignments);
+    }
 
     return {
       metadata: {
-        title: employeeName
-          ? `Hello Orbit ${periodType.toUpperCase()} Employee Operations Report - ${employeeName}`
-          : `Hello Orbit ${periodType.toUpperCase()} Security & Operations Report`,
+        title: reportTitle,
         periodType,
         periodLabel,
         startDate: from.toISOString(),
@@ -770,10 +1381,13 @@ export class SummaryReportService {
         clientName,
         clientLogoUrl,
         siteName,
+        shiftName,
+        roleLabel,
         employeeId: scopedEmployee?.id,
         employeeName,
         employeeRole,
         employeeNumber,
+        emiratesId: scopedEmployee ? formatEmiratesId(scopedEmployee.emiratesId) : null,
         generatedAt: new Date().toISOString(),
         timezone: 'Asia/Dubai (GST)',
         includeIncidents,
@@ -783,6 +1397,10 @@ export class SummaryReportService {
         totalEmployees,
         activeEmployees,
         totalShifts,
+        totalPatrolSessions: totalPatrolSessionsCount,
+        completedPatrolSessions,
+        incompletePatrolSessions,
+        unclassifiablePatrolSessions,
         assignedPatrols: patrolSessions.length,
         completedPatrols: completedPatrolsCount,
         incompletePatrols: incompletePatrolsCount,
@@ -792,14 +1410,32 @@ export class SummaryReportService {
         mandatoryMissed,
         mandatoryCompliancePct,
         totalCheckpoints,
-        checkpointsScanned,
-        checkpointsMissed,
+        checkpointsScanned: completedCheckpointsCount,
+        checkpointsMissed: Math.max(0, totalCheckpoints - completedCheckpointsCount),
         requiredCheckpoints: totalCheckpoints,
-        completedCheckpoints: checkpointsScanned,
-        missedCheckpoints: checkpointsMissed,
-        checkpointCompletionPct,
+        completedCheckpoints: completedCheckpointsCount,
+        missedCheckpoints: Math.max(0, totalCheckpoints - completedCheckpointsCount),
+        checkpointCompletionPct: totalCheckpoints > 0 ? Math.min(100, Math.round((completedCheckpointsCount / totalCheckpoints) * 100)) : 0,
         incidentsCount: rawIncidents.length,
+        // Duration analytics
+        totalPatrolDurationSeconds,
+        totalPatrolDurationFormatted: formatDurationHuman(totalPatrolDurationSeconds),
+        totalCheckpointDurationSeconds,
+        totalCheckpointDurationFormatted: formatDurationHuman(totalCheckpointDurationSeconds),
+        completedPatrolsCount,
+        completedCheckpointsCount,
+        avgPatrolDurationSeconds: completedPatrolsCount > 0 ? Math.round(totalPatrolDurationSeconds / completedPatrolsCount) : 0,
+        avgPatrolDurationFormatted: completedPatrolsCount > 0 ? formatDurationHuman(Math.round(totalPatrolDurationSeconds / completedPatrolsCount)) : '0 sec',
+        avgCheckpointDurationSeconds: completedCheckpointsCount > 0 ? Math.round(totalCheckpointDurationSeconds / completedCheckpointsCount) : 0,
+        avgCheckpointDurationFormatted: completedCheckpointsCount > 0 ? formatDurationHuman(Math.round(totalCheckpointDurationSeconds / completedCheckpointsCount)) : '0 sec',
+        unavailableDurationsCount: unavailablePatrolDurationsCount + unavailableCheckpointDurationsCount,
+        unavailablePatrolDurationsCount,
+        unavailableCheckpointDurationsCount,
+        untrackedDurationPatrolsCount: unavailablePatrolDurationsCount,
+        untrackedDurationCheckpointsCount: unavailableCheckpointDurationsCount,
+        totalAssignedCheckpoints,
       },
+      dailyBreakdown,
       attendance: attendanceRows,
       patrols: scopedEmployee ? patrolRows : [],
       mandatoryPatrols: mandatoryRows,
@@ -809,7 +1445,464 @@ export class SummaryReportService {
       employeeSummary,
     };
   }
+
+  /**
+   * Retrieves matching completed patrol sessions for a specific employee within an exact reporting period.
+   * Ensures 100% numerical consistency with the periodic report's Employee Performance section.
+   */
+  async getEmployeeCompletedPatrols(params: EmployeePatrolsQueryParams): Promise<EmployeeCompletedPatrolsResult> {
+    const authorizedClientIds = await this.resolveAuthorizedClientIds(params);
+    const targetClientId = params.clientId && authorizedClientIds.includes(params.clientId)
+      ? params.clientId
+      : authorizedClientIds[0];
+
+    if (!targetClientId) {
+      throw new AppError(HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_ERROR, 'Valid client ID is required.');
+    }
+
+    const client = await prisma.client.findUnique({
+      where: { id: targetClientId },
+      select: { id: true, companyName: true, clientCode: true, clientLogoUrl: true },
+    });
+
+    if (!client) {
+      throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Client not found.');
+    }
+
+    const rawEmployeeId = params.employeeId;
+    const employeeId =
+      rawEmployeeId &&
+      typeof rawEmployeeId === 'string' &&
+      rawEmployeeId.trim() !== '' &&
+      rawEmployeeId.toLowerCase() !== 'all' &&
+      rawEmployeeId.toLowerCase() !== 'null' &&
+      rawEmployeeId.toLowerCase() !== 'undefined'
+        ? rawEmployeeId.trim()
+        : undefined;
+
+    const rawSiteId = params.siteId;
+    const siteId =
+      rawSiteId &&
+      typeof rawSiteId === 'string' &&
+      rawSiteId.trim() !== '' &&
+      rawSiteId.toLowerCase() !== 'all' &&
+      rawSiteId.toLowerCase() !== 'null' &&
+      rawSiteId.toLowerCase() !== 'undefined'
+        ? rawSiteId.trim()
+        : undefined;
+
+    const rawShiftId = params.shiftId;
+    const shiftId =
+      rawShiftId &&
+      typeof rawShiftId === 'string' &&
+      rawShiftId.trim() !== '' &&
+      rawShiftId.toLowerCase() !== 'all' &&
+      rawShiftId.toLowerCase() !== 'null' &&
+      rawShiftId.toLowerCase() !== 'undefined'
+        ? rawShiftId.trim()
+        : undefined;
+
+    const rawRole = params.role;
+    const role =
+      rawRole &&
+      typeof rawRole === 'string' &&
+      rawRole.trim() !== '' &&
+      rawRole.toUpperCase() !== 'ALL' &&
+      rawRole.toLowerCase() !== 'null' &&
+      rawRole.toLowerCase() !== 'undefined'
+        ? rawRole.trim()
+        : undefined;
+
+    let employee: any = null;
+    let totalAssignedCheckpoints: number | undefined = undefined;
+    if (employeeId) {
+      employee = await prisma.employee.findFirst({
+        where: {
+          id: employeeId,
+          clientId: targetClientId,
+        },
+      });
+
+      if (!employee) {
+        throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Employee not found for this client.');
+      }
+
+      // Query active assignments for this employee to compute total assigned distinct checkpoints
+      const activeAssignments = await prisma.guardAssignment.findMany({
+        where: {
+          employeeId,
+          clientId: targetClientId,
+          isActive: true,
+          effectiveFrom: { lte: new Date() },
+          OR: [
+            { effectiveTo: null },
+            { effectiveTo: { gte: new Date() } },
+          ],
+        },
+        include: {
+          patrolRoute: {
+            include: {
+              routeGates: {
+                include: {
+                  gate: {
+                    select: { id: true, isActive: true },
+                  },
+                },
+              },
+            },
+          },
+          assignmentGates: {
+            include: {
+              gate: {
+                select: { id: true, isActive: true },
+              },
+            },
+          },
+        },
+      });
+      totalAssignedCheckpoints = calculateEmployeeAssignedCheckpoints(activeAssignments);
+    }
+
+    const timezone = 'Asia/Dubai';
+    const periodRange = this.computeDateRange(params);
+    const { from, to, periodLabel, startDateStr, endDateStr } = periodRange;
+
+    const dateWindowFilter = {
+      OR: [
+        { startedAt: { gte: from, lt: to } },
+        { endedAt: { gt: from, lte: to } },
+        {
+          AND: [
+            { startedAt: { lte: from } },
+            { endedAt: { gte: to } },
+          ],
+        },
+        {
+          AND: [
+            { startedAt: { lt: to, gte: new Date(from.getTime() - 24 * 60 * 60 * 1000) } },
+            { endedAt: null },
+          ],
+        },
+      ],
+    };
+
+    const andFilters: any[] = [dateWindowFilter];
+    if (role) {
+      const cleanRole = role.toUpperCase();
+      const roleEnum = cleanRole === 'SECURITY_GUARD' || cleanRole === 'GUARD' ? 'SECURITY' : cleanRole;
+      andFilters.push({
+        OR: [
+          { assignment: { employee: { role: roleEnum as any } } },
+          { managerUser: { employee: { role: roleEnum as any } } },
+        ],
+      });
+    }
+
+    const patrolWhere: any = {
+      clientId: targetClientId,
+      status: 'COMPLETED',
+      AND: andFilters,
+      ...(employeeId
+        ? {
+            OR: [
+              { assignment: { employeeId: employeeId } },
+              { managerUser: { employee: { id: employeeId } } },
+            ],
+          }
+        : {}),
+      ...(siteId || shiftId
+        ? {
+            assignment: {
+              ...(siteId ? { siteId } : {}),
+              ...(shiftId ? { shiftId } : {}),
+            },
+          }
+        : {}),
+    };
+
+    // Calculate aggregated metrics over ALL eligible completed patrol sessions for this employee
+    const allSessions = await prisma.patrolSession.findMany({
+      where: patrolWhere,
+      select: {
+        id: true,
+        startedAt: true,
+        endedAt: true,
+        totalDuration: true,
+        assignment: {
+          select: {
+            assignmentType: true,
+            patrolRoute: {
+              select: {
+                routeGates: {
+                  select: { gateId: true, gate: { select: { id: true, isActive: true, updatedAt: true } } },
+                },
+              },
+            },
+            assignmentGates: {
+              select: { gateId: true, gate: { select: { id: true, isActive: true, updatedAt: true } } },
+            },
+          },
+        },
+        checkpoints: {
+          select: {
+            id: true,
+            gateId: true,
+            scannedAt: true,
+            completedAt: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    const totalCount = allSessions.length;
+    let totalPatrolDurationSeconds = 0;
+    let totalCheckpointsScanned = 0;
+    let totalCheckpointsRequired = 0;
+    let totalCheckpointsMissed = 0;
+    let completedPatrolSessions = 0;
+    let incompletePatrolSessions = 0;
+    let unclassifiablePatrolSessions = 0;
+
+    const rawCompletionStatus = (params.completionStatus || '').toUpperCase();
+    const filterCompletionStatus: 'ALL' | 'COMPLETED' | 'INCOMPLETE' =
+      rawCompletionStatus === 'COMPLETED' || rawCompletionStatus === 'INCOMPLETE'
+        ? rawCompletionStatus
+        : 'ALL';
+
+    const matchingTableSessionIds: string[] = [];
+
+    for (const s of allSessions) {
+      const sOverlap = calculateOverlapDurationSeconds(s.startedAt, s.endedAt, from, to);
+      if (sOverlap !== null) {
+        totalPatrolDurationSeconds += sOverlap;
+      }
+
+      const metrics = calculateSessionCheckpointMetrics(s);
+      if (metrics.checkpointCompletionStatus === 'COMPLETED') {
+        completedPatrolSessions++;
+      } else if (metrics.checkpointCompletionStatus === 'INCOMPLETE') {
+        incompletePatrolSessions++;
+      } else if (metrics.checkpointCompletionStatus === 'NO_CHECKPOINTS') {
+        unclassifiablePatrolSessions++;
+      }
+
+      totalCheckpointsRequired += metrics.totalCheckpoints;
+      totalCheckpointsScanned += metrics.scannedCheckpoints;
+      totalCheckpointsMissed += metrics.missedCheckpoints;
+
+      if (
+        filterCompletionStatus === 'ALL' ||
+        metrics.checkpointCompletionStatus === filterCompletionStatus
+      ) {
+        matchingTableSessionIds.push(s.id);
+      }
+    }
+
+    const totalPatrolSessions = completedPatrolSessions + incompletePatrolSessions + unclassifiablePatrolSessions;
+
+    const averageCompliancePct = totalCheckpointsRequired > 0
+      ? Math.min(100, Math.round((totalCheckpointsScanned / totalCheckpointsRequired) * 100))
+      : 0;
+
+    const tableTotalCount = matchingTableSessionIds.length;
+
+    // Pagination
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.max(1, Math.min(100, Number(params.limit) || 20));
+    const skip = (page - 1) * limit;
+    const totalPages = Math.ceil(tableTotalCount / limit) || 1;
+
+    const transformSession = (s: any) => {
+      const emp = s.assignment?.employee || s.managerUser?.employee;
+      const durationSec = calculateOverlapDurationSeconds(s.startedAt, s.endedAt, from, to) || 0;
+      const metrics = calculateSessionCheckpointMetrics(s);
+
+      return {
+        id: s.id,
+        patrolCode: s.patrolCode || s.id,
+        status: s.status,
+        checkpointCompletionStatus: metrics.checkpointCompletionStatus,
+        startedAt: s.startedAt.toISOString(),
+        endedAt: s.endedAt ? s.endedAt.toISOString() : null,
+        dateFormatted: formatPatrolDate(s.startedAt, timezone),
+        startTimeFormatted: formatPatrolTime(s.startedAt, timezone),
+        endTimeFormatted: s.endedAt ? formatPatrolTime(s.endedAt, timezone) : '—',
+        siteName: s.assignment?.site?.name || 'N/A',
+        routeName: s.assignment?.patrolRoute?.name || 'Manager Inspection',
+        shiftName: s.assignment?.shift?.name || 'N/A',
+        employeeId: emp?.id || null,
+        employeeName: emp ? `${emp.firstName} ${emp.lastName || ''}`.trim() : s.managerUser?.email || '—',
+        employeeCode: emp?.employeeNumber || '—',
+        employeeRole: emp ? formatRoleLabel(emp.role, emp.designation) : '—',
+        emiratesId: formatEmiratesId(emp?.emiratesId),
+        durationSeconds: durationSec,
+        durationFormatted: formatDurationHuman(durationSec),
+        scannedCheckpoints: metrics.scannedCheckpoints,
+        totalCheckpoints: metrics.totalCheckpoints,
+        missedCheckpoints: metrics.missedCheckpoints,
+        compliancePct: metrics.compliancePct,
+        remarks: s.remarks,
+      };
+    };
+
+    const sessionInclude = {
+      assignment: {
+        include: {
+          employee: true,
+          site: true,
+          shift: true,
+          patrolRoute: {
+            include: {
+              routeGates: {
+                include: { gate: true },
+                orderBy: { sequence: 'asc' },
+              },
+            },
+          },
+          assignmentGates: {
+            include: { gate: true },
+            orderBy: { sequence: 'asc' },
+          },
+        },
+      },
+      managerUser: {
+        include: { employee: true },
+      },
+      checkpoints: {
+        include: {
+          gate: true,
+          subTaskResponses: true,
+        },
+      },
+    };
+
+    const isComplianceSort =
+      params.sortBy === 'compliance' || params.sortBy === 'compliancePct';
+    const sortDirection = params.sortOrder?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+    let transformedPatrols: any[] = [];
+
+    if (tableTotalCount === 0) {
+      transformedPatrols = [];
+    } else if (isComplianceSort) {
+      const allSessionsForSort = await prisma.patrolSession.findMany({
+        where: {
+          ...patrolWhere,
+          id: { in: matchingTableSessionIds },
+        },
+        include: sessionInclude as any,
+      });
+
+      const allTransformed = allSessionsForSort.map(transformSession);
+      allTransformed.sort((a, b) => {
+        if (a.compliancePct !== b.compliancePct) {
+          return sortDirection === 'asc'
+            ? a.compliancePct - b.compliancePct
+            : b.compliancePct - a.compliancePct;
+        }
+        return b.id.localeCompare(a.id);
+      });
+
+      transformedPatrols = allTransformed.slice(skip, skip + limit);
+    } else {
+      let sortField = 'startedAt';
+      if (params.sortBy === 'patrolCode') {
+        sortField = 'patrolCode';
+      } else if (
+        params.sortBy === 'duration' ||
+        params.sortBy === 'durationSeconds' ||
+        params.sortBy === 'totalDuration'
+      ) {
+        sortField = 'totalDuration';
+      } else if (
+        params.sortBy === 'date' ||
+        params.sortBy === 'startedAt' ||
+        params.sortBy === 'dateFormatted'
+      ) {
+        sortField = 'startedAt';
+      }
+
+      const paginatedSessions = await prisma.patrolSession.findMany({
+        where: {
+          ...patrolWhere,
+          id: { in: matchingTableSessionIds },
+        },
+        skip,
+        take: limit,
+        orderBy: [
+          { [sortField]: sortDirection as any },
+          { id: 'desc' },
+        ],
+        include: sessionInclude as any,
+      });
+
+      transformedPatrols = paginatedSessions.map(transformSession);
+    }
+
+    return {
+      employee: employee
+        ? {
+            id: employee.id,
+            employeeNumber: employee.employeeNumber,
+            firstName: employee.firstName,
+            lastName: employee.lastName,
+            fullName: `${employee.firstName} ${employee.lastName || ''}`.trim(),
+            role: employee.role,
+            roleLabel: formatRoleLabel(employee.role, employee.designation),
+            designation: employee.designation,
+            emiratesId: formatEmiratesId(employee.emiratesId),
+          }
+        : null,
+      project: {
+        id: client.id,
+        companyName: client.companyName,
+        clientCode: client.clientCode,
+        clientLogoUrl: client.clientLogoUrl,
+      },
+      period: {
+        periodType: params.periodType,
+        periodLabel,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        timezone,
+      },
+      filters: {
+        shiftId: shiftId || null,
+        siteId: siteId || null,
+        role: role || null,
+        employeeId: employeeId || null,
+        completionStatus: filterCompletionStatus,
+      },
+      summary: {
+        totalPatrolSessions,
+        completedPatrolSessions,
+        incompletePatrolSessions,
+        unclassifiablePatrolSessions,
+        totalCompletedPatrols: totalCount,
+        totalPatrolDurationSeconds,
+        totalPatrolDurationFormatted: formatDurationHuman(totalPatrolDurationSeconds),
+        totalCheckpoints: totalCheckpointsRequired,
+        totalCheckpointsScanned,
+        totalCheckpointsMissed,
+        totalCheckpointsRequired,
+        averageCompliancePct,
+        totalAssignedCheckpoints,
+      },
+      pagination: {
+        page,
+        limit,
+        totalPages,
+        totalCount: tableTotalCount,
+        totalRecords: tableTotalCount,
+        currentPage: page,
+        pageSize: limit,
+      },
+      patrols: transformedPatrols,
+    };
+  }
 }
 
 export const summaryReportService = new SummaryReportService();
+
 

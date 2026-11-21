@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { Camera, useCameraDevice, useFrameProcessor } from 'react-native-vision-camera';
 import { useFaceDetector } from 'react-native-vision-camera-face-detector';
@@ -6,23 +6,31 @@ import { useRunOnJS } from 'react-native-worklets-core';
 import { useTheme } from '../../../app/hooks/useTheme';
 import { FaceGuideOverlay } from '../components/FaceGuideOverlay';
 import { useFaceRegistration } from '../hooks/useFaceRegistration';
+import { faceModelManager } from '../engine/face-model-manager';
 import { CheckCircle2, AlertCircle, ArrowLeft } from 'lucide-react-native';
 
 export function FaceRegistrationScreen({ navigation }: any) {
   const { colors } = useTheme();
   const device = useCameraDevice('front');
   const [hasPermission, setHasPermission] = useState(false);
+  const cameraRef = useRef<Camera>(null);
+  const isFrameBusyRef = useRef(false);
 
   useEffect(() => {
     (async () => {
       const status = await Camera.requestCameraPermission();
       setHasPermission(status === 'granted');
     })();
+
+    // Step 4: Pre-warm ONNX session on screen mount
+    faceModelManager.initSession().catch((err) => {
+      console.warn('[FaceRegistrationScreen] ONNX session pre-warm warning:', err?.message || err);
+    });
   }, []);
 
   const { detectFaces } = useFaceDetector({
-    performanceMode: 'accurate',
-    contourMode: 'all',
+    performanceMode: 'fast',
+    contourMode: 'none',
     landmarkMode: 'all',
     classificationMode: 'all',
     minFaceSize: 0.15,
@@ -37,13 +45,23 @@ export function FaceRegistrationScreen({ navigation }: any) {
     error,
     processFrame,
     reset,
-  } = useFaceRegistration();
+  } = useFaceRegistration(undefined, cameraRef);
 
   const handleFrameProcessed = useRunOnJS(
     (faces: any[], width: number, height: number) => {
-      processFrame(faces, width, height);
+      if (isFrameBusyRef.current || isProcessing || isSuccess) {
+        return;
+      }
+      isFrameBusyRef.current = true;
+      processFrame(faces, width, height)
+        .catch((err) => {
+          console.warn('[FaceRegistrationScreen] Process frame error:', err);
+        })
+        .finally(() => {
+          isFrameBusyRef.current = false;
+        });
     },
-    [processFrame],
+    [processFrame, isProcessing, isSuccess],
   );
 
   const frameProcessor = useFrameProcessor(
@@ -66,7 +84,7 @@ export function FaceRegistrationScreen({ navigation }: any) {
           leftEyeOpenProbability: f.leftEyeOpenProbability,
           rightEyeOpenProbability: f.rightEyeOpenProbability,
           landmarks: f.landmarks,
-          contours: f.contours,
+          contours: undefined,
         });
       }
       handleFrameProcessed(safeFaces, frame.width, frame.height);
@@ -104,10 +122,12 @@ export function FaceRegistrationScreen({ navigation }: any) {
       {/* Camera Preview */}
       <View style={styles.cameraContainer}>
         <Camera
+          ref={cameraRef}
           style={StyleSheet.absoluteFill}
           device={device}
           isActive={!isSuccess}
           frameProcessor={frameProcessor}
+          photo={true}
           pixelFormat="yuv"
         />
         <FaceGuideOverlay statusColor={colors.primary} />

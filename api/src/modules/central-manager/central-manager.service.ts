@@ -4,8 +4,10 @@ import { AppError } from '../../common/errors/AppError';
 import { ErrorCodes } from '../../common/errors/ErrorCodes';
 import { HttpStatus } from '../../common/errors/HttpStatus';
 import { compareEmployeesByRoleOrder } from '../../common/utils/role-order.util';
+import { calculatePatrolSessionsAggregate } from '../../common/utils/checkpoint-eligibility.util';
 import { prisma } from '../../database/prisma';
 import { reportService } from '../report/report.service';
+import { summaryReportService } from '../report/summary-report.service';
 import { ReportQueryDto } from '../report/report.types';
 
 export interface CentralManagerFilterParams {
@@ -13,6 +15,7 @@ export interface CentralManagerFilterParams {
   dateTo?: string;
   clientId?: string;
   siteId?: string;
+  shiftId?: string;
   role?: string;
   status?: string;
   category?: string;
@@ -86,7 +89,7 @@ export class CentralManagerService {
 
     return totalExpectedSum > 0
       ? Math.round((totalCompletedSum / totalExpectedSum) * 100)
-      : 100;
+      : 0;
   }
 
   private async calculateCheckpointMetrics(
@@ -171,7 +174,7 @@ export class CentralManagerService {
     const [
       employeesCount,
       activePatrolsCount,
-      completedPatrolsCount,
+      _completedPatrolsCount,
       openObservationsCount,
       openSnagsCount,
       snagCategoriesGroup,
@@ -180,6 +183,8 @@ export class CentralManagerService {
       recentSnags,
       complianceRate,
       clientCheckpoints,
+      totalConfiguredCheckpoints,
+      finalizedClientSessions,
     ] = await Promise.all([
       prisma.employee.count({ where: { clientId, status: 'ACTIVE' } }),
       prisma.patrolSession.count({ where: { clientId, status: 'IN_PROGRESS' } }),
@@ -221,20 +226,61 @@ export class CentralManagerService {
       }),
       this.calculateWeightedCompliance([clientId], hasDateFilter ? dateFilter : undefined),
       this.calculateCheckpointMetrics([clientId], hasDateFilter ? dateFilter : undefined),
+      prisma.gate.count({ where: { site: { clientId } } }),
+      prisma.patrolSession.findMany({
+        where: { clientId, status: 'COMPLETED', ...(hasDateFilter ? { endedAt: dateFilter } : {}) },
+        select: {
+          id: true,
+          clientId: true,
+          patrolCode: true,
+          status: true,
+          startedAt: true,
+          endedAt: true,
+          totalDuration: true,
+          assignment: {
+            select: {
+              assignmentType: true,
+              patrolRoute: {
+                select: {
+                  routeGates: {
+                    select: { gateId: true, gate: { select: { id: true, isActive: true, updatedAt: true } } },
+                  },
+                },
+              },
+              assignmentGates: {
+                select: { gateId: true, gate: { select: { id: true, isActive: true, updatedAt: true } } },
+              },
+            },
+          },
+          checkpoints: {
+            select: {
+              id: true,
+              gateId: true,
+              status: true,
+            },
+          },
+        },
+      }),
     ]);
+
+    const clientPatrolAggregates = calculatePatrolSessionsAggregate(finalizedClientSessions);
 
     return {
       client,
       metrics: {
         sitesCount: client.sites.length,
         employeesCount,
+        totalPatrolSessionsCount: clientPatrolAggregates.totalPatrolSessions,
+        completedPatrolSessionsCount: clientPatrolAggregates.completedPatrolSessions,
+        incompletePatrolSessionsCount: clientPatrolAggregates.incompletePatrolSessions,
         activePatrolsCount,
-        completedPatrolsCount,
+        completedPatrolsCount: clientPatrolAggregates.completedPatrolSessions,
         openObservationsCount,
         openSnagsCount,
         totalCheckpointsScanned: clientCheckpoints.scanned,
         totalCheckpointsMissed: clientCheckpoints.missed,
-        totalCheckpoints: clientCheckpoints.total,
+        totalCheckpoints: totalConfiguredCheckpoints,
+        totalConfiguredCheckpoints,
         complianceRate,
       },
       checkpointSummary: clientCheckpoints,
@@ -263,7 +309,17 @@ export class CentralManagerService {
 
     const where: Prisma.EmployeeWhereInput = {
       clientId: { in: authorizedClientIds },
-      ...(params.siteId ? { assignments: { some: { siteId: params.siteId } } } : {}),
+      ...(params.siteId || params.shiftId
+        ? {
+            assignments: {
+              some: {
+                ...(params.siteId ? { siteId: params.siteId } : {}),
+                ...(params.shiftId ? { shiftId: params.shiftId } : {}),
+                isActive: true,
+              },
+            },
+          }
+        : {}),
       ...(params.role ? { role: params.role as any } : {}),
       ...(params.status ? { status: params.status as any } : {}),
       ...(params.search
@@ -284,7 +340,10 @@ export class CentralManagerService {
         client: { select: { id: true, companyName: true, clientCode: true } },
         assignments: {
           where: { isActive: true },
-          include: { site: { select: { name: true } } },
+          include: {
+            site: { select: { id: true, name: true } },
+            shift: { select: { id: true, name: true, startTime: true, endTime: true } },
+          },
         },
       },
     });
@@ -377,10 +436,35 @@ export class CentralManagerService {
         global: {
           organizationsCount: 0,
           totalEmployees: 0,
+          totalPatrolSessions: 0,
+          completedPatrolSessions: 0,
+          incompletePatrolSessions: 0,
           completedPatrols: 0,
           openObservations: 0,
           openSnags: 0,
-          avgCompliance: 100,
+          totalCheckpointsScanned: 0,
+          totalCheckpointsMissed: 0,
+          totalCheckpoints: 0,
+          totalConfiguredCheckpoints: 0,
+          avgCompliance: 0,
+        },
+        overview: {
+          totalSites: 0,
+          totalEmployees: 0,
+          totalPatrolSessions: 0,
+          completedPatrolSessions: 0,
+          incompletePatrolSessions: 0,
+          activePatrols: 0,
+          completedPatrols: 0,
+          openObservations: 0,
+          openSnags: 0,
+          totalSnags: 0,
+          closedSnags: 0,
+          totalCheckpointsScanned: 0,
+          totalCheckpointsMissed: 0,
+          totalCheckpoints: 0,
+          totalConfiguredCheckpoints: 0,
+          globalComplianceRate: 0,
         },
         organizations: [],
         clients: [],
@@ -399,13 +483,15 @@ export class CentralManagerService {
       sitesCount,
       employeesCount,
       activePatrolsCount,
-      completedPatrolsCount,
+      _completedPatrolsCount,
       openObservationsCount,
       openSnagsCount,
       totalSnagsCount,
       closedSnagsCount,
       globalComplianceRate,
       globalCheckpoints,
+      totalConfiguredCheckpoints,
+      finalizedPatrolSessions,
     ] = await Promise.all([
       prisma.site.count({
         where: { clientId: { in: authorizedClientIds }, isActive: true },
@@ -455,7 +541,59 @@ export class CentralManagerService {
       }),
       this.calculateWeightedCompliance(authorizedClientIds, hasDateFilter ? dateFilter : undefined),
       this.calculateCheckpointMetrics(authorizedClientIds, hasDateFilter ? dateFilter : undefined),
+      prisma.gate.count({
+        where: {
+          site: {
+            clientId: { in: authorizedClientIds },
+          },
+        },
+      }),
+      prisma.patrolSession.findMany({
+        where: {
+          clientId: { in: authorizedClientIds },
+          status: 'COMPLETED',
+          ...(hasDateFilter ? { endedAt: dateFilter } : {}),
+        },
+        select: {
+          id: true,
+          clientId: true,
+          patrolCode: true,
+          status: true,
+          startedAt: true,
+          endedAt: true,
+          totalDuration: true,
+          assignment: {
+            select: {
+              assignmentType: true,
+              patrolRoute: {
+                select: {
+                  routeGates: {
+                    select: { gateId: true, gate: { select: { id: true, isActive: true, updatedAt: true } } },
+                  },
+                },
+              },
+              assignmentGates: {
+                select: { gateId: true, gate: { select: { id: true, isActive: true, updatedAt: true } } },
+              },
+            },
+          },
+          checkpoints: {
+            select: {
+              id: true,
+              gateId: true,
+              status: true,
+            },
+          },
+        },
+      }),
     ]);
+
+    const globalPatrolAggregates = calculatePatrolSessionsAggregate(finalizedPatrolSessions);
+
+    const clientFinalizedSessions = finalizedPatrolSessions.filter(
+      (s) => s.clientId === targetClientId,
+    );
+    const clientPatrolAggregates = calculatePatrolSessionsAggregate(clientFinalizedSessions);
 
     // 3. Deep Analytics for Selected Client
     const targetClientObj = clients.find((c) => c.id === targetClientId) || clients[0];
@@ -463,7 +601,7 @@ export class CentralManagerService {
     const [
       cEmps,
       cActivePatrols,
-      cCompletedPatrols,
+      _cCompletedPatrols,
       cOpenObs,
       cReviewedObs,
       cTotalObs,
@@ -477,6 +615,7 @@ export class CentralManagerService {
       urgentIncidents,
       cCompliance,
       clientCheckpoints,
+      clientConfiguredCheckpoints,
     ] = await Promise.all([
       prisma.employee.count({
         where: { clientId: targetClientId, status: 'ACTIVE' },
@@ -576,6 +715,13 @@ export class CentralManagerService {
       }),
       this.calculateWeightedCompliance([targetClientId], hasDateFilter ? dateFilter : undefined),
       this.calculateCheckpointMetrics([targetClientId], hasDateFilter ? dateFilter : undefined),
+      prisma.gate.count({
+        where: {
+          site: {
+            clientId: targetClientId,
+          },
+        },
+      }),
     ]);
 
     const snagDistribution = snagCategoriesGroup.map((g) => ({
@@ -612,26 +758,34 @@ export class CentralManagerService {
       global: {
         organizationsCount: clients.length,
         totalEmployees: employeesCount,
-        completedPatrols: completedPatrolsCount,
+        totalPatrolSessions: globalPatrolAggregates.totalPatrolSessions,
+        completedPatrolSessions: globalPatrolAggregates.completedPatrolSessions,
+        incompletePatrolSessions: globalPatrolAggregates.incompletePatrolSessions,
+        completedPatrols: globalPatrolAggregates.completedPatrolSessions,
         openObservations: openObservationsCount,
         openSnags: openSnagsCount,
         totalCheckpointsScanned: globalCheckpoints.scanned,
         totalCheckpointsMissed: globalCheckpoints.missed,
-        totalCheckpoints: globalCheckpoints.total,
+        totalCheckpoints: totalConfiguredCheckpoints,
+        totalConfiguredCheckpoints,
         avgCompliance: globalComplianceRate,
       },
       overview: {
         totalSites: sitesCount,
         totalEmployees: employeesCount,
+        totalPatrolSessions: globalPatrolAggregates.totalPatrolSessions,
+        completedPatrolSessions: globalPatrolAggregates.completedPatrolSessions,
+        incompletePatrolSessions: globalPatrolAggregates.incompletePatrolSessions,
         activePatrols: activePatrolsCount,
-        completedPatrols: completedPatrolsCount,
+        completedPatrols: globalPatrolAggregates.completedPatrolSessions,
         openObservations: openObservationsCount,
         openSnags: openSnagsCount,
         totalSnags: totalSnagsCount,
         closedSnags: closedSnagsCount,
         totalCheckpointsScanned: globalCheckpoints.scanned,
         totalCheckpointsMissed: globalCheckpoints.missed,
-        totalCheckpoints: globalCheckpoints.total,
+        totalCheckpoints: totalConfiguredCheckpoints,
+        totalConfiguredCheckpoints,
         globalComplianceRate,
       },
       organizations: clients,
@@ -648,7 +802,10 @@ export class CentralManagerService {
             address: targetClientObj.address,
             metrics: {
               employeesCount: cEmps,
-              completedPatrolsCount: cCompletedPatrols,
+              totalPatrolSessionsCount: clientPatrolAggregates.totalPatrolSessions,
+              completedPatrolSessionsCount: clientPatrolAggregates.completedPatrolSessions,
+              incompletePatrolSessionsCount: clientPatrolAggregates.incompletePatrolSessions,
+              completedPatrolsCount: clientPatrolAggregates.completedPatrolSessions,
               activePatrolsCount: cActivePatrols,
               totalObservationsCount: cTotalObs,
               openObservationsCount: cOpenObs,
@@ -659,7 +816,8 @@ export class CentralManagerService {
               closedSnagsCount: cClosedSnags,
               totalCheckpointsScanned: clientCheckpoints.scanned,
               totalCheckpointsMissed: clientCheckpoints.missed,
-              totalCheckpoints: clientCheckpoints.total,
+              totalCheckpoints: clientConfiguredCheckpoints,
+              totalConfiguredCheckpoints: clientConfiguredCheckpoints,
               complianceRate: cCompliance,
             },
             checkpointSummary: clientCheckpoints,
@@ -677,7 +835,10 @@ export class CentralManagerService {
               reviewed: cReviewedObs,
             },
             patrolSummary: {
-              completedPatrols: cCompletedPatrols,
+              totalPatrolSessions: clientPatrolAggregates.totalPatrolSessions,
+              completedPatrolSessions: clientPatrolAggregates.completedPatrolSessions,
+              incompletePatrolSessions: clientPatrolAggregates.incompletePatrolSessions,
+              completedPatrols: clientPatrolAggregates.completedPatrolSessions,
               activePatrols: cActivePatrols,
               issuesDetected: cOpenObs + cOpenSnags,
               avgCompliance: cCompliance,
@@ -884,7 +1045,7 @@ export class CentralManagerService {
     };
   }
 
-  async getOrganizations(user: { id: string; role: string }) {
+  async getOrganizations(user: { id: string; role: string }, options?: { lite?: boolean }) {
     const authorizedClientIds = await assertCentralManagerClientAccess(user);
 
     const clients = await prisma.client.findMany({
@@ -904,6 +1065,25 @@ export class CentralManagerService {
       },
       orderBy: { companyName: 'asc' },
     });
+
+    if (options?.lite) {
+      return clients.map((client) => ({
+        id: client.id,
+        companyName: client.companyName,
+        clientCode: client.clientCode,
+        clientLogoUrl: client.clientLogoUrl,
+        dashboardImageUrl: client.dashboardImageUrl,
+        address: client.address,
+        email: client.email,
+        phone: client.phone,
+        metrics: {
+          employeesCount: 0,
+          observations: { open: 0, reviewed: 0, total: 0 },
+          snags: { open: 0, inProgress: 0, resolved: 0, closed: 0, total: 0 },
+          reports: { completedPatrols: 0, totalPatrols: 0 },
+        },
+      }));
+    }
 
     const organizations = await Promise.all(
       clients.map(async (client) => {
@@ -1044,10 +1224,26 @@ export class CentralManagerService {
     return reportService.getSingleInspectionReport(id, targetClientId as any);
   }
 
+  async getPatrolMissedCheckpoints(user: { id: string; role: string }, id: string, clientId?: string) {
+    const authorizedClientIds = await assertCentralManagerClientAccess(user, clientId);
+    const targetClientId = clientId || (authorizedClientIds.length === 1 ? authorizedClientIds[0] : (authorizedClientIds as any));
+    return reportService.getPatrolMissedCheckpoints(id, targetClientId as any);
+  }
+
   async getReportPdf(user: { id: string; role: string }, id: string, clientId?: string) {
     const authorizedClientIds = await assertCentralManagerClientAccess(user, clientId);
     const targetClientId = clientId || (authorizedClientIds.length === 1 ? authorizedClientIds[0] : (authorizedClientIds as any));
     return reportService.getPatrolPdf(id, targetClientId as any);
+  }
+
+  async getEmployeePatrols(
+    user: { id: string; role: string; clientId?: string | null; tenantId?: string | null },
+    params: any,
+  ) {
+    return summaryReportService.getEmployeeCompletedPatrols({
+      ...params,
+      user,
+    });
   }
 }
 

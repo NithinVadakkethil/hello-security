@@ -98,7 +98,7 @@ apiClient.interceptors.response.use(
 
       if (!refreshToken) {
         isRefreshing = false;
-        tokenManager.clearTokens();
+        tokenManager.clearSession();
         useAuthStore.getState().clearAuth();
         return Promise.reject(error);
       }
@@ -111,11 +111,13 @@ apiClient.interceptors.response.use(
         const { accessToken: newAccessToken, refreshToken: newRefreshToken, user } =
           response.data.data;
 
-        // Persist new tokens
+        // Persist new tokens and updated user profile
         tokenManager.setAccessToken(newAccessToken);
         if (newRefreshToken) {
           tokenManager.setRefreshToken(newRefreshToken);
         }
+        tokenManager.setUserSession(user);
+        tokenManager.updateOnlineTimestamp();
 
         // Sync store state
         useAuthStore.getState().setAuth(user);
@@ -129,11 +131,23 @@ apiClient.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         }
         return apiClient(originalRequest);
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         processQueue(refreshError, null);
         isRefreshing = false;
-        tokenManager.clearTokens();
-        useAuthStore.getState().clearAuth();
+
+        // CRITICAL SAFEGUARD: Distinguish network failure from explicit server token rejection
+        const isExplicitAuthFailure =
+          refreshError.response &&
+          (refreshError.response.status === 401 || refreshError.response.status === 403);
+
+        if (isExplicitAuthFailure) {
+          console.warn('[apiClient] Refresh token explicitly rejected by server (401/403). Clearing session.');
+          tokenManager.clearSession();
+          useAuthStore.getState().clearAuth();
+        } else {
+          console.warn('[apiClient] Refresh token network failure/timeout. Preserving offline session.');
+        }
+
         return Promise.reject(refreshError);
       }
     }

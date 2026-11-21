@@ -2,8 +2,23 @@ import { apiClient } from '../../../app/api/api-client';
 import { PatrolSession } from '../../dashboard/types';
 
 export const patrolApi = {
-  startPatrol: async (assignmentId?: string, resolveExistingPatrol?: boolean, startedAt?: string): Promise<PatrolSession> => {
-    const res = (await apiClient.post('/patrol-sessions/start', { assignmentId, resolveExistingPatrol, startedAt })) as any;
+  authorizeStartPatrol: async (assignmentId?: string): Promise<{ faceAuthToken: string }> => {
+    const res = (await apiClient.post('/patrol-sessions/authorize-start', { assignmentId })) as any;
+    return res.data;
+  },
+
+  startPatrol: async (
+    assignmentId?: string,
+    resolveExistingPatrol?: boolean,
+    startedAt?: string,
+    faceAuthToken?: string,
+  ): Promise<PatrolSession> => {
+    const res = (await apiClient.post('/patrol-sessions/start', {
+      assignmentId,
+      resolveExistingPatrol,
+      startedAt,
+      faceAuthToken,
+    })) as any;
     return res.data;
   },
 
@@ -37,6 +52,7 @@ export const patrolApi = {
     subTaskResponses?: Array<{ gateSubTaskId: string; answer: 'YES' | 'NO'; remarks?: string; images?: string[]; answeredAt?: string }>,
     patrolSessionId?: string,
     scannedAt?: string,
+    completedAt?: string,
   ): Promise<any> => {
     const res = (await apiClient.post('/patrol-checkpoints/scan', {
       gateId,
@@ -47,6 +63,7 @@ export const patrolApi = {
       latitude,
       longitude,
       scannedAt,
+      completedAt,
       subTaskResponses,
     })) as any;
     return res.data;

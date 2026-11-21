@@ -9,6 +9,8 @@ import { generateCode } from '../../common/utils/code-generator';
 
 import { siteRepository } from './site.repository';
 import { CreateSiteDto, UpdateSiteDto } from './site.types';
+import { CurrentUser } from '../../common/auth/current-user';
+import { assertTenantAccess } from '../../common/auth/tenant-access';
 
 import { prisma } from '../../database/prisma';
 
@@ -64,7 +66,7 @@ export class SiteService {
     return siteRepository.list(clientId, isActive);
   }
 
-  async get(id: string) {
+  async get(id: string, user?: CurrentUser) {
     const site = await siteRepository.findById(id);
 
     if (!site) {
@@ -75,11 +77,17 @@ export class SiteService {
       );
     }
 
+    await assertTenantAccess(
+      user,
+      site.clientId,
+      'Access denied. Site does not belong to your organization.',
+    );
+
     return site;
   }
 
-  async update(id: string, dto: UpdateSiteDto) {
-    const site = await this.get(id);
+  async update(id: string, dto: UpdateSiteDto, user?: CurrentUser) {
+    const site = await this.get(id, user);
 
     if (dto.name && dto.name !== site.name) {
       const existingSite = await siteRepository.findByName(
@@ -99,8 +107,8 @@ export class SiteService {
     return siteRepository.update(id, dto);
   }
 
-  async activate(id: string) {
-    await this.get(id);
+  async activate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await siteRepository.activate(id);
 
@@ -109,8 +117,8 @@ export class SiteService {
     };
   }
 
-  async deactivate(id: string) {
-    await this.get(id);
+  async deactivate(id: string, user?: CurrentUser) {
+    await this.get(id, user);
 
     await siteRepository.deactivate(id);
 

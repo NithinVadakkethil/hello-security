@@ -49,7 +49,8 @@ export class PatrolRouteController {
 
   async get(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await patrolRouteService.get(req.params.id as string);
+      const user = currentUser(req);
+      const result = await patrolRouteService.get(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -62,11 +63,13 @@ export class PatrolRouteController {
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const body = updatePatrolRouteSchema.parse(req.body);
 
       const result = await patrolRouteService.update(
         req.params.id as string,
         body,
+        user,
       );
 
       return res.json({
@@ -80,7 +83,8 @@ export class PatrolRouteController {
 
   async activate(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await patrolRouteService.activate(req.params.id as string);
+      const user = currentUser(req);
+      const result = await patrolRouteService.activate(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -93,8 +97,10 @@ export class PatrolRouteController {
 
   async deactivate(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
       const result = await patrolRouteService.deactivate(
         req.params.id as string,
+        user,
       );
 
       return res.json({

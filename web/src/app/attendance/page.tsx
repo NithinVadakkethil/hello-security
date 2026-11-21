@@ -17,7 +17,7 @@ export default function AttendanceRedirectPage() {
       (user.role as string) === 'CENTRAL_MANAGER' ||
       (user.role as string) === 'CENTRALIZED_MANAGER'
     ) {
-      router.replace('/central/attendance');
+      router.replace('/central/reports?tab=attendance');
     } else {
       router.replace('/dashboard/attendance');
     }

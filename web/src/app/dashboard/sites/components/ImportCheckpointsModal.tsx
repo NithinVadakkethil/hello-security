@@ -29,6 +29,15 @@ interface ImportError {
   checkpointName?: string;
   field: string;
   message: string;
+  affectedRows?: number[];
+  categoryName?: string;
+}
+
+interface MissingCategorySummary {
+  category: string;
+  count: number;
+  rows: number[];
+  message: string;
 }
 
 interface ImportPreviewItem {
@@ -49,6 +58,7 @@ interface ImportValidationResult {
   siteName: string;
   totalRows: number;
   validRows: number;
+  invalidRows: number;
   errorCount: number;
   warningCount: number;
   checkpointsCount: number;
@@ -58,7 +68,15 @@ interface ImportValidationResult {
   newCheckpointsToCreate: number;
   existingSubtasksSkippedCount: number;
   newSubtasksToCreateCount: number;
+  newCategoriesToCreate?: string[];
+  newCategoriesCount?: number;
+  existingCategoriesReused?: string[];
+  existingCategoriesCount?: number;
+  uncategorizedCheckpointsCount?: number;
+  uniqueMissingCategories?: string[];
+  missingCategoriesSummary?: MissingCategorySummary[];
   errors: ImportError[];
+  detailedErrors?: ImportError[];
   preview: ImportPreviewItem[];
 }
 
@@ -214,18 +232,56 @@ export default function ImportCheckpointsModal({
   };
 
   const handleDownloadErrorReport = () => {
-    if (!validationResult || !validationResult.errors.length) return;
-    const textLines = [
-      `IMPORT VALIDATION ERROR REPORT`,
+    if (!validationResult) return;
+    const lines: string[] = [
+      `==================================================`,
+      `HELLO ORBIT - BULK CHECKPOINT IMPORT VALIDATION REPORT`,
+      `==================================================`,
       `Site: ${siteName} (${siteId})`,
       `File: ${selectedFile?.name || 'Uploaded File'}`,
-      `Total Errors: ${validationResult.errors.length}`,
+      `Generated At: ${new Date().toISOString()}`,
+      ``,
+      `VALIDATION SUMMARY:`,
       `--------------------------------------------------`,
-      ...validationResult.errors.map(
-        (err) => `Row ${err.row}: [${err.field}] ${err.message}`
-      ),
+      `Total Rows: ${validationResult.totalRows}`,
+      `Valid Rows: ${validationResult.validRows}`,
+      `Invalid Rows: ${validationResult.invalidRows}`,
+      `Unique Missing Categories: ${(validationResult.uniqueMissingCategories || []).length}`,
+      `Total Validation Issues: ${validationResult.errorCount}`,
+      ``,
     ];
-    const blob = new Blob([textLines.join('\n')], { type: 'text/plain' });
+
+    if (validationResult.missingCategoriesSummary && validationResult.missingCategoriesSummary.length > 0) {
+      lines.push(`MISSING CATEGORIES REQUIRING SETUP:`);
+      lines.push(`(Configure in Settings → Categories / Utilities before importing)`);
+      lines.push(`--------------------------------------------------`);
+      validationResult.missingCategoriesSummary.forEach((catSummary) => {
+        lines.push(`• Category "${catSummary.category}": ${catSummary.count} row(s)`);
+        lines.push(`  Affected rows: ${catSummary.rows.join(', ')}`);
+      });
+      lines.push(``);
+    }
+
+    lines.push(`CONSOLIDATED VALIDATION ISSUES:`);
+    lines.push(`--------------------------------------------------`);
+    validationResult.errors.forEach((err) => {
+      if (err.affectedRows && err.affectedRows.length > 0) {
+        lines.push(`[${err.field}] ${err.message}`);
+      } else {
+        lines.push(`Row ${err.row}: [${err.field}] ${err.message}`);
+      }
+    });
+    lines.push(``);
+
+    if (validationResult.detailedErrors && validationResult.detailedErrors.length > 0) {
+      lines.push(`DETAILED PER-ROW BREAKDOWN:`);
+      lines.push(`--------------------------------------------------`);
+      validationResult.detailedErrors.forEach((err) => {
+        lines.push(`Row ${err.row}: [${err.field}] ${err.message}`);
+      });
+    }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -402,7 +458,7 @@ export default function ImportCheckpointsModal({
               <div>
                 <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>
                   {validationResult.errorCount > 0
-                    ? `Validation Failed (${validationResult.errorCount} Error${validationResult.errorCount === 1 ? '' : 's'})`
+                    ? `Validation Completed with Issues (${validationResult.errorCount} Issue Type${validationResult.errorCount === 1 ? '' : 's'})`
                     : 'Validation Passed Successfully!'}
                 </h4>
                 <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -412,6 +468,143 @@ export default function ImportCheckpointsModal({
                 </p>
               </div>
             </div>
+
+            {/* SUMMARY METRICS CARDS */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Total Rows</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: '2px' }}>
+                  {validationResult.totalRows}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Valid Rows</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#10b981', marginTop: '2px' }}>
+                  {validationResult.validRows}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Invalid Rows</div>
+                <div
+                  style={{
+                    fontSize: '1.25rem',
+                    fontWeight: 700,
+                    color: validationResult.invalidRows > 0 ? '#ef4444' : 'var(--text-secondary)',
+                    marginTop: '2px',
+                  }}
+                >
+                  {validationResult.invalidRows}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>New Categories</div>
+                <div
+                  style={{
+                    fontSize: '1.25rem',
+                    fontWeight: 700,
+                    color: '#3b82f6',
+                    marginTop: '2px',
+                  }}
+                >
+                  +{validationResult.newCategoriesCount ?? (validationResult.newCategoriesToCreate?.length || 0)}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Existing Categories</div>
+                <div
+                  style={{
+                    fontSize: '1.25rem',
+                    fontWeight: 700,
+                    color: '#10b981',
+                    marginTop: '2px',
+                  }}
+                >
+                  {validationResult.existingCategoriesCount ?? (validationResult.existingCategoriesReused?.length || 0)}
+                </div>
+              </div>
+            </div>
+
+            {/* AUTOMATIC CATEGORY CREATION NOTICE */}
+            {validationResult.newCategoriesToCreate && validationResult.newCategoriesToCreate.length > 0 && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                  border: '1px solid #3b82f6',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={16} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1d4ed8' }}>
+                    Automatic Category Creation ({validationResult.newCategoriesToCreate.length} new categories)
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  The following categories will be automatically added to <strong>Settings → Categories / Utilities</strong> for this client during import:
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '100px', overflowY: 'auto' }}>
+                  {validationResult.newCategoriesToCreate.map((cat, idx) => (
+                    <span
+                      key={idx}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: 'var(--bg-color)',
+                        border: '1px solid #3b82f6',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: 'var(--primary)',
+                      }}
+                    >
+                      + {cat}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* ERROR TABLE IF ERRORS EXIST */}
             {validationResult.errorCount > 0 && (
@@ -425,7 +618,7 @@ export default function ImportCheckpointsModal({
                   }}
                 >
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ef4444' }}>
-                    Row Validation Errors ({validationResult.errors.length}):
+                    Validation Issues ({validationResult.errors.length}):
                   </span>
                   <button
                     type="button"
@@ -450,15 +643,33 @@ export default function ImportCheckpointsModal({
                   <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ backgroundColor: 'var(--bg-secondary)', textAlign: 'left' }}>
-                        <th style={{ padding: '8px 12px', width: '60px' }}>Row</th>
-                        <th style={{ padding: '8px 12px', width: '120px' }}>Field</th>
+                        <th style={{ padding: '8px 12px', width: '110px' }}>Row(s)</th>
+                        <th style={{ padding: '8px 12px', width: '130px' }}>Field</th>
                         <th style={{ padding: '8px 12px' }}>Error Details</th>
                       </tr>
                     </thead>
                     <tbody>
                       {validationResult.errors.map((err, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '8px 12px', fontWeight: 600 }}>{err.row}</td>
+                          <td style={{ padding: '8px 12px', fontWeight: 600 }}>
+                            {err.affectedRows && err.affectedRows.length > 1 ? (
+                              <span
+                                title={`Rows: ${err.affectedRows.join(', ')}`}
+                                style={{
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                  color: '#ef4444',
+                                  fontSize: '0.75rem',
+                                  display: 'inline-block',
+                                }}
+                              >
+                                {err.affectedRows.length} rows
+                              </span>
+                            ) : (
+                              `Row ${err.row}`
+                            )}
+                          </td>
                           <td style={{ padding: '8px 12px', color: '#ef4444' }}>{err.field}</td>
                           <td style={{ padding: '8px 12px' }}>{err.message}</td>
                         </tr>
@@ -821,10 +1032,61 @@ export default function ImportCheckpointsModal({
                 }}
               >
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  New Categories Created
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#3b82f6', marginTop: '4px' }}>
+                  +{executeSummary.newCategoriesCount ?? (executeSummary.newCategoriesCreated?.length || 0)}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '10px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Categories Reused
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
+                  {executeSummary.existingCategoriesCount ?? (executeSummary.existingCategoriesReused?.length || 0)}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '10px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                   Duplicates Skipped
                 </div>
                 <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#f59e0b', marginTop: '4px' }}>
                   {executeSummary.duplicatesSkipped}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '10px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Uncategorized Checkpoints
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  {executeSummary.uncategorizedCheckpoints || 0}
                 </div>
               </div>
             </div>

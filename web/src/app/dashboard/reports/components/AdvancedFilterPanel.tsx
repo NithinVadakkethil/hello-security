@@ -217,17 +217,17 @@ export default function AdvancedFilterPanel({
           </div>
         </div>
 
-        {/* Security Officer Searchable Select */}
+        {/* Employee Searchable Select */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Security Officer</label>
+          <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Employee</label>
           <SearchableSelect
             value={filters.employeeId}
             onChange={(val) => onFilterChange({ employeeId: val })}
             options={officerOptions}
-            defaultLabel="All Security Officers"
-            searchPlaceholder="Search security officers..."
-            emptyMessage="No security officers found."
-            ariaLabel="Select Security Officer"
+            defaultLabel="All Employees"
+            searchPlaceholder="Search employees..."
+            emptyMessage="No employees found."
+            ariaLabel="Select Employee"
           />
         </div>
 

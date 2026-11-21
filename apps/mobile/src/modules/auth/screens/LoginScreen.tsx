@@ -7,10 +7,12 @@ import { useAuth } from '../hooks/useAuth';
 import { LoginCredentials, loginValidationSchema } from '../types';
 import { Input } from '../../../components/Input';
 import { Button } from '../../../components/Button';
+import { useOfflineStore } from '../../../app/store/offline-store';
 
 export function LoginScreen() {
   const { colors } = useTheme();
   const { login, logoutAllDevices, isLoggingIn } = useAuth();
+  const isConnected = useOfflineStore((state) => state.isConnected);
   const [apiError, setApiError] = useState<string | null>(null);
 
   const {
@@ -42,6 +44,15 @@ export function LoginScreen() {
 
   const onSubmit = async (data: LoginCredentials) => {
     setApiError(null);
+
+    if (!isConnected) {
+      Alert.alert(
+        'Internet Connection Required',
+        'First-time login on this device requires an active internet connection. Please connect to Wi-Fi or cellular data and try again.',
+      );
+      return;
+    }
+
     try {
       await login(data);
     } catch (err: any) {
@@ -98,6 +109,17 @@ export function LoginScreen() {
             Secure Guardian Management System
           </Text>
 
+          {!isConnected && (
+            <View style={[styles.offlineNoticeContainer, { backgroundColor: '#F59E0B15', borderColor: '#F59E0B' }]}>
+              <Text style={[styles.offlineNoticeTitle, { color: '#D97706' }]}>
+                Offline Mode
+              </Text>
+              <Text style={[styles.offlineNoticeText, { color: colors.textSecondary }]}>
+                Initial login requires an active internet connection. Please connect to Wi-Fi or cellular data to log in.
+              </Text>
+            </View>
+          )}
+
           {apiError && (
             <View style={[styles.errorContainer, { backgroundColor: colors.danger + '15', borderColor: colors.danger }]}>
               <Text style={[styles.errorText, { color: colors.danger }]}>{apiError}</Text>
@@ -110,7 +132,7 @@ export function LoginScreen() {
             render={({ field: { onChange, value } }) => (
               <Input
                 label="Email Address"
-                placeholder="officer@helloorbit.com"
+                placeholder="employee@helloorbit.com"
                 value={value}
                 onChangeText={onChange}
                 error={errors.email?.message}
@@ -202,6 +224,25 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     marginBottom: 32,
+  },
+  offlineNoticeContainer: {
+    width: '100%',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  offlineNoticeTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  offlineNoticeText: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   errorContainer: {
     width: '100%',

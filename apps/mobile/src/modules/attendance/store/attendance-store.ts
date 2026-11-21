@@ -6,7 +6,7 @@ interface AttendanceState {
   todayAttendance: AttendanceRecord | null;
   history: AttendanceRecord[];
   isLoading: boolean;
-  loadAttendance: (employeeId: string, assignmentId: string) => void;
+  loadAttendance: (employeeId: string, assignmentId?: string) => void;
   markAttendance: (params: MarkAttendanceParams) => Promise<AttendanceRecord>;
   markCheckOut: (params: MarkCheckOutParams) => Promise<AttendanceRecord | null>;
   resetState: () => void;
@@ -23,24 +23,27 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
       return;
     }
     const resolvedAssignmentId = assignmentId || 'direct';
-    const businessDate = getTodayBusinessDate();
-    let record = attendanceService.getAttendance(employeeId, resolvedAssignmentId, businessDate);
+    
+    // Shift-aware: checks active in-progress attendance first (across midnight)
+    let record = attendanceService.getAttendance(employeeId, resolvedAssignmentId);
     if (!record && resolvedAssignmentId !== 'direct') {
-      record = attendanceService.getAttendance(employeeId, 'direct', businessDate);
+      record = attendanceService.getAttendance(employeeId, 'direct');
     }
     const history = attendanceService.getAttendanceHistory(employeeId);
     set({ todayAttendance: record, history });
 
+    const effectiveBusinessDate = record?.businessDate || getTodayBusinessDate();
+
     // Asynchronously sync pending offline records or refresh from server
     if (record && (record.isOfflineCaptured || record.status === 'PENDING_SYNC')) {
-      attendanceService.syncPendingAttendance(employeeId, resolvedAssignmentId, businessDate).then((synced) => {
+      attendanceService.syncPendingAttendance(employeeId, resolvedAssignmentId, effectiveBusinessDate).then((synced) => {
         if (synced) {
           const updatedHistory = attendanceService.getAttendanceHistory(employeeId);
           set({ todayAttendance: synced, history: updatedHistory });
         }
       });
     } else if (!record || !record.checkOutAt) {
-      attendanceService.fetchServerAttendance(employeeId, resolvedAssignmentId, businessDate).then((serverRec) => {
+      attendanceService.fetchServerAttendance(employeeId, resolvedAssignmentId, effectiveBusinessDate).then((serverRec) => {
         if (serverRec) {
           const updatedHistory = attendanceService.getAttendanceHistory(employeeId);
           set({ todayAttendance: serverRec, history: updatedHistory });
@@ -69,5 +72,3 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     set({ todayAttendance: null, history: [], isLoading: false });
   },
 }));
-
-

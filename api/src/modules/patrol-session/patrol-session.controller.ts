@@ -81,7 +81,8 @@ export class PatrolSessionController {
 
   async pause(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await patrolSessionService.pause(req.params.id as string);
+      const user = currentUser(req);
+      const result = await patrolSessionService.pause(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -94,7 +95,8 @@ export class PatrolSessionController {
 
   async resume(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await patrolSessionService.resume(req.params.id as string);
+      const user = currentUser(req);
+      const result = await patrolSessionService.resume(req.params.id as string, user);
 
       return res.json({
         success: true,
@@ -107,12 +109,16 @@ export class PatrolSessionController {
 
   async complete(req: Request, res: Response, next: NextFunction) {
     try {
+      const user = currentUser(req);
+      const employeeId = await resolveEmployeeId(user);
       const body = completePatrolSchema.parse(req.body);
 
       const result = await patrolSessionService.complete(
         req.params.id as string,
         body.remarks,
         body.endedAt || body.completedAt,
+        employeeId,
+        user.tenantId || undefined,
       );
 
       return res.json({
@@ -199,7 +205,8 @@ export class PatrolSessionController {
 
   async cancel(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await patrolSessionService.cancel(req.params.id as string);
+      const user = currentUser(req);
+      const result = await patrolSessionService.cancel(req.params.id as string, user);
 
       return res.json({
         success: true,

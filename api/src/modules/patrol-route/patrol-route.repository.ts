@@ -1,4 +1,5 @@
 import { prisma } from '../../database/prisma';
+import { GATE_SUBTASKS_INCLUDE } from '../assignment/assignment.repository';
 
 export class PatrolRouteRepository {
   create(data: any) {
@@ -7,7 +8,9 @@ export class PatrolRouteRepository {
       include: {
         routeGates: {
           include: {
-            gate: true,
+            gate: {
+              include: GATE_SUBTASKS_INCLUDE,
+            },
           },
           orderBy: {
             sequence: 'asc',
@@ -26,7 +29,9 @@ export class PatrolRouteRepository {
         site: true,
         routeGates: {
           include: {
-            gate: true,
+            gate: {
+              include: GATE_SUBTASKS_INCLUDE,
+            },
           },
           orderBy: {
             sequence: 'asc',
@@ -64,7 +69,9 @@ export class PatrolRouteRepository {
         site: true,
         routeGates: {
           include: {
-            gate: true,
+            gate: {
+              include: GATE_SUBTASKS_INCLUDE,
+            },
           },
           orderBy: {
             sequence: 'asc',

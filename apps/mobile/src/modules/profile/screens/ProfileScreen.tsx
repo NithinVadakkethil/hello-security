@@ -55,6 +55,10 @@ export function ProfileScreen() {
     try {
       const data = await faceEnrollmentApi.getStatus();
       setFaceStatus(data);
+      if (data.status !== 'REGISTERED') {
+        // Authoritative server says unregistered: invalidate any stale local cache
+        await secureFaceCache.clearSecureCache();
+      }
     } catch (err) {
       console.warn(
         '[ProfileScreen] Could not fetch face enrollment status:',

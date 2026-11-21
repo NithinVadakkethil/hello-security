@@ -31,11 +31,36 @@ export interface ImportError {
   checkpointName?: string;
   field: string;
   message: string;
+  affectedRows?: number[];
+  categoryName?: string;
+}
+
+export interface MissingCategorySummary {
+  category: string;
+  count: number;
+  rows: number[];
+  message: string;
 }
 
 export interface ImportWarning {
   row: number;
   message: string;
+}
+
+export function isBlankCategory(val?: string | null): boolean {
+  if (!val) return true;
+  const trimmed = val.trim();
+  if (!trimmed) return true;
+  const lower = trimmed.toLowerCase();
+  return (
+    lower === 'null' ||
+    lower === 'undefined' ||
+    lower === 'n/a' ||
+    lower === 'na' ||
+    lower === 'none' ||
+    lower === '—' ||
+    lower === '-'
+  );
 }
 
 export interface ImportPreviewItem {
@@ -44,6 +69,7 @@ export interface ImportPreviewItem {
   checkpointName: string;
   sequence: number | string;
   category?: string;
+  isNewCategory?: boolean;
   role?: string;
   roleDisplay: string;
   taskName: string;
@@ -56,6 +82,7 @@ export interface ImportValidationResult {
   siteName: string;
   totalRows: number;
   validRows: number;
+  invalidRows: number;
   errorCount: number;
   warningCount: number;
   checkpointsCount: number;
@@ -65,7 +92,15 @@ export interface ImportValidationResult {
   newCheckpointsToCreate: number;
   existingSubtasksSkippedCount: number;
   newSubtasksToCreateCount: number;
+  newCategoriesToCreate: string[];
+  newCategoriesCount: number;
+  existingCategoriesReused: string[];
+  existingCategoriesCount: number;
+  uncategorizedCheckpointsCount: number;
+  uniqueMissingCategories?: string[];
+  missingCategoriesSummary?: MissingCategorySummary[];
   errors: ImportError[];
+  detailedErrors: ImportError[];
   warnings: ImportWarning[];
   preview: ImportPreviewItem[];
 }
@@ -96,6 +131,7 @@ export interface GroupedCheckpoint {
   description?: string;
   categoryId?: string | null;
   categoryName?: string;
+  rawCategoryName?: string;
   subtasks: Array<{ role: UserRole; taskName: string; description?: string }>;
 }
 
@@ -327,7 +363,7 @@ export class SiteImportService {
       const rawCode = String(rowObj['code'] || '').trim();
       const rawName = String(rowObj['name'] || '').trim();
       const rawSeq = rowObj['sequence'] !== undefined ? rowObj['sequence'] : '';
-      const rawCategory = String(rowObj['category'] || '').trim();
+      const rawCategory = String(rowObj['category'] !== undefined && rowObj['category'] !== null ? rowObj['category'] : '').trim();
       const rawRole = String(rowObj['role'] || '').trim();
       const rawTask = String(rowObj['taskName'] || '').trim();
       const rawDesc = String(rowObj['description'] || '').trim();
@@ -364,32 +400,73 @@ export class SiteImportService {
   }
 
   /**
-   * Validate import file data against site & database schema
+   * Safe tenant-scoped category lookup map.
+   * Maps trimmed, lowercase normalizedName and display name to the database category.
+   * Preserves exact punctuation and internal spacing.
    */
-  async validateImport(siteId: string, buffer: Buffer): Promise<ImportValidationResult> {
+  private buildCategoryLookupMap(
+    categories: Array<{ id: string; name: string; normalizedName: string; description?: string | null; clientId: string }>
+  ) {
+    const map = new Map<string, typeof categories[0]>();
+    for (const cat of categories) {
+      if (cat.normalizedName) {
+        map.set(cat.normalizedName.trim().toLowerCase(), cat);
+      }
+      if (cat.name) {
+        map.set(cat.name.trim().toLowerCase(), cat);
+      }
+    }
+    return map;
+  }
+
+  /**
+   * Safe category matching helper.
+   * Compares trimmed, case-insensitive value against authorized client categories.
+   * Preserves exact punctuation and internal spacing.
+   */
+  private matchCategory(
+    categoryInput: string | undefined | null,
+    categoryMap: Map<string, any>
+  ) {
+    if (!categoryInput) return undefined;
+    const trimmed = categoryInput.trim();
+    if (!trimmed) return undefined;
+    return categoryMap.get(trimmed.toLowerCase());
+  }
+
+  /**
+   * Validate import file data against site & database schema.
+   * Categories not existing in the client's master will be automatically created upon import.
+   */
+  async validateImport(siteId: string, buffer: Buffer, clientId?: string): Promise<ImportValidationResult> {
     const site = await siteRepository.findById(siteId);
     if (!site) {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Site not found.');
     }
 
+    if (clientId && site.clientId !== clientId) {
+      throw new AppError(HttpStatus.FORBIDDEN, ErrorCodes.FORBIDDEN, 'Unauthorized access to this site.');
+    }
+
     const rows = this.parseFileBuffer(buffer);
 
-    const errors: ImportError[] = [];
+    const nonCategoryErrors: ImportError[] = [];
+    const detailedErrors: ImportError[] = [];
     const warnings: ImportWarning[] = [];
     const preview: ImportPreviewItem[] = [];
+
+    const newCategoriesMap = new Map<string, string>(); // normKey -> display name
+    const reusedCategoriesMap = new Map<string, string>(); // normKey -> display name
 
     const subtasksByRole: Record<string, number> = {};
     const groupedCheckpoints = new Map<string, GroupedCheckpoint>();
 
-    // Fetch authorized client categories for reference
+    // Fetch authorized client categories for reference (strictly scoped by site's clientId)
     const clientCategories = await prisma.checkpointCategory.findMany({
       where: { clientId: site.clientId },
     });
 
-    const categoryMap = new Map<string, typeof clientCategories[0]>();
-    clientCategories.forEach((cat) => {
-      categoryMap.set(cat.normalizedName, cat);
-    });
+    const categoryMap = this.buildCategoryLookupMap(clientCategories);
 
     // Fetch existing site gates for reference
     const existingGates = await prisma.gate.findMany({
@@ -418,27 +495,34 @@ export class SiteImportService {
 
       // Validate Checkpoint Name
       if (!row.name && !row.code) {
-        errors.push({
+        const err: ImportError = {
           row: row.rowIndex,
           field: 'Checkpoint Name',
           message: 'Checkpoint Name is required.',
-        });
+        };
+        nonCategoryErrors.push(err);
+        detailedErrors.push(err);
         isRowValid = false;
       }
 
-      // Validate Category / Utility
-      let matchedCategory: typeof clientCategories[0] | undefined;
-      if (row.category && row.category.trim()) {
-        const normCategory = row.category.trim().toLowerCase();
-        matchedCategory = categoryMap.get(normCategory);
-        if (!matchedCategory) {
-          errors.push({
-            row: row.rowIndex,
-            checkpointName: row.name || row.code,
-            field: 'Category / Utility',
-            message: `Category / Utility "${row.category.trim()}" does not exist. Create the category in Settings → Categories / Utilities first.`,
-          });
-          isRowValid = false;
+      // Category / Utility Resolution
+      let resolvedCategoryName: string | undefined;
+      let isNewCategory = false;
+
+      if (!isBlankCategory(row.category)) {
+        const trimmedCat = row.category!.trim();
+        const normKey = trimmedCat.toLowerCase();
+        const matchedCategory = this.matchCategory(trimmedCat, categoryMap);
+        if (matchedCategory) {
+          resolvedCategoryName = matchedCategory.name;
+          reusedCategoriesMap.set(normKey, matchedCategory.name);
+        } else {
+          // Missing category will be automatically created upon import!
+          if (!newCategoriesMap.has(normKey)) {
+            newCategoriesMap.set(normKey, trimmedCat);
+          }
+          resolvedCategoryName = newCategoriesMap.get(normKey)!;
+          isNewCategory = true;
         }
       }
 
@@ -450,35 +534,41 @@ export class SiteImportService {
       if (!isCheckpointOnlyRow) {
         // Validate Subtask
         if (!row.taskName) {
-          errors.push({
+          const err: ImportError = {
             row: row.rowIndex,
             checkpointName: row.name || row.code,
             field: 'Subtask',
             message: 'Subtask name cannot be empty.',
-          });
+          };
+          nonCategoryErrors.push(err);
+          detailedErrors.push(err);
           isRowValid = false;
         }
 
         // Validate Role
         if (!row.role) {
-          errors.push({
+          const err: ImportError = {
             row: row.rowIndex,
             checkpointName: row.name || row.code,
             field: 'Role',
             message: 'User Role is required.',
-          });
+          };
+          nonCategoryErrors.push(err);
+          detailedErrors.push(err);
           isRowValid = false;
         } else {
           const normalized = normalizeRole(row.role) as UserRole;
           if (VALID_USER_ROLES.includes(normalized)) {
             roleEnum = normalized;
           } else {
-            errors.push({
+            const err: ImportError = {
               row: row.rowIndex,
               checkpointName: row.name || row.code,
               field: 'Role',
               message: `Invalid role "${row.role}". Valid roles: Security, House Keeping, Technician, Supervisor, Service Engineer, Plumber, Lifeguard.`,
-            });
+            };
+            nonCategoryErrors.push(err);
+            detailedErrors.push(err);
             isRowValid = false;
           }
         }
@@ -500,8 +590,9 @@ export class SiteImportService {
             latitude: row.latitude,
             longitude: row.longitude,
             description: row.description,
-            categoryId: matchedCategory ? matchedCategory.id : null,
-            categoryName: matchedCategory ? matchedCategory.name : (row.category?.trim() || undefined),
+            categoryId: null,
+            categoryName: resolvedCategoryName,
+            rawCategoryName: resolvedCategoryName,
             subtasks: [],
           };
           groupedCheckpoints.set(checkpointKey, group);
@@ -510,9 +601,9 @@ export class SiteImportService {
           if (group.sequence === undefined && row.sequence !== undefined) group.sequence = row.sequence;
           if (group.latitude === undefined && row.latitude !== undefined) group.latitude = row.latitude;
           if (group.longitude === undefined && row.longitude !== undefined) group.longitude = row.longitude;
-          if (!group.categoryId && matchedCategory) {
-            group.categoryId = matchedCategory.id;
-            group.categoryName = matchedCategory.name;
+          if (!group.rawCategoryName && resolvedCategoryName) {
+            group.rawCategoryName = resolvedCategoryName;
+            group.categoryName = resolvedCategoryName;
           }
         }
 
@@ -532,6 +623,7 @@ export class SiteImportService {
             checkpointName: group.name,
             sequence: row.sequence ?? 'Auto',
             category: group.categoryName || '—',
+            isNewCategory,
             role: roleEnum,
             roleDisplay: getRoleDisplay(roleEnum),
             taskName: row.taskName,
@@ -545,6 +637,7 @@ export class SiteImportService {
             checkpointName: group.name,
             sequence: row.sequence ?? 'Auto',
             category: group.categoryName || '—',
+            isNewCategory,
             role: '',
             roleDisplay: 'N/A (Checkpoint Only)',
             taskName: '(No Subtasks)',
@@ -552,20 +645,27 @@ export class SiteImportService {
           });
         }
       } else {
+        const rowErrMessage =
+          nonCategoryErrors.find((e) => e.row === row.rowIndex)?.message ||
+          'Invalid row data';
+
         preview.push({
           rowIndex: row.rowIndex,
           checkpointCode: '-',
           checkpointName: row.name || row.code || '-',
           sequence: row.sequence ?? '-',
-          category: row.category?.trim() || '—',
+          category: resolvedCategoryName || '—',
+          isNewCategory,
           role: row.role || '-',
           roleDisplay: row.role || '-',
           taskName: row.taskName || '-',
           status: 'ERROR',
-          message: errors[errors.length - 1]?.message || 'Invalid row data',
+          message: rowErrMessage,
         });
       }
     });
+
+    const invalidRowsCount = rows.length - validRowsCount;
 
     // Determine existing vs new counts
     let existingCheckpointsCount = 0;
@@ -596,12 +696,23 @@ export class SiteImportService {
       }
     });
 
+    let uncategorizedCheckpointsCount = 0;
+    groupedCheckpoints.forEach((group) => {
+      if (!group.rawCategoryName) {
+        uncategorizedCheckpointsCount++;
+      }
+    });
+
+    const newCategoriesToCreate = Array.from(newCategoriesMap.values());
+    const existingCategoriesReused = Array.from(reusedCategoriesMap.values());
+
     return {
       siteId,
       siteName: site.name,
       totalRows: rows.length,
       validRows: validRowsCount,
-      errorCount: errors.length,
+      invalidRows: invalidRowsCount,
+      errorCount: nonCategoryErrors.length,
       warningCount: warnings.length,
       checkpointsCount: groupedCheckpoints.size,
       subtasksCount: validSubtasksCount,
@@ -610,42 +721,45 @@ export class SiteImportService {
       newCheckpointsToCreate,
       existingSubtasksSkippedCount,
       newSubtasksToCreateCount,
-      errors,
+      newCategoriesToCreate,
+      newCategoriesCount: newCategoriesToCreate.length,
+      existingCategoriesReused,
+      existingCategoriesCount: existingCategoriesReused.length,
+      uncategorizedCheckpointsCount,
+      uniqueMissingCategories: [],
+      missingCategoriesSummary: [],
+      errors: nonCategoryErrors,
+      detailedErrors,
       warnings,
       preview: preview.slice(0, 100),
     };
   }
 
   /**
-   * Execute transactional import to database
+   * Execute transactional import to database.
+   * Auto-creates any missing categories inside the transaction so that failures roll back atomically.
    */
   async executeImport(siteId: string, buffer: Buffer, userId?: string, clientId?: string) {
-    const validation = await this.validateImport(siteId, buffer);
-
-    if (validation.errorCount > 0 && validation.validRows === 0) {
-      throw new AppError(
-        HttpStatus.BAD_REQUEST,
-        ErrorCodes.VALIDATION_ERROR,
-        `Import failed. Found ${validation.errorCount} validation errors.`,
-      );
-    }
-
     const site = await siteRepository.findById(siteId);
     if (!site) {
       throw new AppError(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, 'Site not found.');
     }
 
-    // Fetch authorized client categories for ID resolution
-    const clientCategories = await prisma.checkpointCategory.findMany({
-      where: { clientId: site.clientId },
-    });
-    const categoryMap = new Map<string, typeof clientCategories[0]>();
-    clientCategories.forEach((cat) => {
-      categoryMap.set(cat.normalizedName, cat);
-    });
+    if (clientId && site.clientId !== clientId) {
+      throw new AppError(HttpStatus.FORBIDDEN, ErrorCodes.FORBIDDEN, 'Unauthorized access to this site.');
+    }
+
+    const validation = await this.validateImport(siteId, buffer, clientId);
+
+    if (validation.errorCount > 0 && validation.validRows === 0) {
+      throw new AppError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCodes.VALIDATION_ERROR,
+        `Import failed. Found ${validation.errorCount} validation error(s).`,
+      );
+    }
 
     const rows = this.parseFileBuffer(buffer);
-
     const groupedCheckpoints = new Map<string, GroupedCheckpoint>();
 
     rows.forEach((row) => {
@@ -661,17 +775,7 @@ export class SiteImportService {
         normalizedRole = norm;
       }
 
-      let matchedCategoryId: string | null = null;
-      let matchedCategoryName: string | undefined;
-      if (row.category && row.category.trim()) {
-        const normCategory = row.category.trim().toLowerCase();
-        const cat = categoryMap.get(normCategory);
-        if (cat) {
-          matchedCategoryId = cat.id;
-          matchedCategoryName = cat.name;
-        }
-      }
-
+      const rawCategory = !isBlankCategory(row.category) ? row.category!.trim() : undefined;
       const checkpointNameVal = row.name || row.code || 'Unnamed Checkpoint';
       const checkpointKey = `NAME_${checkpointNameVal.toLowerCase().trim()}`;
 
@@ -684,8 +788,9 @@ export class SiteImportService {
           latitude: row.latitude,
           longitude: row.longitude,
           description: row.description,
-          categoryId: matchedCategoryId,
-          categoryName: matchedCategoryName,
+          categoryId: null,
+          categoryName: rawCategory,
+          rawCategoryName: rawCategory,
           subtasks: [],
         };
         groupedCheckpoints.set(checkpointKey, group);
@@ -694,9 +799,9 @@ export class SiteImportService {
         if (group.sequence === undefined && row.sequence !== undefined) group.sequence = row.sequence;
         if (group.latitude === undefined && row.latitude !== undefined) group.latitude = row.latitude;
         if (group.longitude === undefined && row.longitude !== undefined) group.longitude = row.longitude;
-        if (!group.categoryId && matchedCategoryId) {
-          group.categoryId = matchedCategoryId;
-          group.categoryName = matchedCategoryName;
+        if (!group.rawCategoryName && rawCategory) {
+          group.rawCategoryName = rawCategory;
+          group.categoryName = rawCategory;
         }
       }
 
@@ -712,11 +817,74 @@ export class SiteImportService {
     let createdGatesCount = 0;
     let createdSubtasksCount = 0;
     let skippedSubtasksCount = 0;
+    const createdCategoryNamesSet = new Set<string>();
+    const reusedCategoryNamesSet = new Set<string>();
+    const createdCategoryIds: string[] = [];
 
     try {
       await prisma.$transaction(
         async (tx) => {
-          // 1. Bulk Fetch Existing Gates & Subtasks for this siteId
+          // 1. Resolve and Auto-Create Missing Categories in this transaction
+          const neededCategoriesMap = new Map<string, string>(); // normKey -> display name
+          for (const [_, group] of groupedCheckpoints) {
+            if (group.rawCategoryName) {
+              const normKey = group.rawCategoryName.toLowerCase();
+              if (!neededCategoriesMap.has(normKey)) {
+                neededCategoriesMap.set(normKey, group.rawCategoryName);
+              }
+            }
+          }
+
+          const existingCategories = await tx.checkpointCategory.findMany({
+            where: { clientId: site.clientId },
+          });
+
+          const categoryLookupMap = new Map<string, typeof existingCategories[0]>();
+          existingCategories.forEach((cat) => {
+            if (cat.normalizedName) categoryLookupMap.set(cat.normalizedName.toLowerCase().trim(), cat);
+            if (cat.name) categoryLookupMap.set(cat.name.toLowerCase().trim(), cat);
+          });
+
+          for (const [normKey, displayName] of neededCategoriesMap) {
+            const matched = categoryLookupMap.get(normKey);
+            if (matched) {
+              reusedCategoryNamesSet.add(matched.name);
+            } else {
+              // Concurrency-safe atomic creation within the transaction
+              const newCat = await tx.checkpointCategory.upsert({
+                where: {
+                  clientId_normalizedName: {
+                    clientId: site.clientId,
+                    normalizedName: normKey,
+                  },
+                },
+                update: {},
+                create: {
+                  clientId: site.clientId,
+                  name: displayName,
+                  normalizedName: normKey,
+                  description: null,
+                },
+              });
+              categoryLookupMap.set(normKey, newCat);
+              createdCategoryNamesSet.add(newCat.name);
+              createdCategoryIds.push(newCat.id);
+            }
+          }
+
+          // Assign resolved categoryId to each valid checkpoint group
+          for (const [_, group] of groupedCheckpoints) {
+            if (group.rawCategoryName) {
+              const normKey = group.rawCategoryName.toLowerCase();
+              const cat = categoryLookupMap.get(normKey);
+              group.categoryId = cat ? cat.id : null;
+              group.categoryName = cat ? cat.name : group.rawCategoryName;
+            } else {
+              group.categoryId = null;
+            }
+          }
+
+          // 2. Bulk Fetch Existing Gates & Subtasks for this siteId
           const existingGates = await tx.gate.findMany({
             where: { siteId },
             include: {
@@ -764,7 +932,7 @@ export class SiteImportService {
             }
           }
 
-          // 2. Batch Reserve Counter for New Gates
+          // 3. Batch Reserve Counter for New Gates
           if (newGroupsToCreate.length > 0) {
             const startSeq = await counterService.reserveRange(
               ENTITY.GATE,
@@ -799,7 +967,6 @@ export class SiteImportService {
             newGroupsToCreate.forEach((group, idx) => {
               let seqCounter = startSeq + idx;
               let gateCode = generateCode(PREFIX.GATE, seqCounter);
-              // Ensure code is unique both locally and globally for QR uniqueness
               while (existingCodesSet.has(gateCode.toUpperCase()) || globalQrCodeSet.has(gateCode.toUpperCase())) {
                 seqCounter++;
                 gateCode = generateCode(PREFIX.GATE, seqCounter);
@@ -817,12 +984,12 @@ export class SiteImportService {
                 description: group.description || null,
                 latitude: group.latitude || null,
                 longitude: group.longitude || null,
-                qrCode: gateCode, // Fresh unique QR payload for destination checkpoint!
+                qrCode: gateCode,
                 categoryId: group.categoryId || null,
               });
             });
 
-            // 3. Single Bulk Gate Insertion
+            // 4. Bulk Gate Insertion
             await tx.gate.createMany({
               data: newGatesData,
               skipDuplicates: true,
@@ -830,7 +997,7 @@ export class SiteImportService {
             createdGatesCount = newGatesData.length;
           }
 
-          // 4. Bulk Fetch All Gate Records to map Gate IDs to Subtasks
+          // 5. Bulk Fetch All Gate Records to map Gate IDs to Subtasks
           const allSiteGates = await tx.gate.findMany({
             where: { siteId },
             include: {
@@ -845,7 +1012,7 @@ export class SiteImportService {
             gateByNameMap.set(g.name.toLowerCase().trim(), g);
           });
 
-          // 5. Accumulate Subtasks to Create
+          // 6. Accumulate Subtasks to Create
           const subtasksToInsert: Array<{
             gateId: string;
             role: UserRole;
@@ -885,7 +1052,6 @@ export class SiteImportService {
             });
           }
 
-          // 6. Single Bulk Subtask Insertion
           if (subtasksToInsert.length > 0) {
             const res = await tx.gateSubTask.createMany({
               data: subtasksToInsert,
@@ -927,7 +1093,7 @@ export class SiteImportService {
         },
         {
           maxWait: 10000,
-          timeout: 60000, // 60s transaction timeout for bulk imports
+          timeout: 60000,
         },
       );
     } catch (err: any) {
@@ -942,24 +1108,50 @@ export class SiteImportService {
       );
     }
 
-    if (userId && clientId) {
-      await auditLogService.create({
-        userId,
-        clientId,
-        action: 'CREATE',
-        entity: 'SiteImport',
-        entityId: siteId,
-      });
+    if (userId && site.clientId) {
+      try {
+        for (const catId of createdCategoryIds) {
+          await auditLogService.create({
+            userId,
+            clientId: site.clientId,
+            action: 'CREATE',
+            entity: 'CheckpointCategory',
+            entityId: catId,
+          });
+        }
+
+        await auditLogService.create({
+          userId,
+          clientId: site.clientId,
+          action: 'CREATE',
+          entity: 'SiteImport',
+          entityId: siteId,
+        });
+      } catch (auditErr) {
+        console.warn('Failed to record audit log for site import:', auditErr);
+      }
+    }
+
+    let uncategorizedCount = 0;
+    for (const [_, group] of groupedCheckpoints) {
+      if (!group.categoryId) uncategorizedCount++;
     }
 
     return {
       success: true,
       siteId,
       siteName: site.name,
+      totalRowsProcessed: rows.length,
       checkpointsProcessed: groupedCheckpoints.size,
       checkpointsCreated: createdGatesCount,
       subtasksCreated: createdSubtasksCount,
       duplicatesSkipped: skippedSubtasksCount,
+      rowsRejected: rows.length - validation.validRows,
+      newCategoriesCreated: Array.from(createdCategoryNamesSet),
+      newCategoriesCount: createdCategoryNamesSet.size,
+      existingCategoriesReused: Array.from(reusedCategoryNamesSet),
+      existingCategoriesCount: reusedCategoryNamesSet.size,
+      uncategorizedCheckpoints: uncategorizedCount,
     };
   }
 }

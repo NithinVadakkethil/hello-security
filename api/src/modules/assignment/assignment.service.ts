@@ -12,6 +12,38 @@ import { siteRepository } from '../site/site.repository';
 import { assignmentRepository } from './assignment.repository';
 import { CreateAssignmentDto, UpdateAssignmentDto } from './assignment.types';
 
+export function hydrateGateSubTasks(gate: any) {
+  if (!gate) return gate;
+  const directSubTasks = Array.isArray(gate.subTasks) ? gate.subTasks : [];
+  const categorySubTasks = Array.isArray(gate.category?.subTasks)
+    ? gate.category.subTasks.map((st: any) => ({
+        id: st.id,
+        gateId: gate.id,
+        role: st.role,
+        taskName: st.taskName,
+        description: st.description,
+        displayOrder: st.displayOrder,
+        isRequired: st.isRequired,
+        isActive: st.isActive,
+        createdAt: st.createdAt,
+        updatedAt: st.updatedAt,
+        isCategorySubTask: true,
+        categoryId: st.categoryId,
+      }))
+    : [];
+
+  const effectiveSubTasks =
+    gate.categoryId && categorySubTasks.length > 0
+      ? categorySubTasks
+      : directSubTasks;
+
+  return {
+    ...gate,
+    subTasks: effectiveSubTasks,
+    hasSubTasksConfigured: effectiveSubTasks.length > 0,
+  };
+}
+
 export class AssignmentService {
   async create(clientId: string, dto: CreateAssignmentDto) {
     const targetEmployeeIds =
@@ -115,6 +147,17 @@ export class AssignmentService {
             HttpStatus.BAD_REQUEST,
             ErrorCodes.VALIDATION_ERROR,
             `Patrol route "${patrolRoute.name}" does not belong to the selected site.`,
+          );
+        }
+
+        const eligibleRouteGates = (patrolRoute.routeGates || []).filter(
+          (rg: any) => rg.gate && rg.gate.isActive !== false,
+        );
+        if (patrolRoute.routeGates && patrolRoute.routeGates.length > 0 && eligibleRouteGates.length === 0) {
+          throw new AppError(
+            HttpStatus.BAD_REQUEST,
+            ErrorCodes.VALIDATION_ERROR,
+            `Patrol route "${patrolRoute.name}" has no currently eligible checkpoints (all checkpoints are deactivated).`,
           );
         }
       }
@@ -280,8 +323,38 @@ export class AssignmentService {
     if (!assignment) return assignment;
     const latestSession = assignment.patrolSessions?.[0];
     const lastCompletedAt = latestSession?.endedAt || latestSession?.updatedAt || null;
+
+    const filteredPatrolRoute = assignment.patrolRoute
+      ? {
+          ...assignment.patrolRoute,
+          routeGates: (assignment.patrolRoute.routeGates || [])
+            .filter((rg: any) => !rg.gate || rg.gate.isActive !== false)
+            .map((rg: any) => {
+              const hydratedGate = hydrateGateSubTasks(rg.gate);
+              return {
+                ...rg,
+                gate: hydratedGate,
+                subTasks: hydratedGate?.subTasks || [],
+              };
+            }),
+        }
+      : assignment.patrolRoute;
+
+    const filteredAssignmentGates = (assignment.assignmentGates || [])
+      .filter((ag: any) => !ag.gate || ag.gate.isActive !== false)
+      .map((ag: any) => {
+        const hydratedGate = hydrateGateSubTasks(ag.gate);
+        return {
+          ...ag,
+          gate: hydratedGate,
+          subTasks: hydratedGate?.subTasks || [],
+        };
+      });
+
     return {
       ...assignment,
+      patrolRoute: filteredPatrolRoute,
+      assignmentGates: filteredAssignmentGates,
       lastCompletedAt,
     };
   }
