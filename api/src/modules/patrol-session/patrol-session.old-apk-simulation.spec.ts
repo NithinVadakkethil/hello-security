@@ -133,4 +133,85 @@ describe('Phase 3 — Simulation of Installed Old APK Request Sequence', () => {
     // -------------------------------------------------------------
     expect(startResult2.patrolCode).toBe('PATROL-SESSION-000792');
   });
+
+  test('Auto-resolves prior session when offline start arrives with customStartedAt without 409 conflict', async () => {
+    const uncompletedPriorSession = {
+      id: 'cmwok54i78c9zhpxlukk08u9b',
+      patrolCode: 'PATROL-SESSION-001510',
+      clientId: tenantId,
+      assignmentId: 'cmuwrb0tp024ehp87g9q45b79', // Basement 4
+      status: PatrolStatus.IN_PROGRESS,
+      startedAt: new Date('2026-11-20T05:18:53.315Z'),
+      endedAt: null,
+      assignment: {
+        id: 'cmuwrb0tp024ehp87g9q45b79',
+        employeeId,
+        clientId: tenantId,
+        isActive: true,
+        patrolRoute: { name: 'Basement 4', isActive: true, routeGates: [{ gate: { isActive: true } }] },
+        site: { name: 'Marina 101' },
+      },
+    };
+
+    const nextAssignment = {
+      id: 'cmuwrb0tc024chp8780s9kg40', // Basement 3
+      employeeId,
+      clientId: tenantId,
+      isActive: true,
+      patrolRoute: { name: 'Basement 3', isActive: true, routeGates: [{ gate: { isActive: true } }] },
+      site: { name: 'Marina 101' },
+    };
+
+    const nextSession = {
+      id: 'cmwok50bq8c6hhpxlrvxsr6dz',
+      patrolCode: 'PATROL-SESSION-001511',
+      clientId: tenantId,
+      assignmentId: nextAssignment.id,
+      status: PatrolStatus.IN_PROGRESS,
+      startedAt: new Date('2026-11-20T05:22:00.000Z'),
+      assignment: nextAssignment,
+    };
+
+    // Prior session is still IN_PROGRESS in findActiveByEmployee
+    jest.spyOn(patrolSessionRepository, 'findActiveByEmployee').mockResolvedValue(uncompletedPriorSession as any);
+    jest.spyOn(assignmentRepository, 'findById').mockResolvedValue(nextAssignment as any);
+    jest.spyOn(prisma.guardAssignment, 'findUnique').mockResolvedValue(nextAssignment as any);
+    jest.spyOn(prisma.patrolCheckpoint, 'count').mockResolvedValue(8);
+    jest.spyOn(prisma.patrolCheckpoint, 'findFirst').mockResolvedValue({
+      id: 'cp-last',
+      completedAt: new Date('2026-11-20T05:21:17.247Z'),
+      scannedAt: new Date('2026-11-20T05:21:09.746Z'),
+    } as any);
+
+    const updateSpy = jest.spyOn(patrolSessionRepository, 'update').mockResolvedValue({
+      ...uncompletedPriorSession,
+      status: PatrolStatus.COMPLETED,
+      endedAt: new Date('2026-11-20T05:21:17.247Z'),
+    } as any);
+
+    jest.spyOn(counterService, 'next').mockResolvedValue(1511);
+    jest.spyOn(patrolSessionRepository, 'create').mockResolvedValue(nextSession as any);
+
+    // Guard starts next route offline with customStartedAt and resolveExistingPatrol = false (old APK default)
+    const result = await patrolSessionService.start(
+      tenantId,
+      employeeId,
+      nextAssignment.id,
+      false, // resolveExistingPatrol is false from distributed APK
+      '2026-11-20T05:22:00.000Z',
+    );
+
+    // Prior session auto-completed
+    expect(updateSpy).toHaveBeenCalledWith(
+      uncompletedPriorSession.id,
+      expect.objectContaining({
+        status: PatrolStatus.COMPLETED,
+        remarks: 'Auto-completed upon starting a new patrol session.',
+      }),
+    );
+
+    // New session started successfully
+    expect(result.id).toBe(nextSession.id);
+    expect(result.status).toBe(PatrolStatus.IN_PROGRESS);
+  });
 });

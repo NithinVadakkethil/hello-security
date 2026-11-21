@@ -89,11 +89,31 @@ export class PatrolSessionService {
     const running = await patrolSessionRepository.findActiveByEmployee(employeeId);
 
     if (running) {
+      // 1. Idempotency Guard for offline retry:
+      // If the running session is for the exact same assignment, and startedAt is close or customStartedAt matches
+      if (running.assignmentId === assignment.id) {
+        const timeDiff = customStartedAt
+          ? Math.abs(new Date(customStartedAt).getTime() - running.startedAt.getTime())
+          : Math.abs(Date.now() - running.startedAt.getTime());
+        // If within 10 minutes or matching timestamp, treat as idempotent replay of the same start
+        if (timeDiff < 10 * 60 * 1000) {
+          logger.info(
+            `[PatrolSessionService] Idempotent start request for employee ${employeeId} on assignment ${assignment.id}. Returning existing running session ${running.id}.`,
+          );
+          return running;
+        }
+      }
+
       const scannedCount = await prisma.patrolCheckpoint.count({
         where: { patrolSessionId: running.id },
       });
 
-      if (!resolveExistingPatrol) {
+      // 2. Offline Synchronization Auto-Resolution Guard:
+      // If request has customStartedAt (replaying an offline patrol session), or resolveExistingPatrol is true,
+      // safely auto-resolve the prior session so that offline queues can drain sequentially without deadlocking on 409.
+      const shouldAutoResolve = resolveExistingPatrol || Boolean(customStartedAt);
+
+      if (!shouldAutoResolve) {
         // Return structured conflict error payload (whether 0 scans or >0 scans)
         throw new AppError(
           HttpStatus.CONFLICT,
@@ -108,9 +128,18 @@ export class PatrolSessionService {
           },
         );
       } else {
-        // User confirmed resolution (resolveExistingPatrol: true)
+        // User confirmed resolution or offline sync auto-resolution
         if (scannedCount >= 1) {
-          const endedAt = new Date();
+          const lastCheckpoint = await prisma.patrolCheckpoint.findFirst({
+            where: { patrolSessionId: running.id },
+            orderBy: [{ completedAt: 'desc' }, { scannedAt: 'desc' }],
+          });
+
+          let endedAt = lastCheckpoint?.completedAt || lastCheckpoint?.scannedAt || new Date();
+          if (startedAt && startedAt.getTime() > running.startedAt.getTime() && endedAt.getTime() > startedAt.getTime()) {
+            endedAt = startedAt;
+          }
+
           const totalDuration = Math.max(
             0,
             Math.round((endedAt.getTime() - running.startedAt.getTime()) / 1000),
